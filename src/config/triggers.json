@@ -1,0 +1,30 @@
+{
+  "critical": {
+    "coolantTempThreshold": 105,
+    "frontTyreCriticalPSI": 30,
+    "rearTyreCriticalPSI": 26,
+    "dtcFaultEnabled": true
+  },
+  "advisory": {
+    "lowFuelPercent": 15,
+    "frontTyreLowPSI": 32,
+    "rearTyreLowPSI": 38,
+    "trafficRadiusKm": 5,
+    "batteryLowVolts": 11.8,
+    "rainConditions": ["Rain", "Drizzle", "Thunderstorm"]
+  },
+  "ambient": {
+    "engineWarmTemp": 80,
+    "ambientCooldownMinutes": 5,
+    "rideMilestoneKm": [50, 100, 200, 500]
+  },
+  "safeWindow": {
+    "maxRPM": 5000,
+    "maxLeanAngle": 20,
+    "brakingThresholdG": 0.3
+  },
+  "speechGate": {
+    "maxRpmForAnyAudio": 6000,
+    "maxLeanForNonCritical": 20
+  }
+}
