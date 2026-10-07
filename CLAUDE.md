@@ -228,7 +228,11 @@ Constraints:
 - `local_fact` uses the nearest place in `BikeState.nearbyPlaces` within `ambient.placeRadiusKm` that has not been
   mentioned this ride; the place is marked mentioned when the event is created. A tour-guide roll with no fresh
   place is silence.
-- `ambient_banter` gets `rideContext` (time of day, minutes out, weather, fuel, traffic count). No speed, lean or RPM.
+- `ambient_banter` gets ONE angle per quip from `banterAngles` (time of day, weather, duration, fuel, traffic,
+  standing still). No speed, lean or RPM. Angle ids are bucketed (part of day, weather summary, half hour, quarter
+  tank), and a used angle is not offered again that ride, so she cannot make the same time-of-day joke twice.
+  A banter roll with no unused angle is silence. (First version sent the whole context every time and she repeated
+  "middle of the night, N minutes in" in every quip.)
 - Ambient flavours and `ride_milestone` get a flavour prompt (`FLAVOUR_PROMPTS`) and no bike-state JSON.
   The ambient flavours have an empty fallback: no key, an error, or a `SILENT` reply all mean she says nothing.
 - `main.ts` drops an ambient line if a P1 condition became active while Claude was answering.

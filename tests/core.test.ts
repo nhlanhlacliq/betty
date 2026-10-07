@@ -6,7 +6,7 @@ import { bboxAround, haversineKm } from '../src/core/geo';
 import { CONFIG, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
 import { ClaudeClient, buildClaudeRequest, extractText } from '../src/core/ClaudeClient';
-import { chooseAmbient, freshPlace, rideContext } from '../src/core/ambient';
+import { banterAngles, chooseAmbient, freshAngle, freshPlace } from '../src/core/ambient';
 import { parseWikiPlaces } from '../src/adapters/PlaceSource';
 
 let clock = 1_000_000;
@@ -178,7 +178,7 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
 // engine: one ambient slot per cooldown, nothing right at ride start
 {
   const e = new TriggerEngine(now, () => 0); // rng 0 = banter
-  const s = initialState();
+  const s = { ...initialState(), speedKmh: 60 };
   assert.equal(e.evaluate(s).length, 0, 'no ambient at ride start');
   clock += SLOT();
   const a = e.evaluate(s);
@@ -187,8 +187,16 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.match(a[0].context, /Ride context:/);
   assert.equal(e.evaluate(s).length, 0, 'slot used');
   clock += SLOT();
-  assert.equal(e.evaluate({ ...s, rpm: 8000 }).length, 0, 'waits for the safe window');
-  assert.equal(e.evaluate(s).length, 1, 'slot was kept for the next safe moment');
+  const w = { ...s, weather: wx() };
+  assert.equal(e.evaluate({ ...w, rpm: 8000 }).length, 0, 'waits for the safe window');
+  const b = e.evaluate(w);
+  assert.equal(b.length, 1, 'slot was kept for the next safe moment');
+  assert.notEqual(b[0].context, a[0].context, 'a new angle, not the time of day again');
+  clock += SLOT();
+  assert.equal(e.evaluate(w).length, 0, 'every current angle used: silence, not a rerun');
+  clock += SLOT();
+  assert.match(e.evaluate({ ...w, weather: wx({ summary: 'rain' }) })[0].context, /rain/, 'changed weather is a fresh angle');
+  assert.equal(e.force('ambient_banter', s).context, '', 'forced with nothing fresh has nothing to go on');
 }
 // engine: tour guide is grounded and never repeats a place
 {
@@ -227,11 +235,20 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.equal(e.ambientBlocked({ ...initialState(), fuelPct: 10 }), true, 'follows configured priority');
   resetConfig();
 }
-// banter context never carries speed, lean or rpm
+// banter angles: one topic each, bucketed so they return only when the fact changes; no riding telemetry
 {
-  const c = rideContext({ ...initialState(), speedKmh: 137, leanDeg: 33, rpm: 8123, weather: wx() }, 50, new Date(2026, 0, 1, 7));
-  assert.match(c, /early morning/); assert.match(c, /50 minutes/); assert.match(c, /clear/);
-  assert.ok(!/137|33|8123/.test(c), 'no riding telemetry in banter context');
+  const at = new Date(2026, 0, 1, 7);
+  const s = { ...initialState(), speedKmh: 137, leanDeg: 33, rpm: 8123, weather: wx() };
+  const early = banterAngles(s, 3, at);
+  assert.deepEqual(early.map((x) => x.id.split(':')[0]), ['angle-time', 'angle-weather'], 'no duration or fuel angle early on a full tank');
+  const later = banterAngles({ ...s, fuelPct: 55, speedKmh: 0, incidents: [inc()] }, 50, at);
+  assert.deepEqual(later.map((x) => x.id.split(':')[0]), ['angle-time', 'angle-weather', 'angle-duration', 'angle-fuel', 'angle-traffic', 'angle-stopped']);
+  assert.ok(!/137|33|8123/.test(JSON.stringify(banterAngles(s, 50, at))), 'no riding telemetry in banter');
+  assert.equal(banterAngles(s, 50, at)[2].id, banterAngles(s, 59, at)[2].id, 'same half hour, same angle');
+  assert.notEqual(banterAngles(s, 50, at)[2].id, banterAngles(s, 61, at)[2].id);
+  assert.equal(freshAngle(early, new Set([early[0].id]), () => 0)?.id, early[1].id);
+  assert.equal(freshAngle(early, new Set(early.map((x) => x.id))), null);
+  assert.equal(chooseAmbient({ banterWeight: 1, tourGuideWeight: 0, silenceWeight: 0 }, true, () => 0, false), null, 'banter roll with no fresh angle is silence');
 }
 // prompt builder: only the supplied place notes, flavour instructions attached
 {

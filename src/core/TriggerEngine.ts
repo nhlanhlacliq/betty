@@ -1,5 +1,5 @@
 import { CONFIG } from '../config/betty';
-import { chooseAmbient, freshPlace, rideContext } from './ambient';
+import { banterAngles, chooseAmbient, freshAngle, freshPlace, partOfDay } from './ambient';
 import { initialState } from './StateAggregator';
 import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 
@@ -18,7 +18,8 @@ export class TriggerEngine {
   private announced = new Set<string>();
   private rideStart: number;
   private milestonesHit = 0;
-  private mentionedPlaces = new Set<string>();
+  /** Place ids and banter angle ids already used this ride. */
+  private mentioned = new Set<string>();
   private lastAmbientSlot: number;
 
   constructor(private now: () => number = Date.now, private rng: () => number = Math.random) {
@@ -26,7 +27,7 @@ export class TriggerEngine {
   }
 
   reset() {
-    this.lastFired.clear(); this.announced.clear(); this.mentionedPlaces.clear();
+    this.lastFired.clear(); this.announced.clear(); this.mentioned.clear();
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now();
   }
 
@@ -45,11 +46,8 @@ export class TriggerEngine {
   /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
   force(id: TriggerId, s: BikeState, incident?: TrafficIncident): TriggerEvent {
     this.lastFired.set(id, this.now());
-    const { context, fallback } = this.describe(id, s, incident);
-    if (id === 'local_fact') {
-      const place = freshPlace(s.nearbyPlaces, this.mentionedPlaces, CONFIG.ambient.placeRadiusKm);
-      if (place) this.mentionedPlaces.add(place.id); // never the same place twice in a ride
-    }
+    const { context, fallback, used } = this.describe(id, s, incident);
+    if (used) this.mentioned.add(used); // never the same place or banter angle twice in a ride
     return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now() };
   }
 
@@ -86,11 +84,16 @@ export class TriggerEngine {
     const slotDue = this.now() - this.lastAmbientSlot >= CONFIG.ambientCooldownMs + AMBIENT_SLACK_MS;
     if (slotDue && !out.length && isSafeWindow(s) && !this.ambientBlocked(s)) {
       this.lastAmbientSlot = this.now();
-      const fresh = freshPlace(s.nearbyPlaces, this.mentionedPlaces, CONFIG.ambient.placeRadiusKm);
-      const pick = chooseAmbient(CONFIG.ambient, fresh !== null, this.rng);
+      const place = freshPlace(s.nearbyPlaces, this.mentioned, CONFIG.ambient.placeRadiusKm);
+      const pick = chooseAmbient(CONFIG.ambient, place !== null, this.rng, this.angle(s) !== null);
       if (pick) out.push(this.force(pick, s));
     }
     return out;
+  }
+
+  private minutesOut() { return (this.now() - this.rideStart) / 60_000; }
+  private angle(s: BikeState) {
+    return freshAngle(banterAngles(s, this.minutesOut(), new Date(this.now())), this.mentioned, this.rng);
   }
 
   private ready(id: TriggerId) {
@@ -98,10 +101,10 @@ export class TriggerEngine {
     return last === undefined || this.now() - last >= CONFIG.cooldownsMs[id];
   }
 
-  private describe(id: TriggerId, s: BikeState, incident?: TrafficIncident): { context: string; fallback: string } {
+  private describe(id: TriggerId, s: BikeState, incident?: TrafficIncident): { context: string; fallback: string; used?: string } {
     switch (id) {
       case 'startup':
-        return { context: 'The ride session has just started.', fallback: 'Systems online.' };
+        return { context: `The ride session has just started. It is ${partOfDay(new Date(this.now()).getHours())}.`, fallback: 'Systems online.' };
       case 'engine_overtemp':
         return {
           context: `Engine temperature is ${s.engineTempC} C and climbing.`,
@@ -143,13 +146,13 @@ export class TriggerEngine {
       }
       // Ambient flavours have no canned fallback: without Claude, or with nothing to go on, Betty stays quiet.
       case 'ambient_banter': {
-        const mins = (this.now() - this.rideStart) / 60_000;
-        return { context: `Ride context: ${rideContext(s, mins, new Date(this.now()))}`, fallback: '' };
+        const a = this.angle(s);
+        return a ? { context: `Ride context: ${a.text}`, fallback: '', used: a.id } : { context: '', fallback: '' };
       }
       case 'local_fact': {
-        const p = freshPlace(s.nearbyPlaces, this.mentionedPlaces, CONFIG.ambient.placeRadiusKm);
+        const p = freshPlace(s.nearbyPlaces, this.mentioned, CONFIG.ambient.placeRadiusKm);
         if (!p) return { context: '', fallback: '' };
-        return { context: `He is about ${km(p.distanceKm)} from ${p.name}. Notes on ${p.name}: ${p.summary}`, fallback: '' };
+        return { context: `He is about ${km(p.distanceKm)} from ${p.name}. Notes on ${p.name}: ${p.summary}`, fallback: '', used: p.id };
       }
       case 'rider_query':
         return {
