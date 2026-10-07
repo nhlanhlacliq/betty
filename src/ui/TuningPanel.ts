@@ -1,5 +1,6 @@
 import { CONFIG } from '../config/betty';
 import { resetAndSave, saveConfig } from '../config/persist';
+import { RideLog } from '../adapters/RideLog';
 import { Priority, TRIGGER_IDS } from '../core/types';
 import { button, el } from './dom';
 
@@ -77,6 +78,12 @@ export function mountTuningPanel(root: HTMLElement) {
     numRow('Max RPM', () => CONFIG.safeWindow.maxRpm, (v) => (CONFIG.safeWindow.maxRpm = v), 1000, 12000, 100, 'rpm'),
     numRow('Max lean', () => CONFIG.safeWindow.maxLeanDeg, (v) => (CONFIG.safeWindow.maxLeanDeg = v), 1, 60, 1, '°'),
   );
+
+  wrap.append(el('h3', '', "Betty's memory (kept on this device only)"));
+  const forget = button('', () => { RideLog.clear(); showMemory(); });
+  const showMemory = () => { forget.textContent = `Forget past rides (${RideLog.load().length} remembered)`; };
+  showMemory();
+  wrap.append(forget);
 
   wrap.append(button('Reset all to defaults', () => { resetAndSave(); mountTuningPanel(root); }));
   root.append(wrap);

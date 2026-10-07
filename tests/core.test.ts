@@ -6,7 +6,9 @@ import { bboxAround, haversineKm } from '../src/core/geo';
 import { CONFIG, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
 import { ClaudeClient, buildClaudeRequest, extractText } from '../src/core/ClaudeClient';
-import { banterAngles, chooseAmbient, freshAngle, freshPlace } from '../src/core/ambient';
+import { BANTER_MODES, banterContext, banterTopics, chooseAmbient, freshPlace, pickMode, pickTopic } from '../src/core/ambient';
+import { RideStats } from '../src/core/RideStats';
+import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
 import { parseWikiPlaces } from '../src/adapters/PlaceSource';
 
 let clock = 1_000_000;
@@ -175,28 +177,29 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.equal(freshPlace(ps, new Set(['a']), 4)?.id, 'b');
   assert.equal(freshPlace(ps, new Set(['a', 'b']), 4), null, 'out-of-radius place is not used');
 }
-// engine: one ambient slot per cooldown, nothing right at ride start
+// engine: one ambient slot per cooldown, nothing right at ride start, banter never runs dry
 {
   const e = new TriggerEngine(now, () => 0); // rng 0 = banter
-  const s = { ...initialState(), speedKmh: 60 };
+  const s = { ...initialState(), speedKmh: 60, weather: wx() };
   assert.equal(e.evaluate(s).length, 0, 'no ambient at ride start');
   clock += SLOT();
   const a = e.evaluate(s);
   assert.equal(a[0].id, 'ambient_banter'); assert.equal(a[0].priority, 3);
   assert.equal(a[0].fallback, '', 'no canned banter');
-  assert.match(a[0].context, /Ride context:/);
+  assert.match(a[0].context, /Topic for this remark:/); assert.match(a[0].context, /Background/);
   assert.equal(e.evaluate(s).length, 0, 'slot used');
   clock += SLOT();
-  const w = { ...s, weather: wx() };
-  assert.equal(e.evaluate({ ...w, rpm: 8000 }).length, 0, 'waits for the safe window');
-  const b = e.evaluate(w);
-  assert.equal(b.length, 1, 'slot was kept for the next safe moment');
-  assert.notEqual(b[0].context, a[0].context, 'a new angle, not the time of day again');
-  clock += SLOT();
-  assert.equal(e.evaluate(w).length, 0, 'every current angle used: silence, not a rerun');
-  clock += SLOT();
-  assert.match(e.evaluate({ ...w, weather: wx({ summary: 'rain' }) })[0].context, /rain/, 'changed weather is a fresh angle');
-  assert.equal(e.force('ambient_banter', s).context, '', 'forced with nothing fresh has nothing to go on');
+  assert.equal(e.evaluate({ ...s, rpm: 8000 }).length, 0, 'waits for the safe window');
+  const topicOf = (ev: TriggerEvent) => ev.context.split('\n')[0];
+  const modeOf = (ev: TriggerEvent) => ev.context.split('\n')[1];
+  const seen = [a[0]];
+  seen.push(e.evaluate(s)[0]);
+  for (let i = 0; i < 20; i++) { clock += SLOT(); const r = e.evaluate(s); assert.equal(r.length, 1, 'banter never runs out'); seen.push(r[0]); }
+  for (let i = 1; i < seen.length; i++) {
+    assert.notEqual(topicOf(seen[i]), topicOf(seen[i - 1]), 'never the same topic twice in a row');
+    assert.notEqual(modeOf(seen[i]), modeOf(seen[i - 1]), 'never the same delivery twice in a row');
+  }
+  assert.ok(new Set(seen.slice(0, 5).map((x) => topicOf(x).replace(/\d+/g, ''))).size >= 4, 'early remarks spread over different topics');
 }
 // engine: tour guide is grounded and never repeats a place
 {
@@ -235,20 +238,88 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.equal(e.ambientBlocked({ ...initialState(), fuelPct: 10 }), true, 'follows configured priority');
   resetConfig();
 }
-// banter angles: one topic each, bucketed so they return only when the fact changes; no riding telemetry
+// ride stats: distance, corners, stops, alerts; a quiet tab does not invent riding time
+const ride0 = () => new RideStats(now).snapshot();
+{
+  const st = new RideStats(now);
+  const tick = (over: Partial<BikeState>, ms: number) => { clock += ms; st.update({ ...initialState(), rpm: 3000, fuelPct: 80, ...over }); };
+  tick({ speedKmh: 60 }, 0);
+  for (let i = 0; i < 60; i++) tick({ speedKmh: 60, leanDeg: i < 15 ? 25 : 2 }, 5000); // 5 min at 60 km/h
+  tick({ speedKmh: 0, engineTempC: 96 }, 5000);
+  tick({ speedKmh: 0 }, 5000);
+  st.noteEvent('low fuel'); st.notePlace('Edenvale'); st.notePlace('Edenvale');
+  const sn = st.snapshot();
+  assert.ok(Math.abs(sn.distanceKm - 5) < 0.2, `about 5 km, got ${sn.distanceKm}`);
+  assert.equal(sn.stops, 1); assert.equal(sn.maxLeanDeg, 25); assert.equal(sn.corneringPct, 25);
+  assert.equal(sn.maxEngineTempC, 96); assert.equal(sn.fuelStartPct, 80);
+  assert.deepEqual(sn.places, ['Edenvale']); assert.equal(sn.events[0].what, 'low fuel');
+  tick({ speedKmh: 100 }, 600_000); // tab was asleep for 10 minutes
+  assert.ok(st.snapshot().distanceKm - sn.distanceKm < 0.5, 'a long gap is capped');
+}
+// ride memory: desk tests are not remembered, records upsert and are capped, descriptions read plainly
+{
+  assert.equal(toRecord({ ...ride0(), minutesOut: 1, distanceKm: 0 }, null), null, 'too short to remember');
+  const rec = toRecord({ ...ride0(), startedAt: 1000, minutesOut: 42.4, distanceKm: 31.5, places: ['Soweto'],
+    events: [{ what: 'low fuel', atMin: 5 }, { what: 'low fuel', atMin: 20 }] }, 'clear, 22 C')!;
+  assert.deepEqual(rec, { startedAt: 1000, minutes: 42, distanceKm: 31.5, weather: 'clear, 22 C', places: ['Soweto'], events: ['low fuel'] });
+  let h: RideRecord[] = upsertRide([], rec);
+  h = upsertRide(h, { ...rec, minutes: 50 });
+  assert.equal(h.length, 1, 'same ride is updated, not duplicated'); assert.equal(h[0].minutes, 50);
+  for (let i = 0; i < 40; i++) h = upsertRide(h, { ...rec, startedAt: 2000 + i });
+  assert.equal(h.length, 30); assert.equal(h.at(-1)!.startedAt, 2039);
+  const d = describeRide(rec, 1000 + 3 * 86_400_000);
+  assert.match(d, /3 days ago: 42 minutes, 31.5 km/); assert.match(d, /Soweto/); assert.match(d, /low fuel/);
+  assert.match(describeRide(rec, 1000 + 86_400_000), /yesterday/);
+  assert.match(describeTotals([rec, { ...rec, startedAt: 5 }]), /2 ride\(s\).*63 km/);
+}
+// banter topics: wide pool, grows with the ride and with memory, no current speed or rpm
 {
   const at = new Date(2026, 0, 1, 7);
-  const s = { ...initialState(), speedKmh: 137, leanDeg: 33, rpm: 8123, weather: wx() };
-  const early = banterAngles(s, 3, at);
-  assert.deepEqual(early.map((x) => x.id.split(':')[0]), ['angle-time', 'angle-weather'], 'no duration or fuel angle early on a full tank');
-  const later = banterAngles({ ...s, fuelPct: 55, speedKmh: 0, incidents: [inc()] }, 50, at);
-  assert.deepEqual(later.map((x) => x.id.split(':')[0]), ['angle-time', 'angle-weather', 'angle-duration', 'angle-fuel', 'angle-traffic', 'angle-stopped']);
-  assert.ok(!/137|33|8123/.test(JSON.stringify(banterAngles(s, 50, at))), 'no riding telemetry in banter');
-  assert.equal(banterAngles(s, 50, at)[2].id, banterAngles(s, 59, at)[2].id, 'same half hour, same angle');
-  assert.notEqual(banterAngles(s, 50, at)[2].id, banterAngles(s, 61, at)[2].id);
-  assert.equal(freshAngle(early, new Set([early[0].id]), () => 0)?.id, early[1].id);
-  assert.equal(freshAngle(early, new Set(early.map((x) => x.id))), null);
-  assert.equal(chooseAmbient({ banterWeight: 1, tourGuideWeight: 0, silenceWeight: 0 }, true, () => 0, false), null, 'banter roll with no fresh angle is silence');
+  const ids = (i: Parameters<typeof banterTopics>[0]) => banterTopics(i).map((t) => t.id);
+  const base = { history: [] as RideRecord[], at, placeRadiusKm: 4 };
+  assert.deepEqual(ids({ ...base, s: initialState(), ride: ride0() }), ['time', 'open'], 'bare minimum always has something');
+  const rec: RideRecord = { startedAt: at.getTime() - 2 * 86_400_000, minutes: 40, distanceKm: 30, weather: 'rain, 14 C', places: ['Soweto'], events: ['rain'] };
+  const full = {
+    ...base, history: [rec, rec],
+    s: { ...initialState(), speedKmh: 0, rpm: 8123, fuelPct: 55, engineTempC: 91, weather: wx(), incidents: [inc()],
+      nearbyPlaces: [place({ distanceKm: 9, id: 'far', name: 'Faraway' }), place()] },
+    ride: { ...ride0(), minutesOut: 50, movingMin: 40, distanceKm: 37, stops: 2, maxLeanDeg: 28, corneringPct: 30, maxEngineTempC: 97,
+      fuelStartPct: 80, events: [{ what: 'rain', atMin: 12 }], places: ['Edenvale'] },
+  };
+  assert.deepEqual(ids(full), ['time', 'weather', 'duration', 'distance', 'fuel', 'engine', 'corners', 'stops', 'standing',
+    'traffic', 'location', 'earlier', 'places', 'last_ride', 'totals', 'open']);
+  const text = banterTopics(full).map((t) => t.text).join(' ');
+  assert.match(text, /near Testville/); assert.ok(!/Faraway/.test(text), 'location respects the radius');
+  assert.match(text, /down 25 since setting off/); assert.match(text, /rain at 12 minutes/); assert.match(text, /2 days ago: 40 minutes/);
+  assert.ok(!/8123/.test(text), 'no rpm in banter');
+  assert.ok(!/137/.test(banterTopics({ ...full, s: { ...full.s, speedKmh: 137 } }).map((t) => t.text).join(' ')), 'no current speed in banter');
+
+  // picking: fresh first, then least recently used; a changed fact makes a topic fresh again
+  const ts = banterTopics(full);
+  const used = new Map(ts.map((t, i) => [t.id, { bucket: t.bucket, seq: i + 1 }]));
+  assert.equal(pickTopic(ts, used, () => 0.9)!.id, 'time', 'all used: oldest comes round');
+  used.set('fuel', { bucket: 'different', seq: 99 });
+  assert.equal(pickTopic(ts, used, () => 0.9)!.id, 'fuel', 'changed fact is fresh');
+  assert.equal(pickTopic(ts, new Map(), () => 0)!.id, 'time'); assert.equal(pickTopic([], new Map()), null);
+  for (const m of BANTER_MODES) for (const r of [0, 0.5, 0.99]) assert.notEqual(pickMode(m.id, () => r).id, m.id);
+  const ctx = banterContext(ts[4], BANTER_MODES[3], ts);
+  assert.match(ctx.split('\n')[0], /Fuel is at 55/); assert.match(ctx, /question/);
+  assert.ok(!ctx.split('\n')[2].includes('Fuel is at 55'), 'topic is not repeated in the background');
+  assert.match(ctx.split('\n')[2], /Weather: clear/);
+}
+// engine remembers alerts and places for later banter, and takes past rides
+{
+  const e = new TriggerEngine(now, () => 0);
+  const s = { ...initialState(), speedKmh: 50, fuelPct: 10, nearbyPlaces: [place()] };
+  e.evaluate(s); e.force('local_fact', s);
+  const sn = e.rideSnapshot();
+  assert.equal(sn.events[0].what, 'low fuel'); assert.deepEqual(sn.places, ['Testville']);
+  e.setHistory([{ startedAt: 1, minutes: 30, distanceKm: 20, weather: null, places: [], events: [] }]);
+  const all = Array.from({ length: 12 }, () => e.force('ambient_banter', s).context).join('\n');
+  assert.match(all, /Topic for this remark: Your memory of his last ride/);
+  assert.match(all, /Topic for this remark: Earlier this ride you flagged: low fuel/);
+  e.reset();
+  assert.equal(e.rideSnapshot().events.length, 0, 'reset starts a new ride');
 }
 // prompt builder: only the supplied place notes, flavour instructions attached
 {

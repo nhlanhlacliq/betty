@@ -93,6 +93,7 @@ const banterW = nums.find((n) => n.parentElement?.textContent?.startsWith('Bante
 assert.equal(banterW.value, '40');
 banterW.value = '0'; fire(banterW, 'change');
 assert.equal(CONFIG.ambient.banterWeight, 0);
+assert.ok([...troot.querySelectorAll('button')].some((b) => /Forget past rides \(0 remembered\)/.test(b.textContent!)), 'memory control present');
 const overtemp = nums.find((n) => n.parentElement?.textContent?.startsWith('Engine overtemp'))!;
 overtemp.value = '999'; fire(overtemp, 'change');
 assert.equal(CONFIG.thresholds.overtempC, 130, 'clamped to max');

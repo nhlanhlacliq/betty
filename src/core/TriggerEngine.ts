@@ -1,5 +1,7 @@
 import { CONFIG } from '../config/betty';
-import { banterAngles, chooseAmbient, freshAngle, freshPlace, partOfDay } from './ambient';
+import { banterContext, banterTopics, chooseAmbient, freshPlace, partOfDay, pickMode, pickTopic } from './ambient';
+import { RideRecord } from './RideMemory';
+import { RideSnapshot, RideStats } from './RideStats';
 import { initialState } from './StateAggregator';
 import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 
@@ -8,6 +10,12 @@ export const isSafeWindow = (s: BikeState) =>
 
 /** Margin on top of ambientCooldownMs so a new ambient line is not dropped by the queue's own P3 rate limit. */
 const AMBIENT_SLACK_MS = 5000;
+
+/** How an alert is remembered later in the ride and in the ride log. */
+const EVENT_LABELS: Partial<Record<TriggerId, string>> = {
+  engine_overtemp: 'engine running hot', dtc_detected: 'a fault code', low_fuel: 'low fuel',
+  rain_soon: 'rain', traffic_incident: 'a traffic incident',
+};
 
 const byDistance = (a: TrafficIncident, b: TrafficIncident) => a.distanceKm - b.distanceKm;
 const km = (n: number) => `${Math.round(n * 10) / 10} km`;
@@ -18,18 +26,30 @@ export class TriggerEngine {
   private announced = new Set<string>();
   private rideStart: number;
   private milestonesHit = 0;
-  /** Place ids and banter angle ids already used this ride. */
+  /** Place ids already talked about this ride. */
   private mentioned = new Set<string>();
+  /** When each banter topic was last used, and what its fact was then. */
+  private topicUse = new Map<string, { bucket: string; seq: number }>();
+  private topicSeq = 0;
+  private lastMode: string | null = null;
   private lastAmbientSlot: number;
+  private stats: RideStats;
+  private history: RideRecord[] = [];
 
   constructor(private now: () => number = Date.now, private rng: () => number = Math.random) {
-    this.rideStart = now(); this.lastAmbientSlot = now();
+    this.rideStart = now(); this.lastAmbientSlot = now(); this.stats = new RideStats(now);
   }
 
   reset() {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear();
+    this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now();
+    this.stats = new RideStats(this.now);
   }
+
+  /** Past rides Betty remembers (loaded by the UI layer from wherever they are stored). */
+  setHistory(history: RideRecord[]) { this.history = history; }
+  rideSnapshot(): RideSnapshot { return this.stats.snapshot(); }
 
   /** True while a condition whose trigger is configured P1 is active: no banter or tour guide then. */
   ambientBlocked(s: BikeState): boolean {
@@ -46,12 +66,15 @@ export class TriggerEngine {
   /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
   force(id: TriggerId, s: BikeState, incident?: TrafficIncident): TriggerEvent {
     this.lastFired.set(id, this.now());
-    const { context, fallback, used } = this.describe(id, s, incident);
-    if (used) this.mentioned.add(used); // never the same place or banter angle twice in a ride
+    const { context, fallback, mark } = this.describe(id, s, incident);
+    mark?.();
+    const label = EVENT_LABELS[id];
+    if (label) this.stats.noteEvent(label);
     return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now() };
   }
 
   evaluate(s: BikeState): TriggerEvent[] {
+    this.stats.update(s);
     const out: TriggerEvent[] = [];
     const t = CONFIG.thresholds;
 
@@ -85,15 +108,10 @@ export class TriggerEngine {
     if (slotDue && !out.length && isSafeWindow(s) && !this.ambientBlocked(s)) {
       this.lastAmbientSlot = this.now();
       const place = freshPlace(s.nearbyPlaces, this.mentioned, CONFIG.ambient.placeRadiusKm);
-      const pick = chooseAmbient(CONFIG.ambient, place !== null, this.rng, this.angle(s) !== null);
+      const pick = chooseAmbient(CONFIG.ambient, place !== null, this.rng);
       if (pick) out.push(this.force(pick, s));
     }
     return out;
-  }
-
-  private minutesOut() { return (this.now() - this.rideStart) / 60_000; }
-  private angle(s: BikeState) {
-    return freshAngle(banterAngles(s, this.minutesOut(), new Date(this.now())), this.mentioned, this.rng);
   }
 
   private ready(id: TriggerId) {
@@ -101,7 +119,7 @@ export class TriggerEngine {
     return last === undefined || this.now() - last >= CONFIG.cooldownsMs[id];
   }
 
-  private describe(id: TriggerId, s: BikeState, incident?: TrafficIncident): { context: string; fallback: string; used?: string } {
+  private describe(id: TriggerId, s: BikeState, incident?: TrafficIncident): { context: string; fallback: string; mark?: () => void } {
     switch (id) {
       case 'startup':
         return { context: `The ride session has just started. It is ${partOfDay(new Date(this.now()).getHours())}.`, fallback: 'Systems online.' };
@@ -146,13 +164,23 @@ export class TriggerEngine {
       }
       // Ambient flavours have no canned fallback: without Claude, or with nothing to go on, Betty stays quiet.
       case 'ambient_banter': {
-        const a = this.angle(s);
-        return a ? { context: `Ride context: ${a.text}`, fallback: '', used: a.id } : { context: '', fallback: '' };
+        const topics = banterTopics({
+          s, ride: this.stats.snapshot(), history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
+        });
+        const topic = pickTopic(topics, this.topicUse, this.rng);
+        if (!topic) return { context: '', fallback: '' };
+        const mode = pickMode(this.lastMode, this.rng);
+        return {
+          context: banterContext(topic, mode, topics), fallback: '',
+          mark: () => { this.topicUse.set(topic.id, { bucket: topic.bucket, seq: ++this.topicSeq }); this.lastMode = mode.id; },
+        };
       }
       case 'local_fact': {
         const p = freshPlace(s.nearbyPlaces, this.mentioned, CONFIG.ambient.placeRadiusKm);
         if (!p) return { context: '', fallback: '' };
-        return { context: `He is about ${km(p.distanceKm)} from ${p.name}. Notes on ${p.name}: ${p.summary}`, fallback: '', used: p.id };
+        return { context: `He is about ${km(p.distanceKm)} from ${p.name}. Notes on ${p.name}: ${p.summary}`, fallback: '',
+          mark: () => { this.mentioned.add(p.id); this.stats.notePlace(p.name); }, // never the same place twice in a ride
+        };
       }
       case 'rider_query':
         return {

@@ -14,6 +14,8 @@ import { SwitchableSpeaker } from './adapters/SwitchableSpeaker';
 import { WeatherSource } from './adapters/WeatherSource';
 import { TrafficSource } from './adapters/TrafficSource';
 import { PlaceSource } from './adapters/PlaceSource';
+import { RideLog } from './adapters/RideLog';
+import { toRecord } from './core/RideMemory';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
 import { WakeLock } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
@@ -32,7 +34,7 @@ const feed = { weather: 'idle', traffic: 'idle', places: 'idle' };
 const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places}`;
 
 interface Rig {
-  agg: StateAggregator; unsub: () => void; unmountSim: () => void; wake: WakeLock;
+  agg: StateAggregator; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
 }
 let rig: Rig | null = null;
 const lines: string[] = [];
@@ -68,6 +70,14 @@ async function start() {
   agg.addSource(places);
 
   const engine = new TriggerEngine();
+  engine.setHistory(RideLog.load());
+  // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
+  const remember = () => {
+    const w = agg.current.weather;
+    const rec = toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null);
+    if (rec) RideLog.save(rec);
+  };
+  const memTimer = window.setInterval(remember, 60_000);
   const claude = new ClaudeClient(import.meta.env.VITE_ANTHROPIC_API_KEY || undefined);
   const speaker = new SwitchableSpeaker(new WebSpeaker());
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current));
@@ -115,7 +125,7 @@ async function start() {
   await wake.enable();
   await agg.start();
   say(engine.startup());
-  rig = { agg, unsub, unmountSim, wake };
+  rig = { agg, unsub, unmountSim, wake, remember, memTimer };
   toggle.textContent = 'END RIDE';
   toggle.classList.add('stop');
   realBox.disabled = true;
@@ -123,6 +133,7 @@ async function start() {
 }
 
 async function stop() {
+  if (rig) { clearInterval(rig.memTimer); rig.remember(); }
   rig?.unsub();
   rig?.agg.stop();
   rig?.unmountSim();

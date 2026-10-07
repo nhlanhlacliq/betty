@@ -65,7 +65,9 @@ src/
     TriggerEngine.ts       When should Betty speak; per-trigger cooldown/dedupe; force(); isSafeWindow()
     AudioQueue.ts          Priority queue + Speaker interface; generation guard against stale onDone
     ClaudeClient.ts        Event -> Phrase {text, source claude|fallback, detail, latencyMs}; buildClaudeRequest (pure)
-    ambient.ts             chooseAmbient (weighted, injectable RNG), freshPlace (novelty), rideContext (banter facts)
+    ambient.ts             chooseAmbient (weighted, injectable RNG), freshPlace, banterTopics/pickTopic/pickMode
+    RideStats.ts           Running totals for the current ride (distance, stops, lean, alerts, places)
+    RideMemory.ts          RideRecord, toRecord, upsertRide, describeRide/describeTotals (cross-ride memory, pure)
     geo.ts                 haversineKm, bboxAround
   adapters/                Everything that touches a browser API, network or hardware
     WebGeoSource.ts        navigator.geolocation -> speed/lat/lon/heading
@@ -78,6 +80,7 @@ src/
     TrafficSource.ts       Polls a TrafficProvider; idle without one
     TomTomTraffic.ts       TomTom incidentDetails v5 provider (needs VITE_TOMTOM_API_KEY)
     PlaceSource.ts         Wikipedia geosearch + intro extracts -> BikeState.nearbyPlaces (tour-guide grounding)
+    RideLog.ts             localStorage store for past rides (Betty's cross-ride memory)
   ui/
     SimPanel.ts            SIMULATOR panel (mounted per ride)
     TuningPanel.ts         TUNING panel (always mounted)
@@ -228,11 +231,24 @@ Constraints:
 - `local_fact` uses the nearest place in `BikeState.nearbyPlaces` within `ambient.placeRadiusKm` that has not been
   mentioned this ride; the place is marked mentioned when the event is created. A tour-guide roll with no fresh
   place is silence.
-- `ambient_banter` gets ONE angle per quip from `banterAngles` (time of day, weather, duration, fuel, traffic,
-  standing still). No speed, lean or RPM. Angle ids are bucketed (part of day, weather summary, half hour, quarter
-  tank), and a used angle is not offered again that ride, so she cannot make the same time-of-day joke twice.
-  A banter roll with no unused angle is silence. (First version sent the whole context every time and she repeated
-  "middle of the night, N minutes in" in every quip.)
+- `ambient_banter` never runs dry. `banterTopics` builds a pool from everything known: time of day, weather,
+  duration, distance, fuel (and fuel used), engine temp, how twisty the road has been (lean), stops, standing still,
+  traffic, nearest place name, alerts flagged earlier this ride, places already talked about, the last ride and
+  ride totals from memory, plus an open "whatever strikes you" topic. `pickTopic` takes a topic whose fact has
+  changed since last use (bucketed ids) or was never used; otherwise the least recently used one comes round.
+  `pickMode` rotates the delivery (quip, observation, thought, question, callback), never the same twice in a row.
+  The request names ONE topic and gives the rest as background. History: v1 sent the whole context every time and
+  every quip was "middle of the night, N minutes in"; v2 used each angle once and ran out after five.
+- Owner asked (2026-10-08) for lean and bike data in banter. Current speed and RPM stay out; lean appears only as
+  how twisty the road has been, and the prompt forbids praise, rating or challenge. Do not loosen that further
+  without being asked.
+- `RideStats` (in the engine, fed by `evaluate`) tracks distance, moving time, stops, max lean, cornering share,
+  max engine temp, fuel at start, alerts flagged and places mentioned. Update gaps are capped at 10 s so a
+  throttled tab does not invent distance.
+- Memory: `RideMemory` turns the stats into a `RideRecord`; `adapters/RideLog` keeps the last 30 in localStorage
+  (`betty.rides.v1`), saved every minute and at END RIDE. Sessions under 3 min and 1 km are not remembered.
+  TUNING has "Forget past rides". Memory is per device/browser. Questions she asks cannot be answered until voice
+  input exists, so the question delivery is told to need no reply.
 - Ambient flavours and `ride_milestone` get a flavour prompt (`FLAVOUR_PROMPTS`) and no bike-state JSON.
   The ambient flavours have an empty fallback: no key, an error, or a `SILENT` reply all mean she says nothing.
 - `main.ts` drops an ambient line if a P1 condition became active while Claude was answering.
@@ -317,7 +333,7 @@ Betty should feel like a companion, so most ambient lines should be one of these
 3. Move the Claude/TomTom calls behind Vercel serverless functions so keys are not exposed.
 4. Build the chat-style test mode above.
 5. Ambient personality: done. Tune weights and prompts after real rides.
-6. Session memory as a proper core module instead of the short list in ClaudeClient.
+6. Memory: ride stats and past-ride records are built. Still open: remembering what the rider says (needs voice input).
 7. Voice input "Hey Betty" feeding the same `rider_query` path.
 8. TPMS BLE (Web Bluetooth works on Android Chrome only; otherwise Phase 4).
 9. Phase 4: Pi adapters (python-obd/ELM327, Piper TTS, Porcupine). Hardware BOM was estimated around R2,180 total.
