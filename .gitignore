@@ -1,24 +1,6 @@
-node_modules/
-.expo/
-dist/
-web-build/
-
-# Environment — never commit
-.env
-.env.local
-
-# OS
+node_modules
+dist
+.env*
+!.env.example
+.vercel
 .DS_Store
-Thumbs.db
-
-# IDE
-.idea/
-.vscode/
-*.swp
-
-# Logs
-*.log
-npm-debug.log*
-
-# TypeScript build
-*.tsbuildinfo

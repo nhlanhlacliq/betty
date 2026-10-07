@@ -1,108 +1,50 @@
-import { BikeState, createDefaultBikeState } from '../models/BikeState';
-import {
-  OBD2Adapter,
-  GPSAdapter,
-  IMUAdapter,
-  TPMSAdapter,
-} from '../adapters/interfaces';
-import { WeatherAPIClient } from '../adapters/WeatherAPIClient';
-import { TrafficAPIClient } from '../adapters/TrafficAPIClient';
+import { BikeState, DataSource } from './types';
 
-type StateChangeCallback = (state: BikeState) => void;
-
-const OBD2_POLL_INTERVAL_MS = 1000; // 1 Hz
+export const initialState = (): BikeState => ({
+  timestamp: Date.now(), rpm: 0, engineTempC: 0, throttlePct: 0, fuelPct: 100, dtcs: [],
+  speedKmh: 0, lat: null, lon: null, headingDeg: null, leanDeg: 0,
+  weather: null, incidents: [],
+});
 
 /**
- * L3 — StateAggregator
- *
- * Merges data streams from all L2 adapters into a single BikeState.
- * Notifies subscribers whenever state changes.
+ * Merges partial updates from any DataSource into one BikeState and notifies listeners.
+ * Overrides (used by the simulator) are layered on top of real values; clearing one restores the real value.
  */
 export class StateAggregator {
-  private state: BikeState = createDefaultBikeState();
-  private callbacks: Set<StateChangeCallback> = new Set();
-  private obd2PollTimer: ReturnType<typeof setInterval> | null = null;
-  private weatherTimer: ReturnType<typeof setInterval> | null = null;
-  private unsubscribers: Array<() => void> = [];
+  private real = initialState();
+  private overrides: Partial<BikeState> = {};
+  private state = initialState();
+  private listeners = new Set<(s: BikeState) => void>();
+  private sources: DataSource[] = [];
 
-  constructor(
-    private obd2: OBD2Adapter,
-    private gps: GPSAdapter,
-    private imu: IMUAdapter,
-    private tpms: TPMSAdapter,
-    private weather: WeatherAPIClient,
-    private traffic: TrafficAPIClient,
-  ) {}
+  addSource(src: DataSource) { this.sources.push(src); }
+  get current(): BikeState { return this.state; }
 
-  async start(): Promise<void> {
-    // OBD2 — polled at 1 Hz
-    await this.obd2.connect();
-    this.obd2PollTimer = setInterval(async () => {
-      const data = await this.obd2.poll();
-      this.merge(data);
-    }, OBD2_POLL_INTERVAL_MS);
-
-    // GPS — event-driven via subscription
-    await this.gps.start();
-    this.unsubscribers.push(
-      this.gps.subscribe((data) => this.merge(data)),
-    );
-
-    // IMU — high-frequency event-driven
-    this.imu.start();
-    this.unsubscribers.push(
-      this.imu.subscribe((data) => this.merge(data)),
-    );
-
-    // TPMS — slow event-driven
-    await this.tpms.startScan();
-    this.unsubscribers.push(
-      this.tpms.subscribe((data) => this.merge(data)),
-    );
-
-    // Weather & Traffic — polled, rate-limited inside the clients
-    const fetchExternal = async () => {
-      const { gpsLat, gpsLon } = this.state;
-      const [weatherData, trafficData] = await Promise.all([
-        this.weather.fetch(gpsLat, gpsLon),
-        this.traffic.fetch(gpsLat, gpsLon),
-      ]);
-      this.merge({ ...weatherData, ...trafficData });
-    };
-
-    await fetchExternal();
-    this.weatherTimer = setInterval(fetchExternal, 60_000); // re-check every minute (clients self-throttle)
-
-    console.log('[StateAggregator] All adapters started');
+  subscribe(fn: (s: BikeState) => void) {
+    this.listeners.add(fn);
+    return () => { this.listeners.delete(fn); };
   }
 
-  stop(): void {
-    if (this.obd2PollTimer) clearInterval(this.obd2PollTimer);
-    if (this.weatherTimer) clearInterval(this.weatherTimer);
-    this.unsubscribers.forEach((fn) => fn());
-    this.unsubscribers = [];
-    this.gps.stop();
-    this.imu.stop();
-    this.tpms.stopScan();
-    this.obd2.disconnect();
-    console.log('[StateAggregator] Stopped');
+  push(partial: Partial<BikeState>) {
+    this.real = { ...this.real, ...partial };
+    this.emit();
   }
 
-  getState(): BikeState {
-    return { ...this.state };
+  setOverride<K extends keyof BikeState>(key: K, value: BikeState[K]) { this.overrides[key] = value; this.emit(); }
+  clearOverride(key: keyof BikeState) { delete this.overrides[key]; this.emit(); }
+  getOverride<K extends keyof BikeState>(key: K): BikeState[K] | undefined { return this.overrides[key]; }
+  hasOverride(key: keyof BikeState) { return key in this.overrides; }
+
+  private emit() {
+    this.state = { ...this.real, ...this.overrides, timestamp: Date.now() };
+    this.listeners.forEach((l) => l(this.state));
   }
 
-  subscribe(callback: StateChangeCallback): () => void {
-    this.callbacks.add(callback);
-    return () => this.callbacks.delete(callback);
+  async start() {
+    for (const s of this.sources) {
+      try { await s.start((p) => this.push(p)); }
+      catch (e) { console.warn('[Betty] data source failed:', e); } // graceful degradation
+    }
   }
-
-  private merge(partial: Partial<BikeState>): void {
-    this.state = {
-      ...this.state,
-      ...partial,
-      timestamp: Date.now(),
-    };
-    this.callbacks.forEach((cb) => cb(this.getState()));
-  }
+  stop() { this.sources.forEach((s) => s.stop()); }
 }

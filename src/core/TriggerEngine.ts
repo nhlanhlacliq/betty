@@ -1,205 +1,119 @@
-import { BikeState } from '../models/BikeState';
-import {
-  TriggerEvent,
-  TriggerPriority,
-  TriggerType,
-  createTriggerEvent,
-} from '../models/TriggerEvent';
-import triggersConfig from '../config/triggers.json';
+import { CONFIG } from '../config/betty';
+import { initialState } from './StateAggregator';
+import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 
-type TriggerCallback = (event: TriggerEvent) => void;
+export const isSafeWindow = (s: BikeState) =>
+  s.rpm < CONFIG.safeWindow.maxRpm && Math.abs(s.leanDeg) < CONFIG.safeWindow.maxLeanDeg;
 
-/**
- * L4 — TriggerEngine
- *
- * Evaluates every incoming BikeState update against all trigger rules.
- * Enforces once-per-session deduplication for P2 and P3 triggers.
- * Fires P1 unconditionally (safety critical, no deduplication).
- */
+const byDistance = (a: TrafficIncident, b: TrafficIncident) => a.distanceKm - b.distanceKm;
+const km = (n: number) => `${Math.round(n * 10) / 10} km`;
+
+/** Evaluates state, emits deduplicated trigger events. Pure logic: no I/O, easy to test. All tuning is read live from CONFIG. */
 export class TriggerEngine {
-  private firedThisSession = new Set<TriggerType>();
-  private callbacks: Set<TriggerCallback> = new Set();
-  private lastAmbientAt = 0;
-  private readonly AMBIENT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+  private lastFired = new Map<TriggerId, number>();
+  private announced = new Set<string>();
+  private rideStart: number;
+  private milestonesHit = 0;
 
-  onTrigger(callback: TriggerCallback): () => void {
-    this.callbacks.add(callback);
-    return () => this.callbacks.delete(callback);
+  constructor(private now: () => number = Date.now) { this.rideStart = now(); }
+
+  reset() {
+    this.lastFired.clear(); this.announced.clear();
+    this.rideStart = this.now(); this.milestonesHit = 0;
   }
 
-  resetSession(): void {
-    this.firedThisSession.clear();
-    this.lastAmbientAt = 0;
-    console.log('[TriggerEngine] Session reset');
+  startup(): TriggerEvent { return this.force('startup', initialState()); }
+
+  /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
+  force(id: TriggerId, s: BikeState, incident?: TrafficIncident): TriggerEvent {
+    this.lastFired.set(id, this.now());
+    const { context, fallback } = this.describe(id, s, incident);
+    return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now() };
   }
 
-  evaluate(state: BikeState): void {
-    this.evaluateCritical(state);
-    this.evaluateAdvisory(state);
-    this.evaluateAmbient(state);
-  }
+  evaluate(s: BikeState): TriggerEvent[] {
+    const out: TriggerEvent[] = [];
+    const t = CONFIG.thresholds;
 
-  // ─── P1 Critical ──────────────────────────────────────────────────────────
+    if (s.engineTempC >= t.overtempC && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
+    if (s.dtcs.length && this.ready('dtc_detected')) out.push(this.force('dtc_detected', s));
+    if (s.fuelPct > 0 && s.fuelPct <= t.lowFuelPct && this.ready('low_fuel')) out.push(this.force('low_fuel', s));
 
-  private evaluateCritical(state: BikeState): void {
-    const cfg = triggersConfig.critical;
-
-    if (state.coolantTemp > cfg.coolantTempThreshold) {
-      this.fire(
-        TriggerPriority.P1_CRITICAL,
-        TriggerType.OVERTEMP,
-        { coolantTemp: state.coolantTemp },
-        state,
-        false, // P1: never deduplicate
-      );
+    const w = s.weather;
+    if (w && (w.rainNowMm >= 0.1 || w.rainChanceNextHourPct >= t.rainChancePct) && this.ready('rain_soon')) {
+      out.push(this.force('rain_soon', s));
     }
 
-    if (state.rearTyrePSI < cfg.rearTyreCriticalPSI) {
-      this.fire(
-        TriggerPriority.P1_CRITICAL,
-        TriggerType.TYRE_PRESSURE_CRITICAL,
-        { tyre: 'rear', psi: state.rearTyrePSI },
-        state,
-        false,
-      );
+    const inc = s.incidents
+      .filter((i) => i.distanceKm <= t.trafficRadiusKm && i.severity >= t.trafficMinSeverity && !this.announced.has(i.id))
+      .sort(byDistance)[0];
+    if (inc && this.ready('traffic_incident')) {
+      this.announced.add(inc.id);
+      out.push(this.force('traffic_incident', s, inc));
     }
 
-    if (state.frontTyrePSI < cfg.frontTyreCriticalPSI) {
-      this.fire(
-        TriggerPriority.P1_CRITICAL,
-        TriggerType.TYRE_PRESSURE_CRITICAL,
-        { tyre: 'front', psi: state.frontTyrePSI },
-        state,
-        false,
-      );
+    const mins = (this.now() - this.rideStart) / 60_000;
+    const due = Math.floor(mins / CONFIG.milestoneEveryMin);
+    if (due > this.milestonesHit && this.ready('ride_milestone')) {
+      this.milestonesHit = due;
+      out.push(this.force('ride_milestone', s));
     }
+    return out;
+  }
 
-    if (state.dtcCodes.length > 0) {
-      this.fire(
-        TriggerPriority.P1_CRITICAL,
-        TriggerType.DTC_FAULT,
-        { codes: state.dtcCodes },
-        state,
-        false,
-      );
+  private ready(id: TriggerId) {
+    const last = this.lastFired.get(id);
+    return last === undefined || this.now() - last >= CONFIG.cooldownsMs[id];
+  }
+
+  private describe(id: TriggerId, s: BikeState, incident?: TrafficIncident): { context: string; fallback: string } {
+    switch (id) {
+      case 'startup':
+        return { context: 'The ride session has just started.', fallback: 'Systems online.' };
+      case 'engine_overtemp':
+        return {
+          context: `Engine temperature is ${s.engineTempC} C and climbing.`,
+          fallback: 'Engine temp is high. Ease off and find somewhere to pull over.',
+        };
+      case 'dtc_detected': {
+        const codes = s.dtcs.length ? s.dtcs : ['P0000'];
+        return {
+          context: `The bike reported fault codes: ${codes.join(', ')}.`,
+          fallback: `The bike's reporting a fault code, ${codes[0]}. Worth checking when you stop.`,
+        };
+      }
+      case 'low_fuel':
+        return {
+          context: `Fuel is at ${Math.round(s.fuelPct)} percent.`,
+          fallback: `Fuel's at ${Math.round(s.fuelPct)} percent. Time to find a station.`,
+        };
+      case 'rain_soon': {
+        const w = s.weather;
+        const raining = (w?.rainNowMm ?? 0) >= 0.1;
+        const chance = w?.rainChanceNextHourPct ?? 70;
+        return {
+          context: raining ? 'It is raining at the rider\'s location right now.' : `There is a ${chance} percent chance of rain in the next hour.`,
+          fallback: raining ? 'It\'s raining out there. Watch your grip.' : `${chance} percent chance of rain within the hour. Maybe plan a cover stop.`,
+        };
+      }
+      case 'traffic_incident': {
+        const i = incident ?? [...s.incidents].sort(byDistance)[0]
+          ?? { id: 'x', description: 'an incident', severity: 2, distanceKm: 2, lat: 0, lon: 0 };
+        const where = i.roadName ? ` on ${i.roadName}` : '';
+        return {
+          context: `Traffic report: ${i.description}${where}, about ${km(i.distanceKm)} away, severity ${i.severity} of 4.`,
+          fallback: `Heads up. ${i.description}${where}, about ${km(i.distanceKm)} away.`,
+        };
+      }
+      case 'ride_milestone': {
+        const mins = Math.round((this.now() - this.rideStart) / 60_000);
+        return { context: `The rider has been out for ${mins} minutes.`, fallback: `You've been out ${mins} minutes. Good ride so far.` };
+      }
+      case 'rider_query':
+        return {
+          context: `The rider asked how the bike is doing. Engine ${s.engineTempC} C, fuel ${Math.round(s.fuelPct)} percent, ${s.dtcs.length ? 'fault codes ' + s.dtcs.join(', ') : 'no fault codes'}.`,
+          fallback: `Engine's at ${s.engineTempC} degrees, fuel's at ${Math.round(s.fuelPct)} percent, ${s.dtcs.length ? 'and there are fault codes' : 'no faults'}.`,
+        };
     }
-  }
-
-  // ─── P2 Advisory ──────────────────────────────────────────────────────────
-
-  private evaluateAdvisory(state: BikeState): void {
-    const cfg = triggersConfig.advisory;
-
-    this.checkOnce(
-      state,
-      TriggerPriority.P2_ADVISORY,
-      TriggerType.LOW_FUEL,
-      cfg.lowFuelPercent,
-      () => this.parseFuelPercent(state.fuelStatus) < cfg.lowFuelPercent,
-      { fuelStatus: state.fuelStatus },
-    );
-
-    this.checkOnce(
-      state,
-      TriggerPriority.P2_ADVISORY,
-      TriggerType.TYRE_PRESSURE_LOW,
-      cfg.rearTyreLowPSI,
-      () =>
-        state.rearTyrePSI < cfg.rearTyreLowPSI ||
-        state.frontTyrePSI < cfg.frontTyreLowPSI,
-      {
-        frontPSI: state.frontTyrePSI,
-        rearPSI: state.rearTyrePSI,
-      },
-    );
-
-    this.checkOnce(
-      state,
-      TriggerPriority.P2_ADVISORY,
-      TriggerType.TRAFFIC_INCIDENT,
-      0,
-      () =>
-        state.trafficIncidents.some(
-          (inc) => inc.distanceKm <= cfg.trafficRadiusKm,
-        ),
-      { incidents: state.trafficIncidents.slice(0, 3) },
-    );
-
-    this.checkOnce(
-      state,
-      TriggerPriority.P2_ADVISORY,
-      TriggerType.WEATHER_RAIN,
-      0,
-      () => ['Rain', 'Drizzle', 'Thunderstorm'].includes(state.weatherCondition),
-      { condition: state.weatherCondition },
-    );
-
-    this.checkOnce(
-      state,
-      TriggerPriority.P2_ADVISORY,
-      TriggerType.BATTERY_LOW,
-      0,
-      () => state.batteryVoltage < cfg.batteryLowVolts,
-      { voltage: state.batteryVoltage },
-    );
-  }
-
-  // ─── P3 Ambient ───────────────────────────────────────────────────────────
-
-  private evaluateAmbient(state: BikeState): void {
-    const now = Date.now();
-    if (now - this.lastAmbientAt < this.AMBIENT_COOLDOWN_MS) return;
-
-    // Engine reached operating temp — welcome message
-    this.checkOnce(
-      state,
-      TriggerPriority.P3_AMBIENT,
-      TriggerType.ENGINE_WARM,
-      0,
-      () => state.coolantTemp >= 80 && state.speed > 0,
-      { coolantTemp: state.coolantTemp },
-    );
-  }
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  private checkOnce(
-    state: BikeState,
-    priority: TriggerPriority,
-    type: TriggerType,
-    _threshold: number,
-    condition: () => boolean,
-    context: Record<string, unknown>,
-  ): void {
-    if (this.firedThisSession.has(type)) return;
-    if (!condition()) return;
-    this.fire(priority, type, context, state, true);
-  }
-
-  private fire(
-    priority: TriggerPriority,
-    type: TriggerType,
-    context: Record<string, unknown>,
-    state: BikeState,
-    deduplicate: boolean,
-  ): void {
-    if (deduplicate) {
-      this.firedThisSession.add(type);
-    }
-
-    if (priority === TriggerPriority.P3_AMBIENT) {
-      this.lastAmbientAt = Date.now();
-    }
-
-    const event = createTriggerEvent(priority, type, context, state);
-    this.callbacks.forEach((cb) => cb(event));
-  }
-
-  private parseFuelPercent(fuelStatus: string): number {
-    // OBD2 fuel status is a string, not a percentage.
-    // Phase 4 will map actual OBD2 PID 0x2F (Fuel Tank Level Input).
-    // For Phase 1 mock, the mock always returns > 15% unless overridden.
-    const match = fuelStatus.match(/(\d+)%/);
-    return match ? parseInt(match[1], 10) : 100;
   }
 }
