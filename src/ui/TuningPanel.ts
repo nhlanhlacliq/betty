@@ -75,7 +75,6 @@ export function mountTuningPanel(root: HTMLElement) {
 
   wrap.append(el('h3', '', 'Safe window (when P2/P3 may speak)'));
   wrap.append(
-    numRow('Max RPM', () => CONFIG.safeWindow.maxRpm, (v) => (CONFIG.safeWindow.maxRpm = v), 1000, 12000, 100, 'rpm'),
     numRow('Max lean', () => CONFIG.safeWindow.maxLeanDeg, (v) => (CONFIG.safeWindow.maxLeanDeg = v), 1, 60, 1, '°'),
   );
 

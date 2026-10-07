@@ -117,7 +117,8 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 
 - P1 interrupts immediately, clears other queued items, and NEVER waits on the network: ClaudeClient returns the
   canned fallback for P1 (this follows the *configured* priority, so a trigger promoted to P1 also skips Claude).
-- P2 waits for a safe window: RPM < 5000 and |lean| < 20 deg (both tunable).
+- P2 waits for a safe window: |lean| < 20 deg (tunable). The RPM < 5000 condition was removed on the owner's
+  request (2026-10-08); do not reintroduce it unless asked.
 - P3 waits for a safe window, is rate-limited by `ambientCooldownMs` (default 2 min, enforced in AudioQueue), and is
   dropped if queued longer than `ambientMaxAgeMs` (60 s).
 - P4 always speaks next.

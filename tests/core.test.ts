@@ -79,10 +79,10 @@ assert.equal(new TriggerEngine(now).evaluate({ ...initialState(), fuelPct: 10 })
 }
 // safe window follows config
 assert.equal(isSafeWindow({ ...initialState(), rpm: 3000, leanDeg: 5 }), true);
-assert.equal(isSafeWindow({ ...initialState(), rpm: 6000, leanDeg: 5 }), false);
+assert.equal(isSafeWindow({ ...initialState(), rpm: 9500, leanDeg: 5 }), true, 'rpm no longer holds speech back');
 assert.equal(isSafeWindow({ ...initialState(), rpm: 3000, leanDeg: 30 }), false);
-CONFIG.safeWindow.maxRpm = 7000;
-assert.equal(isSafeWindow({ ...initialState(), rpm: 6000, leanDeg: 5 }), true); resetConfig();
+CONFIG.safeWindow.maxLeanDeg = 40;
+assert.equal(isSafeWindow({ ...initialState(), rpm: 3000, leanDeg: 30 }), true); resetConfig();
 
 // aggregator overrides layer over real values and clear back
 {
@@ -189,7 +189,7 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.match(a[0].context, /Topic for this remark:/); assert.match(a[0].context, /Background/);
   assert.equal(e.evaluate(s).length, 0, 'slot used');
   clock += SLOT();
-  assert.equal(e.evaluate({ ...s, rpm: 8000 }).length, 0, 'waits for the safe window');
+  assert.equal(e.evaluate({ ...s, leanDeg: 35 }).length, 0, 'waits for the safe window');
   const topicOf = (ev: TriggerEvent) => ev.context.split('\n')[0];
   const modeOf = (ev: TriggerEvent) => ev.context.split('\n')[1];
   const seen = [a[0]];

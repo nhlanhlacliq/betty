@@ -1,7 +1,7 @@
 import type { Priority, TriggerId } from '../core/types';
 
 export interface Config {
-  safeWindow: { maxRpm: number; maxLeanDeg: number };
+  safeWindow: { maxLeanDeg: number };
   thresholds: {
     overtempC: number; lowFuelPct: number; rainChancePct: number;
     trafficRadiusKm: number; trafficMinSeverity: number;
@@ -26,7 +26,7 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Config = {
-  safeWindow: { maxRpm: 5000, maxLeanDeg: 20 },
+  safeWindow: { maxLeanDeg: 20 },
   thresholds: { overtempC: 105, lowFuelPct: 15, rainChancePct: 60, trafficRadiusKm: 5, trafficMinSeverity: 2 },
   priorities: {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
