@@ -239,9 +239,10 @@ Constraints:
   `pickMode` rotates the delivery (quip, observation, thought, question, callback), never the same twice in a row.
   The request names ONE topic and gives the rest as background. History: v1 sent the whole context every time and
   every quip was "middle of the night, N minutes in"; v2 used each angle once and ran out after five.
-- Owner asked (2026-10-08) for lean and bike data in banter. Current speed and RPM stay out; lean appears only as
-  how twisty the road has been, and the prompt forbids praise, rating or challenge. Do not loosen that further
-  without being asked.
+- Owner asked twice (2026-10-08) for banter about his riding, so the earlier "never tease speed or lean" design
+  decision in the spec below is superseded: pace (average and top speed), current speed, revs and cornering are
+  banter topics and she may tease them. What remains, on purpose: she never dares him or suggests going faster or
+  leaning further, P1/P2 lines stay serious, and P3 only plays inside the safe window.
 - `RideStats` (in the engine, fed by `evaluate`) tracks distance, moving time, stops, max lean, cornering share,
   max engine temp, fuel at start, alerts flagged and places mentioned. Update gaps are capped at 10 s so a
   throttled tab does not invent distance.

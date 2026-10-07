@@ -6,6 +6,9 @@ export interface RideSnapshot {
   movingMin: number;
   distanceKm: number;
   stops: number;
+  maxSpeedKmh: number;
+  /** Average speed while moving */
+  avgMovingKmh: number;
   maxLeanDeg: number;
   /** Share of moving time spent leaned past LEAN_CORNER_DEG, 0-100 */
   corneringPct: number;
@@ -32,6 +35,7 @@ export class RideStats {
   private stops = 0;
   private wasMoving = false;
   private maxLean = 0;
+  private maxSpeed = 0;
   private maxTemp = 0;
   private fuelStart: number | null = null;
   private events: RideSnapshot['events'] = [];
@@ -49,6 +53,7 @@ export class RideStats {
       this.distanceKm += (s.speedKmh * dt) / 3_600_000;
       if (Math.abs(s.leanDeg) >= LEAN_CORNER_DEG) this.corneringMs += dt;
       this.maxLean = Math.max(this.maxLean, Math.abs(s.leanDeg));
+      this.maxSpeed = Math.max(this.maxSpeed, s.speedKmh);
     } else if (this.wasMoving) {
       this.stops++;
     }
@@ -67,6 +72,8 @@ export class RideStats {
       movingMin: this.movingMs / 60_000,
       distanceKm: Math.round(this.distanceKm * 10) / 10,
       stops: this.stops,
+      maxSpeedKmh: Math.round(this.maxSpeed),
+      avgMovingKmh: this.movingMs ? Math.round(this.distanceKm / (this.movingMs / 3_600_000)) : 0,
       maxLeanDeg: Math.round(this.maxLean),
       corneringPct: this.movingMs ? Math.round((this.corneringMs / this.movingMs) * 100) : 0,
       maxEngineTempC: Math.round(this.maxTemp),

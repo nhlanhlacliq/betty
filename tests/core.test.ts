@@ -250,6 +250,7 @@ const ride0 = () => new RideStats(now).snapshot();
   st.noteEvent('low fuel'); st.notePlace('Edenvale'); st.notePlace('Edenvale');
   const sn = st.snapshot();
   assert.ok(Math.abs(sn.distanceKm - 5) < 0.2, `about 5 km, got ${sn.distanceKm}`);
+  assert.equal(sn.maxSpeedKmh, 60); assert.ok(Math.abs(sn.avgMovingKmh - 60) <= 1);
   assert.equal(sn.stops, 1); assert.equal(sn.maxLeanDeg, 25); assert.equal(sn.corneringPct, 25);
   assert.equal(sn.maxEngineTempC, 96); assert.equal(sn.fuelStartPct, 80);
   assert.deepEqual(sn.places, ['Edenvale']); assert.equal(sn.events[0].what, 'low fuel');
@@ -272,7 +273,7 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.match(describeRide(rec, 1000 + 86_400_000), /yesterday/);
   assert.match(describeTotals([rec, { ...rec, startedAt: 5 }]), /2 ride\(s\).*63 km/);
 }
-// banter topics: wide pool, grows with the ride and with memory, no current speed or rpm
+// banter topics: wide pool, grows with the ride and with memory, riding data included
 {
   const at = new Date(2026, 0, 1, 7);
   const ids = (i: Parameters<typeof banterTopics>[0]) => banterTopics(i).map((t) => t.id);
@@ -281,18 +282,18 @@ const ride0 = () => new RideStats(now).snapshot();
   const rec: RideRecord = { startedAt: at.getTime() - 2 * 86_400_000, minutes: 40, distanceKm: 30, weather: 'rain, 14 C', places: ['Soweto'], events: ['rain'] };
   const full = {
     ...base, history: [rec, rec],
-    s: { ...initialState(), speedKmh: 0, rpm: 8123, fuelPct: 55, engineTempC: 91, weather: wx(), incidents: [inc()],
+    s: { ...initialState(), speedKmh: 0, rpm: 4130, fuelPct: 55, engineTempC: 91, weather: wx(), incidents: [inc()],
       nearbyPlaces: [place({ distanceKm: 9, id: 'far', name: 'Faraway' }), place()] },
-    ride: { ...ride0(), minutesOut: 50, movingMin: 40, distanceKm: 37, stops: 2, maxLeanDeg: 28, corneringPct: 30, maxEngineTempC: 97,
+    ride: { ...ride0(), minutesOut: 50, movingMin: 40, distanceKm: 37, stops: 2, maxSpeedKmh: 118, avgMovingKmh: 56, maxLeanDeg: 28, corneringPct: 30, maxEngineTempC: 97,
       fuelStartPct: 80, events: [{ what: 'rain', atMin: 12 }], places: ['Edenvale'] },
   };
-  assert.deepEqual(ids(full), ['time', 'weather', 'duration', 'distance', 'fuel', 'engine', 'corners', 'stops', 'standing',
+  assert.deepEqual(ids(full), ['time', 'weather', 'duration', 'distance', 'fuel', 'engine', 'corners', 'pace', 'revs', 'stops', 'standing',
     'traffic', 'location', 'earlier', 'places', 'last_ride', 'totals', 'open']);
   const text = banterTopics(full).map((t) => t.text).join(' ');
   assert.match(text, /near Testville/); assert.ok(!/Faraway/.test(text), 'location respects the radius');
   assert.match(text, /down 25 since setting off/); assert.match(text, /rain at 12 minutes/); assert.match(text, /2 days ago: 40 minutes/);
-  assert.ok(!/8123/.test(text), 'no rpm in banter');
-  assert.ok(!/137/.test(banterTopics({ ...full, s: { ...full.s, speedKmh: 137 } }).map((t) => t.text).join(' ')), 'no current speed in banter');
+  assert.match(text, /averaging 56 km\/h while moving, top speed 118/); assert.match(text, /4100 rpm/);
+  assert.match(banterTopics({ ...full, s: { ...full.s, speedKmh: 87 } }).map((t) => t.text).join(' '), /doing 87 km\/h right now/);
 
   // picking: fresh first, then least recently used; a changed fact makes a topic fresh again
   const ts = banterTopics(full);

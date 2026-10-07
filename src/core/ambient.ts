@@ -43,8 +43,8 @@ export interface BanterInput {
 }
 
 /**
- * Everything banter could be about right now. Current speed and RPM are left out on purpose; lean only appears as
- * how twisty the road has been, and the prompt forbids turning it into praise or a challenge.
+ * Everything banter could be about right now, his riding included (pace, revs, corners): the owner asked for that.
+ * The prompt still forbids daring him to go faster or lean further.
  */
 export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInput): BanterTopic[] {
   const out: BanterTopic[] = [];
@@ -70,8 +70,13 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInpu
   }
   if (ride.movingMin >= 5 && ride.maxLeanDeg > 0) {
     add('corners', Math.floor(ride.corneringPct / 20),
-      `Roads so far: leaned past 15 degrees for ${ride.corneringPct} percent of the time moving, deepest lean ${ride.maxLeanDeg} degrees.`);
+      `His cornering so far: leaned past 15 degrees for ${ride.corneringPct} percent of the time moving, deepest lean ${ride.maxLeanDeg} degrees.`);
   }
+  if (ride.movingMin >= 3) {
+    add('pace', Math.floor(ride.avgMovingKmh / 20), `His riding so far: averaging ${ride.avgMovingKmh} km/h while moving, top speed ${ride.maxSpeedKmh} km/h.`);
+  }
+  if (s.speedKmh > 0) add('speed_now', Math.floor(s.speedKmh / 30), `He is doing ${Math.round(s.speedKmh)} km/h right now.`);
+  if (s.rpm > 0) add('revs', Math.floor(s.rpm / 2000), `The engine is turning ${Math.round(s.rpm / 100) * 100} rpm right now, throttle at ${Math.round(s.throttlePct)} percent.`);
   if (ride.stops >= 1) {
     add('stops', ride.stops, `He has made ${ride.stops} stop(s) so far this ride${s.speedKmh > 0 ? ' and is moving again now' : ''}.`);
   }
