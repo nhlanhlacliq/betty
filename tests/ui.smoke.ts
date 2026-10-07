@@ -21,10 +21,12 @@ const spoken: string[] = [];
 const queue = new AudioQueue({ speak: (_t, d) => d(), stop: () => {} }, () => true);
 const said: string[] = [];
 let resets = 0;
+let refreshes = 0;
 const root = document.getElementById('sim')!;
 const unmount = mountSimPanel(root, {
   agg, engine, queue, say: (ev) => said.push(ev.id), aloud: true, setAloud: () => {},
-  zeroLean: () => {}, refreshFeeds: () => {}, resetRide: () => { resets++; }, feedStatus: () => 'feeds ok',
+  zeroLean: () => {}, refreshFeeds: () => { refreshes++; }, resetRide: () => { resets++; }, feedStatus: () => 'feeds ok',
+  lastPhrase: () => 'fallback (HTTP 400), 12 ms',
 });
 assert.match(root.textContent!, /SIMULATOR/);
 assert.match(q(root, '.info').textContent!, /Safe window: YES/);
@@ -54,6 +56,22 @@ byText('Reset ride').click(); assert.equal(resets, 1);
 byText(/^engine_overtemp · P1$/).click();
 assert.deepEqual(said, ['engine_overtemp'], 'fire button emits event');
 
+// last-line source is visible in the info line
+assert.match(q(root, '.info').textContent!, /Last line: fallback \(HTTP 400\), 12 ms/);
+
+// ambient flavours have fire buttons
+byText(/^ambient_banter · P3$/).click(); byText(/^local_fact · P3$/).click();
+assert.deepEqual(said.slice(-2), ['ambient_banter', 'local_fact']);
+
+// location preset overrides position and refetches feeds; nearby places are listed
+const locSel = q<HTMLSelectElement>(root, 'select');
+locSel.value = '2'; fire(locSel, 'change'); // Soweto
+assert.equal(agg.current.lat, -26.2678); assert.equal(agg.current.lon, 27.8585); assert.equal(refreshes, 1);
+agg.push({ nearbyPlaces: [{ id: 'w1', name: 'Vilakazi Street', distanceKm: 0.8, summary: 'x' }] });
+assert.match(q(root, '.places').textContent!, /Vilakazi Street 0.8 km/);
+locSel.value = ''; fire(locSel, 'change');
+assert.equal(agg.current.lat, null, 'back to live position');
+
 // weather override
 const wxCb = [...root.querySelectorAll('input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Override live weather')) as HTMLInputElement;
 wxCb.checked = true; fire(wxCb, 'change');
@@ -71,10 +89,15 @@ const ambient = nums.find((n) => n.parentElement?.textContent?.startsWith('Min g
 assert.equal(ambient.value, '120', 'ambient gap defaults to 2 min');
 ambient.value = '30'; fire(ambient, 'change');
 assert.equal(CONFIG.ambientCooldownMs, 30_000);
+const banterW = nums.find((n) => n.parentElement?.textContent?.startsWith('Banter weight'))!;
+assert.equal(banterW.value, '40');
+banterW.value = '0'; fire(banterW, 'change');
+assert.equal(CONFIG.ambient.banterWeight, 0);
 const overtemp = nums.find((n) => n.parentElement?.textContent?.startsWith('Engine overtemp'))!;
 overtemp.value = '999'; fire(overtemp, 'change');
 assert.equal(CONFIG.thresholds.overtempC, 130, 'clamped to max');
 [...troot.querySelectorAll('button')].find((b) => b.textContent?.startsWith('Reset'))!.click();
 assert.equal(CONFIG.ambientCooldownMs, 120_000); assert.equal(CONFIG.priorities.startup, 4);
+assert.equal(CONFIG.ambient.banterWeight, 40);
 resetConfig();
 console.log('ui smoke tests passed');

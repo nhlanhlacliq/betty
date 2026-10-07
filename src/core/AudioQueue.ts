@@ -25,6 +25,7 @@ export class AudioQueue {
   ) {}
 
   enqueue(text: string, priority: Priority) {
+    if (!text.trim()) return; // silence is a valid output (ambient flavours)
     if (priority === 1) {
       this.items = this.items.filter((i) => i.priority === 1);
       if (this.speaking !== null) this.speaker.stop();

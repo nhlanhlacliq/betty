@@ -5,7 +5,7 @@ import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { AudioQueue } from './core/AudioQueue';
 import { ClaudeClient } from './core/ClaudeClient';
 import { LatLon } from './core/geo';
-import { TriggerEvent } from './core/types';
+import { AMBIENT_IDS, TriggerEvent } from './core/types';
 import { MockObdSource } from './adapters/MockObdSource';
 import { WebGeoSource } from './adapters/WebGeoSource';
 import { WebMotionSource } from './adapters/WebMotionSource';
@@ -13,6 +13,7 @@ import { WebSpeaker } from './adapters/WebSpeaker';
 import { SwitchableSpeaker } from './adapters/SwitchableSpeaker';
 import { WeatherSource } from './adapters/WeatherSource';
 import { TrafficSource } from './adapters/TrafficSource';
+import { PlaceSource } from './adapters/PlaceSource';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
 import { WakeLock } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
@@ -27,8 +28,8 @@ const statusEl = $('status');
 const logEl = $('log');
 const setStatus = (msg: string, err = false) => { statusEl.textContent = msg; statusEl.className = err ? 'err' : ''; };
 
-const feed = { weather: 'idle', traffic: 'idle' };
-const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic}`;
+const feed = { weather: 'idle', traffic: 'idle', places: 'idle' };
+const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places}`;
 
 interface Rig {
   agg: StateAggregator; unsub: () => void; unmountSim: () => void; wake: WakeLock;
@@ -55,6 +56,8 @@ async function start() {
   const key = import.meta.env.VITE_TOMTOM_API_KEY as string | undefined;
   const traffic = new TrafficSource(key ? new TomTomTrafficProvider(key) : null, pos, (m) => { feed.traffic = m; });
 
+  const places = new PlaceSource(pos, (m) => { feed.places = m; });
+
   if (real) {
     agg.addSource(new WebGeoSource((m) => setStatus(m, true)));
     if (motionOk) agg.addSource(motion); else setStatus('Motion sensors unavailable: lean stays 0.', true);
@@ -62,6 +65,7 @@ async function start() {
   agg.addSource(obd);
   agg.addSource(weather);
   agg.addSource(traffic);
+  agg.addSource(places);
 
   const engine = new TriggerEngine();
   const claude = new ClaudeClient(import.meta.env.VITE_ANTHROPIC_API_KEY || undefined);
@@ -69,8 +73,12 @@ async function start() {
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current));
 
   const say = async (ev: TriggerEvent) => {
-    const text = await claude.phrase(ev, agg.current);
-    lines.unshift(`[P${ev.priority}] ${ev.id}: ${text}`);
+    const p = await claude.phrase(ev, agg.current);
+    // Safety stays serious: an ambient line that comes back while a critical condition is active is dropped.
+    const dropped = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
+    const text = dropped ? '' : p.text;
+    const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
+    lines.unshift(`[P${ev.priority}] ${ev.id} (${meta}): ${text || (dropped ? '(dropped: critical alert active)' : '(silent)')}`);
     logEl.innerHTML = lines.slice(0, 10).map((l) => `<div>${l.replace(/</g, '&lt;')}</div>`).join('');
     queue.enqueue(text, ev.priority);
   };
@@ -94,9 +102,13 @@ async function start() {
     aloud: speaker.aloud,
     setAloud: (on) => { speaker.aloud = on; },
     zeroLean: () => motion.zero(),
-    refreshFeeds: () => { weather.refresh(); traffic.refresh(); },
+    refreshFeeds: () => { weather.refresh(); traffic.refresh(); places.refresh(); },
     resetRide: () => { engine.reset(); obd.reset(); queue.clear(); lines.length = 0; logEl.innerHTML = ''; },
     feedStatus,
+    lastPhrase: () => {
+      const p = claude.last;
+      return p ? `${p.source}${p.detail ? ' (' + p.detail + ')' : ''}, ${p.latencyMs} ms` : 'none yet';
+    },
   });
 
   const wake = new WakeLock();

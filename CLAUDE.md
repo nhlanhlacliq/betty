@@ -21,7 +21,7 @@ is wrong or risky, say so.
 |---|---|---|
 | 1 Voice foundation | Scaffold, GPS speed, TTS to helmet, "Systems online", trigger engine, audio queue | Done (web app) |
 | 2 Data feeds | Weather, traffic, phone IMU lean, TPMS BLE, mock OBD2 | Weather (Open-Meteo), traffic (TomTom, key optional), IMU lean, mock OBD2 done. TPMS outstanding |
-| 3 AI brain | Claude-phrased speech, session memory, voice input "Hey Betty", chat test mode | Basic phrasing done. Memory, voice input, chat test mode, ambient personality (banter + tour guide) outstanding |
+| 3 AI brain | Claude-phrased speech, session memory, voice input "Hey Betty", chat test mode | Phrasing and ambient personality (banter + grounded tour guide) done. Memory, voice input, chat test mode outstanding |
 | 4 Hardware | Raspberry Pi 4 under seat, real OBD2 via ELM327, standalone, local Piper TTS, Porcupine wake word | Not started |
 
 History: Phase 1 was first scaffolded as Expo/React Native, then converted to a Vite web app on request
@@ -64,7 +64,8 @@ src/
     StateAggregator.ts     Merges DataSource updates; override layer for the simulator; failed sources degrade
     TriggerEngine.ts       When should Betty speak; per-trigger cooldown/dedupe; force(); isSafeWindow()
     AudioQueue.ts          Priority queue + Speaker interface; generation guard against stale onDone
-    ClaudeClient.ts        Event -> natural speech, with timeout + fallback
+    ClaudeClient.ts        Event -> Phrase {text, source claude|fallback, detail, latencyMs}; buildClaudeRequest (pure)
+    ambient.ts             chooseAmbient (weighted, injectable RNG), freshPlace (novelty), rideContext (banter facts)
     geo.ts                 haversineKm, bboxAround
   adapters/                Everything that touches a browser API, network or hardware
     WebGeoSource.ts        navigator.geolocation -> speed/lat/lon/heading
@@ -76,6 +77,7 @@ src/
     WeatherSource.ts       Open-Meteo (no key). Polls by time or distance moved
     TrafficSource.ts       Polls a TrafficProvider; idle without one
     TomTomTraffic.ts       TomTom incidentDetails v5 provider (needs VITE_TOMTOM_API_KEY)
+    PlaceSource.ts         Wikipedia geosearch + intro extracts -> BikeState.nearbyPlaces (tour-guide grounding)
   ui/
     SimPanel.ts            SIMULATOR panel (mounted per ride)
     TuningPanel.ts         TUNING panel (always mounted)
@@ -99,6 +101,8 @@ Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `S
 | traffic_incident | P2 | new incident within 5 km and severity >= 2 (once per incident id) | 2 min |
 | ride_milestone | P3 | every 45 min of riding | 2 min |
 | rider_query | P4 | rider asks (simulator button for now; voice later) | 0 |
+| ambient_banter | P3 | ambient slot rolls banter (see Ambient personality) | 0 (paced by ambient gap) |
+| local_fact | P3 | ambient slot rolls tour guide and an unmentioned place is in range | 0 (paced by ambient gap) |
 
 All priorities, cooldowns and thresholds are read live from `CONFIG` at call time and can be edited in the TUNING
 panel (persisted to localStorage). Adding a trigger = add the id to `TriggerId` + `TRIGGER_IDS`, entries in
@@ -207,7 +211,35 @@ Constraints:
 - Add jsdom smoke tests in `tests/ui.smoke.ts` for: sending a message, bubble metadata, Show prompt, compare mode.
 - Reuse this path later for voice: SpeechRecognition (Chrome/Android; iOS support is weak) -> same `rider_query` flow.
 
-## Backlog: ambient personality — snark and tour guide (NOT BUILT, spec for a later session)
+## Claude call (verified live 2026-10-08)
+
+- Model is `claude-haiku-5-5` (owner asked for a simple fast model; about 1 s per line). `CONFIG.claudeThinkingOff`
+  must match the model: Haiku 5.5 takes `thinking: {type: 'disabled'}`, Sonnet 5.5 rejects that and wants
+  `'between_tools'`. With thinking left on, the thinking block eats `max_tokens` and the reply is empty or cut off.
+- Never read `content[0].text`; use `extractText` (first text block).
+- The API key must be scoped to a workspace, otherwise every call is a 400 and Betty silently uses fallbacks.
+- The log and the SIMULATOR info line show the source of every line: `claude` or `fallback`, the reason, latency.
+
+## Ambient personality (BUILT)
+
+- Once per `ambientCooldownMs` (+5 s slack), in a safe window, with no P1 condition active, `TriggerEngine` rolls
+  `chooseAmbient` with the TUNING weights (banter / tour guide / silence). A slot that rolls silence is used up.
+  Nothing fires in the first gap after ride start.
+- `local_fact` uses the nearest place in `BikeState.nearbyPlaces` within `ambient.placeRadiusKm` that has not been
+  mentioned this ride; the place is marked mentioned when the event is created. A tour-guide roll with no fresh
+  place is silence.
+- `ambient_banter` gets `rideContext` (time of day, minutes out, weather, fuel, traffic count). No speed, lean or RPM.
+- Ambient flavours and `ride_milestone` get a flavour prompt (`FLAVOUR_PROMPTS`) and no bike-state JSON.
+  The ambient flavours have an empty fallback: no key, an error, or a `SILENT` reply all mean she says nothing.
+- `main.ts` drops an ambient line if a P1 condition became active while Claude was answering.
+- PlaceSource: coordinates rounded to 2 decimals before the request, cached per cell, refetch after
+  `feeds.placeRefetchKm`. List/index pages and stubs under 80 characters are skipped.
+- Known weak spots: Haiku runs longer than 2 short sentences at times, and Wikipedia's nearest pages can be dull
+  (schools, embassies). The prompt tells her to pick silence for dull notes; she does not always.
+
+The original spec is kept below for reference.
+
+## Backlog: ambient personality — snark and tour guide (spec; built, see above)
 
 Idea (from the owner): ambient (P3) remarks should not be only status commentary. Two flavours, mixed:
 1. **Banter**: snarky, funny, dry. Affectionate teasing of the situation, never of the rider's skill or speed.
@@ -280,7 +312,7 @@ Betty should feel like a companion, so most ambient lines should be one of these
 2. Verify Open-Meteo and TomTom parsers against live responses (see Feeds); fix any shape mismatch.
 3. Move the Claude/TomTom calls behind Vercel serverless functions so keys are not exposed.
 4. Build the chat-style test mode above.
-5. Ambient personality (banter + grounded tour guide), see the backlog section above.
+5. Ambient personality: done. Tune weights and prompts after real rides.
 6. Session memory as a proper core module instead of the short list in ClaudeClient.
 7. Voice input "Hey Betty" feeding the same `rider_query` path.
 8. TPMS BLE (Web Bluetooth works on Android Chrome only; otherwise Phase 4).

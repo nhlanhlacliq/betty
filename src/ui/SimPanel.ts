@@ -16,7 +16,19 @@ export interface SimContext {
   refreshFeeds(): void;
   resetRide(): void;
   feedStatus(): string;
+  /** Where the last line came from: claude or fallback, with the reason and latency. */
+  lastPhrase(): string;
 }
+
+/** Desk locations for developing the tour-guide flavour. Overrides lat/lon and refetches the feeds. */
+export const LOCATION_PRESETS: Array<[string, number, number]> = [
+  ['Edenvale', -26.14, 28.15],
+  ['Johannesburg CBD', -26.2041, 28.0473],
+  ['Soweto', -26.2678, 27.8585],
+  ['Sandton', -26.1076, 28.0567],
+  ['Pretoria', -25.7479, 28.2293],
+  ['Cape Town', -33.9249, 18.4241],
+];
 
 type NumKey = 'speedKmh' | 'leanDeg' | 'rpm' | 'engineTempC' | 'throttlePct' | 'fuelPct';
 const SENSORS: Array<[NumKey, string, number, number, number, string]> = [
@@ -87,6 +99,28 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
   wxRows.forEach((r) => (r.range.disabled = true));
   wrap.append(wxCbWrap, ...wxRows.map((r) => r.row));
 
+  // --- location
+  wrap.append(el('h3', '', 'Location (for weather, traffic and nearby places)'));
+  const locRow = el('div', 'row');
+  const loc = el('select');
+  const live = el('option', '', 'Live GPS / fallback'); live.value = '';
+  loc.append(live);
+  LOCATION_PRESETS.forEach(([name], i) => { const o = el('option', '', name); o.value = String(i); loc.append(o); });
+  loc.onchange = () => {
+    const preset = loc.value === '' ? null : LOCATION_PRESETS[Number(loc.value)];
+    if (preset) { ctx.agg.setOverride('lat', preset[1]); ctx.agg.setOverride('lon', preset[2]); }
+    else { ctx.agg.clearOverride('lat'); ctx.agg.clearOverride('lon'); }
+    ctx.refreshFeeds();
+  };
+  const placesInfo = el('div', 'info places');
+  locRow.append(el('span', 'name', 'Simulate being in'), loc);
+  wrap.append(locRow, placesInfo);
+  refreshers.push((s) => {
+    placesInfo.textContent = s.nearbyPlaces.length
+      ? `Nearby (Wikipedia): ${s.nearbyPlaces.map((p) => `${p.name} ${p.distanceKm} km`).join(', ')}`
+      : 'Nearby (Wikipedia): none loaded';
+  });
+
   // --- traffic incidents + faults
   wrap.append(el('h3', '', 'Traffic, faults, actions'));
   const bar = el('div', 'bar');
@@ -131,7 +165,7 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
     const q = ctx.queue;
     info.textContent =
       `Safe window: ${isSafeWindow(s) ? 'YES' : 'NO'} | Speaking: ${q.speakingPriority === null ? 'idle' : 'P' + q.speakingPriority}`
-      + ` | Queued: ${q.pending} | ${ctx.feedStatus()}`;
+      + ` | Queued: ${q.pending} | Last line: ${ctx.lastPhrase()} | ${ctx.feedStatus()}`;
   };
   const unsub = ctx.agg.subscribe((s) => { refreshers.forEach((f) => f(s)); updateInfo(); });
   const timer = setInterval(updateInfo, 500);

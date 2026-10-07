@@ -2,12 +2,17 @@ export type Priority = 1 | 2 | 3 | 4; // P1 critical, P2 advisory, P3 ambient, P
 
 export type TriggerId =
   | 'startup' | 'engine_overtemp' | 'dtc_detected' | 'low_fuel'
-  | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query';
+  | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
+  | 'ambient_banter' | 'local_fact';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
+  'ambient_banter', 'local_fact',
 ];
+
+/** Ambient flavours: no canned fallback, silence is a valid output. */
+export const AMBIENT_IDS: TriggerId[] = ['ambient_banter', 'local_fact'];
 
 export interface WeatherState {
   tempC: number;
@@ -29,6 +34,14 @@ export interface TrafficIncident {
   lon: number;
 }
 
+/** A notable place near the rider, with the only facts Betty may use about it. */
+export interface NearbyPlace {
+  id: string;
+  name: string;
+  distanceKm: number;
+  summary: string;
+}
+
 export interface BikeState {
   timestamp: number;
   // OBD2 (mocked until Phase 4)
@@ -47,6 +60,7 @@ export interface BikeState {
   // Feeds
   weather: WeatherState | null;
   incidents: TrafficIncident[];
+  nearbyPlaces: NearbyPlace[];
 }
 
 export interface TriggerEvent {
@@ -54,7 +68,7 @@ export interface TriggerEvent {
   priority: Priority;
   /** Plain-English situation passed to Claude */
   context: string;
-  /** Spoken if Claude is unavailable */
+  /** Spoken if Claude is unavailable. Empty = stay silent (ambient flavours). */
   fallback: string;
   createdAt: number;
 }

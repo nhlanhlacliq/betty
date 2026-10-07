@@ -53,6 +53,15 @@ export function mountTuningPanel(root: HTMLElement) {
     numRow('Ride milestone every', () => CONFIG.milestoneEveryMin, (v) => (CONFIG.milestoneEveryMin = v), 1, 240, 1, 'min'),
   );
 
+  wrap.append(el('h3', '', 'Ambient flavour mix (relative weights, all zero = silent)'));
+  const a = CONFIG.ambient;
+  wrap.append(
+    numRow('Banter weight', () => a.banterWeight, (v) => (a.banterWeight = v), 0, 100, 5, ''),
+    numRow('Tour guide weight', () => a.tourGuideWeight, (v) => (a.tourGuideWeight = v), 0, 100, 5, ''),
+    numRow('Silence weight', () => a.silenceWeight, (v) => (a.silenceWeight = v), 0, 100, 5, ''),
+    numRow('Tour guide place radius', () => a.placeRadiusKm, (v) => (a.placeRadiusKm = v), 1, 10, 1, 'km'),
+  );
+
   wrap.append(el('h3', '', 'Thresholds'));
   const t = CONFIG.thresholds;
   wrap.append(

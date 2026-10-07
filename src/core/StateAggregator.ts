@@ -3,7 +3,7 @@ import { BikeState, DataSource } from './types';
 export const initialState = (): BikeState => ({
   timestamp: Date.now(), rpm: 0, engineTempC: 0, throttlePct: 0, fuelPct: 100, dtcs: [],
   speedKmh: 0, lat: null, lon: null, headingDeg: null, leanDeg: 0,
-  weather: null, incidents: [],
+  weather: null, incidents: [], nearbyPlaces: [],
 });
 
 /**

@@ -1,9 +1,13 @@
 import { CONFIG } from '../config/betty';
+import { chooseAmbient, freshPlace, rideContext } from './ambient';
 import { initialState } from './StateAggregator';
 import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 
 export const isSafeWindow = (s: BikeState) =>
   s.rpm < CONFIG.safeWindow.maxRpm && Math.abs(s.leanDeg) < CONFIG.safeWindow.maxLeanDeg;
+
+/** Margin on top of ambientCooldownMs so a new ambient line is not dropped by the queue's own P3 rate limit. */
+const AMBIENT_SLACK_MS = 5000;
 
 const byDistance = (a: TrafficIncident, b: TrafficIncident) => a.distanceKm - b.distanceKm;
 const km = (n: number) => `${Math.round(n * 10) / 10} km`;
@@ -14,12 +18,26 @@ export class TriggerEngine {
   private announced = new Set<string>();
   private rideStart: number;
   private milestonesHit = 0;
+  private mentionedPlaces = new Set<string>();
+  private lastAmbientSlot: number;
 
-  constructor(private now: () => number = Date.now) { this.rideStart = now(); }
+  constructor(private now: () => number = Date.now, private rng: () => number = Math.random) {
+    this.rideStart = now(); this.lastAmbientSlot = now();
+  }
 
   reset() {
-    this.lastFired.clear(); this.announced.clear();
-    this.rideStart = this.now(); this.milestonesHit = 0;
+    this.lastFired.clear(); this.announced.clear(); this.mentionedPlaces.clear();
+    this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now();
+  }
+
+  /** True while a condition whose trigger is configured P1 is active: no banter or tour guide then. */
+  ambientBlocked(s: BikeState): boolean {
+    const t = CONFIG.thresholds;
+    const active: TriggerId[] = [];
+    if (s.engineTempC >= t.overtempC) active.push('engine_overtemp');
+    if (s.dtcs.length) active.push('dtc_detected');
+    if (s.fuelPct > 0 && s.fuelPct <= t.lowFuelPct) active.push('low_fuel');
+    return active.some((id) => CONFIG.priorities[id] === 1);
   }
 
   startup(): TriggerEvent { return this.force('startup', initialState()); }
@@ -28,6 +46,10 @@ export class TriggerEngine {
   force(id: TriggerId, s: BikeState, incident?: TrafficIncident): TriggerEvent {
     this.lastFired.set(id, this.now());
     const { context, fallback } = this.describe(id, s, incident);
+    if (id === 'local_fact') {
+      const place = freshPlace(s.nearbyPlaces, this.mentionedPlaces, CONFIG.ambient.placeRadiusKm);
+      if (place) this.mentionedPlaces.add(place.id); // never the same place twice in a ride
+    }
     return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now() };
   }
 
@@ -56,7 +78,17 @@ export class TriggerEngine {
     const due = Math.floor(mins / CONFIG.milestoneEveryMin);
     if (due > this.milestonesHit && this.ready('ride_milestone')) {
       this.milestonesHit = due;
+      this.lastAmbientSlot = this.now();
       out.push(this.force('ride_milestone', s));
+    }
+
+    // One ambient slot per cooldown. A slot that rolls silence is still used up, so the silence weight means something.
+    const slotDue = this.now() - this.lastAmbientSlot >= CONFIG.ambientCooldownMs + AMBIENT_SLACK_MS;
+    if (slotDue && !out.length && isSafeWindow(s) && !this.ambientBlocked(s)) {
+      this.lastAmbientSlot = this.now();
+      const fresh = freshPlace(s.nearbyPlaces, this.mentionedPlaces, CONFIG.ambient.placeRadiusKm);
+      const pick = chooseAmbient(CONFIG.ambient, fresh !== null, this.rng);
+      if (pick) out.push(this.force(pick, s));
     }
     return out;
   }
@@ -108,6 +140,16 @@ export class TriggerEngine {
       case 'ride_milestone': {
         const mins = Math.round((this.now() - this.rideStart) / 60_000);
         return { context: `The rider has been out for ${mins} minutes.`, fallback: `You've been out ${mins} minutes. Good ride so far.` };
+      }
+      // Ambient flavours have no canned fallback: without Claude, or with nothing to go on, Betty stays quiet.
+      case 'ambient_banter': {
+        const mins = (this.now() - this.rideStart) / 60_000;
+        return { context: `Ride context: ${rideContext(s, mins, new Date(this.now()))}`, fallback: '' };
+      }
+      case 'local_fact': {
+        const p = freshPlace(s.nearbyPlaces, this.mentionedPlaces, CONFIG.ambient.placeRadiusKm);
+        if (!p) return { context: '', fallback: '' };
+        return { context: `He is about ${km(p.distanceKm)} from ${p.name}. Notes on ${p.name}: ${p.summary}`, fallback: '' };
       }
       case 'rider_query':
         return {
