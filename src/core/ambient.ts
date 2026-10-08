@@ -70,13 +70,15 @@ export interface BanterTopic {
 }
 export interface BanterInput {
   s: BikeState; ride: RideSnapshot; history: RideRecord[]; at: Date; placeRadiusKm: number;
+  /** Estimated km of fuel left from distance since the last fill-up; null if no fill-up is on record */
+  fuelKmLeft?: number | null;
 }
 
 /**
  * Everything banter could be about right now, his riding included (pace, revs, corners): the owner asked for that.
  * The prompt still forbids daring him to go faster or lean further.
  */
-export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInput): BanterTopic[] {
+export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft = null }: BanterInput): BanterTopic[] {
   const out: BanterTopic[] = [];
   const add = (id: string, bucket: string | number, text: string) => out.push({ id, bucket: String(bucket), text });
   const mins = ride.minutesOut;
@@ -86,6 +88,13 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInpu
   if (s.weather) {
     add('weather', `${s.weather.summary}:${Math.round(s.weather.tempC / 5)}`,
       `Weather: ${s.weather.summary}, ${s.weather.tempC} C, wind ${s.weather.windKmh} km/h.`);
+  }
+  const toSunset = s.weather?.sunsetAt != null ? (s.weather.sunsetAt - at.getTime()) / 60_000 : null;
+  if (toSunset !== null && toSunset > 0 && toSunset <= 120) {
+    add('daylight', Math.floor(toSunset / 30), `Sunset is in about ${Math.round(toSunset / 5) * 5} minutes.`);
+  }
+  if (!s.obd && fuelKmLeft !== null) {
+    add('range', Math.floor(fuelKmLeft / 50), `By distance since the last fill-up, he has roughly ${Math.round(fuelKmLeft / 10) * 10} km of fuel range left.`);
   }
   if (mins >= 10) add('duration', Math.floor(mins / 20), `He has been out for ${Math.round(mins)} minutes.`);
   if (ride.distanceKm >= 2) add('distance', Math.floor(ride.distanceKm / 15), `He has covered ${ride.distanceKm} km this ride.`);

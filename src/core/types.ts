@@ -3,12 +3,14 @@ export type Priority = 1 | 2 | 3 | 4; // P1 critical, P2 advisory, P3 ambient, P
 export type TriggerId =
   | 'startup' | 'engine_overtemp' | 'dtc_detected' | 'low_fuel'
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
-  | 'ambient_banter' | 'local_fact';
+  | 'ambient_banter' | 'local_fact'
+  | 'fuel_range' | 'sunset_soon' | 'ride_debrief';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
   'ambient_banter', 'local_fact',
+  'fuel_range', 'sunset_soon', 'ride_debrief',
 ];
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */
@@ -21,6 +23,9 @@ export interface WeatherState {
   rainChanceNextHourPct: number;
   summary: string;
   fetchedAt: number;
+  /** Next sunrise and sunset at the rider's location (epoch ms), when the feed supplies them */
+  sunriseAt: number | null;
+  sunsetAt: number | null;
 }
 
 export interface TrafficIncident {

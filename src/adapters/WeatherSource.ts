@@ -8,6 +8,19 @@ const WMO: Array<[number, string]> = [
 ];
 export const wmoSummary = (code: number) => WMO.find(([max]) => code <= max)?.[1] ?? 'unknown';
 
+/**
+ * First of Open-Meteo's daily times (local ISO strings without a zone, e.g. "2026-10-08T18:10") that is still ahead.
+ * They are in the location's own time zone, which is the phone's time zone when you are riding there.
+ */
+export function nextTime(times: unknown, now: number): number | null {
+  if (!Array.isArray(times)) return null;
+  for (const t of times) {
+    const ms = typeof t === 'string' ? new Date(t).getTime() : NaN;
+    if (Number.isFinite(ms) && ms > now) return ms;
+  }
+  return null;
+}
+
 /** Open-Meteo: free, no API key, CORS-enabled (free tier is for non-commercial use). */
 export class WeatherSource implements DataSource {
   private timer?: ReturnType<typeof setInterval>;
@@ -38,7 +51,8 @@ export class WeatherSource implements DataSource {
       const url = 'https://api.open-meteo.com/v1/forecast'
         + `?latitude=${pos.lat.toFixed(3)}&longitude=${pos.lon.toFixed(3)}`
         + '&current=temperature_2m,precipitation,wind_speed_10m,weather_code'
-        + '&hourly=precipitation_probability&forecast_hours=3&wind_speed_unit=kmh&timezone=auto';
+        + '&hourly=precipitation_probability&forecast_hours=3&daily=sunrise,sunset&forecast_days=2'
+        + '&wind_speed_unit=kmh&timezone=auto';
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = await res.json();
@@ -51,6 +65,8 @@ export class WeatherSource implements DataSource {
         rainChanceNextHourPct: probs.length ? Math.max(...probs) : 0,
         summary: wmoSummary(c.weather_code ?? 0),
         fetchedAt: now,
+        sunriseAt: nextTime(j.daily?.sunrise, now),
+        sunsetAt: nextTime(j.daily?.sunset, now),
       };
       this.push?.({ weather });
       this.lastAt = now; this.lastPos = pos;

@@ -25,6 +25,7 @@ import { mountTuningPanel } from './ui/TuningPanel';
 import { mountLockScreen } from './ui/LockScreen';
 import { mountLogPanel } from './ui/LogPanel';
 import { LineLogStore } from './adapters/LineLogStore';
+import { FuelStore } from './adapters/FuelStore';
 import { LogEntry } from './core/LineLog';
 
 loadConfig();
@@ -40,7 +41,8 @@ const feed = { weather: 'idle', traffic: 'idle', places: 'idle' };
 const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places}`;
 
 interface Rig {
-  agg: StateAggregator; setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
+  agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<void>;
+  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -110,6 +112,19 @@ nameInput.addEventListener('change', () => {
   saveConfig();
 });
 
+// Fuel range by distance, for as long as there is no fuel gauge to read. The count carries on across rides.
+const showRange = (kmSinceFill: number | null) => {
+  $('range').textContent = kmSinceFill === null ? '-' : String(Math.max(0, Math.round(CONFIG.fuel.rangeKm - kmSinceFill)));
+  $('rangesrc').textContent = kmSinceFill === null ? 'tap FILLED UP' : `km left, ${Math.round(kmSinceFill)} since fill`;
+};
+showRange(FuelStore.load());
+$('filled').addEventListener('click', () => {
+  rig?.engine.filledUp();
+  FuelStore.save(0);
+  showRange(0);
+  setStatus(`Fill-up noted. Range reset to ${CONFIG.fuel.rangeKm} km.`);
+});
+
 const bikeInput = $<HTMLInputElement>('bikename');
 bikeInput.value = CONFIG.bikeName;
 bikeInput.addEventListener('change', () => {
@@ -176,11 +191,13 @@ async function start() {
   const engine = new TriggerEngine();
   engine.setHistory(RideLog.load());
   currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
+  engine.setFuelKm(FuelStore.load());
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
   const remember = () => {
     const w = agg.current.weather;
     const rec = toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null);
     if (rec) RideLog.save(rec);
+    FuelStore.save(engine.kmSinceFill());
   };
   const memTimer = window.setInterval(remember, 60_000);
   const claude = new ClaudeClient(import.meta.env.VITE_ANTHROPIC_API_KEY || undefined);
@@ -212,6 +229,7 @@ async function start() {
     $('dir').textContent = dir == null ? '-' : compassPoint(dir).split('-').map((w) => w[0].toUpperCase()).join('');
     $('dirsrc').textContent = dir == null ? '\u00a0' : s.headingDeg != null && s.speedKmh >= 10 ? 'GPS course' : 'compass';
     $('jolts').textContent = String(engine.rideSnapshot().jolts);
+    showRange(engine.kmSinceFill());
     $('feeds').textContent = s.weather
       ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby`
       : feedStatus();
@@ -240,7 +258,7 @@ async function start() {
   await agg.start();
   setObd(CONFIG.obdMode);
   say(engine.startup());
-  rig = { agg, setObd, unsub, unmountSim, wake, remember, memTimer };
+  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, wake, remember, memTimer };
   toggle.textContent = 'END RIDE';
   toggle.classList.add('stop');
   realBox.disabled = true;
@@ -248,20 +266,27 @@ async function start() {
 }
 
 async function stop() {
-  if (rig) { clearInterval(rig.memTimer); rig.remember(); }
-  saveLog();
-  rig?.setObd('off');
-  rig?.unsub();
-  rig?.agg.stop();
-  rig?.unmountSim();
-  await rig?.wake.disable();
-  showWake(null);
-  window.speechSynthesis?.cancel();
-  rig = null;
+  const r = rig;
+  if (!r) return;
+  rig = null; // a second tap while the debrief is being fetched must not start tearing down again
+  clearInterval(r.memTimer);
+  r.remember();
+  // A sign-off for any ride worth remembering. Built before the sources stop, spoken after everything else is cleared.
+  const snap = r.engine.rideSnapshot();
+  const debrief = toRecord(snap, null) ? r.engine.force('ride_debrief', r.agg.current) : null;
+  r.setObd('off');
+  r.unsub();
+  r.agg.stop();
+  r.unmountSim();
+  r.queue.clear(); // whatever was still waiting belongs to a ride that is over
   toggle.textContent = 'START RIDE';
   toggle.classList.remove('stop');
   realBox.disabled = false;
   setStatus('');
+  if (debrief) await r.say(debrief); // the queue outlives the ride just long enough to say it
+  saveLog();
+  await r.wake.disable();
+  showWake(null);
 }
 
 toggle.addEventListener('click', () => { rig ? stop() : start(); });

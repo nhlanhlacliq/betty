@@ -8,7 +8,11 @@ export interface Config {
   thresholds: {
     overtempC: number; lowFuelPct: number; rainChancePct: number;
     trafficRadiusKm: number; trafficMinSeverity: number;
+    /** Warn this many minutes before sunset */
+    sunsetWarnMin: number;
   };
+  /** Fuel range by distance since the last fill-up (used while there is no OBD fuel reading) */
+  fuel: { rangeKm: number; warnKmLeft: number };
   priorities: Record<TriggerId, Priority>;
   cooldownsMs: Record<TriggerId, number>;
   /** Min gap between ambient slots (enforced in TriggerEngine; the queue speaks whatever it is given) */
@@ -36,16 +40,20 @@ export interface Config {
 
 export const DEFAULT_CONFIG: Config = {
   safeWindow: { useLean: false, maxLeanDeg: 20 },
-  thresholds: { overtempC: 105, lowFuelPct: 15, rainChancePct: 60, trafficRadiusKm: 5, trafficMinSeverity: 2 },
+  thresholds: { overtempC: 105, lowFuelPct: 15, rainChancePct: 60, trafficRadiusKm: 5, trafficMinSeverity: 2, sunsetWarnMin: 45 },
+  // G 310 GS: 11 litre tank. 280 km is a cautious full-tank range; tune it to what the bike actually does.
+  fuel: { rangeKm: 280, warnKmLeft: 60 },
   priorities: {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
     rain_soon: 900_000, traffic_incident: 120_000, ride_milestone: 120_000, rider_query: 0,
     ambient_banter: 0, local_fact: 0, // paced by ambientCooldownMs, not per-trigger
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -126,6 +134,8 @@ Where it lies (ahead, behind, left, right) may be said ONLY if the situation sta
 Be picky. Which municipality or region something falls under, what it borders, or that it simply exists is dull.
 Never mention your notes or what they lack, and never apologise for a thin fact: say it well or not at all.
 If the notes hold nothing a friend would bother mentioning, reply with exactly ${SILENT_TOKEN}.`,
+  ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly in two short sentences.
+Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
   ride_milestone: `This is an ambient time check, not an alert. Note how long he has been out, with a dry touch, and nothing else.
 Do not recite bike readings. Do not reuse jokes or phrasing from what you already said this ride.`,
 };

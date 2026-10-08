@@ -99,6 +99,8 @@ assert.ok(!byText('Zero lean'), 'lean no longer comes from the phone tilt, nothi
 const wxCb = [...root.querySelectorAll('input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Override live weather')) as HTMLInputElement;
 wxCb.checked = true; fire(wxCb, 'change');
 assert.equal(agg.current.weather?.rainChanceNextHourPct, 70);
+assert.ok(Math.abs(agg.current.weather!.sunsetAt! - Date.now() - 180 * 60_000) < 5000, 'simulated sunset is 3 hours out by default');
+for (const id of ['fuel_range', 'sunset_soon', 'ride_debrief']) assert.ok(byText(new RegExp(`^${id} · P`)), `${id} can be fired from the simulator`);
 unmount(); assert.equal(root.innerHTML, '');
 
 // ---- tuning panel: edits mutate live CONFIG
@@ -116,6 +118,10 @@ const leanHold = [...troot.querySelectorAll('input[type=checkbox]')].find((c) =>
 assert.equal(leanHold.checked, false, 'lean hold is off by default');
 leanHold.checked = true; fire(leanHold, 'change');
 assert.equal(CONFIG.safeWindow.useLean, true);
+for (const label of ['Sunset warning', 'Full-tank range', 'Fuel range warning']) assert.ok(nums.some((n) => n.parentElement?.textContent?.startsWith(label)), `${label} is tunable`);
+const tank = nums.find((n) => n.parentElement?.textContent?.startsWith('Full-tank range'))!;
+tank.value = '320'; fire(tank, 'change');
+assert.equal(CONFIG.fuel.rangeKm, 320);
 const banterW = nums.find((n) => n.parentElement?.textContent?.startsWith('Banter weight'))!;
 assert.equal(banterW.value, '40');
 banterW.value = '0'; fire(banterW, 'change');
@@ -181,6 +187,13 @@ resetConfig();
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(ls.locked, false, 'holding the button unlocks');
 
+  // fuel range: unknown until FILLED UP is tapped, then the configured full-tank range
+  assert.equal(doc.getElementById('range')!.textContent, '-');
+  doc.getElementById('filled')!.dispatchEvent(new page.window.Event('click'));
+  assert.equal(doc.getElementById('range')!.textContent, '280');
+  assert.match(page.window.localStorage.getItem('betty.fuel.v1')!, /"kmSinceFill":0/, 'fill-up is remembered');
+  assert.match(doc.getElementById('status')!.textContent!, /Range reset to 280 km/);
+
   // LOG panel on the real page: starts empty, wired to storage
   assert.match(doc.getElementById('logpanel')!.textContent!, /LOG \(saved on this device\)/);
   assert.match(doc.querySelector('.logview')!.textContent!, /No lines logged yet/);
@@ -212,7 +225,7 @@ resetConfig();
   assert.ok(!lview.textContent!.includes('Afternoon, sir.'), 'saved lines are gone');
   assert.match(lview.textContent!, /95 min, 88 km/, "clearing the log leaves Betty's ride memory alone"); assert.equal(lsel.options.length, 2);
 
-  for (const id of ['toggle', 'lock', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['toggle', 'lock', 'filled', 'range', 'rangesrc', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   resetConfig();

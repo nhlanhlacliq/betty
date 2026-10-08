@@ -16,6 +16,7 @@ export const isSafeWindow = (s: BikeState) =>
 const EVENT_LABELS: Partial<Record<TriggerId, string>> = {
   engine_overtemp: 'engine running hot', dtc_detected: 'a fault code', low_fuel: 'low fuel',
   rain_soon: 'rain', traffic_incident: 'a traffic incident',
+  fuel_range: 'fuel range getting low', sunset_soon: 'sunset approaching',
 };
 
 const byDistance = (a: TrafficIncident, b: TrafficIncident) => a.distanceKm - b.distanceKm;
@@ -37,6 +38,9 @@ export class TriggerEngine {
   private lastAmbientSlot: number;
   private stats: RideStats;
   private history: RideRecord[] = [];
+  /** Fuel by distance: km since the last fill-up as it stood when fuelOffsetKm of this ride had been ridden. */
+  private fuelBaseKm: number | null = null;
+  private fuelOffsetKm = 0;
 
   constructor(private now: () => number = Date.now, private rng: () => number = Math.random) {
     this.rideStart = now(); this.lastAmbientSlot = now(); this.stats = new RideStats(now);
@@ -46,7 +50,23 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now();
+    const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
+    this.fuelBaseKm = carried; this.fuelOffsetKm = 0;
+  }
+
+  /** Km ridden since the last fill-up as last saved (null = no fill-up on record). Call at ride start. */
+  setFuelKm(km: number | null) { this.fuelBaseKm = km; this.fuelOffsetKm = this.stats.snapshot().distanceKm; }
+  /** The rider has just filled the tank. */
+  filledUp() { this.setFuelKm(0); this.lastFired.delete('fuel_range'); }
+  kmSinceFill(): number | null {
+    if (this.fuelBaseKm === null) return null;
+    return Math.round((this.fuelBaseKm + this.stats.snapshot().distanceKm - this.fuelOffsetKm) * 10) / 10;
+  }
+  /** Estimated range left, from the configured full-tank range. An estimate from distance, not a gauge. */
+  fuelKmLeft(): number | null {
+    const used = this.kmSinceFill();
+    return used === null ? null : Math.max(0, Math.round(CONFIG.fuel.rangeKm - used));
   }
 
   /** Past rides Betty remembers (loaded by the UI layer from wherever they are stored). */
@@ -87,9 +107,18 @@ export class TriggerEngine {
       if (s.fuelPct > 0 && s.fuelPct <= t.lowFuelPct && this.ready('low_fuel')) out.push(this.force('low_fuel', s));
     }
 
+    else { // no fuel gauge: go by distance since the last fill-up, if the rider has recorded one
+      const left = this.fuelKmLeft();
+      if (left !== null && left <= CONFIG.fuel.warnKmLeft && this.ready('fuel_range')) out.push(this.force('fuel_range', s));
+    }
+
     const w = s.weather;
     if (w && (w.rainNowMm >= 0.1 || w.rainChanceNextHourPct >= t.rainChancePct) && this.ready('rain_soon')) {
       out.push(this.force('rain_soon', s));
+    }
+    const toSunset = this.minutesToSunset(s);
+    if (toSunset !== null && toSunset > 0 && toSunset <= t.sunsetWarnMin && this.ready('sunset_soon')) {
+      out.push(this.force('sunset_soon', s));
     }
 
     const inc = s.incidents
@@ -117,6 +146,10 @@ export class TriggerEngine {
       if (pick) out.push(this.force(pick, s));
     }
     return out;
+  }
+
+  private minutesToSunset(s: BikeState): number | null {
+    return s.weather?.sunsetAt != null ? (s.weather.sunsetAt - this.now()) / 60_000 : null;
   }
 
   private ready(id: TriggerId) {
@@ -173,10 +206,47 @@ export class TriggerEngine {
         const mins = Math.round((this.now() - this.rideStart) / 60_000);
         return { context: `The rider has been out for ${mins} minutes.`, fallback: `You've been out ${mins} minutes. Good ride so far.` };
       }
+      case 'fuel_range': {
+        const left = this.fuelKmLeft();
+        if (left === null) {
+          return { context: 'No fill-up has been recorded, so the fuel range is unknown. Tell him so, briefly.', fallback: 'I have no fill-up on record, so I cannot estimate your range.' };
+        }
+        return {
+          context: `By distance ridden since the last fill-up, about ${left} km of fuel range is left. This is an estimate from distance, not a gauge reading.`,
+          fallback: `About ${left} kilometres of fuel left by my count. Time to plan a stop.`,
+        };
+      }
+      case 'sunset_soon': {
+        const m = this.minutesToSunset(s);
+        if (m === null || m <= 0) return { context: 'Sunset time is not known right now. Tell him so, briefly.', fallback: 'I do not have a sunset time right now.' };
+        const mins = Math.max(5, Math.round(m / 5) * 5);
+        return {
+          context: `Sunset is in about ${mins} minutes; the light will start going before then.`,
+          fallback: `About ${mins} minutes to sunset. The light will be going soon.`,
+        };
+      }
+      case 'ride_debrief': {
+        const r = this.stats.snapshot();
+        const bits = [`${Math.round(r.minutesOut)} minutes`, `${r.distanceKm} km`];
+        if (r.movingMin >= 1) bits.push(`averaging ${r.avgMovingKmh} km/h while moving`, `top speed ${r.maxSpeedKmh} km/h`);
+        bits.push(`${r.stops} stop(s)`);
+        if (r.climbM >= 20) bits.push(`${r.climbM} m climbed`);
+        if (r.hardBrakes) bits.push(`${r.hardBrakes} hard stop(s) on the brakes`);
+        if (r.places.length) bits.push(`places you told him about: ${r.places.join(', ')}`);
+        if (r.events.length) bits.push(`you flagged: ${[...new Set(r.events.map((e) => e.what))].join(', ')}`);
+        if (s.weather) bits.push(`weather ${s.weather.summary}, ${s.weather.tempC} C`);
+        const left = s.obd ? null : this.fuelKmLeft();
+        if (left !== null) bits.push(`about ${left} km of fuel range left by distance`);
+        return {
+          context: `The ride has just ended. Summary: ${bits.join('; ')}.`,
+          fallback: `Ride done: ${Math.round(r.minutesOut)} minutes and ${r.distanceKm} kilometres${r.stops ? `, with ${r.stops} stop${r.stops === 1 ? '' : 's'}` : ''}. Good one.`,
+        };
+      }
       // Ambient flavours have no canned fallback: without Claude, or with nothing to go on, Betty stays quiet.
       case 'ambient_banter': {
         const topics = banterTopics({
           s, ride: this.stats.snapshot(), history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
+          fuelKmLeft: this.fuelKmLeft(),
         });
         const topic = pickTopic(topics, this.topicUse, this.rng);
         if (!topic) return { context: '', fallback: '' };
@@ -199,9 +269,11 @@ export class TriggerEngine {
         if (!s.obd) {
           const r = this.stats.snapshot();
           const w = s.weather ? ` Weather: ${s.weather.summary}, ${s.weather.tempC} C.` : '';
+          const left = this.fuelKmLeft();
+          const range = left === null ? '' : ` By distance since the last fill-up, about ${left} km of fuel range is left (an estimate, not a gauge).`;
           return {
-            context: `The rider asked how things are going. No engine data is connected, so say nothing about engine, fuel or faults. He has been out ${Math.round(r.minutesOut)} minutes and covered ${r.distanceKm} km.${w}`,
-            fallback: `No engine data connected. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
+            context: `The rider asked how things are going. No engine data is connected, so say nothing about engine temperature, revs or faults. He has been out ${Math.round(r.minutesOut)} minutes and covered ${r.distanceKm} km.${range}${w}`,
+            fallback: `No engine data connected. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done${left === null ? '' : `, about ${left} kilometres of fuel left by my count`}.`,
           };
         }
         return {

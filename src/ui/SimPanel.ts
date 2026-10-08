@@ -87,11 +87,12 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
 
   // --- weather
   wrap.append(el('h3', '', 'Weather'));
-  const wx = { rainChance: 70, rainNow: 0, temp: 22, wind: 15 };
+  const wx = { rainChance: 70, rainNow: 0, temp: 22, wind: 15, sunsetMin: 180 };
   const applyWx = () => {
     const w: WeatherState = {
       tempC: wx.temp, windKmh: wx.wind, rainNowMm: wx.rainNow, rainChanceNextHourPct: wx.rainChance,
       summary: 'simulated', fetchedAt: Date.now(),
+      sunriseAt: null, sunsetAt: Date.now() + wx.sunsetMin * 60_000,
     };
     ctx.agg.setOverride('weather', w);
   };
@@ -100,6 +101,7 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
     rangeRow('Rain now', 0, 5, 0.1, ' mm', wx.rainNow, (v) => { wx.rainNow = v; if (wxCb.checked) applyWx(); }),
     rangeRow('Air temp', -5, 45, 1, '°C', wx.temp, (v) => { wx.temp = v; if (wxCb.checked) applyWx(); }),
     rangeRow('Wind', 0, 100, 1, ' km/h', wx.wind, (v) => { wx.wind = v; if (wxCb.checked) applyWx(); }),
+    rangeRow('Sunset in', 5, 300, 5, ' min', wx.sunsetMin, (v) => { wx.sunsetMin = v; if (wxCb.checked) applyWx(); }),
   ];
   const { wrap: wxCbWrap, cb: wxCb } = checkbox('Override live weather with these', false, (on) => {
     wxRows.forEach((r) => (r.range.disabled = !on));

@@ -112,6 +112,9 @@ Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `S
 | traffic_incident | P2 | new incident within 5 km and severity >= 2 (once per incident id) | 2 min |
 | ride_milestone | P3 | every 45 min of riding | 2 min |
 | rider_query | P4 | rider asks (simulator button for now; voice later) | 0 |
+| fuel_range | P2 | OBD off, a fill-up is on record, and estimated range left <= 60 km | 15 min |
+| sunset_soon | P2 | sunset is within 45 min (once per evening) | 6 h |
+| ride_debrief | P4 | END RIDE, for a ride of 3 min or 1 km and up | 0 |
 | ambient_banter | P3 | ambient slot rolls banter (see Ambient personality) | 0 (paced by ambient gap) |
 | local_fact | P3 | ambient slot rolls tour guide and an unmentioned place is in range | 0 (paced by ambient gap) |
 
@@ -144,6 +147,22 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 - Target latency trigger -> speech under 3 s.
 - AudioQueue uses a generation counter: `speechSynthesis.cancel()` still fires `onend` for the cancelled utterance,
   and without the guard that stale callback released the speaker mid-P1. There is a regression test; keep it.
+
+## Fuel range, sunset, debrief (built 2026-10-10)
+
+- **Fuel range by distance** (for as long as there is no fuel gauge): the rider taps FILLED UP on the main screen;
+  the engine counts km since then (`setFuelKm`/`filledUp`/`kmSinceFill`/`fuelKmLeft`) against `CONFIG.fuel.rangeKm`
+  (default 280, a cautious guess for the 11 litre tank; tune it) and fires `fuel_range` at `fuel.warnKmLeft` (60).
+  The count carries across rides via `adapters/FuelStore` (`betty.fuel.v1`), saved every minute and at END RIDE.
+  With no fill-up recorded there is no estimate and no warning. With OBD on, the real `low_fuel` alert is used
+  instead. She is told it is an estimate, not a gauge. Also a banter topic (`range`) and part of `rider_query`.
+- **Sunset**: Open-Meteo `daily=sunrise,sunset` (local ISO strings; `nextTime` picks the first still ahead) fills
+  `WeatherState.sunriseAt/sunsetAt`. `sunset_soon` fires once when sunset is within `thresholds.sunsetWarnMin`.
+  Banter gets a `daylight` topic inside the last two hours. The simulator's weather override has a "Sunset in" slider.
+- **Debrief**: `stop()` in `main.ts` builds `ride_debrief` from the ride stats before the sources stop, clears the
+  queue, then speaks it through the same queue (the queue outlives the ride just long enough). Canned fallback
+  gives minutes, km and stops. No map or written report yet.
+- Open-Meteo response shape was checked against the live API on 2026-10-10 (current, hourly, daily all match).
 
 ## Saved log
 
@@ -191,9 +210,9 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
 ## Feeds
 
 - **Weather**: Open-Meteo (`api.open-meteo.com/v1/forecast`), no key, CORS-enabled, free for non-commercial use.
+  Also requests `daily=sunrise,sunset&forecast_days=2`. Verified against the live API on 2026-10-10.
   Requests `current=temperature_2m,precipitation,wind_speed_10m,weather_code` and
   `hourly=precipitation_probability&forecast_hours=3`. Rain chance = max of the first two hourly values.
-  UNVERIFIED LIVE: the build environment could not reach the API. Check the first real response against the parser.
 - **Traffic**: there is no keyless live-traffic-incident API. The real provider is TomTom Traffic Incident Details v5
   (free developer key, set `VITE_TOMTOM_API_KEY`; free-tier limits not confirmed from the docs read, check them).
   Parser follows TomTom's documented response shape but has NOT been run against the live API. Without a key,
@@ -419,6 +438,58 @@ them on the device, use each at most once.
   stale offline regardless. GPS and the on-device speech voice keep working.
 - **Order**: first measure (the saved LOG tags every line `claude` or `fallback: network error/timeout`, so a few
   real rides show how often it happens), then service worker, alert variants, tour-guide pre-generation, banter last.
+
+## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
+
+Co-pilot:
+- Voice input "Hey Betty" (notes below). Biggest single upgrade; unlocks her questions and remembering what he says.
+- Route awareness: a destination gives fuel stops in range, weather where he will be in 30 min, distance/time left,
+  tour-guide facts for places being approached.
+- Fuel range without OBD: BUILT. Sunset and light warnings: BUILT.
+
+Safety:
+- Crash detection: hard impact then no movement starts a countdown, then messages an emergency contact with the
+  location. A web page cannot send an SMS by itself, so this is a native-app or Pi feature done properly.
+- Fatigue nudges from time in the saddle and time of day, naming the next stop.
+- Road-hazard memory: remember where hard jolts or hard braking happened and warn on approach next time.
+- Wind and cold: crosswind relative to heading, wind-chill at speed.
+
+Personality and memory:
+- Ride debrief: spoken sign-off BUILT. Still open: a written report with a map of the route.
+- Longer memory: favourite roads, places visited, personal records, "last time we came through here it rained".
+- Moods/personas: a quieter commuting mode, a chattier weekend mode, switchable on screen.
+- Better voice (notes below).
+
+Practical:
+- Offline line bank and offline loading (see the backlog section above); home-screen install.
+- Music ducking and quiet times (stay silent during a call, lower music while speaking).
+- Maintenance log: chain lube, service intervals, tyre age by distance ridden, with reminders.
+- Group rides: two riders running Betty share position ("your mate has dropped back").
+
+Hardware (Phase 4): real engine data, tyre pressure sensors, a handlebar button ("repeat that", "quiet for ten
+minutes", "mark this spot"; one physical button beats any on-screen control on a bike), camera clips saved on a hard
+brake or a "mark this" press.
+
+### Notes: a personal voice
+1. Free first: iOS "Enhanced"/"Premium" voices (Settings > Accessibility > Spoken Content > Voices). Betty uses the
+   default voice today; add a voice picker (`speechSynthesis.getVoices()`, persist the choice).
+2. Cloud TTS for real quality: Claude text -> TTS service -> audio played by the page. ElevenLabs can design or clone
+   a voice (needs the speaker's consent); Azure has South African English neural voices. Adds roughly 0.5 to 1 s per
+   line, needs signal (fall back to the phone voice), costs per character, and the key must sit behind a server
+   function. The offline line bank could store the audio as well as the text.
+3. Phase 4: Piper on the Pi, fully local, can be trained on a custom voice.
+
+### Notes: voice input
+- Steps: hear the rider, speech to text, text into the same `rider_query` path (see the chat test mode spec:
+  `ClaudeClient.converse` with a short history), speak the reply.
+- The mic must be the helmet's. Using a Bluetooth headset mic switches it to call mode (HFP), so Betty's voice and
+  any music drop to phone-call quality while listening.
+- Prefer push-to-talk over an always-on wake word: a wake word keeps the mic (and call-quality audio) on all ride
+  and in a browser only works while the page is in front. A handlebar/headset button is the ideal trigger.
+- Speech to text: Safari's SpeechRecognition on iPhone is unreliable (stops by itself, poor in noise). Dependable
+  option: record a few seconds (MediaRecorder) and send to a transcription service; needs a server-side key.
+- Order: typed chat test mode first, then push-to-talk with cloud transcription, wake word last (likely on the Pi
+  with Porcupine).
 
 ## Next steps (suggested order)
 

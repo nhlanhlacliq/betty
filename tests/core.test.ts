@@ -12,6 +12,7 @@ import { clockNote, greetingFor, BANTER_MODES, banterContext, banterTopics, choo
 import { RideStats } from '../src/core/RideStats';
 import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
 import { parseWikiPlaces } from '../src/adapters/PlaceSource';
+import { nextTime } from '../src/adapters/WeatherSource';
 
 /** Most tests want engine data present; OBD-off behaviour has its own block. */
 const obdState = (): BikeState => ({ ...initialState(), obd: true });
@@ -25,7 +26,7 @@ class FakeSpeaker implements Speaker {
   stop() { this.stopped++; }
 }
 const wx = (over: Partial<WeatherState> = {}): WeatherState => ({
-  tempC: 20, windKmh: 10, rainNowMm: 0, rainChanceNextHourPct: 0, summary: 'clear', fetchedAt: 0, ...over,
+  tempC: 20, windKmh: 10, rainNowMm: 0, rainChanceNextHourPct: 0, summary: 'clear', fetchedAt: 0, sunriseAt: null, sunsetAt: null, ...over,
 });
 const inc = (over: Partial<TrafficIncident> = {}): TrafficIncident => ({
   id: 'a', description: 'an accident', severity: 3, distanceKm: 2, lat: 0, lon: 0, ...over,
@@ -588,5 +589,82 @@ const ride0 = () => new RideStats(now).snapshot();
   const many = Array.from({ length: MAX_LOG_ENTRIES + 50 }, (_, i) => en(`m${i}`, r1, i));
   const capped = mergeLog([], many);
   assert.equal(capped.length, MAX_LOG_ENTRIES); assert.equal(capped.at(-1)!.id, `m${MAX_LOG_ENTRIES + 49}`, 'the oldest lines make way');
+}
+// ---- fuel range by distance (no fuel gauge)
+{
+  const e = new TriggerEngine(now, () => 0.99);
+  const s: BikeState = { ...initialState(), speedKmh: 72 };
+  const ride = (min: number) => { let out: TriggerEvent[] = []; for (let i = 0; i < min * 12; i++) { clock += 5000; out = out.concat(e.evaluate(s)); } return out; };
+  e.evaluate(s);
+  assert.equal(e.kmSinceFill(), null); assert.equal(e.fuelKmLeft(), null);
+  assert.equal(ride(5).filter((x) => x.id === 'fuel_range').length, 0, 'no warning until a fill-up has been recorded');
+  assert.match(e.force('fuel_range', s).fallback, /no fill-up on record/);
+
+  e.setFuelKm(200); // 200 km already ridden on this tank when the ride started
+  assert.equal(e.fuelKmLeft(), 80, '280 km range by default');
+  assert.equal(ride(5).filter((x) => x.id === 'fuel_range').length, 0, '6 km later: 74 left, above the 60 km warning');
+  const warned = ride(15).filter((x) => x.id === 'fuel_range');
+  assert.equal(warned.length, 1, 'warns once when it crosses 60 km left, then respects the cooldown');
+  assert.equal(warned[0].priority, 2); assert.match(warned[0].context, /about \d+ km of fuel range is left.*estimate/);
+  assert.match(warned[0].fallback, /^About \d+ kilometres of fuel left by my count/);
+  assert.ok(e.rideSnapshot().events.some((x) => x.what === 'fuel range getting low'));
+  const before = e.kmSinceFill()!;
+  assert.ok(Math.abs(before - 224) < 1, `200 + 24 km ridden, got ${before}`);
+
+  e.reset();
+  assert.equal(e.kmSinceFill(), before, 'a new ride carries the count over');
+  e.filledUp();
+  assert.equal(e.kmSinceFill(), 0); assert.equal(e.fuelKmLeft(), 280);
+  assert.equal(ride(10).filter((x) => x.id === 'fuel_range').length, 0, 'full tank, no warning');
+  CONFIG.fuel.rangeKm = 60;
+  assert.equal(e.evaluate({ ...s, obd: true, fuelPct: 80 }).filter((x) => x.id === 'fuel_range').length, 0, 'with a real fuel reading the estimate stays out of it');
+  assert.equal(e.evaluate(s).filter((x) => x.id === 'fuel_range').length, 1);
+  resetConfig();
+
+  const topics = banterTopics({ s, ride: ride0(), history: [], at: new Date(2026, 0, 1, 7), placeRadiusKm: 4, fuelKmLeft: 132 });
+  assert.match(topics.find((x) => x.id === 'range')!.text, /roughly 130 km of fuel range left/);
+  assert.match(e.force('rider_query', s).context, /km of fuel range is left \(an estimate, not a gauge\)/);
+}
+// ---- sunset
+{
+  const t0 = new Date(2026, 9, 8, 17, 0).getTime(); let t = t0;
+  const e = new TriggerEngine(() => t, () => 0.99);
+  const sunset = new Date(2026, 9, 8, 18, 10).getTime();
+  const s: BikeState = { ...initialState(), weather: wx({ sunsetAt: sunset }) };
+  assert.equal(e.evaluate(s).length, 0, '70 minutes out: too early');
+  t = sunset - 44 * 60_000;
+  const a = e.evaluate(s);
+  assert.equal(a[0].id, 'sunset_soon'); assert.equal(a[0].priority, 2);
+  assert.match(a[0].context, /Sunset is in about 45 minutes/); assert.match(a[0].fallback, /About 45 minutes to sunset/);
+  t += 10 * 60_000;
+  assert.equal(e.evaluate(s).length, 0, 'said once per evening');
+  const late = new TriggerEngine(() => sunset + 5 * 60_000, () => 0.99);
+  assert.equal(late.evaluate(s).length, 0, 'not after the sun has set');
+  assert.equal(new TriggerEngine(() => t, () => 0.99).evaluate({ ...initialState(), weather: wx() }).length, 0, 'unknown sunset: nothing');
+  const day = banterTopics({ s, ride: ride0(), history: [], at: new Date(sunset - 62 * 60_000), placeRadiusKm: 4 });
+  assert.match(day.find((x) => x.id === 'daylight')!.text, /Sunset is in about 60 minutes/);
+  assert.ok(!banterTopics({ s, ride: ride0(), history: [], at: new Date(sunset - 300 * 60_000), placeRadiusKm: 4 }).some((x) => x.id === 'daylight'));
+
+  // the feed's local ISO times: the first one still ahead
+  const times = ['2026-10-08T18:10', '2026-10-09T18:10'];
+  assert.equal(nextTime(times, new Date(2026, 9, 8, 12, 0).getTime()), sunset);
+  assert.equal(nextTime(times, sunset + 1), new Date(2026, 9, 9, 18, 10).getTime(), 'after today\'s sunset it is tomorrow\'s');
+  assert.equal(nextTime(times, new Date(2026, 9, 10).getTime()), null); assert.equal(nextTime(undefined, 0), null); assert.equal(nextTime(['junk'], 0), null);
+}
+// ---- end-of-ride debrief
+{
+  const e = new TriggerEngine(now, () => 0.99);
+  const s: BikeState = { ...initialState(), speedKmh: 60, altitudeM: 1500, weather: wx(), nearbyPlaces: [place()] };
+  e.evaluate(s);
+  for (let i = 0; i < 120; i++) { clock += 5000; e.evaluate({ ...s, altitudeM: 1500 + i }); } // 10 min, 10 km, 119 m up
+  e.force('local_fact', s); e.force('rain_soon', s);
+  clock += 5000; e.evaluate({ ...s, speedKmh: 0 });
+  const d = e.force('ride_debrief', { ...s, speedKmh: 0 });
+  assert.equal(d.priority, 4);
+  assert.match(d.context, /^The ride has just ended\. Summary: 10 minutes; 10 km; averaging 60 km\/h while moving; top speed 60 km\/h; 1 stop\(s\)/);
+  assert.match(d.context, /1\d\d m climbed/); assert.match(d.context, /places you told him about: Testville/); assert.match(d.context, /you flagged: rain/);
+  assert.equal(d.fallback, 'Ride done: 10 minutes and 10 kilometres, with 1 stop. Good one.');
+  const req = buildClaudeRequest(d, s, []);
+  assert.match(req.system, /sign-off/); assert.ok(!/Bike state|Local time/.test(req.messages[0].content));
 }
 console.log('all core tests passed');

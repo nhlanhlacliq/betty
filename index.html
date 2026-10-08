@@ -25,6 +25,7 @@
     #startopts select, #startopts input[type=text] { background: var(--bg); color: var(--bright); border: 1px solid var(--border); padding: 4px; }
     #status { color: var(--dim); font-size: 12px; margin-top: 12px; min-height: 16px; }
     #status.err { color: var(--red); }
+    #filled { width: 100%; padding: 12px; margin-top: 8px; }
     #lock { width: 100%; padding: 14px; margin-top: 8px; letter-spacing: 2px; }
     .lockcover { position: fixed; inset: 0; z-index: 1000; background: #000; color: #9aa; touch-action: none; user-select: none;
       -webkit-user-select: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; text-align: center; }
@@ -68,6 +69,7 @@
     <div class="stat"><div class="l">RAIN</div><div class="v" id="rain">-</div><div class="u">% next hour</div></div>
     <div class="stat"><div class="l">ALTITUDE</div><div class="v" id="alt">-</div><div class="u">m</div></div>
     <div class="stat"><div class="l">HEADING</div><div class="v" id="dir">-</div><div class="u" id="dirsrc">&nbsp;</div></div>
+    <div class="stat"><div class="l">FUEL RANGE</div><div class="v" id="range">-</div><div class="u" id="rangesrc">tap FILLED UP</div></div>
     <div class="stat"><div class="l">JOLTS</div><div class="v" id="jolts">0</div><div class="u">this ride</div></div>
   </div>
   <div id="startopts"><label><input type="checkbox" id="real" checked /> Use real phone sensors (GPS, motion). Untick on desktop to run fully simulated.</label>
@@ -83,6 +85,7 @@
   </div>
   <button id="toggle">START RIDE</button>
   <button id="lock" class="ghost">LOCK SCREEN</button>
+  <button id="filled" class="ghost">FILLED UP (reset fuel range)</button>
   <div id="status"></div>
   <div id="wake"></div>
   <div id="feeds"></div>
