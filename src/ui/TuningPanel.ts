@@ -84,6 +84,9 @@ export function mountTuningPanel(root: HTMLElement) {
   showMemory();
   wrap.append(forget);
 
-  wrap.append(button('Reset all to defaults', () => { resetAndSave(); mountTuningPanel(root); }));
+  wrap.append(button('Reset all to defaults', () => {
+    resetAndSave(); mountTuningPanel(root);
+    window.dispatchEvent(new window.Event('betty-config')); // main screen inputs (name, OBD mode) follow
+  }));
   root.append(wrap);
 }

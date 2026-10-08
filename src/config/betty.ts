@@ -19,6 +19,8 @@ export interface Config {
   ambient: { banterWeight: number; tourGuideWeight: number; silenceWeight: number; placeRadiusKm: number };
   /** 'off' = no engine data at all, Betty runs on GPS, lean and feeds. 'mock' = simulated OBD2. Real OBD2 is Phase 4. */
   obdMode: ObdMode;
+  /** What Betty calls the rider. A single letter is spoken as its name by the speech engine ("en"). */
+  riderName: string;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -47,6 +49,7 @@ export const DEFAULT_CONFIG: Config = {
   milestoneEveryMin: 45,
   ambient: { banterWeight: 40, tourGuideWeight: 40, silenceWeight: 20, placeRadiusKm: 4 },
   obdMode: 'off',
+  riderName: 'N',
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,
@@ -75,15 +78,21 @@ function deepAssign(target: any, src: any) {
 export const applyConfig = (p: DeepPartial<Config>) => deepAssign(CONFIG, p);
 export const resetConfig = () => deepAssign(CONFIG, structuredClone(DEFAULT_CONFIG));
 
-/** What Betty calls the rider. A single letter is spoken as its name by the speech engine ("en"). */
-export const RIDER_NAME = 'N';
+const MAX_NAME_CHARS = 20;
+/** Tidy what was typed into the name box: one line, letters and simple punctuation, never empty. */
+export const cleanRiderName = (raw: string) =>
+  raw.replace(/[^\p{L}\p{N} .'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_CHARS) || DEFAULT_CONFIG.riderName;
 
-export const BETTY_SYSTEM_PROMPT = `You are Betty, the riding co-pilot on a 2018 BMW G 310 GS. You call the rider ${RIDER_NAME}, just the letter.
+/** Built at call time so a name change on screen applies to the very next line. */
+export const bettySystemPrompt = () => {
+  const name = cleanRiderName(CONFIG.riderName);
+  return `You are Betty, the riding co-pilot on a 2018 BMW G 310 GS. You call the rider ${name}${name.length === 1 ? ', just the letter' : ''}.
 Tone: warm, dry wit, direct. Co-pilot, not alert system. Use his name rarely, not in every line, and never any other name for him.
 Hard rules: reply in at most ${DEFAULT_CONFIG.maxSpokenSentences} short sentences. Plain spoken English, no markdown, no emojis, no lists. Aim for under 25 words in total.
 Never repeat something already said this ride. Use only the supplied situation and bike state; never invent numbers, places or road names.
 Safety alerts (engine temperature, fault codes, fuel, traffic, rain) are said straight: no jokes, no teasing.
 Output only the words to be spoken.`;
+};
 
 /** Reply that means "say nothing". Ambient flavours may choose it. */
 export const SILENT_TOKEN = 'SILENT';

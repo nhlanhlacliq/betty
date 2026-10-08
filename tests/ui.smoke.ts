@@ -115,4 +115,34 @@ assert.equal(CONFIG.thresholds.overtempC, 130, 'clamped to max');
 assert.equal(CONFIG.ambientCooldownMs, 120_000); assert.equal(CONFIG.priorities.startup, 4);
 assert.equal(CONFIG.ambient.banterWeight, 40);
 resetConfig();
+
+// ---- main screen: the real index.html wired by main.ts (catches a missing element id or a broken listener)
+{
+  const { readFileSync } = await import('node:fs');
+  const page = new JSDOM(readFileSync(new URL('../index.html', import.meta.url), 'utf8').replace(/<script[^>]*><\/script>/, ''), { url: 'https://betty.test/' });
+  Object.assign(globalThis, { document: page.window.document, window: page.window, localStorage: page.window.localStorage });
+  await import('../src/main');
+  const doc = page.window.document;
+  const ev = (el: Element, type: string) => el.dispatchEvent(new page.window.Event(type, { bubbles: true }));
+
+  const name = doc.getElementById('ridername') as HTMLInputElement;
+  assert.equal(name.value, 'N', 'name box shows the current name');
+  name.value = '  Captain  '; ev(name, 'change');
+  assert.equal(CONFIG.riderName, 'Captain'); assert.equal(name.value, 'Captain');
+  assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"riderName":"Captain"/, 'name is remembered');
+  name.value = ''; ev(name, 'change');
+  assert.equal(name.value, 'N', 'empty falls back to the default');
+
+  const obd = doc.getElementById('obdmode') as HTMLSelectElement;
+  assert.equal(obd.value, 'off');
+  obd.value = 'mock'; ev(obd, 'change');
+  assert.equal(CONFIG.obdMode, 'mock');
+  name.value = 'Boss'; ev(name, 'change');
+  [...doc.querySelectorAll('#tuning button')].find((b) => b.textContent?.startsWith('Reset all'))!.dispatchEvent(new page.window.Event('click'));
+  assert.equal(name.value, 'N'); assert.equal(obd.value, 'off', 'reset to defaults is reflected on the main screen');
+  for (const id of ['toggle', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+    assert.ok(doc.getElementById(id), `#${id} exists`);
+  }
+  resetConfig();
+}
 console.log('ui smoke tests passed');

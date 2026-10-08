@@ -1,4 +1,4 @@
-import { BETTY_SYSTEM_PROMPT, CONFIG, FLAVOUR_PROMPTS, SILENT_TOKEN } from '../config/betty';
+import { CONFIG, bettySystemPrompt, FLAVOUR_PROMPTS, SILENT_TOKEN } from '../config/betty';
 import { BikeState, TriggerEvent } from './types';
 
 /** What Betty will say (empty text = say nothing) and where the words came from. */
@@ -76,6 +76,7 @@ export class ClaudeClient {
 /** Exactly what is sent to Claude for an event. Pure, so it can be tested and shown in the UI. */
 export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[]) {
   const flavour = FLAVOUR_PROMPTS[ev.id];
+  const base = bettySystemPrompt();
   // Ambient flavours get no telemetry: given readings, the model recites them or comments on the riding.
   const readings = s.obd
     ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, fuelPct: s.fuelPct }
@@ -86,7 +87,7 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
     max_tokens: 120,
     // Without this the model thinks first: the thinking block eats max_tokens and blows the timeout.
     thinking: { type: CONFIG.claudeThinkingOff },
-    system: flavour ? `${BETTY_SYSTEM_PROMPT}\n\n${flavour}` : BETTY_SYSTEM_PROMPT,
+    system: flavour ? `${base}\n\n${flavour}` : base,
     messages: [{
       role: 'user' as const,
       content: `Situation: ${ev.context}${bike}\nAlready said this ride: ${JSON.stringify(spoken)}`,

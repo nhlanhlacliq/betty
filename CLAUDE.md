@@ -7,7 +7,8 @@ Context for any Claude Code instance picking this project up. Read this first.
 An always-on voice co-pilot for a motorcycle (owner: Nhlanhla, 2018 BMW G 310 GS, Gauteng, South Africa).
 She talks to the rider through Bluetooth helmet comms, reads bike/ride data, and speaks proactively
 like a co-pilot with personality, not like an alert system. Warm, dry wit, direct, max 2 short sentences.
-She calls the rider "N" (`RIDER_NAME` in `config/betty.ts`), never his full name: owner's request, 2026-10-09.
+She calls the rider by `CONFIG.riderName` (default "N", editable in the "Betty calls you" box on the main screen,
+persisted). The system prompt is built per request by `bettySystemPrompt()`, so a change applies to the next line.
 
 The rider can also speak to her ("Hey Betty, how's the bike?"). That voice-input path is not built yet.
 
@@ -87,7 +88,7 @@ src/
     TuningPanel.ts         TUNING panel (always mounted)
     dom.ts                 el/button/checkbox helpers
 tests/core.test.ts         Pure logic tests
-tests/ui.smoke.ts          Drives both panels in jsdom (sliders, buttons, config edits)
+tests/ui.smoke.ts          Drives both panels in jsdom, then loads the real index.html with main.ts (name box, OBD switch)
 ```
 
 **Key rule: core/ never imports from adapters/ or ui/ and never touches `window`/`navigator`.** Moving from phone to
@@ -178,6 +179,8 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
 - Geolocation, device motion and speech need HTTPS. `localhost` is exempt, so phone testing needs a deployed URL.
 - iOS: motion permission (`DeviceOrientationEvent.requestPermission`) and speech priming must be triggered
   directly from a tap, before other awaits. `main.ts` does this at the top of `start()`.
+- The `#wake` line under the status shows whether the screen wake lock is held (green) or not (red). The system
+  drops the lock when the tab is hidden; `WakeLock` re-acquires it when the tab returns.
 - Backgrounded tab / locked screen = GPS and timers throttled, Betty effectively stops. Wake lock mitigates
   but does not solve it. This is the main limitation versus native and the reason for Phase 4.
 - Lean angle from the phone is approximate (sensor fusion lags in sustained corners, handlebar vibration adds noise).

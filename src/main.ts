@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CONFIG, ObdMode } from './config/betty';
+import { CONFIG, ObdMode, cleanRiderName } from './config/betty';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { AudioQueue } from './core/AudioQueue';
@@ -17,7 +17,7 @@ import { PlaceSource } from './adapters/PlaceSource';
 import { RideLog } from './adapters/RideLog';
 import { toRecord } from './core/RideMemory';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
-import { WakeLock } from './adapters/WakeLock';
+import { WakeLock, WakeStatus } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
 import { mountTuningPanel } from './ui/TuningPanel';
 
@@ -41,6 +41,24 @@ const lines: string[] = [];
 
 mountTuningPanel($('tuning'));
 
+// What Betty calls the rider. Applies from the next line she speaks.
+const nameInput = $<HTMLInputElement>('ridername');
+nameInput.value = CONFIG.riderName;
+nameInput.addEventListener('change', () => {
+  CONFIG.riderName = cleanRiderName(nameInput.value);
+  nameInput.value = CONFIG.riderName;
+  saveConfig();
+});
+
+const wakeEl = $('wake');
+const showWake = (s: WakeStatus | null) => {
+  wakeEl.className = s === 'on' ? 'ok' : 'err';
+  wakeEl.textContent = s === null ? ''
+    : s === 'on' ? 'Screen will stay awake while this page is open and in front.'
+      : s === 'off' ? 'Screen is NOT being kept awake. Tap the page, or set Auto-Lock to Never in the phone settings.'
+        : 'This browser cannot keep the screen awake. Set Auto-Lock to Never in the phone settings before riding.';
+};
+
 // OBD mode: off = GPS, lean and feeds only. Switchable before or during a ride.
 const obdSel = $<HTMLSelectElement>('obdmode');
 obdSel.value = CONFIG.obdMode;
@@ -48,6 +66,10 @@ obdSel.addEventListener('change', () => {
   CONFIG.obdMode = obdSel.value as ObdMode;
   saveConfig();
   rig?.setObd(CONFIG.obdMode);
+});
+// TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
+window.addEventListener('betty-config', () => {
+  nameInput.value = CONFIG.riderName; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
 });
 
 async function start() {
@@ -135,7 +157,7 @@ async function start() {
     },
   });
 
-  const wake = new WakeLock();
+  const wake = new WakeLock(showWake);
   await wake.enable();
   await agg.start();
   setObd(CONFIG.obdMode);
@@ -154,6 +176,7 @@ async function stop() {
   rig?.agg.stop();
   rig?.unmountSim();
   await rig?.wake.disable();
+  showWake(null);
   window.speechSynthesis?.cancel();
   rig = null;
   toggle.textContent = 'START RIDE';
