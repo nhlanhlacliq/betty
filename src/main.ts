@@ -2,7 +2,7 @@ import { loadConfig, saveConfig } from './config/persist';
 import { CONFIG, ObdMode, cleanRiderName } from './config/betty';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
-import { AudioQueue } from './core/AudioQueue';
+import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
 import { ClaudeClient } from './core/ClaudeClient';
 import { LatLon } from './core/geo';
 import { AMBIENT_IDS, TriggerEvent } from './core/types';
@@ -38,7 +38,22 @@ interface Rig {
   agg: StateAggregator; setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
 }
 let rig: Rig | null = null;
-const lines: string[] = [];
+interface LogLine { head: string; text: string; item: QueueItem | null }
+const lines: LogLine[] = [];
+const FATE_LABELS: Record<Fate, string> = {
+  queued: 'waiting to speak', speaking: 'speaking now', spoken: 'spoken', expired: 'not spoken: waited too long',
+  interrupted: 'cut off by a critical alert', cleared: 'cleared',
+};
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const renderLog = () => {
+  logEl.innerHTML = lines.slice(0, 10)
+    .map((l) => `<div>${esc(l.head)}: ${esc(l.text)}${l.item ? ` <span class="fate">[${FATE_LABELS[l.item.fate]}]</span>` : ''}</div>`).join('');
+};
+/** Problems the speech engine reports (a line that would not start, or never finished). Shown, not swallowed. */
+const speechProblem = (msg: string) => {
+  lines.unshift({ head: '[audio]', text: msg, item: null });
+  renderLog();
+};
 
 mountTuningPanel($('tuning'));
 
@@ -122,8 +137,8 @@ async function start() {
   };
   const memTimer = window.setInterval(remember, 60_000);
   const claude = new ClaudeClient(import.meta.env.VITE_ANTHROPIC_API_KEY || undefined);
-  const speaker = new SwitchableSpeaker(new WebSpeaker());
-  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current));
+  const speaker = new SwitchableSpeaker(new WebSpeaker(speechProblem));
+  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, renderLog);
 
   const say = async (ev: TriggerEvent) => {
     const p = await claude.phrase(ev, agg.current);
@@ -131,9 +146,13 @@ async function start() {
     const dropped = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
     const text = dropped ? '' : p.text;
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
-    lines.unshift(`[P${ev.priority}] ${ev.id} (${meta}): ${text || (dropped ? '(dropped: critical alert active)' : '(silent)')}`);
-    logEl.innerHTML = lines.slice(0, 10).map((l) => `<div>${l.replace(/</g, '&lt;')}</div>`).join('');
-    queue.enqueue(text, ev.priority);
+    const line: LogLine = {
+      head: `[P${ev.priority}] ${ev.id} (${meta})`, item: null,
+      text: text || (dropped ? '(dropped: critical alert active)' : '(silent)'),
+    };
+    lines.unshift(line);
+    line.item = queue.enqueue(text, ev.priority); // the item carries its fate: waiting, speaking, spoken, or why not
+    renderLog();
     if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
   };
 
@@ -158,7 +177,7 @@ async function start() {
     setAloud: (on) => { speaker.aloud = on; },
     zeroLean: () => motion.zero(),
     refreshFeeds: () => { weather.refresh(); traffic.refresh(); places.refresh(); },
-    resetRide: () => { engine.reset(); obd.reset(); queue.clear(); lines.length = 0; logEl.innerHTML = ''; },
+    resetRide: () => { engine.reset(); obd.reset(); queue.clear(); lines.length = 0; renderLog(); },
     feedStatus,
     lastPhrase: () => {
       const p = claude.last;

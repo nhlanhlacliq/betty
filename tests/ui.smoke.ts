@@ -171,4 +171,62 @@ resetConfig();
   }
   resetConfig();
 }
+
+// ---- WebSpeaker: whatever the speech engine does, onDone is called exactly once so the queue never jams
+{
+  const { WebSpeaker } = await import('../src/adapters/WebSpeaker');
+  type U = { text: string; onstart?: () => void; onend?: () => void; onerror?: (e: { error: string }) => void };
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const rig = () => {
+    const synth = { speaking: false, spoken: [] as U[], cancels: 0, resumes: 0,
+      speak(u: any) { this.spoken.push(u); }, cancel() { this.cancels++; }, resume() { this.resumes++; } };
+    const problems: string[] = [];
+    const sp = new WebSpeaker((m) => problems.push(m), synth, (text) => ({ text }) as any, { startMs: 20, perWordMs: 0, baseMs: 80 });
+    return { synth, problems, sp };
+  };
+
+  { // normal line
+    const { synth, problems, sp } = rig(); let done = 0;
+    sp.speak('hello there', () => done++);
+    assert.equal(synth.resumes, 1, 'engine is un-paused before every line');
+    synth.spoken[0].onstart!(); synth.spoken[0].onend!(); synth.spoken[0].onend!();
+    await wait(120);
+    assert.equal(done, 1, 'done exactly once'); assert.deepEqual(problems, []);
+  }
+  { // swallowed: never starts. One retry, then give up and move on.
+    const { synth, problems, sp } = rig(); let done = 0;
+    sp.speak('lost line', () => done++);
+    await wait(30);
+    assert.equal(synth.spoken.length, 2, 'retried once'); assert.equal(done, 0);
+    await wait(40);
+    assert.equal(done, 1, 'gave up and released the queue'); assert.equal(synth.spoken.length, 2);
+    assert.match(problems.join('|'), /retrying.*line skipped/);
+  }
+  { // retry works
+    const { synth, sp } = rig(); let done = 0;
+    sp.speak('second time lucky', () => done++);
+    await wait(30);
+    synth.spoken[1].onstart!(); synth.spoken[0].onend!(); // late event from the abandoned first attempt is ignored
+    assert.equal(done, 0);
+    synth.spoken[1].onend!();
+    assert.equal(done, 1);
+  }
+  { // starts but never reports the end: the deadline releases the queue
+    const { synth, problems, sp } = rig(); let done = 0;
+    sp.speak('never ends', () => done++);
+    synth.spoken[0].onstart!();
+    await wait(120);
+    assert.equal(done, 1); assert.match(problems[0], /never reported finishing/); assert.equal(synth.spoken.length, 1, 'no retry once it started');
+  }
+  { // engine error before starting retries; stop() means no callback at all
+    const { synth, sp } = rig(); let done = 0;
+    sp.speak('errors', () => done++);
+    synth.spoken[0].onerror!({ error: 'synthesis-failed' });
+    assert.equal(synth.spoken.length, 2);
+    sp.stop();
+    synth.spoken[1].onend!();
+    await wait(120);
+    assert.equal(done, 0, 'a stopped line never calls back'); assert.ok(synth.cancels >= 1);
+  }
+}
 console.log('ui smoke tests passed');

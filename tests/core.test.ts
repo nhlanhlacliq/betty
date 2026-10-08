@@ -126,20 +126,35 @@ assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 30 }), true); res
   sp.done!();
   assert.ok(sp.spoken.includes('b'), 'b speaks after crit finishes');
 }
-// queue: ambient expiry + cooldown + clear
+// queue: stale ambient is dropped; otherwise every line is spoken, one at a time, in the order it arrived
 {
   let safe = false;
   const sp = new FakeSpeaker();
-  const q = new AudioQueue(sp, () => safe, now);
-  q.enqueue('nice road', 3);
+  const fates: string[] = [];
+  const q = new AudioQueue(sp, () => safe, now, (i, f) => fates.push(`${i.text}:${f}`));
+  const old = q.enqueue('nice road', 3)!;
   clock += 61_000; safe = true; q.pump();
-  assert.equal(sp.spoken.length, 0, 'stale ambient dropped');
-  q.enqueue('again', 3); assert.equal(sp.spoken.length, 1);
+  assert.equal(sp.spoken.length, 0, 'stale ambient dropped'); assert.equal(old.fate, 'expired');
+
+  const first = q.enqueue('first', 3)!;
+  assert.deepEqual(sp.spoken, ['first']); assert.equal(first.fate, 'speaking');
+  const second = q.enqueue('second', 3)!; const third = q.enqueue('third', 2)!;
+  assert.deepEqual(sp.spoken, ['first'], 'nothing talks over the line that is playing');
+  assert.equal(second.fate, 'queued'); assert.equal(q.pending, 2, 'a new ambient line right after another is kept, not dropped');
   sp.done!();
-  q.enqueue('too soon', 3); assert.equal(q.pending, 0, 'ambient cooldown (2 min) enforced');
-  clock += 121_000;
-  q.enqueue('ok now', 3); assert.equal(sp.spoken.at(-1), 'ok now');
-  q.clear(); assert.equal(q.pending, 0); assert.equal(q.speakingPriority, null);
+  assert.equal(first.fate, 'spoken'); assert.deepEqual(sp.spoken, ['first', 'third'], 'advisory goes before ambient');
+  sp.done!();
+  assert.deepEqual(sp.spoken, ['first', 'third', 'second']); assert.equal(second.fate, 'speaking');
+  sp.done!();
+  assert.equal(second.fate, 'spoken'); assert.equal(q.speakingPriority, null);
+  assert.ok(fates.includes('second:queued') && fates.includes('second:speaking') && fates.includes('second:spoken'));
+
+  const a = q.enqueue('ambient', 3)!; const b = q.enqueue('waiting', 2)!;
+  q.enqueue('critical', 1);
+  assert.equal(a.fate, 'interrupted'); assert.equal(b.fate, 'interrupted'); assert.equal(sp.spoken.at(-1), 'critical');
+  assert.equal(q.enqueue('', 3), null);
+  const c = q.enqueue('later', 2)!;
+  q.clear(); assert.equal(q.pending, 0); assert.equal(q.speakingPriority, null); assert.equal(c.fate, 'cleared');
 }
 // geo
 assert.ok(Math.abs(haversineKm({ lat: 0, lon: 0 }, { lat: 0, lon: 1 }) - 111.19) < 0.5);

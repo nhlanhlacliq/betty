@@ -12,9 +12,6 @@ import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 export const isSafeWindow = (s: BikeState) =>
   !CONFIG.safeWindow.useLean || Math.abs(s.leanDeg) < CONFIG.safeWindow.maxLeanDeg;
 
-/** Margin on top of ambientCooldownMs so a new ambient line is not dropped by the queue's own P3 rate limit. */
-const AMBIENT_SLACK_MS = 5000;
-
 /** How an alert is remembered later in the ride and in the ride log. */
 const EVENT_LABELS: Partial<Record<TriggerId, string>> = {
   engine_overtemp: 'engine running hot', dtc_detected: 'a fault code', low_fuel: 'low fuel',
@@ -111,7 +108,7 @@ export class TriggerEngine {
     }
 
     // One ambient slot per cooldown. A slot that rolls silence is still used up, so the silence weight means something.
-    const slotDue = this.now() - this.lastAmbientSlot >= CONFIG.ambientCooldownMs + AMBIENT_SLACK_MS;
+    const slotDue = this.now() - this.lastAmbientSlot >= CONFIG.ambientCooldownMs;
     if (slotDue && !out.length && isSafeWindow(s) && !this.ambientBlocked(s)) {
       this.lastAmbientSlot = this.now();
       const place = freshPlace(s.nearbyPlaces, this.mentioned, CONFIG.ambient.placeRadiusKm);

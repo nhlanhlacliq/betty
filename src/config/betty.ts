@@ -11,7 +11,7 @@ export interface Config {
   };
   priorities: Record<TriggerId, Priority>;
   cooldownsMs: Record<TriggerId, number>;
-  /** Min gap between spoken P3 remarks (enforced in AudioQueue) */
+  /** Min gap between ambient slots (enforced in TriggerEngine; the queue speaks whatever it is given) */
   ambientCooldownMs: number;
   /** A queued P3 older than this is dropped */
   ambientMaxAgeMs: number;

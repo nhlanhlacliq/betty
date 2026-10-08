@@ -124,8 +124,15 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
   (2026-10-08) and the lean condition switched off (2026-10-09, the phone IMU reads past 20 deg just from
   mounting and vibration). The lean hold survives as a TUNING checkbox (`safeWindow.useLean`, default off) for when
   a trustworthy lean source exists. Do not turn it on by default or reintroduce RPM unless asked.
-- P3 waits for a safe window, is rate-limited by `ambientCooldownMs` (default 2 min, enforced in AudioQueue), and is
-  dropped if queued longer than `ambientMaxAgeMs` (60 s).
+- P3 waits for a safe window and is dropped if queued longer than `ambientMaxAgeMs` (60 s). How OFTEN ambient lines
+  are made is paced by `ambientCooldownMs` in TriggerEngine. The queue no longer has its own time-based P3 drop: it
+  silently discarded lines that had already been logged (2026-10-09 road test). Do not add one back.
+- One line at a time: a line arriving while another plays waits and is spoken after it. Only P1 interrupts.
+- Every line's fate is tracked on its `QueueItem` (`queued`, `speaking`, `spoken`, `expired`, `interrupted`,
+  `cleared`) and shown in the log, so "logged but not heard" is always explained.
+- `WebSpeaker` must ALWAYS call onDone: mobile speech engines swallow lines or never fire `onend`, which used to jam
+  the queue for the rest of the ride. It retries a line once if it does not start within 3 s, writes it off after a
+  deadline based on its length, calls `resume()` before each line, and reports problems to the log as `[audio]`.
 - P4 always speaks next.
 - No repeating herself: per-trigger cooldowns, per-incident dedupe, and ClaudeClient passes recent lines to Claude.
 - Every API/hardware failure has a fallback. Sources failing must not crash the app.
