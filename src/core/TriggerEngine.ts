@@ -1,4 +1,4 @@
-import { CONFIG } from '../config/betty';
+import { CONFIG, cleanBikeName } from '../config/betty';
 import { banterContext, banterTopics, chooseAmbient, freshPlace, partOfDay, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
@@ -19,6 +19,7 @@ const EVENT_LABELS: Partial<Record<TriggerId, string>> = {
 };
 
 const byDistance = (a: TrafficIncident, b: TrafficIncident) => a.distanceKm - b.distanceKm;
+const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 const km = (n: number) => `${Math.round(n * 10) / 10} km`;
 
 /** Evaluates state, emits deduplicated trigger events. Pure logic: no I/O, easy to test. All tuning is read live from CONFIG. */
@@ -136,7 +137,7 @@ export class TriggerEngine {
         const codes = s.dtcs.length ? s.dtcs : ['P0000'];
         return {
           context: `The bike reported fault codes: ${codes.join(', ')}.`,
-          fallback: `The bike's reporting a fault code, ${codes[0]}. Worth checking when you stop.`,
+          fallback: `${cap(cleanBikeName(CONFIG.bikeName))} is reporting a fault code, ${codes[0]}. Worth checking when you stop.`,
         };
       }
       case 'low_fuel':

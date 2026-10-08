@@ -22,6 +22,8 @@ export interface Config {
   obdMode: ObdMode;
   /** What Betty calls the rider. A single letter is spoken as its name by the speech engine ("en"). */
   riderName: string;
+  /** What Betty calls the motorcycle */
+  bikeName: string;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -50,7 +52,8 @@ export const DEFAULT_CONFIG: Config = {
   milestoneEveryMin: 45,
   ambient: { banterWeight: 40, tourGuideWeight: 40, silenceWeight: 20, placeRadiusKm: 4 },
   obdMode: 'off',
-  riderName: 'N',
+  riderName: 'sir',
+  bikeName: 'the bike',
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,
@@ -80,14 +83,18 @@ export const applyConfig = (p: DeepPartial<Config>) => deepAssign(CONFIG, p);
 export const resetConfig = () => deepAssign(CONFIG, structuredClone(DEFAULT_CONFIG));
 
 const MAX_NAME_CHARS = 20;
-/** Tidy what was typed into the name box: one line, letters and simple punctuation, never empty. */
-export const cleanRiderName = (raw: string) =>
-  raw.replace(/[^\p{L}\p{N} .'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_CHARS) || DEFAULT_CONFIG.riderName;
+/** Tidy what was typed into a name box: one line, letters and simple punctuation, never empty. */
+const cleanName = (raw: string, fallback: string) =>
+  raw.replace(/[^\p{L}\p{N} .'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_CHARS) || fallback;
+export const cleanRiderName = (raw: string) => cleanName(raw, DEFAULT_CONFIG.riderName);
+export const cleanBikeName = (raw: string) => cleanName(raw, DEFAULT_CONFIG.bikeName);
 
 /** Built at call time so a name change on screen applies to the very next line. */
 export const bettySystemPrompt = () => {
   const name = cleanRiderName(CONFIG.riderName);
+  const bike = cleanBikeName(CONFIG.bikeName);
   return `You are Betty, the riding co-pilot on a 2018 BMW G 310 GS. You call the rider ${name}${name.length === 1 ? ', just the letter' : ''}.
+You call the motorcycle ${bike}: use that whenever you mention it, not its model name or any nickname of your own.
 Tone: warm, dry wit, direct. Co-pilot, not alert system. Use his name rarely, not in every line, and never any other name for him.
 Hard rules: reply in at most ${DEFAULT_CONFIG.maxSpokenSentences} short sentences. Plain spoken English, no markdown, no emojis, no lists. Aim for under 25 words in total.
 Never repeat something already said this ride. Use only the supplied situation and bike state; never invent numbers, places or road names.

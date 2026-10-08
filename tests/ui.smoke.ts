@@ -139,12 +139,18 @@ resetConfig();
   const ev = (el: Element, type: string) => el.dispatchEvent(new page.window.Event(type, { bubbles: true }));
 
   const name = doc.getElementById('ridername') as HTMLInputElement;
-  assert.equal(name.value, 'N', 'name box shows the current name');
+  assert.equal(name.value, 'sir', 'name box shows the current name');
   name.value = '  Captain  '; ev(name, 'change');
   assert.equal(CONFIG.riderName, 'Captain'); assert.equal(name.value, 'Captain');
   assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"riderName":"Captain"/, 'name is remembered');
   name.value = ''; ev(name, 'change');
-  assert.equal(name.value, 'N', 'empty falls back to the default');
+  assert.equal(name.value, 'sir', 'empty falls back to the default');
+
+  const bike = doc.getElementById('bikename') as HTMLInputElement;
+  assert.equal(bike.value, 'the bike');
+  bike.value = ' Rocinante '; ev(bike, 'change');
+  assert.equal(CONFIG.bikeName, 'Rocinante');
+  assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"bikeName":"Rocinante"/, 'bike name is remembered');
 
   const obd = doc.getElementById('obdmode') as HTMLSelectElement;
   assert.equal(obd.value, 'off');
@@ -152,7 +158,7 @@ resetConfig();
   assert.equal(CONFIG.obdMode, 'mock');
   name.value = 'Boss'; ev(name, 'change');
   [...doc.querySelectorAll('#tuning button')].find((b) => b.textContent?.startsWith('Reset all'))!.dispatchEvent(new page.window.Event('click'));
-  assert.equal(name.value, 'N'); assert.equal(obd.value, 'off', 'reset to defaults is reflected on the main screen');
+  assert.equal(name.value, 'sir'); assert.equal(bike.value, 'the bike'); assert.equal(obd.value, 'off', 'reset to defaults is reflected on the main screen');
   // lock screen: covers the page, swallows presses, and only a held press on its button unlocks
   const { mountLockScreen } = await import('../src/ui/LockScreen');
   const cover = doc.querySelector('.lockcover') as HTMLElement;

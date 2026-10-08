@@ -7,8 +7,9 @@ Context for any Claude Code instance picking this project up. Read this first.
 An always-on voice co-pilot for a motorcycle (owner: Nhlanhla, 2018 BMW G 310 GS, Gauteng, South Africa).
 She talks to the rider through Bluetooth helmet comms, reads bike/ride data, and speaks proactively
 like a co-pilot with personality, not like an alert system. Warm, dry wit, direct, max 2 short sentences.
-She calls the rider by `CONFIG.riderName` (default "N", editable in the "Betty calls you" box on the main screen,
-persisted). The system prompt is built per request by `bettySystemPrompt()`, so a change applies to the next line.
+She calls the rider by `CONFIG.riderName` (default "sir") and the motorcycle by `CONFIG.bikeName` (default
+"the bike"). Both are editable on the main screen and persisted. The system prompt is built per request by
+`bettySystemPrompt()`, so a change applies to the next line.
 
 The rider can also speak to her ("Hey Betty, how's the bike?"). That voice-input path is not built yet.
 

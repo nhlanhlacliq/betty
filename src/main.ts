@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CONFIG, ObdMode, cleanRiderName } from './config/betty';
+import { CONFIG, ObdMode, cleanBikeName, cleanRiderName } from './config/betty';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { travelDirection } from './core/ambient';
@@ -74,6 +74,14 @@ nameInput.addEventListener('change', () => {
   saveConfig();
 });
 
+const bikeInput = $<HTMLInputElement>('bikename');
+bikeInput.value = CONFIG.bikeName;
+bikeInput.addEventListener('change', () => {
+  CONFIG.bikeName = cleanBikeName(bikeInput.value);
+  bikeInput.value = CONFIG.bikeName;
+  saveConfig();
+});
+
 const wakeEl = $('wake');
 const showWake = (s: WakeStatus | null) => {
   wakeEl.className = s === 'on' ? 'ok' : 'err';
@@ -93,7 +101,7 @@ obdSel.addEventListener('change', () => {
 });
 // TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
 window.addEventListener('betty-config', () => {
-  nameInput.value = CONFIG.riderName; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
+  nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
 });
 
 async function start() {
