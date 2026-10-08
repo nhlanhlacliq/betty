@@ -477,8 +477,12 @@ brake or a "mark this" press.
    Voice picker on the main screen lists the phone's English voices (en-ZA first), has a Test button, and saves the
    choice in `CONFIG.voiceURI`; `WebSpeaker` falls back to en-ZA if that voice is no longer installed. The list shows
    the quality Safari was given (basic/enhanced/premium, read from the voice id). Owner downloaded Premium Karen
-   (2026-10-10) and it did not appear or sound different: iPhone Safari may only expose the basic voices to web
-   pages. If that is confirmed, cloud TTS (option 2) is the only route to a better voice in the browser.
+   (2026-10-10); the picker still showed "Karen (basic)". CONFIRMED by research the same day: on iOS the Web Speech
+   API only gets the pre-installed voices. An Apple engineer states "Optionally downloadable voices are not
+   available" (developer.apple.com/forums/thread/723503), and Readium's Web Speech notes say the same and warn that
+   installing higher-quality variants can make voices vanish from the list. Switching browser does not help: every
+   iOS browser (Brave, Chrome, Firefox) runs on the same WebKit engine. No settings workaround was found.
+   So in the browser a better voice means cloud TTS (option 2); on-device premium voices need a native app.
 2. Cloud TTS for real quality: Claude text -> TTS service -> audio played by the page. ElevenLabs can design or clone
    a voice (needs the speaker's consent); Azure has South African English neural voices. Adds roughly 0.5 to 1 s per
    line, needs signal (fall back to the phone voice), costs per character, and the key must sit behind a server
