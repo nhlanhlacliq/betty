@@ -1,4 +1,5 @@
 import { CONFIG, bettySystemPrompt, FLAVOUR_PROMPTS, SILENT_TOKEN } from '../config/betty';
+import { clockNote } from './ambient';
 import { BikeState, TriggerEvent } from './types';
 
 /** What Betty will say (empty text = say nothing) and where the words came from. */
@@ -81,7 +82,9 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
   const readings = s.obd
     ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, fuelPct: s.fuelPct }
     : { speedKmh: s.speedKmh, engineData: 'not connected: do not mention engine temperature, revs, fuel or faults' };
-  const bike = flavour ? '' : `\nBike state: ${JSON.stringify(readings)}`;
+  // Alerts and answers get the clock so she never has to guess the hour. Ambient flavours get the time of day
+  // only as a banter topic: given it every time, every quip opened with it.
+  const bike = flavour ? '' : `\nLocal time: ${clockNote(new Date(ev.createdAt))}\nBike state: ${JSON.stringify(readings)}`;
   return {
     model: CONFIG.claudeModel,
     max_tokens: 120,

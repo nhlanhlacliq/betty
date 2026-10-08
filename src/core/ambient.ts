@@ -52,6 +52,16 @@ export const partOfDay = (hour: number) =>
   hour < 5 ? 'the middle of the night' : hour < 9 ? 'early morning' : hour < 12 ? 'mid-morning'
     : hour < 14 ? 'midday' : hour < 17 ? 'the afternoon' : hour < 20 ? 'the evening' : 'night';
 
+/** The greeting that fits the hour, or null in the small hours when no time-of-day greeting is right. */
+export const greetingFor = (hour: number) =>
+  hour < 5 ? null : hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
+
+/** "13:05, midday": the clock time plus the part of day, so the model does not have to guess either. */
+export function clockNote(at: Date): string {
+  const hh = String(at.getHours()).padStart(2, '0'), mm = String(at.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}, ${partOfDay(at.getHours())}`;
+}
+
 export interface BanterTopic {
   id: string;
   /** Changes when the underlying fact has moved on, which makes the topic fresh again. */

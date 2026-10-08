@@ -1,5 +1,5 @@
 import { CONFIG, cleanBikeName } from '../config/betty';
-import { banterContext, banterTopics, chooseAmbient, freshPlace, partOfDay, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
+import { banterContext, banterTopics, chooseAmbient, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
 import { initialState } from './StateAggregator';
@@ -126,8 +126,14 @@ export class TriggerEngine {
 
   private describe(id: TriggerId, s: BikeState, incident?: TrafficIncident): { context: string; fallback: string; mark?: () => void } {
     switch (id) {
-      case 'startup':
-        return { context: `The ride session has just started. It is ${partOfDay(new Date(this.now()).getHours())}.`, fallback: 'Systems online.' };
+      case 'startup': {
+        const at = new Date(this.now());
+        const hello = greetingFor(at.getHours());
+        const greet = hello
+          ? `If you greet him, the only greeting that fits this hour is "${hello}".`
+          : 'These are the small hours, so open without any greeting: go straight to saying you are ready.'; // naming the words to avoid made her say them
+        return { context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet}`, fallback: 'Systems online.' };
+      }
       case 'engine_overtemp':
         return {
           context: `Engine temperature is ${s.engineTempC} C and climbing.`,

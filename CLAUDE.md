@@ -259,6 +259,12 @@ Constraints:
   must match the model: Haiku 5.5 takes `thinking: {type: 'disabled'}`, Sonnet 5.5 rejects that and wants
   `'between_tools'`. With thinking left on, the thinking block eats `max_tokens` and the reply is empty or cut off.
 - Never read `content[0].text`; use `extractText` (first text block).
+- Time of day: the model greeted with "Morning" at midday, then "corrected" itself in the next line. Every alert
+  and answer now carries `Local time: HH:MM, <part of day>`, startup names the one greeting that fits the hour, and
+  the system prompt forbids time-of-day words the situation does not give and any comment on earlier lines.
+  In the small hours startup is told to skip the greeting; do NOT list the words to avoid, that made her say them.
+  Ambient flavours get no clock (it made every quip open with the time). Checked live: 231 lines over seven hours
+  of the day, 0 wrong.
 - The API key must be scoped to a workspace, otherwise every call is a 400 and Betty silently uses fallbacks.
 - The log and the SIMULATOR info line show the source of every line: `claude` or `fallback`, the reason, latency.
 
