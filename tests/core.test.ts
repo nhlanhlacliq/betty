@@ -421,4 +421,9 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.deepEqual([agg.current.obd, agg.current.rpm, agg.current.engineTempC, agg.current.dtcs.length], [false, 0, 0, 0], 'switching off clears stale readings');
   assert.equal(CONFIG.obdMode, 'off', 'default until the hardware exists');
 }
+// she calls the rider N, and the prompt gives her no other name to use
+{
+  const sys = buildClaudeRequest(new TriggerEngine(now).force('rain_soon', obdState()), obdState(), []).system;
+  assert.match(sys, /You call the rider N,/); assert.ok(!/Nhlanhla/.test(sys));
+}
 console.log('all core tests passed');

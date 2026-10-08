@@ -7,6 +7,7 @@ Context for any Claude Code instance picking this project up. Read this first.
 An always-on voice co-pilot for a motorcycle (owner: Nhlanhla, 2018 BMW G 310 GS, Gauteng, South Africa).
 She talks to the rider through Bluetooth helmet comms, reads bike/ride data, and speaks proactively
 like a co-pilot with personality, not like an alert system. Warm, dry wit, direct, max 2 short sentences.
+She calls the rider "N" (`RIDER_NAME` in `config/betty.ts`), never his full name: owner's request, 2026-10-09.
 
 The rider can also speak to her ("Hey Betty, how's the bike?"). That voice-input path is not built yet.
 
