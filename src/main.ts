@@ -149,7 +149,11 @@ const fillVoices = () => {
   voiceSel.append(auto);
   for (const v of [...english].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))) {
     const o = document.createElement('option');
-    o.value = v.voiceURI; o.textContent = `${v.name} (${v.lang})`;
+    // Apple's voice ids say which quality the browser was actually given; show it, since a downloaded Premium voice
+    // is not always handed to Safari.
+    const id = v.voiceURI.toLowerCase();
+    const quality = id.includes('premium') ? ', premium' : id.includes('enhanced') ? ', enhanced' : id.includes('compact') ? ', basic' : '';
+    o.value = v.voiceURI; o.textContent = `${v.name} (${v.lang}${quality})`;
     voiceSel.append(o);
   }
   // A saved voice that is no longer installed stays saved, but the box shows what will actually be used.

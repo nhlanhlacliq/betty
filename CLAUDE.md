@@ -475,7 +475,10 @@ brake or a "mark this" press.
 ### Notes: a personal voice
 1. Free first: iOS "Enhanced"/"Premium" voices (Settings > Accessibility > Spoken Content > Voices). BUILT: the
    Voice picker on the main screen lists the phone's English voices (en-ZA first), has a Test button, and saves the
-   choice in `CONFIG.voiceURI`; `WebSpeaker` falls back to en-ZA if that voice is no longer installed.
+   choice in `CONFIG.voiceURI`; `WebSpeaker` falls back to en-ZA if that voice is no longer installed. The list shows
+   the quality Safari was given (basic/enhanced/premium, read from the voice id). Owner downloaded Premium Karen
+   (2026-10-10) and it did not appear or sound different: iPhone Safari may only expose the basic voices to web
+   pages. If that is confirmed, cloud TTS (option 2) is the only route to a better voice in the browser.
 2. Cloud TTS for real quality: Claude text -> TTS service -> audio played by the page. ElevenLabs can design or clone
    a voice (needs the speaker's consent); Azure has South African English neural voices. Adds roughly 0.5 to 1 s per
    line, needs signal (fall back to the phone voice), costs per character, and the key must sit behind a server

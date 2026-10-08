@@ -193,14 +193,14 @@ resetConfig();
     assert.deepEqual([...vsel.options].map((o) => o.textContent), ['Automatic (no voices listed by this browser)']);
     const listeners: Array<() => void> = [];
     const voices = [
-      { voiceURI: 'u.samantha', name: 'Samantha', lang: 'en-US' }, { voiceURI: 'u.tessa', name: 'Tessa', lang: 'en-ZA' },
-      { voiceURI: 'u.amelie', name: 'Amelie', lang: 'fr-CA' }, { voiceURI: 'u.daniel', name: 'Daniel (Enhanced)', lang: 'en-GB' },
+      { voiceURI: 'com.apple.voice.compact.en-US.Samantha', name: 'Samantha', lang: 'en-US' }, { voiceURI: 'u.tessa', name: 'Tessa', lang: 'en-ZA' },
+      { voiceURI: 'u.amelie', name: 'Amelie', lang: 'fr-CA' }, { voiceURI: 'u.daniel', name: 'Daniel', lang: 'en-GB' }, { voiceURI: 'com.apple.voice.premium.en-AU.Karen', name: 'Karen', lang: 'en-AU' },
     ];
     // jsdom has no speech engine; main.ts asked for the list once already, so drive its refresh through the reset event
     (page.window as any).speechSynthesis = { getVoices: () => voices, addEventListener: (_: string, f: () => void) => listeners.push(f), speak() {}, cancel() {}, resume() {}, speaking: false };
     page.window.dispatchEvent(new page.window.Event('betty-config'));
     assert.deepEqual([...vsel.options].map((o) => o.textContent),
-      ['Automatic (phone default)', 'Tessa (en-ZA)', 'Daniel (Enhanced) (en-GB)', 'Samantha (en-US)'], 'English only, South African first');
+      ['Automatic (phone default)', 'Tessa (en-ZA)', 'Daniel (en-GB)', 'Karen (en-AU, premium)', 'Samantha (en-US, basic)'], 'English only, South African first, quality shown');
     vsel.value = 'u.daniel'; ev(vsel, 'change');
     assert.equal(CONFIG.voiceURI, 'u.daniel');
     assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"voiceURI":"u.daniel"/);
