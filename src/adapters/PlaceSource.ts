@@ -21,6 +21,7 @@ export function parseWikiPlaces(json: any, from: LatLon): NearbyPlace[] {
       name: String(p.title).replace(/,\s*(South Africa|Gauteng)$/i, ''),
       distanceKm: Math.round(haversineKm(from, { lat: c.lat, lon: c.lon }) * 10) / 10,
       summary: summary.slice(0, MAX_SUMMARY_CHARS),
+      lat: c.lat, lon: c.lon,
     });
   }
   return out.sort((a, b) => a.distanceKm - b.distanceKm);

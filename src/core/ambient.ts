@@ -1,6 +1,7 @@
 import { CONFIG } from '../config/betty';
 import { RideRecord, describeRide, describeTotals } from './RideMemory';
 import { RideSnapshot } from './RideStats';
+import { bearingDeg, compassPoint, haversineKm, relativeDirection } from './geo';
 import { BikeState, NearbyPlace } from './types';
 
 export type AmbientChoice = 'ambient_banter' | 'local_fact' | null;
@@ -26,6 +27,25 @@ export function freshPlace(places: NearbyPlace[], mentioned: ReadonlySet<string>
   return places
     .filter((p) => p.distanceKm <= radiusKm && !mentioned.has(p.id))
     .sort((a, b) => a.distanceKm - b.distanceKm)[0] ?? null;
+}
+
+/** Which way he is pointing: GPS course while moving, the phone compass when stopped, null if neither is known. */
+export function travelDirection(s: BikeState): number | null {
+  if (s.headingDeg != null && s.speedKmh >= 10) return s.headingDeg;
+  return s.compassDeg;
+}
+
+/** Places with their distance measured from where he is now, not from where they were fetched. */
+export function placesFromHere(s: BikeState): NearbyPlace[] {
+  if (s.lat == null || s.lon == null) return s.nearbyPlaces;
+  const here = { lat: s.lat, lon: s.lon };
+  return s.nearbyPlaces.map((p) => ({ ...p, distanceKm: Math.round(haversineKm(here, p) * 10) / 10 }));
+}
+
+/** "ahead on his left" and the like, or null when his position or direction of travel is unknown. */
+export function whereIs(s: BikeState, p: NearbyPlace): string | null {
+  if (s.lat == null || s.lon == null || s.headingDeg == null || s.speedKmh < 10) return null;
+  return relativeDirection(s.headingDeg, bearingDeg({ lat: s.lat, lon: s.lon }, p));
 }
 
 export const partOfDay = (hour: number) =>
@@ -70,8 +90,19 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInpu
   }
   if (ride.movingMin >= 5 && ride.maxLeanDeg > 0) {
     add('corners', Math.floor(ride.corneringPct / 20),
-      `His cornering so far: leaned past 15 degrees for ${ride.corneringPct} percent of the time moving, deepest lean ${ride.maxLeanDeg} degrees.`);
+      `His cornering so far: leaned past 15 degrees for ${ride.corneringPct} percent of the time moving, deepest lean about ${ride.maxLeanDeg} degrees.`);
   }
+  if (s.altitudeM != null) {
+    const ups = ride.climbM || ride.descentM ? `; he has climbed ${ride.climbM} m and dropped ${ride.descentM} m this ride` : '';
+    add('altitude', Math.floor(s.altitudeM / 150), `He is about ${Math.round(s.altitudeM / 10) * 10} metres above sea level${ups}.`);
+  }
+  const dir = travelDirection(s);
+  if (dir != null) add('direction', compassPoint(dir), `He is ${s.speedKmh >= 10 ? 'heading' : 'facing'} ${compassPoint(dir)}.`);
+  if (ride.hardBrakes + ride.hardAccels >= 1) {
+    add('braking', `${ride.hardBrakes}:${ride.hardAccels}`,
+      `This ride: ${ride.hardBrakes} hard stop(s) on the brakes and ${ride.hardAccels} hard pull(s) on the throttle.`);
+  }
+  if (ride.jolts >= 5) add('surface', Math.floor(ride.jolts / 10), `The road has thrown ${ride.jolts} hard jolts at him this ride.`);
   if (ride.movingMin >= 3) {
     add('pace', Math.floor(ride.avgMovingKmh / 20), `His riding so far: averaging ${ride.avgMovingKmh} km/h while moving, top speed ${ride.maxSpeedKmh} km/h.`);
   }
@@ -82,8 +113,11 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInpu
   }
   if (s.speedKmh === 0 && mins >= 5) add('standing', Math.floor(mins / 15), 'The bike is standing still right now.');
   if (s.incidents.length) add('traffic', s.incidents.length, `${s.incidents.length} traffic incident(s) reported nearby.`);
-  const near = [...s.nearbyPlaces].filter((p) => p.distanceKm <= placeRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm)[0];
-  if (near) add('location', near.id, `He is near ${near.name}.`);
+  const near = placesFromHere(s).filter((p) => p.distanceKm <= placeRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm)[0];
+  if (near) {
+    const where = whereIs(s, near);
+    add('location', near.id, `He is near ${near.name}${where ? `, which is ${where}` : ''}.`);
+  }
   if (ride.events.length) {
     add('earlier', ride.events.length, `Earlier this ride you flagged: ${ride.events.map((e) => `${e.what} at ${e.atMin} minutes`).join(', ')}.`);
   }

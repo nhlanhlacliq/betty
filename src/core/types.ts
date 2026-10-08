@@ -40,6 +40,8 @@ export interface NearbyPlace {
   name: string;
   distanceKm: number;
   summary: string;
+  lat: number;
+  lon: number;
 }
 
 export interface BikeState {
@@ -56,9 +58,16 @@ export interface BikeState {
   speedKmh: number;
   lat: number | null;
   lon: number | null;
+  /** GPS course over ground; null when standing still */
   headingDeg: number | null;
-  // IMU
+  altitudeM: number | null;
+  /** Estimated from GPS speed and turn rate (see GpsLean), or the simulator slider. Positive = right. */
   leanDeg: number;
+  // Phone motion sensors (approximate, mount-dependent)
+  /** Compass heading, used only when GPS has no course */
+  compassDeg: number | null;
+  /** Hard jolts counted by the accelerometer since the session started */
+  jolts: number;
   // Feeds
   weather: WeatherState | null;
   incidents: TrafficIncident[];

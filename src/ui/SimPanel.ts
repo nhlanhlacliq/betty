@@ -12,7 +12,6 @@ export interface SimContext {
   say(ev: TriggerEvent): void;
   setAloud(on: boolean): void;
   aloud: boolean;
-  zeroLean(): void;
   refreshFeeds(): void;
   resetRide(): void;
   feedStatus(): string;
@@ -30,11 +29,13 @@ export const LOCATION_PRESETS: Array<[string, number, number]> = [
   ['Cape Town', -33.9249, 18.4241],
 ];
 
-type NumKey = 'speedKmh' | 'leanDeg' | 'rpm' | 'engineTempC' | 'throttlePct' | 'fuelPct';
+type NumKey = 'speedKmh' | 'leanDeg' | 'altitudeM' | 'headingDeg' | 'rpm' | 'engineTempC' | 'throttlePct' | 'fuelPct';
 const OBD_KEYS = new Set<NumKey>(['rpm', 'engineTempC', 'throttlePct', 'fuelPct']);
 const SENSORS: Array<[NumKey, string, number, number, number, string]> = [
   ['speedKmh', 'GPS speed', 0, 180, 1, 'km/h'],
   ['leanDeg', 'Lean angle', -60, 60, 1, '°'],
+  ['altitudeM', 'Altitude', 0, 3000, 10, ' m'],
+  ['headingDeg', 'Heading', 0, 359, 1, '°'],
   ['rpm', 'RPM (OBD2)', 0, 10000, 100, ''],
   ['engineTempC', 'Engine temp (OBD2)', 50, 130, 1, '°C'],
   ['throttlePct', 'Throttle (OBD2)', 0, 100, 1, '%'],
@@ -80,7 +81,7 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
       if (off && cb.checked) { cb.checked = false; r.range.disabled = true; ctx.agg.clearOverride(key); }
       cb.disabled = off;
       r.name.textContent = off ? `${label}: OBD off` : label;
-      if (!cb.checked) { r.range.value = String(s[key]); r.show(); }
+      if (!cb.checked) { r.range.value = String(s[key] ?? 0); r.show(); }
     });
   }
 
@@ -151,7 +152,7 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
   refreshers.push((s) => { dtcBtn.disabled = !s.obd; });
   bar.append(
     dtcBtn,
-    button('Zero lean', () => ctx.zeroLean()),
+    button('Rough patch (+5 jolts)', () => ctx.agg.setOverride('jolts', ctx.agg.current.jolts + 5)),
     button('Refresh feeds', () => ctx.refreshFeeds()),
     button('Reset ride', () => ctx.resetRide()),
   );

@@ -1,5 +1,5 @@
 import { CONFIG } from '../config/betty';
-import { banterContext, banterTopics, chooseAmbient, freshPlace, partOfDay, pickMode, pickTopic } from './ambient';
+import { banterContext, banterTopics, chooseAmbient, freshPlace, partOfDay, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
 import { initialState } from './StateAggregator';
@@ -111,7 +111,7 @@ export class TriggerEngine {
     const slotDue = this.now() - this.lastAmbientSlot >= CONFIG.ambientCooldownMs;
     if (slotDue && !out.length && isSafeWindow(s) && !this.ambientBlocked(s)) {
       this.lastAmbientSlot = this.now();
-      const place = freshPlace(s.nearbyPlaces, this.mentioned, CONFIG.ambient.placeRadiusKm);
+      const place = freshPlace(placesFromHere(s), this.mentioned, CONFIG.ambient.placeRadiusKm);
       const pick = chooseAmbient(CONFIG.ambient, place !== null, this.rng);
       if (pick) out.push(this.force(pick, s));
     }
@@ -180,9 +180,11 @@ export class TriggerEngine {
         };
       }
       case 'local_fact': {
-        const p = freshPlace(s.nearbyPlaces, this.mentioned, CONFIG.ambient.placeRadiusKm);
+        const p = freshPlace(placesFromHere(s), this.mentioned, CONFIG.ambient.placeRadiusKm);
         if (!p) return { context: '', fallback: '' };
-        return { context: `He is about ${km(p.distanceKm)} from ${p.name}. Notes on ${p.name}: ${p.summary}`, fallback: '',
+        const where = whereIs(s, p);
+        return {
+          context: `He is about ${km(p.distanceKm)} from ${p.name}${where ? `, which is ${where}` : ''}. Notes on ${p.name}: ${p.summary}`, fallback: '',
           mark: () => { this.mentioned.add(p.id); this.stats.notePlace(p.name); }, // never the same place twice in a ride
         };
       }

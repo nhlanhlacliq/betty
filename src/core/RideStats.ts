@@ -12,6 +12,14 @@ export interface RideSnapshot {
   maxLeanDeg: number;
   /** Share of moving time spent leaned past LEAN_CORNER_DEG, 0-100 */
   corneringPct: number;
+  /** Metres gained and lost this ride (GPS altitude, small wobbles ignored) */
+  climbM: number;
+  descentM: number;
+  /** Times speed dropped or rose by about 0.35 g or more */
+  hardBrakes: number;
+  hardAccels: number;
+  /** Hard jolts from the road surface this ride (phone accelerometer, approximate) */
+  jolts: number;
   maxEngineTempC: number;
   fuelStartPct: number | null;
   /** Things Betty flagged this ride (alerts), oldest first */
@@ -24,6 +32,12 @@ const MOVING_KMH = 3;
 const LEAN_CORNER_DEG = 15;
 /** Longest gap between two updates that still counts as riding time (a throttled tab can go quiet for minutes). */
 const MAX_STEP_MS = 10_000;
+/** Altitude must move this far from the last settled value before it counts: GPS height wanders by several metres. */
+const ALT_STEP_M = 8;
+/** Speed change per second that counts as hard, in m/s2 (about 0.35 g, roughly 12.5 km/h lost or gained in a second). */
+const HARD_MS2 = 3.5;
+/** Speed is compared over about this long, so one noisy fix or a dragged slider does not register. */
+const SPEED_WINDOW_MS = 1000;
 
 /** Running totals for the current ride, built from state updates. Feeds banter and the cross-ride memory. */
 export class RideStats {
@@ -38,6 +52,15 @@ export class RideStats {
   private maxSpeed = 0;
   private maxTemp = 0;
   private fuelStart: number | null = null;
+  private altAnchor: number | null = null;
+  private climb = 0;
+  private descent = 0;
+  private speedRef: { kmh: number; at: number } | null = null;
+  private hardBrakes = 0;
+  private hardAccels = 0;
+  private inHardEvent = false;
+  private joltsAtStart: number | null = null;
+  private jolts = 0;
   private events: RideSnapshot['events'] = [];
   private places: string[] = [];
 
@@ -58,6 +81,24 @@ export class RideStats {
       this.stops++;
     }
     this.wasMoving = moving;
+
+    if (s.altitudeM != null) {
+      if (this.altAnchor === null) this.altAnchor = s.altitudeM;
+      const d = s.altitudeM - this.altAnchor;
+      if (Math.abs(d) >= ALT_STEP_M) { if (d > 0) this.climb += d; else this.descent -= d; this.altAnchor = s.altitudeM; }
+    }
+
+    if (!this.speedRef || t - this.speedRef.at > MAX_STEP_MS) this.speedRef = { kmh: s.speedKmh, at: t };
+    else if (t - this.speedRef.at >= SPEED_WINDOW_MS) {
+      const a = (s.speedKmh - this.speedRef.kmh) / 3.6 / ((t - this.speedRef.at) / 1000);
+      const hard = Math.abs(a) >= HARD_MS2;
+      if (hard && !this.inHardEvent) { if (a < 0) this.hardBrakes++; else this.hardAccels++; } // one long stop counts once
+      this.inHardEvent = hard;
+      this.speedRef = { kmh: s.speedKmh, at: t };
+    }
+
+    if (this.joltsAtStart === null) this.joltsAtStart = s.jolts;
+    this.jolts = Math.max(0, s.jolts - this.joltsAtStart);
     if (s.obd) {
       this.maxTemp = Math.max(this.maxTemp, s.engineTempC);
       if (this.fuelStart === null) this.fuelStart = s.fuelPct;
@@ -78,6 +119,11 @@ export class RideStats {
       avgMovingKmh: this.movingMs ? Math.round(this.distanceKm / (this.movingMs / 3_600_000)) : 0,
       maxLeanDeg: Math.round(this.maxLean),
       corneringPct: this.movingMs ? Math.round((this.corneringMs / this.movingMs) * 100) : 0,
+      climbM: Math.round(this.climb),
+      descentM: Math.round(this.descent),
+      hardBrakes: this.hardBrakes,
+      hardAccels: this.hardAccels,
+      jolts: this.jolts,
       maxEngineTempC: Math.round(this.maxTemp),
       fuelStartPct: this.fuelStart,
       events: [...this.events],

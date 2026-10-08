@@ -26,7 +26,7 @@ let refreshes = 0;
 const root = document.getElementById('sim')!;
 const unmount = mountSimPanel(root, {
   agg, engine, queue, say: (ev) => said.push(ev.id), aloud: true, setAloud: () => {},
-  zeroLean: () => {}, refreshFeeds: () => { refreshes++; }, resetRide: () => { resets++; }, feedStatus: () => 'feeds ok',
+  refreshFeeds: () => { refreshes++; }, resetRide: () => { resets++; }, feedStatus: () => 'feeds ok',
   lastPhrase: () => 'fallback (HTTP 400), 12 ms',
 });
 assert.match(root.textContent!, /SIMULATOR/);
@@ -68,7 +68,7 @@ assert.deepEqual(said.slice(-2), ['ambient_banter', 'local_fact']);
 const locSel = q<HTMLSelectElement>(root, 'select');
 locSel.value = '2'; fire(locSel, 'change'); // Soweto
 assert.equal(agg.current.lat, -26.2678); assert.equal(agg.current.lon, 27.8585); assert.equal(refreshes, 1);
-agg.push({ nearbyPlaces: [{ id: 'w1', name: 'Vilakazi Street', distanceKm: 0.8, summary: 'x' }] });
+agg.push({ nearbyPlaces: [{ id: 'w1', name: 'Vilakazi Street', distanceKm: 0.8, summary: 'x', lat: 0, lon: 0 }] });
 assert.match(q(root, '.places').textContent!, /Vilakazi Street 0.8 km/);
 locSel.value = ''; fire(locSel, 'change');
 assert.equal(agg.current.lat, null, 'back to live position');
@@ -85,6 +85,15 @@ assert.equal(q<HTMLInputElement>(rowOf('GPS speed'), 'input[type=checkbox]').dis
 assert.equal(byText(/fault/).disabled, true);
 agg.push({ obd: true });
 assert.equal(rpmCb.disabled, false);
+
+// new sensor rows and the jolt button
+const altCb = q<HTMLInputElement>(rowOf('Altitude'), 'input[type=checkbox]'); const altRange = q<HTMLInputElement>(rowOf('Altitude'), 'input[type=range]');
+assert.equal(altRange.value, '0', 'unknown altitude shows as 0 on the slider, not "null"');
+altCb.checked = true; fire(altCb, 'change'); altRange.value = '1650'; fire(altRange, 'input');
+assert.equal(agg.current.altitudeM, 1650);
+altCb.checked = false; fire(altCb, 'change'); assert.equal(agg.current.altitudeM, null);
+byText(/Rough patch/).click(); assert.equal(agg.current.jolts, 5);
+assert.ok(!byText('Zero lean'), 'lean no longer comes from the phone tilt, nothing to zero');
 
 // weather override
 const wxCb = [...root.querySelectorAll('input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Override live weather')) as HTMLInputElement;
@@ -166,7 +175,7 @@ resetConfig();
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(ls.locked, false, 'holding the button unlocks');
 
-  for (const id of ['toggle', 'lock', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['toggle', 'lock', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   resetConfig();

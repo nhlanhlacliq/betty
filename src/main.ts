@@ -2,6 +2,8 @@ import { loadConfig, saveConfig } from './config/persist';
 import { CONFIG, ObdMode, cleanRiderName } from './config/betty';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
+import { travelDirection } from './core/ambient';
+import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
 import { ClaudeClient } from './core/ClaudeClient';
 import { LatLon } from './core/geo';
@@ -115,7 +117,7 @@ async function start() {
 
   if (real) {
     agg.addSource(new WebGeoSource((m) => setStatus(m, true)));
-    if (motionOk) agg.addSource(motion); else setStatus('Motion sensors unavailable: lean stays 0.', true);
+    if (motionOk) agg.addSource(motion); else setStatus('Motion sensors unavailable: no jolt count or compass. GPS still gives speed, lean and heading.', true);
   }
   agg.addSource(weather);
   agg.addSource(traffic);
@@ -164,6 +166,11 @@ async function start() {
     $('temp').textContent = s.obd ? String(s.engineTempC) : '-';
     $('fuel').textContent = s.obd ? String(Math.round(s.fuelPct)) : '-';
     $('rain').textContent = s.weather ? String(s.weather.rainChanceNextHourPct) : '-';
+    $('alt').textContent = s.altitudeM == null ? '-' : String(s.altitudeM);
+    const dir = travelDirection(s);
+    $('dir').textContent = dir == null ? '-' : compassPoint(dir).split('-').map((w) => w[0].toUpperCase()).join('');
+    $('dirsrc').textContent = dir == null ? '\u00a0' : s.headingDeg != null && s.speedKmh >= 10 ? 'GPS course' : 'compass';
+    $('jolts').textContent = String(engine.rideSnapshot().jolts);
     $('feeds').textContent = s.weather
       ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby`
       : feedStatus();
@@ -175,7 +182,6 @@ async function start() {
     agg, engine, queue, say,
     aloud: speaker.aloud,
     setAloud: (on) => { speaker.aloud = on; },
-    zeroLean: () => motion.zero(),
     refreshFeeds: () => { weather.refresh(); traffic.refresh(); places.refresh(); },
     resetRide: () => { engine.reset(); obd.reset(); queue.clear(); lines.length = 0; renderLog(); },
     feedStatus,

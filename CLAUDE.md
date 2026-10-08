@@ -70,10 +70,11 @@ src/
     ambient.ts             chooseAmbient (weighted, injectable RNG), freshPlace, banterTopics/pickTopic/pickMode
     RideStats.ts           Running totals for the current ride (distance, stops, lean, alerts, places)
     RideMemory.ts          RideRecord, toRecord, upsertRide, describeRide/describeTotals (cross-ride memory, pure)
-    geo.ts                 haversineKm, bboxAround
+    geo.ts                 haversineKm, bboxAround, bearingDeg, angleDiff, compassPoint, relativeDirection
+    GpsLean.ts             Lean estimated from GPS speed and turn rate: atan(v * turnRate / g)
   adapters/                Everything that touches a browser API, network or hardware
-    WebGeoSource.ts        navigator.geolocation -> speed/lat/lon/heading
-    WebMotionSource.ts     deviceorientation -> approximate lean angle (needs zeroing)
+    WebGeoSource.ts        navigator.geolocation -> speed/lat/lon/course/altitude + lean estimate (GpsLean)
+    WebMotionSource.ts     accelerometer -> hard-jolt count; compass heading for when GPS has no course
     WebSpeaker.ts          speechSynthesis (prime() must run inside a tap on iOS)
     SwitchableSpeaker.ts   Wraps a speaker; "silent" mode simulates duration so queue behaviour is observable
     WakeLock.ts            Screen wake lock so the browser doesn't throttle GPS/timers
@@ -193,9 +194,17 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
   drops the lock when the tab is hidden; `WakeLock` re-acquires it when the tab returns.
 - Backgrounded tab / locked screen = GPS and timers throttled, Betty effectively stops. Wake lock mitigates
   but does not solve it. This is the main limitation versus native and the reason for Phase 4.
-- Lean angle from the phone is approximate (sensor fusion lags in sustained corners, handlebar vibration adds noise).
-  Fine for the safe-window check; not suitable for logging real lean angles. Phone must be mounted upright,
-  screen facing the rider, then zeroed with the bike upright.
+- Lean does NOT come from the phone's tilt sensor any more. On a handlebar mount it read past 20 degrees from
+  mounting angle and vibration alone (road test, 2026-10-09). `GpsLean` estimates it from GPS speed and how fast the
+  course is changing, which is independent of the mount. It is a balanced-turn estimate from about one fix per
+  second: good for "how twisty", too coarse for a true peak angle, zero below 15 km/h. There is nothing to zero.
+- Other senses added 2026-10-09, all UNVERIFIED ON THE BIKE: GPS altitude (climb/descent, wobble under 8 m ignored),
+  GPS course (direction of travel, and where a place lies: ahead/behind/left/right), hard braking and hard
+  acceleration from GPS speed change (about 0.35 g, in `RideStats`), accelerometer jolts (spikes over about 0.8 g,
+  which engine vibration on a single may also trigger; tune `JOLT_MS2` after a real ride), and the phone compass as
+  a heading when stopped (mount-dependent on iOS, treat as rough).
+  These feed `RideStats`, banter topics and the tour-guide line; none of them triggers an alert.
+- Place distances are recomputed from the current position (`placesFromHere`), not the fetch position.
 - Web Bluetooth does not exist on iOS, so a browser cannot read an ELM327 dongle there. Real OBD2 = Phase 4 (Pi).
 
 ## Vercel deployment

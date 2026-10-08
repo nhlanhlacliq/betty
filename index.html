@@ -60,11 +60,14 @@
   <h1>BETTY</h1>
   <div class="grid">
     <div class="stat"><div class="l">SPEED</div><div class="v" id="speed">0</div><div class="u">km/h</div></div>
-    <div class="stat"><div class="l">LEAN</div><div class="v" id="lean">0</div><div class="u">° phone IMU</div></div>
+    <div class="stat"><div class="l">LEAN</div><div class="v" id="lean">0</div><div class="u">° GPS estimate</div></div>
     <div class="stat"><div class="l">RPM</div><div class="v" id="rpm">0</div><div class="u">mock</div></div>
     <div class="stat"><div class="l">TEMP</div><div class="v" id="temp">0</div><div class="u">°C mock</div></div>
     <div class="stat"><div class="l">FUEL</div><div class="v" id="fuel">0</div><div class="u">% mock</div></div>
     <div class="stat"><div class="l">RAIN</div><div class="v" id="rain">-</div><div class="u">% next hour</div></div>
+    <div class="stat"><div class="l">ALTITUDE</div><div class="v" id="alt">-</div><div class="u">m</div></div>
+    <div class="stat"><div class="l">HEADING</div><div class="v" id="dir">-</div><div class="u" id="dirsrc">&nbsp;</div></div>
+    <div class="stat"><div class="l">JOLTS</div><div class="v" id="jolts">0</div><div class="u">this ride</div></div>
   </div>
   <div id="startopts"><label><input type="checkbox" id="real" checked /> Use real phone sensors (GPS, motion). Untick on desktop to run fully simulated.</label>
     <label class="obd">Betty calls you: <input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="words" /></label>
