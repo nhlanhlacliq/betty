@@ -151,7 +151,8 @@ Every line (and every `[audio]` problem) is saved on the device with its time, r
 why), latency and fate (`spoken`, `not spoken: waited too long`, ...). `main.ts` writes it 2 s after a change, when
 the page is hidden, and at END RIDE; a line still waiting or playing is re-saved once its fate settles. `rideId` is
 the ride's start time and matches `RideRecord.startedAt`, so the export can head each ride with its duration and
-distance. The LOG panel (always mounted, under TUNING) shows all rides or one, with Copy, Share, Save file and
+distance. The LOG panel (always mounted, under TUNING) also lists remembered rides that have no saved lines (summary only:
+duration, distance, weather, places, alerts). It shows all rides or one, with Copy, Share, Save file and
 Clear. The on-screen log above it still shows only the current ride's latest 10. This is the main tool for
 judging a road test afterwards: ask the owner to share it.
 

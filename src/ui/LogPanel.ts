@@ -25,16 +25,19 @@ export function mountLogPanel(root: HTMLElement, ctx: LogContext) {
   const show = () => { view.textContent = text(); };
   const refresh = () => {
     entries = ctx.entries();
+    const listed = ridesInLog(entries, ctx.rides());
     const keep = pick.value;
     pick.innerHTML = '';
-    const all = el('option', '', `All rides (${entries.length} lines)`); all.value = '';
+    const all = el('option', '', `All rides (${listed.length} rides, ${entries.length} lines)`); all.value = '';
     pick.append(all);
-    for (const r of ridesInLog(entries)) {
-      const o = el('option', '', `${stamp(r.rideId)} (${r.count} lines)`); o.value = String(r.rideId);
+    for (const r of listed) {
+      const o = el('option', '', `${stamp(r.rideId)} (${r.count ? `${r.count} lines` : 'summary only'})`); o.value = String(r.rideId);
       pick.append(o);
     }
     pick.value = [...pick.options].some((o) => o.value === keep) ? keep : '';
-    info.textContent = `${entries.length} line(s) across ${ridesInLog(entries).length} ride(s). Newest lines appear after Refresh.`;
+    const summaryOnly = listed.filter((r) => !r.count).length;
+    info.textContent = `${listed.length} ride(s), ${entries.length} saved line(s)`
+      + `${summaryOnly ? `, ${summaryOnly} with a summary only (from before lines were saved)` : ''}. Newest lines appear after Refresh.`;
     show();
   };
   const say = (msg: string) => { note.textContent = msg; };

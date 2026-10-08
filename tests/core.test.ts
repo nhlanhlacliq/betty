@@ -568,7 +568,23 @@ const ride0 = () => new RideStats(now).snapshot();
     '08:05:30 [audio]: speech did not start (no start), retrying',
   ].join('\n'));
   assert.ok(!formatLog(log, rides, r2).includes('line a'), 'one ride can be shown on its own');
-  assert.equal(formatLog([], rides), 'No lines logged yet.'); assert.equal(stamp(r2), '2026-10-10 08:05');
+
+  // remembered rides with no saved lines still show their summary
+  const r0 = new Date(2026, 9, 5, 7, 45).getTime();
+  const old = { startedAt: r0, minutes: 95, distanceKm: 88, weather: 'showers, 17 C', places: ['Soweto', 'Kliptown'], events: ['rain', 'low fuel'] };
+  assert.deepEqual(ridesInLog(log, [old, ...rides]), [{ rideId: r2, count: 2 }, { rideId: r1, count: 2 }, { rideId: r0, count: 0 }]);
+  const withOld = formatLog(log, [old, ...rides]).split('\n');
+  assert.deepEqual(withOld.slice(0, 5), [
+    '=== Ride 2026-10-05 07:45: 95 min, 88 km, showers, 17 C ===',
+    'Talked about: Soweto, Kliptown',
+    'Flagged: rain, low fuel',
+    '(no lines saved for this ride)',
+    '',
+  ]);
+  assert.equal(withOld[5], '=== Ride 2026-10-09 16:30: 42 min, 31.5 km, clear, 22 C ===');
+  assert.match(formatLog([], [old]), /95 min, 88 km/, 'summaries show even with no lines at all');
+  assert.equal(formatLog(log, [old, ...rides], r0).split('\n').length, 4, 'a summary-only ride can be picked on its own');
+  assert.equal(formatLog([], []), 'No lines logged yet.'); assert.equal(stamp(r2), '2026-10-10 08:05');
   const many = Array.from({ length: MAX_LOG_ENTRIES + 50 }, (_, i) => en(`m${i}`, r1, i));
   const capped = mergeLog([], many);
   assert.equal(capped.length, MAX_LOG_ENTRIES); assert.equal(capped.at(-1)!.id, `m${MAX_LOG_ENTRIES + 49}`, 'the oldest lines make way');

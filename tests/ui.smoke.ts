@@ -193,9 +193,13 @@ resetConfig();
     { id: 'b', at: r2 + 9000, rideId: r2, head: '[P2] rain_soon (fallback: timeout, 2500 ms)', text: 'Rain within the hour.', fate: 'spoken' },
   ];
   const lhost = doc.createElement('div'); doc.body.append(lhost);
-  const panel = mountLogPanel(lhost, { entries: () => stored, rides: () => [], clear: () => { stored = []; } });
+  const r0 = new Date(2026, 9, 5, 7, 45).getTime();
+  const remembered = [{ startedAt: r0, minutes: 95, distanceKm: 88, weather: 'showers, 17 C', places: ['Soweto'], events: ['rain'] }];
+  const panel = mountLogPanel(lhost, { entries: () => stored, rides: () => remembered, clear: () => { stored = []; } });
   const lsel = lhost.querySelector('select') as HTMLSelectElement; const lview = lhost.querySelector('.logview') as HTMLElement;
-  assert.deepEqual([...lsel.options].map((o) => o.textContent), ['All rides (2 lines)', '2026-10-10 08:05 (1 lines)', '2026-10-09 16:30 (1 lines)']);
+  assert.deepEqual([...lsel.options].map((o) => o.textContent), ['All rides (3 rides, 2 lines)', '2026-10-10 08:05 (1 lines)', '2026-10-09 16:30 (1 lines)', '2026-10-05 07:45 (summary only)']);
+  assert.match(lview.textContent!, /Ride 2026-10-05 07:45: 95 min, 88 km, showers, 17 C/); assert.match(lview.textContent!, /Talked about: Soweto/);
+  assert.match(lhost.querySelector('.info')!.textContent!, /3 ride\(s\), 2 saved line\(s\), 1 with a summary only/);
   assert.match(lview.textContent!, /Afternoon, sir\./); assert.match(lview.textContent!, /fallback: timeout/);
   lsel.value = String(r2); ev(lsel, 'change');
   assert.ok(!lview.textContent!.includes('Afternoon, sir.'), 'filtered to one ride'); assert.match(lview.textContent!, /Rain within the hour/);
@@ -205,7 +209,8 @@ resetConfig();
   const lbtn = (t: string) => [...lhost.querySelectorAll('button')].find((b) => b.textContent === t)!;
   for (const t of ['Refresh', 'Copy', 'Share', 'Save file', 'Clear saved log']) assert.ok(lbtn(t), `${t} button`);
   lbtn('Clear saved log').dispatchEvent(new page.window.Event('click'));
-  assert.match(lview.textContent!, /No lines logged yet/); assert.equal(lsel.options.length, 1);
+  assert.ok(!lview.textContent!.includes('Afternoon, sir.'), 'saved lines are gone');
+  assert.match(lview.textContent!, /95 min, 88 km/, "clearing the log leaves Betty's ride memory alone"); assert.equal(lsel.options.length, 2);
 
   for (const id of ['toggle', 'lock', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);

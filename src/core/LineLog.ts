@@ -22,9 +22,9 @@ export function mergeLog(stored: LogEntry[], fresh: LogEntry[]): LogEntry[] {
   return [...byId.values()].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id)).slice(-MAX_LOG_ENTRIES);
 }
 
-/** The rides that have lines in the log, newest first. */
-export function ridesInLog(entries: LogEntry[]): Array<{ rideId: number; count: number }> {
-  const counts = new Map<number, number>();
+/** Every ride worth listing, newest first: those with saved lines plus remembered rides that have none (count 0). */
+export function ridesInLog(entries: LogEntry[], rides: RideRecord[] = []): Array<{ rideId: number; count: number }> {
+  const counts = new Map<number, number>(rides.map((r) => [r.startedAt, 0]));
   entries.forEach((e) => counts.set(e.rideId, (counts.get(e.rideId) ?? 0) + 1));
   return [...counts].map(([rideId, count]) => ({ rideId, count })).sort((a, b) => b.rideId - a.rideId);
 }
@@ -36,21 +36,25 @@ export const stamp = (ms: number) => {
 };
 const clock = (ms: number) => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`; };
 
-/** Plain text for reading on screen, copying or saving. One ride (rideId) or everything, oldest ride first. */
+/**
+ * Plain text for reading on screen, copying or saving. One ride (rideId) or everything, oldest ride first.
+ * A remembered ride with no saved lines (from before the log existed, or a silent ride) still gets its summary.
+ */
 export function formatLog(entries: LogEntry[], rides: RideRecord[], rideId?: number): string {
-  const wanted = rideId === undefined ? entries : entries.filter((e) => e.rideId === rideId);
-  if (!wanted.length) return 'No lines logged yet.';
+  const listed = ridesInLog(entries, rides).filter((r) => rideId === undefined || r.rideId === rideId).reverse();
+  if (!listed.length) return 'No lines logged yet.';
   const out: string[] = [];
-  let current: number | null = null;
-  for (const e of [...wanted].sort((a, b) => a.rideId - b.rideId || a.at - b.at)) {
-    if (e.rideId !== current) {
-      current = e.rideId;
-      const r = rides.find((x) => x.startedAt === e.rideId);
-      const facts = r ? `: ${r.minutes} min, ${r.distanceKm} km${r.weather ? `, ${r.weather}` : ''}` : '';
-      if (out.length) out.push('');
-      out.push(`=== Ride ${stamp(e.rideId)}${facts} ===`);
+  for (const { rideId: id, count } of listed) {
+    const r = rides.find((x) => x.startedAt === id);
+    const facts = r ? `: ${r.minutes} min, ${r.distanceKm} km${r.weather ? `, ${r.weather}` : ''}` : '';
+    if (out.length) out.push('');
+    out.push(`=== Ride ${stamp(id)}${facts} ===`);
+    if (r?.places.length) out.push(`Talked about: ${r.places.join(', ')}`);
+    if (r?.events.length) out.push(`Flagged: ${r.events.join(', ')}`);
+    if (!count) { out.push('(no lines saved for this ride)'); continue; }
+    for (const e of entries.filter((x) => x.rideId === id).sort((x, y) => x.at - y.at)) {
+      out.push(`${clock(e.at)} ${e.head}${e.fate ? ` [${e.fate}]` : ''}: ${e.text}`);
     }
-    out.push(`${clock(e.at)} ${e.head}${e.fate ? ` [${e.fate}]` : ''}: ${e.text}`);
   }
   return out.join('\n');
 }
