@@ -159,9 +159,11 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 - **Sunset**: Open-Meteo `daily=sunrise,sunset` (local ISO strings; `nextTime` picks the first still ahead) fills
   `WeatherState.sunriseAt/sunsetAt`. `sunset_soon` fires once when sunset is within `thresholds.sunsetWarnMin`.
   Banter gets a `daylight` topic inside the last two hours. The simulator's weather override has a "Sunset in" slider.
-- **Debrief**: `stop()` in `main.ts` builds `ride_debrief` from the ride stats before the sources stop, clears the
-  queue, then speaks it through the same queue (the queue outlives the ride just long enough). Canned fallback
-  gives minutes, km and stops. No map or written report yet.
+- **Debrief / END RIDE**: `stop()` in `main.ts` first stops reacting to the ride (unsubscribes, so no new lines),
+  then says `ride_debrief` through the normal queue (after any line already playing) and WAITS for it to finish
+  before tearing anything down: owner's request, 2026-10-10. The button reads "ENDING RIDE... (tap to stop now)";
+  a second tap skips the wait, and it gives up after 45 s regardless. Canned fallback gives minutes, km and stops.
+  No map or written report yet. The smoke test runs a whole simulated ride through this path.
 - Open-Meteo response shape was checked against the live API on 2026-10-10 (current, hourly, daily all match).
 
 ## Saved log
@@ -471,8 +473,9 @@ minutes", "mark this spot"; one physical button beats any on-screen control on a
 brake or a "mark this" press.
 
 ### Notes: a personal voice
-1. Free first: iOS "Enhanced"/"Premium" voices (Settings > Accessibility > Spoken Content > Voices). Betty uses the
-   default voice today; add a voice picker (`speechSynthesis.getVoices()`, persist the choice).
+1. Free first: iOS "Enhanced"/"Premium" voices (Settings > Accessibility > Spoken Content > Voices). BUILT: the
+   Voice picker on the main screen lists the phone's English voices (en-ZA first), has a Test button, and saves the
+   choice in `CONFIG.voiceURI`; `WebSpeaker` falls back to en-ZA if that voice is no longer installed.
 2. Cloud TTS for real quality: Claude text -> TTS service -> audio played by the page. ElevenLabs can design or clone
    a voice (needs the speaker's consent); Azure has South African English neural voices. Adds roughly 0.5 to 1 s per
    line, needs signal (fall back to the phone voice), costs per character, and the key must sit behind a server
@@ -488,6 +491,13 @@ brake or a "mark this" press.
   and in a browser only works while the page is in front. A handlebar/headset button is the ideal trigger.
 - Speech to text: Safari's SpeechRecognition on iPhone is unreliable (stops by itself, poor in noise). Dependable
   option: record a few seconds (MediaRecorder) and send to a transcription service; needs a server-side key.
+- Push-to-talk from a Bluetooth headset (discussed 2026-10-10, NOT built, unverified on the owner's headset): a web
+  page can receive the headset's play/pause and next/previous-track presses through the Media Session API, but only
+  while the page is the phone's active audio source, which means Betty playing a continuous near-silent track.
+  That would also keep the Bluetooth link awake (clipped first words). The long-press assistant button goes to
+  Siri and cannot be intercepted. Costs: Betty would take those buttons away from a music app, and the mic still
+  switches the headset to call quality while listening. First step is a tiny test: hold the media session and log
+  which button presses actually reach the page on his headset and iPhone.
 - Order: typed chat test mode first, then push-to-talk with cloud transcription, wake word last (likely on the Pi
   with Porcupine).
 

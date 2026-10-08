@@ -9,7 +9,7 @@ export interface SimContext {
   agg: StateAggregator;
   engine: TriggerEngine;
   queue: AudioQueue;
-  say(ev: TriggerEvent): void;
+  say(ev: TriggerEvent): unknown;
   setAloud(on: boolean): void;
   aloud: boolean;
   refreshFeeds(): void;

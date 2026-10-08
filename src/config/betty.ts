@@ -28,6 +28,8 @@ export interface Config {
   riderName: string;
   /** What Betty calls the motorcycle */
   bikeName: string;
+  /** Chosen speech voice (its voiceURI). Empty = let the phone pick an en-ZA voice. */
+  voiceURI: string;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -62,6 +64,7 @@ export const DEFAULT_CONFIG: Config = {
   obdMode: 'off',
   riderName: 'sir',
   bikeName: 'the bike',
+  voiceURI: '',
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,

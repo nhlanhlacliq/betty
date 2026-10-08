@@ -30,6 +30,9 @@ import { LogEntry } from './core/LineLog';
 
 loadConfig();
 
+/** Build-time keys. Absent when the page is run outside Vite (the smoke test), where Betty simply has no keys. */
+const ENV: Record<string, string | undefined> = import.meta.env ?? {};
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const toggle = $<HTMLButtonElement>('toggle');
 const realBox = $<HTMLInputElement>('real');
@@ -41,7 +44,7 @@ const feed = { weather: 'idle', traffic: 'idle', places: 'idle' };
 const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places}`;
 
 interface Rig {
-  agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<void>;
+  agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
   setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
 }
 let rig: Rig | null = null;
@@ -133,6 +136,35 @@ bikeInput.addEventListener('change', () => {
   saveConfig();
 });
 
+// Voice picker. The list arrives late on most browsers, and downloaded voices (iPhone: Settings > Accessibility >
+// Spoken Content > Voices) only show up once they are installed, so it is rebuilt whenever the browser says it changed.
+const voiceSel = $<HTMLSelectElement>('voice');
+const fillVoices = () => {
+  const all = 'speechSynthesis' in window ? window.speechSynthesis.getVoices() : [];
+  const english = all.filter((v) => v.lang.toLowerCase().startsWith('en'));
+  const rank = (v: SpeechSynthesisVoice) => (v.lang.toLowerCase() === 'en-za' ? 0 : 1);
+  voiceSel.innerHTML = '';
+  const auto = document.createElement('option');
+  auto.value = ''; auto.textContent = all.length ? 'Automatic (phone default)' : 'Automatic (no voices listed by this browser)';
+  voiceSel.append(auto);
+  for (const v of [...english].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))) {
+    const o = document.createElement('option');
+    o.value = v.voiceURI; o.textContent = `${v.name} (${v.lang})`;
+    voiceSel.append(o);
+  }
+  // A saved voice that is no longer installed stays saved, but the box shows what will actually be used.
+  voiceSel.value = english.some((v) => v.voiceURI === CONFIG.voiceURI) ? CONFIG.voiceURI : '';
+};
+fillVoices();
+if ('speechSynthesis' in window) window.speechSynthesis.addEventListener?.('voiceschanged', fillVoices);
+voiceSel.addEventListener('change', () => { CONFIG.voiceURI = voiceSel.value; saveConfig(); });
+const testSpeaker = new WebSpeaker();
+$('voicetest').addEventListener('click', () => {
+  if (rig) return; // not over the top of a ride in progress
+  testSpeaker.stop();
+  testSpeaker.speak(`Hello ${cleanRiderName(CONFIG.riderName)}, this is how I sound.`, () => {});
+});
+
 const wakeEl = $('wake');
 const showWake = (s: WakeStatus | null) => {
   wakeEl.className = s === 'on' ? 'ok' : 'err';
@@ -152,10 +184,17 @@ obdSel.addEventListener('change', () => {
 });
 // TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
 window.addEventListener('betty-config', () => {
-  nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
+  nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
 });
 
+let starting = false;
 async function start() {
+  if (starting) return; // a double tap must not build two rides
+  starting = true;
+  try { await beginRide(); } finally { starting = false; }
+}
+
+async function beginRide() {
   // Must run synchronously inside the tap (iOS speech + motion permission rules).
   WebSpeaker.prime();
   const real = realBox.checked;
@@ -169,7 +208,7 @@ async function start() {
     return s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : CONFIG.feeds.fallbackLocation;
   };
   const weather = new WeatherSource(pos, (m) => { feed.weather = m; });
-  const key = import.meta.env.VITE_TOMTOM_API_KEY as string | undefined;
+  const key = ENV.VITE_TOMTOM_API_KEY as string | undefined;
   const traffic = new TrafficSource(key ? new TomTomTrafficProvider(key) : null, pos, (m) => { feed.traffic = m; });
 
   const places = new PlaceSource(pos, (m) => { feed.places = m; });
@@ -200,7 +239,7 @@ async function start() {
     FuelStore.save(engine.kmSinceFill());
   };
   const memTimer = window.setInterval(remember, 60_000);
-  const claude = new ClaudeClient(import.meta.env.VITE_ANTHROPIC_API_KEY || undefined);
+  const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined);
   const speaker = new SwitchableSpeaker(new WebSpeaker(speechProblem));
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
 
@@ -214,6 +253,7 @@ async function start() {
     line.item = queue.enqueue(text, ev.priority); // the item carries its fate: waiting, speaking, spoken, or why not
     renderLog();
     if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
+    return line.item;
   };
 
   const unsub = agg.subscribe((s) => {
@@ -265,28 +305,48 @@ async function start() {
   if (!statusEl.textContent) setStatus(real ? 'Keep this screen open while riding.' : 'Simulated session: no phone sensors in use.');
 }
 
+/** Longest END RIDE will wait for the sign-off before shutting down regardless. */
+const SIGN_OFF_LIMIT_MS = 45_000;
+/** Set while END RIDE is waiting for her to finish; calling it ends the ride at once. */
+let endNow: (() => void) | null = null;
+
+/**
+ * END RIDE: stop reacting to the ride, let her say the sign-off (after whatever line is already playing) and
+ * finish it, and only then shut everything down. A second tap on the button skips the wait.
+ */
 async function stop() {
   const r = rig;
-  if (!r) return;
-  rig = null; // a second tap while the debrief is being fetched must not start tearing down again
-  clearInterval(r.memTimer);
+  if (!r || endNow) return;
+  let hurry = false;
+  endNow = () => { hurry = true; };
+  toggle.textContent = 'ENDING RIDE... (tap to stop now)';
+  window.clearInterval(r.memTimer);
   r.remember();
-  // A sign-off for any ride worth remembering. Built before the sources stop, spoken after everything else is cleared.
-  const snap = r.engine.rideSnapshot();
-  const debrief = toRecord(snap, null) ? r.engine.force('ride_debrief', r.agg.current) : null;
+  r.unsub(); // no new alerts or banter from here on; the queue and speaker stay alive
+
+  // A sign-off for any ride worth remembering.
+  const debrief = toRecord(r.engine.rideSnapshot(), null) ? r.engine.force('ride_debrief', r.agg.current) : null;
+  const item = debrief ? await r.say(debrief) : null;
+  const deadline = Date.now() + SIGN_OFF_LIMIT_MS;
+  while (item && !SETTLED.includes(item.fate) && !hurry && Date.now() < deadline) {
+    await new Promise((res) => setTimeout(res, 150));
+  }
+
+  r.queue.clear(); // anything still waiting belongs to a ride that is over (and cuts her off if the wait was skipped)
   r.setObd('off');
-  r.unsub();
   r.agg.stop();
   r.unmountSim();
-  r.queue.clear(); // whatever was still waiting belongs to a ride that is over
+  saveLog();
+  await r.wake.disable();
+  showWake(null);
+  rig = null;
+  endNow = null;
   toggle.textContent = 'START RIDE';
   toggle.classList.remove('stop');
   realBox.disabled = false;
   setStatus('');
-  if (debrief) await r.say(debrief); // the queue outlives the ride just long enough to say it
-  saveLog();
-  await r.wake.disable();
-  showWake(null);
 }
 
-toggle.addEventListener('click', () => { rig ? stop() : start(); });
+toggle.addEventListener('click', () => {
+  if (endNow) endNow(); else if (rig) void stop(); else if (!starting) void start();
+});

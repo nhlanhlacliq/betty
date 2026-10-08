@@ -7,7 +7,7 @@ const pick = () => ({
   safeWindow: CONFIG.safeWindow, thresholds: CONFIG.thresholds, priorities: CONFIG.priorities,
   cooldownsMs: CONFIG.cooldownsMs, ambientCooldownMs: CONFIG.ambientCooldownMs,
   ambientMaxAgeMs: CONFIG.ambientMaxAgeMs, milestoneEveryMin: CONFIG.milestoneEveryMin,
-  ambient: CONFIG.ambient, fuel: CONFIG.fuel, obdMode: CONFIG.obdMode, riderName: CONFIG.riderName, bikeName: CONFIG.bikeName,
+  ambient: CONFIG.ambient, fuel: CONFIG.fuel, obdMode: CONFIG.obdMode, riderName: CONFIG.riderName, bikeName: CONFIG.bikeName, voiceURI: CONFIG.voiceURI,
 });
 
 export function loadConfig() {

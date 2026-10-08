@@ -1,3 +1,4 @@
+import { CONFIG } from '../config/betty';
 import { Speaker } from '../core/AudioQueue';
 
 /** The slice of speechSynthesis this needs, so the recovery logic can be tested with a fake. */
@@ -6,6 +7,7 @@ export interface Synth {
   speak(u: SpeechSynthesisUtterance): void;
   cancel(): void;
   resume(): void;
+  getVoices?(): SpeechSynthesisVoice[];
 }
 export interface SpeakerTimings {
   /** No sign of the line starting after this long = the engine swallowed it */
@@ -84,7 +86,9 @@ export class WebSpeaker implements Speaker {
     };
 
     const u = this.make(text);
-    u.lang = 'en-ZA';
+    // The voice picked on the main screen, if the phone still has it; otherwise whatever it offers for en-ZA.
+    const voice = CONFIG.voiceURI ? synth.getVoices?.().find((v) => v.voiceURI === CONFIG.voiceURI) : undefined;
+    if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-ZA';
     u.rate = 1.0;
     u.onstart = () => { started = true; };
     u.onend = () => finish();

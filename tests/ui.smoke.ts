@@ -187,6 +187,29 @@ resetConfig();
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(ls.locked, false, 'holding the button unlocks');
 
+  // voice picker: lists English voices (en-ZA first), remembers the choice, survives the list arriving late
+  {
+    const vsel = doc.getElementById('voice') as HTMLSelectElement;
+    assert.deepEqual([...vsel.options].map((o) => o.textContent), ['Automatic (no voices listed by this browser)']);
+    const listeners: Array<() => void> = [];
+    const voices = [
+      { voiceURI: 'u.samantha', name: 'Samantha', lang: 'en-US' }, { voiceURI: 'u.tessa', name: 'Tessa', lang: 'en-ZA' },
+      { voiceURI: 'u.amelie', name: 'Amelie', lang: 'fr-CA' }, { voiceURI: 'u.daniel', name: 'Daniel (Enhanced)', lang: 'en-GB' },
+    ];
+    // jsdom has no speech engine; main.ts asked for the list once already, so drive its refresh through the reset event
+    (page.window as any).speechSynthesis = { getVoices: () => voices, addEventListener: (_: string, f: () => void) => listeners.push(f), speak() {}, cancel() {}, resume() {}, speaking: false };
+    page.window.dispatchEvent(new page.window.Event('betty-config'));
+    assert.deepEqual([...vsel.options].map((o) => o.textContent),
+      ['Automatic (phone default)', 'Tessa (en-ZA)', 'Daniel (Enhanced) (en-GB)', 'Samantha (en-US)'], 'English only, South African first');
+    vsel.value = 'u.daniel'; ev(vsel, 'change');
+    assert.equal(CONFIG.voiceURI, 'u.daniel');
+    assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"voiceURI":"u.daniel"/);
+    page.window.dispatchEvent(new page.window.Event('betty-config'));
+    assert.equal(vsel.value, 'u.daniel', 'choice survives the list being rebuilt');
+    delete (page.window as any).speechSynthesis;
+    CONFIG.voiceURI = '';
+  }
+
   // fuel range: unknown until FILLED UP is tapped, then the configured full-tank range
   assert.equal(doc.getElementById('range')!.textContent, '-');
   doc.getElementById('filled')!.dispatchEvent(new page.window.Event('click'));
@@ -225,7 +248,60 @@ resetConfig();
   assert.ok(!lview.textContent!.includes('Afternoon, sir.'), 'saved lines are gone');
   assert.match(lview.textContent!, /95 min, 88 km/, "clearing the log leaves Betty's ride memory alone"); assert.equal(lsel.options.length, 2);
 
-  for (const id of ['toggle', 'lock', 'filled', 'range', 'rangesrc', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  // ---- a whole simulated ride on the real page: START, a line is logged, END waits for the sign-off, then shuts down
+  {
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const realFetch = globalThis.fetch, realNow = Date.now;
+    let skew = 0;
+    globalThis.fetch = (async () => { throw new Error('offline'); }) as typeof fetch; // no network in tests
+    Date.now = () => realNow() + skew; // lets the test make the ride "long enough" to earn a sign-off
+    try {
+      const toggle = doc.getElementById('toggle') as HTMLButtonElement;
+      const logText = () => doc.getElementById('log')!.textContent!;
+      const click = (el: Element) => el.dispatchEvent(new page.window.Event('click', { bubbles: true }));
+      (doc.getElementById('real') as HTMLInputElement).checked = false;
+
+      click(toggle); click(toggle); // the second tap lands while it is still starting and must be ignored
+      await wait(150);
+      assert.equal(toggle.textContent, 'END RIDE');
+      assert.match(logText(), /startup \(fallback: no API key/); assert.match(logText(), /Systems online\./);
+      assert.equal((logText().match(/startup/g) ?? []).length, 1, 'one ride, not two');
+      assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/);
+
+      // a 2-minute ride earns no sign-off: END shuts down straight away
+      skew += 2 * 60_000;
+      click(toggle); await wait(100);
+      assert.equal(toggle.textContent, 'START RIDE'); assert.equal(doc.getElementById('sim')!.innerHTML, '');
+      assert.ok(!/ride_debrief/.test(logText()));
+
+      // a 5-minute ride: she signs off, and the ride is not torn down until she has finished speaking
+      click(toggle); await wait(150);
+      const aloud = [...doc.querySelectorAll('#sim input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Speak aloud')) as HTMLInputElement;
+      aloud.checked = false; aloud.dispatchEvent(new page.window.Event('change')); // silent mode: speech takes real time
+      skew += 5 * 60_000;
+      click(toggle); await wait(400);
+      assert.match(toggle.textContent!, /^ENDING RIDE/, 'still ending while she speaks');
+      assert.match(logText(), /ride_debrief \(fallback: no API key.*Ride done: 5 minutes and 0 kilometres\. Good one\. \[speaking now\]/);
+      assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/, 'nothing torn down yet');
+      await wait(3300); // silent mode simulates about 3 s for this nine-word line
+      assert.equal(toggle.textContent, 'START RIDE'); assert.equal(doc.getElementById('sim')!.innerHTML, '');
+      assert.match(logText(), /Good one\. \[spoken\]/, 'she finished before the ride was torn down');
+      assert.match(page.window.localStorage.getItem('betty.log.v1')!, /ride_debrief/, 'the sign-off is in the saved log');
+
+      // a second tap during the sign-off ends the ride at once
+      click(toggle); await wait(150);
+      const aloud2 = [...doc.querySelectorAll('#sim input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Speak aloud')) as HTMLInputElement;
+      aloud2.checked = false; aloud2.dispatchEvent(new page.window.Event('change'));
+      skew += 5 * 60_000;
+      click(toggle); await wait(300);
+      assert.match(toggle.textContent!, /^ENDING RIDE/);
+      click(toggle); await wait(300);
+      assert.equal(toggle.textContent, 'START RIDE', 'second tap skips the wait');
+      assert.match(logText(), /Good one\. \[cleared\]/);
+    } finally { globalThis.fetch = realFetch; Date.now = realNow; }
+  }
+
+  for (const id of ['toggle', 'lock', 'voice', 'voicetest', 'filled', 'range', 'rangesrc', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   resetConfig();
@@ -244,6 +320,20 @@ resetConfig();
     return { synth, problems, sp };
   };
 
+  { // the voice chosen on the main screen is used when the phone has it, otherwise en-ZA
+    const { synth, sp } = rig();
+    const voices = [{ voiceURI: 'com.apple.voice.premium.en-GB.Serena', name: 'Serena (Premium)', lang: 'en-GB' }];
+    (synth as any).getVoices = () => voices;
+    sp.speak('default voice', () => {});
+    assert.equal((synth.spoken[0] as any).lang, 'en-ZA'); assert.equal((synth.spoken[0] as any).voice, undefined);
+    CONFIG.voiceURI = voices[0].voiceURI;
+    sp.speak('picked voice', () => {});
+    assert.equal((synth.spoken[1] as any).voice, voices[0]); assert.equal((synth.spoken[1] as any).lang, 'en-GB');
+    CONFIG.voiceURI = 'a.voice.that.was.deleted';
+    sp.speak('missing voice', () => {});
+    assert.equal((synth.spoken[2] as any).lang, 'en-ZA', 'falls back if the chosen voice is gone');
+    sp.stop(); resetConfig();
+  }
   { // normal line
     const { synth, problems, sp } = rig(); let done = 0;
     sp.speak('hello there', () => done++);
