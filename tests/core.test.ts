@@ -4,6 +4,7 @@ import { AudioQueue, Speaker } from '../src/core/AudioQueue';
 import { NO_OBD, StateAggregator, initialState } from '../src/core/StateAggregator';
 import { angleDiff, bboxAround, bearingDeg, compassPoint, haversineKm, relativeDirection } from '../src/core/geo';
 import { GpsLean } from '../src/core/GpsLean';
+import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } from '../src/core/LineLog';
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
 import { ClaudeClient, buildClaudeRequest, extractText } from '../src/core/ClaudeClient';
@@ -541,5 +542,35 @@ const ride0 = () => new RideStats(now).snapshot();
   const ctx = e.force('local_fact', { ...s, nearbyPlaces: [{ ...north, distanceKm: 99 }] }).context;
   assert.match(ctx, /about 1\.1 km from Northton, which is ahead\. Notes on Northton/);
   assert.ok(!/which is/.test(new TriggerEngine(now).force('local_fact', { ...initialState(), nearbyPlaces: [place()] }).context), 'unknown direction is left out');
+}
+// ---- saved line log
+{
+  const r1 = new Date(2026, 9, 9, 16, 30).getTime(), r2 = new Date(2026, 9, 10, 8, 5).getTime();
+  const en = (id: string, rideId: number, offsetS: number, over: Partial<LogEntry> = {}): LogEntry => ({
+    id, at: rideId + offsetS * 1000, rideId, head: '[P3] ambient_banter (claude, 900 ms)', text: `line ${id}`, fate: 'spoken', ...over,
+  });
+  let log = mergeLog([], [en('b', r1, 65), en('a', r1, 5, { head: '[P4] startup (claude, 1200 ms)' })]);
+  assert.deepEqual(log.map((e) => e.id), ['a', 'b'], 'oldest first');
+  log = mergeLog(log, [en('c', r2, 10, { fate: 'waiting to speak' })]);
+  log = mergeLog(log, [en('c', r2, 10, { fate: 'spoken' }), en('d', r2, 30, { head: '[audio]', text: 'speech did not start (no start), retrying', fate: '' })]);
+  assert.equal(log.length, 4, 'a line saved twice is updated, not duplicated'); assert.equal(log.find((e) => e.id === 'c')!.fate, 'spoken');
+  assert.deepEqual(ridesInLog(log), [{ rideId: r2, count: 2 }, { rideId: r1, count: 2 }], 'newest ride first');
+
+  const rides = [{ startedAt: r1, minutes: 42, distanceKm: 31.5, weather: 'clear, 22 C', places: [], events: [] }];
+  const text = formatLog(log, rides);
+  assert.equal(text, [
+    '=== Ride 2026-10-09 16:30: 42 min, 31.5 km, clear, 22 C ===',
+    '16:30:05 [P4] startup (claude, 1200 ms) [spoken]: line a',
+    '16:31:05 [P3] ambient_banter (claude, 900 ms) [spoken]: line b',
+    '',
+    '=== Ride 2026-10-10 08:05 ===',
+    '08:05:10 [P3] ambient_banter (claude, 900 ms) [spoken]: line c',
+    '08:05:30 [audio]: speech did not start (no start), retrying',
+  ].join('\n'));
+  assert.ok(!formatLog(log, rides, r2).includes('line a'), 'one ride can be shown on its own');
+  assert.equal(formatLog([], rides), 'No lines logged yet.'); assert.equal(stamp(r2), '2026-10-10 08:05');
+  const many = Array.from({ length: MAX_LOG_ENTRIES + 50 }, (_, i) => en(`m${i}`, r1, i));
+  const capped = mergeLog([], many);
+  assert.equal(capped.length, MAX_LOG_ENTRIES); assert.equal(capped.at(-1)!.id, `m${MAX_LOG_ENTRIES + 49}`, 'the oldest lines make way');
 }
 console.log('all core tests passed');

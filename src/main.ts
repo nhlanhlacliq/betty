@@ -23,6 +23,9 @@ import { WakeLock, WakeStatus } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
 import { mountTuningPanel } from './ui/TuningPanel';
 import { mountLockScreen } from './ui/LockScreen';
+import { mountLogPanel } from './ui/LogPanel';
+import { LineLogStore } from './adapters/LineLogStore';
+import { LogEntry } from './core/LineLog';
 
 loadConfig();
 
@@ -40,8 +43,21 @@ interface Rig {
   agg: StateAggregator; setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
 }
 let rig: Rig | null = null;
-interface LogLine { head: string; text: string; item: QueueItem | null }
+interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
+/** What the screen shows: the current ride, newest first. */
 const lines: LogLine[] = [];
+/** Lines from this page session whose saved copy may be out of date (new, or still waiting to be spoken). */
+let unsaved: LogLine[] = [];
+let currentRideId = 0;
+let lineSeq = 0;
+const newLine = (head: string, text: string): LogLine => {
+  const at = Date.now();
+  const line: LogLine = { id: `${at}-${++lineSeq}`, at, rideId: currentRideId || at, head, text, item: null };
+  lines.unshift(line);
+  unsaved.push(line);
+  saveLogSoon();
+  return line;
+};
 const FATE_LABELS: Record<Fate, string> = {
   queued: 'waiting to speak', speaking: 'speaking now', spoken: 'spoken', expired: 'not spoken: waited too long',
   interrupted: 'cut off by a critical alert', cleared: 'cleared',
@@ -51,13 +67,33 @@ const renderLog = () => {
   logEl.innerHTML = lines.slice(0, 10)
     .map((l) => `<div>${esc(l.head)}: ${esc(l.text)}${l.item ? ` <span class="fate">[${FATE_LABELS[l.item.fate]}]</span>` : ''}</div>`).join('');
 };
+const toEntry = (l: LogLine): LogEntry => ({
+  id: l.id, at: l.at, rideId: l.rideId, head: l.head, text: l.text, fate: l.item ? FATE_LABELS[l.item.fate] : '',
+});
+const SETTLED: Fate[] = ['spoken', 'expired', 'interrupted', 'cleared'];
+/** Write the log to the phone. Lines still waiting or playing stay on the list so their final fate gets saved too. */
+const saveLog = () => {
+  LineLogStore.save(unsaved.map(toEntry));
+  unsaved = unsaved.filter((l) => l.item && !SETTLED.includes(l.item.fate));
+};
+let saveTimer: number | undefined;
+const saveLogSoon = () => { if (saveTimer === undefined) saveTimer = window.setTimeout(() => { saveTimer = undefined; saveLog(); }, 2000); };
+// A phone browser can drop the tab without warning; save whenever the page is hidden.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveLog(); });
+window.addEventListener('pagehide', saveLog);
+
 /** Problems the speech engine reports (a line that would not start, or never finished). Shown, not swallowed. */
 const speechProblem = (msg: string) => {
-  lines.unshift({ head: '[audio]', text: msg, item: null });
+  newLine('[audio]', msg);
   renderLog();
 };
 
 mountTuningPanel($('tuning'));
+mountLogPanel($('logpanel'), {
+  entries: () => { saveLog(); return LineLogStore.load(); },
+  rides: () => RideLog.load(),
+  clear: () => { unsaved = []; LineLogStore.clear(); },
+});
 
 // Lock screen: covers everything so nothing can be pressed by accident; hold its button to get back.
 const lockScreen = mountLockScreen($('lockroot'));
@@ -139,6 +175,7 @@ async function start() {
 
   const engine = new TriggerEngine();
   engine.setHistory(RideLog.load());
+  currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
   const remember = () => {
     const w = agg.current.weather;
@@ -148,7 +185,7 @@ async function start() {
   const memTimer = window.setInterval(remember, 60_000);
   const claude = new ClaudeClient(import.meta.env.VITE_ANTHROPIC_API_KEY || undefined);
   const speaker = new SwitchableSpeaker(new WebSpeaker(speechProblem));
-  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, renderLog);
+  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
 
   const say = async (ev: TriggerEvent) => {
     const p = await claude.phrase(ev, agg.current);
@@ -156,11 +193,7 @@ async function start() {
     const dropped = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
     const text = dropped ? '' : p.text;
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
-    const line: LogLine = {
-      head: `[P${ev.priority}] ${ev.id} (${meta})`, item: null,
-      text: text || (dropped ? '(dropped: critical alert active)' : '(silent)'),
-    };
-    lines.unshift(line);
+    const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (dropped ? '(dropped: critical alert active)' : '(silent)'));
     line.item = queue.enqueue(text, ev.priority); // the item carries its fate: waiting, speaking, spoken, or why not
     renderLog();
     if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
@@ -191,7 +224,10 @@ async function start() {
     aloud: speaker.aloud,
     setAloud: (on) => { speaker.aloud = on; },
     refreshFeeds: () => { weather.refresh(); traffic.refresh(); places.refresh(); },
-    resetRide: () => { engine.reset(); obd.reset(); queue.clear(); lines.length = 0; renderLog(); },
+    resetRide: () => {
+      engine.reset(); obd.reset(); queue.clear(); lines.length = 0; renderLog();
+      currentRideId = engine.rideSnapshot().startedAt; // the screen starts clean; the saved log keeps the earlier lines
+    },
     feedStatus,
     lastPhrase: () => {
       const p = claude.last;
@@ -213,6 +249,7 @@ async function start() {
 
 async function stop() {
   if (rig) { clearInterval(rig.memTimer); rig.remember(); }
+  saveLog();
   rig?.setObd('off');
   rig?.unsub();
   rig?.agg.stop();

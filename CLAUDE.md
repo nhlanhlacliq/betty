@@ -70,6 +70,7 @@ src/
     ClaudeClient.ts        Event -> Phrase {text, source claude|fallback, detail, latencyMs}; buildClaudeRequest (pure)
     ambient.ts             chooseAmbient (weighted, injectable RNG), freshPlace, banterTopics/pickTopic/pickMode
     RideStats.ts           Running totals for the current ride (distance, stops, lean, alerts, places)
+    LineLog.ts             LogEntry, mergeLog (upsert by id, capped at 1500), ridesInLog, formatLog (plain text)
     RideMemory.ts          RideRecord, toRecord, upsertRide, describeRide/describeTotals (cross-ride memory, pure)
     geo.ts                 haversineKm, bboxAround, bearingDeg, angleDiff, compassPoint, relativeDirection
     GpsLean.ts             Lean estimated from GPS speed and turn rate: atan(v * turnRate / g)
@@ -85,9 +86,11 @@ src/
     TomTomTraffic.ts       TomTom incidentDetails v5 provider (needs VITE_TOMTOM_API_KEY)
     PlaceSource.ts         Wikipedia geosearch + intro extracts -> BikeState.nearbyPlaces (tour-guide grounding)
     RideLog.ts             localStorage store for past rides (Betty's cross-ride memory)
+    LineLogStore.ts        localStorage store for everything she has said (`betty.log.v1`)
   ui/
     SimPanel.ts            SIMULATOR panel (mounted per ride)
     TuningPanel.ts         TUNING panel (always mounted)
+    LogPanel.ts            LOG panel: view saved lines per ride, copy, share, save as a file, clear
     LockScreen.ts          Full-screen touch cover for riding; hold the unlock button for 1 s to get out
     dom.ts                 el/button/checkbox helpers
 tests/core.test.ts         Pure logic tests
@@ -141,6 +144,16 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 - Target latency trigger -> speech under 3 s.
 - AudioQueue uses a generation counter: `speechSynthesis.cancel()` still fires `onend` for the cancelled utterance,
   and without the guard that stale callback released the speaker mid-P1. There is a regression test; keep it.
+
+## Saved log
+
+Every line (and every `[audio]` problem) is saved on the device with its time, ride, source (`claude`/`fallback` and
+why), latency and fate (`spoken`, `not spoken: waited too long`, ...). `main.ts` writes it 2 s after a change, when
+the page is hidden, and at END RIDE; a line still waiting or playing is re-saved once its fate settles. `rideId` is
+the ride's start time and matches `RideRecord.startedAt`, so the export can head each ride with its duration and
+distance. The LOG panel (always mounted, under TUNING) shows all rides or one, with Copy, Share, Save file and
+Clear. The on-screen log above it still shows only the current ride's latest 10. This is the main tool for
+judging a road test afterwards: ask the owner to share it.
 
 ## OBD mode (switch on the main screen, persisted)
 
@@ -372,6 +385,40 @@ Betty should feel like a companion, so most ambient lines should be one of these
 - Setting the tour-guide and banter weights to zero makes ambient silent; nothing else regresses.
 - With an overtemp active, no banter or tour-guide line is spoken.
 
+## Backlog: offline line bank (NOT BUILT, spec for a later session)
+
+Goal: when the phone has no signal (or Claude is slow), Betty should still sound like Claude wrote the line, not
+fall back to one fixed sentence or go silent. Owner agreed the approach on 2026-10-10 and asked for it to be parked.
+
+**Do not build a replay cache** (store lines she has said, play them back). Her lines carry specifics ("fuel's at 55
+percent", "thirty-six minutes in") that are wrong when replayed, and replaying repeats lines the rider has heard.
+
+**Build a line bank instead**: while online, ask Claude in the background for lines likely to be needed soon, store
+them on the device, use each at most once.
+- **Alerts with placeholders.** A few variants per alert id with blanks, e.g. "Fuel's down to {fuel} percent, {rider},
+  time to find a station." Fill the live value at speak time, so the wording is Claude's and the fact is current.
+  This also upgrades P1, which today always speaks the one canned fallback because it never waits on the network.
+  P1/P2 variants must stay straight (no jokes), same as the live rule.
+- **Tour-guide lines ahead of time.** Place facts do not change: fetch places in a wider radius (about 10 km) and
+  generate the `local_fact` line per place straight away. When the rider gets near, the line is already there.
+  Strongest case; also removes the roughly 1 s latency. Direction ("ahead on his left") cannot be pre-written:
+  generate without it, or leave a `{where}` placeholder.
+- **Banter.** Weakest fit (the best banter reacts to what just happened). Pre-generate for slow-changing topics
+  (time of day, weather as last fetched, last ride, totals) and numeric topics via placeholders.
+- **Validity check before speaking**: a banked line is used only if what it was written for still holds (weather
+  bucket unchanged, same part of day, place still unmentioned). Reuse the topic `bucket` ids in `core/ambient.ts`.
+- **Shape**: pure `core/LineBank.ts` (store, take-once, validity, placeholder fill, refill policy) with tests; an
+  adapter persists it in localStorage; `ClaudeClient.phrase` tries live Claude first and takes from the bank on
+  `no API key`/`network error`/`timeout`/HTTP error, before the canned fallback. Report it in `Phrase.source` as a
+  third value (`bank`) so the log shows it. Refill when online and the bank for an id runs low; cap the size.
+- **Costs/limits**: a bank of 30 to 40 short Haiku lines per ride is a few cents, some unused. Banked lines cannot
+  refer to what she said two minutes ago, so offline she is a little more generic.
+- **Two things the bank does not cover**: (1) if Safari reloads the tab with no signal the app does not load at all;
+  that needs a service worker caching the app shell, and is arguably more important. (2) Weather and traffic go
+  stale offline regardless. GPS and the on-device speech voice keep working.
+- **Order**: first measure (the saved LOG tags every line `claude` or `fallback: network error/timeout`, so a few
+  real rides show how often it happens), then service worker, alert variants, tour-guide pre-generation, banter last.
+
 ## Next steps (suggested order)
 
 1. Deploy to Vercel, test on the phone with helmet comms on a real ride (audio routing, GPS cadence, lean zeroing).
@@ -379,6 +426,7 @@ Betty should feel like a companion, so most ambient lines should be one of these
 3. Move the Claude/TomTom calls behind Vercel serverless functions so keys are not exposed.
 4. Build the chat-style test mode above.
 5. Ambient personality: done. Tune weights and prompts after real rides.
+5b. Offline line bank + service worker (see the backlog section above), once the logs show how often signal drops.
 6. Memory: ride stats and past-ride records are built. Still open: remembering what the rider says (needs voice input).
 7. Voice input "Hey Betty" feeding the same `rider_query` path.
 8. TPMS BLE (Web Bluetooth works on Android Chrome only; otherwise Phase 4).

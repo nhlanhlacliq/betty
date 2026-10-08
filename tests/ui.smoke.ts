@@ -181,7 +181,33 @@ resetConfig();
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(ls.locked, false, 'holding the button unlocks');
 
-  for (const id of ['toggle', 'lock', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  // LOG panel on the real page: starts empty, wired to storage
+  assert.match(doc.getElementById('logpanel')!.textContent!, /LOG \(saved on this device\)/);
+  assert.match(doc.querySelector('.logview')!.textContent!, /No lines logged yet/);
+
+  // LOG panel behaviour: lists rides, filters to one, and clears
+  const { mountLogPanel } = await import('../src/ui/LogPanel');
+  const r1 = new Date(2026, 9, 9, 16, 30).getTime(), r2 = new Date(2026, 9, 10, 8, 5).getTime();
+  let stored = [
+    { id: 'a', at: r1 + 5000, rideId: r1, head: '[P4] startup (claude, 1200 ms)', text: 'Afternoon, sir.', fate: 'spoken' },
+    { id: 'b', at: r2 + 9000, rideId: r2, head: '[P2] rain_soon (fallback: timeout, 2500 ms)', text: 'Rain within the hour.', fate: 'spoken' },
+  ];
+  const lhost = doc.createElement('div'); doc.body.append(lhost);
+  const panel = mountLogPanel(lhost, { entries: () => stored, rides: () => [], clear: () => { stored = []; } });
+  const lsel = lhost.querySelector('select') as HTMLSelectElement; const lview = lhost.querySelector('.logview') as HTMLElement;
+  assert.deepEqual([...lsel.options].map((o) => o.textContent), ['All rides (2 lines)', '2026-10-10 08:05 (1 lines)', '2026-10-09 16:30 (1 lines)']);
+  assert.match(lview.textContent!, /Afternoon, sir\./); assert.match(lview.textContent!, /fallback: timeout/);
+  lsel.value = String(r2); ev(lsel, 'change');
+  assert.ok(!lview.textContent!.includes('Afternoon, sir.'), 'filtered to one ride'); assert.match(lview.textContent!, /Rain within the hour/);
+  stored = [...stored, { id: 'c', at: r2 + 20_000, rideId: r2, head: '[audio]', text: 'speech never reported finishing, moving on', fate: '' }];
+  panel.refresh();
+  assert.equal(lsel.value, String(r2), 'refresh keeps the chosen ride'); assert.match(lview.textContent!, /never reported finishing/);
+  const lbtn = (t: string) => [...lhost.querySelectorAll('button')].find((b) => b.textContent === t)!;
+  for (const t of ['Refresh', 'Copy', 'Share', 'Save file', 'Clear saved log']) assert.ok(lbtn(t), `${t} button`);
+  lbtn('Clear saved log').dispatchEvent(new page.window.Event('click'));
+  assert.match(lview.textContent!, /No lines logged yet/); assert.equal(lsel.options.length, 1);
+
+  for (const id of ['toggle', 'lock', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   resetConfig();

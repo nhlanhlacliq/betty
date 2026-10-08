@@ -41,6 +41,7 @@
     #wake.err { color: var(--red); font-weight: 700; }
     #feeds { color: var(--dim); font-size: 12px; margin-top: 6px; }
     #log { margin-top: 16px; display: grid; gap: 6px; font-size: 13px; }
+    .logview { margin-top: 10px; max-height: 340px; overflow: auto; font-size: 11px; white-space: pre-wrap; word-break: break-word; color: var(--text); user-select: text; -webkit-user-select: text; }
     #log .fate { color: var(--dim); font-size: 11px; }
     .panel { margin-top: 20px; border: 1px solid var(--border); padding: 12px 14px; background: var(--surface); }
     .panel summary { cursor: pointer; color: var(--accent); font-weight: 800; letter-spacing: 3px; font-size: 12px; }
@@ -88,6 +89,7 @@
   <div id="log"></div>
   <div id="sim"></div>
   <div id="tuning"></div>
+  <div id="logpanel"></div>
   <div id="lockroot"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
