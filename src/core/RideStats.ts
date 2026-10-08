@@ -29,6 +29,9 @@ export interface RideSnapshot {
 }
 
 const MOVING_KMH = 3;
+/** A stop counts once he has been at a standstill this long, having properly got going (GOING_KMH) since the last one. */
+const STOP_HOLD_MS = 4000;
+const GOING_KMH = 15;
 const LEAN_CORNER_DEG = 15;
 /** Longest gap between two updates that still counts as riding time (a throttled tab can go quiet for minutes). */
 const MAX_STEP_MS = 10_000;
@@ -47,7 +50,8 @@ export class RideStats {
   private corneringMs = 0;
   private distanceKm = 0;
   private stops = 0;
-  private wasMoving = false;
+  private stoppedSince: number | null = null;
+  private gotGoing = false;
   private maxLean = 0;
   private maxSpeed = 0;
   private maxTemp = 0;
@@ -77,10 +81,14 @@ export class RideStats {
       if (Math.abs(s.leanDeg) >= LEAN_CORNER_DEG) this.corneringMs += dt;
       this.maxLean = Math.max(this.maxLean, Math.abs(s.leanDeg));
       this.maxSpeed = Math.max(this.maxSpeed, s.speedKmh);
-    } else if (this.wasMoving) {
-      this.stops++;
     }
-    this.wasMoving = moving;
+    // Crawling traffic makes GPS speed flicker around walking pace; on the first real ride that read as 32 "stops".
+    if (s.speedKmh >= GOING_KMH) this.gotGoing = true;
+    if (moving) this.stoppedSince = null;
+    else {
+      this.stoppedSince ??= t;
+      if (this.gotGoing && t - this.stoppedSince >= STOP_HOLD_MS) { this.stops++; this.gotGoing = false; }
+    }
 
     if (s.altitudeM != null) {
       if (this.altAnchor === null) this.altAnchor = s.altitudeM;

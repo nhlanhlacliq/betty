@@ -94,7 +94,8 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft =
     add('daylight', Math.floor(toSunset / 30), `Sunset is in about ${Math.round(toSunset / 5) * 5} minutes.`);
   }
   if (!s.obd && fuelKmLeft !== null) {
-    add('range', Math.floor(fuelKmLeft / 50), `By distance since the last fill-up, he has roughly ${Math.round(fuelKmLeft / 10) * 10} km of fuel range left.`);
+    add('range', Math.floor(fuelKmLeft / 50),
+      `Going only by distance since the last fill-up (there is no fuel gauge to read), he has roughly ${Math.round(fuelKmLeft / 10) * 10} km of range left.`);
   }
   if (mins >= 10) add('duration', Math.floor(mins / 20), `He has been out for ${Math.round(mins)} minutes.`);
   if (ride.distanceKm >= 2) add('distance', Math.floor(ride.distanceKm / 15), `He has covered ${ride.distanceKm} km this ride.`);
@@ -108,8 +109,9 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft =
       `Engine is at ${Math.round(s.engineTempC)} C${normal ? ', which is normal' : ''}; the highest this ride was ${ride.maxEngineTempC} C.`);
   }
   if (ride.movingMin >= 5 && ride.maxLeanDeg > 0) {
-    add('corners', Math.floor(ride.corneringPct / 20),
-      `His cornering so far: leaned past 15 degrees for ${ride.corneringPct} percent of the time moving, deepest lean about ${ride.maxLeanDeg} degrees.`);
+    add('corners', Math.floor(ride.corneringPct / 20), ride.corneringPct >= 1
+      ? `His cornering so far: leaned past 15 degrees for ${ride.corneringPct} percent of the time moving, deepest lean about ${ride.maxLeanDeg} degrees.`
+      : `The roads have been almost all straight so far; the deepest lean was about ${ride.maxLeanDeg} degrees.`);
   }
   if (s.altitudeM != null) {
     const ups = ride.climbM || ride.descentM ? `; he has climbed ${ride.climbM} m and dropped ${ride.descentM} m this ride` : '';
@@ -118,7 +120,7 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft =
   const dir = travelDirection(s);
   if (dir != null) add('direction', compassPoint(dir), `He is ${s.speedKmh >= 10 ? 'heading' : 'facing'} ${compassPoint(dir)}.`);
   if (ride.hardBrakes + ride.hardAccels >= 1) {
-    add('braking', `${ride.hardBrakes}:${ride.hardAccels}`,
+    add('braking', Math.floor((ride.hardBrakes + ride.hardAccels) / 6), // comes round again every half dozen, not every time
       `This ride: ${ride.hardBrakes} hard stop(s) on the brakes and ${ride.hardAccels} hard pull(s) on the throttle.`);
   }
   if (ride.jolts >= 5) add('surface', Math.floor(ride.jolts / 10), `The road has thrown ${ride.jolts} hard jolts at him this ride.`);
@@ -128,7 +130,7 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft =
   if (s.speedKmh > 0) add('speed_now', Math.floor(s.speedKmh / 30), `He is doing ${Math.round(s.speedKmh)} km/h right now.`);
   if (s.obd && s.rpm > 0) add('revs', Math.floor(s.rpm / 2000), `The engine is turning ${Math.round(s.rpm / 100) * 100} rpm right now, throttle at ${Math.round(s.throttlePct)} percent.`);
   if (ride.stops >= 1) {
-    add('stops', ride.stops, `He has made ${ride.stops} stop(s) so far this ride${s.speedKmh > 0 ? ' and is moving again now' : ''}.`);
+    add('stops', Math.floor(ride.stops / 6), `He has made ${ride.stops} stop(s) so far this ride${s.speedKmh > 0 ? ' and is moving again now' : ''}.`);
   }
   if (s.speedKmh === 0 && mins >= 5) add('standing', Math.floor(mins / 15), 'The bike is standing still right now.');
   if (s.incidents.length) add('traffic', s.incidents.length, `${s.incidents.length} traffic incident(s) reported nearby.`);

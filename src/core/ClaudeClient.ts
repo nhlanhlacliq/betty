@@ -1,4 +1,4 @@
-import { CONFIG, bettySystemPrompt, FLAVOUR_PROMPTS, SILENT_TOKEN } from '../config/betty';
+import { CONFIG, bettySystemPrompt, cleanRiderName, FLAVOUR_PROMPTS, SILENT_TOKEN } from '../config/betty';
 import { clockNote } from './ambient';
 import { BikeState, TriggerEvent } from './types';
 
@@ -31,8 +31,14 @@ export class ClaudeClient {
     const latencyMs = Date.now() - t0;
     let out: Phrase;
     if ('text' in r) {
-      const silent = isSilent(r.text);
-      out = { text: silent ? '' : r.text, source: 'claude', detail: silent ? 'chose silence' : '', latencyMs };
+      const c = cleanSpoken(r.text, {
+        ambient: FLAVOUR_PROMPTS[ev.id] !== undefined && ev.id !== 'ride_debrief',
+        name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences: CONFIG.maxSpokenSentences,
+      });
+      // An alert whose reply turned out unusable still has to be said: use the canned line.
+      out = c.text || !ev.fallback
+        ? { text: c.text, source: 'claude', detail: c.note, latencyMs }
+        : { text: ev.fallback, source: 'fallback', detail: 'unusable reply', latencyMs };
     } else {
       out = { text: ev.fallback, source: 'fallback', detail: ev.fallback ? r.error : `${r.error}, staying silent`, latencyMs };
     }
@@ -98,7 +104,51 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
   };
 }
 
-const isSilent = (text: string) => text.replace(/[^a-z]/gi, '').toUpperCase() === SILENT_TOKEN;
+const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export interface CleanOptions {
+  /** Ambient lines may be dropped altogether; an alert is never silenced by this. */
+  ambient: boolean;
+  name: string;
+  /** Lines already spoken this ride, oldest first */
+  recent: string[];
+  maxSentences: number;
+}
+
+/** Talk about the prompt instead of to the rider: "the notes only say...", "that breaks the word limit". */
+const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b/i;
+/** The start of a second thought: everything from here on is the model talking to itself. */
+const SECOND_THOUGHT = /\n\s*\n|\n?\s*(Wait,|Correction:|Corrected:|Revised:|Actually, let me|Let me rephrase)/;
+
+/**
+ * Makes a model reply safe to say out loud. On a real ride (2026-10-08) the model twice spoke its own reasoning:
+ * a line, then "Wait, that breaks the two-sentence and word limits... Corrected:" and a second attempt.
+ * Keeps only the first thought, drops talk about the prompt, honours a SILENT anywhere in the reply, caps the
+ * length, and stops every line opening with the rider's name.
+ */
+export function cleanSpoken(raw: string, o: CleanOptions): { text: string; note: string } {
+  const silentAnywhere = new RegExp(`\\b${SILENT_TOKEN}\\b`).test(raw);
+  if (o.ambient && silentAnywhere) return { text: '', note: 'chose silence' };
+  const cut = raw.search(SECOND_THOUGHT);
+  let text = (cut > 0 ? raw.slice(0, cut) : raw).replace(new RegExp(`\\b${SILENT_TOKEN}\\b\\.?`, 'g'), '').replace(/\s+/g, ' ').trim();
+  let note = cut > 0 ? 'cut off where it started talking to itself' : '';
+  if (META.test(text)) {
+    if (o.ambient) return { text: '', note: 'talked about its instructions, dropped' };
+    const kept = text.split(/(?<=[.!?])\s+/).filter((s) => !META.test(s)).join(' ');
+    if (kept) { text = kept; note = 'removed talk about its instructions'; }
+  }
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  if (sentences.length > o.maxSentences) { text = sentences.slice(0, o.maxSentences).join(' '); note ||= 'shortened'; }
+  // "sir" in line after line wears thin fast (the prompt's "one line in five" is not obeyed). If either of the
+  // last two lines used his name, take it out of this one: at the head ("Sir, ...") or as an aside (", sir,").
+  const n = escapeRegExp(o.name);
+  if (o.recent.slice(-2).some((l) => new RegExp(`\\b${n}\\b`, 'i').test(l))) {
+    text = text.replace(new RegExp(`^${n},\\s+`, 'i'), '').replace(new RegExp(`,\\s*${n}(?=[,.!?])`, 'gi'), '');
+    if (text) text = text[0].toUpperCase() + text.slice(1);
+  }
+  if (!text) return { text: '', note: o.ambient ? 'chose silence' : 'empty reply' };
+  return { text, note };
+}
 
 /** First text block of a Messages API response. content[0] is not guaranteed to be text (e.g. a thinking block). */
 export function extractText(json: unknown): string | null {

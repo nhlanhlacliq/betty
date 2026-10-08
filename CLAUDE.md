@@ -148,6 +148,40 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 - AudioQueue uses a generation counter: `speechSynthesis.cancel()` still fires `onend` for the cancelled utterance,
   and without the guard that stale callback released the speaker mid-P1. There is a regression test; keep it.
 
+## First real ride log: findings and fixes (86 min, 55 km, Edenvale to Pretoria)
+
+What held up: all 67 lines came from Claude, no timeouts or network errors (so the offline line bank is not urgent),
+every line with content was spoken, no `[audio]` problems. Latency 1.0 to 2.1 s, one at 3.5 s.
+
+What was wrong, and the fix (all in place, with tests built from the real lines):
+- **The model spoke its own second thoughts** twice ("Wait, that breaks the two-sentence and word limits...
+  Corrected:"). `cleanSpoken` in `ClaudeClient` now runs on every reply: keeps only the first thought, treats
+  `SILENT` anywhere in an ambient reply as silence, drops ambient lines that talk about "the notes"/instructions
+  (alerts keep the rest and are never silenced; an unusable alert reply falls back to the canned line), and caps
+  the reply at `maxSpokenSentences`.
+- **Third person in nearly every line** ("Betty finds that..."). The prompt now demands first person. If the bike
+  is named "Betty" too, the prompt says she is the bike's voice, so the bike is "I" as well.
+- **She told him to "pick up the pace"** before sunset. The system prompt now forbids telling him to speed up or
+  hurry for any reason, in every kind of line, not just banter.
+- **"Sir," at the head of almost every line.** `cleanSpoken` removes his name from a line when either of the last
+  two lines used it. The prompt rule alone ("rarely") was ignored.
+- **32 "stops" in 76 minutes.** GPS speed flickering around walking pace in traffic counted each dip. A stop now
+  needs 4 s at a standstill after having got above 15 km/h. Stops and hard braking are bucketed in sixes so they
+  stop dominating banter (they were "fresh" after every single stop).
+- **"Leaning past 15 degrees for none of the moving time"**: 0 percent after rounding. Now phrased as "almost all
+  straight so far". The GPS lean estimate reads low in town: slow corners are under the 15 km/h floor.
+- **"Betty's tank gauge says 270 km"**: the banter topic now says there is no gauge to read.
+- Dull tour-guide lines (a suburb, a school): prompt tightened; expect some to still get through.
+
+Still open, owner's call: his TUNING had the milestone at about every 5 min and the ambient gap at 60 s, which gave
+18 near-identical time checks ("N minutes out, and Betty suspects the road/clock/scenery..."). The default is 45
+min. Banter repeated a question three times ("which road will you remember longest") and a gag twice.
+The log was exported before END RIDE, so the sign-off is still unverified on a real ride.
+
+Dev note: Node's `fetch` on this Mac fails with ETIMEDOUT in about 250 ms when the network is slow (connection
+attempt timeout). For live checks from scripts use
+`NODE_OPTIONS=--network-family-autoselection-attempt-timeout=8000`. It is not an API or app fault.
+
 ## Fuel range, sunset, debrief (built 2026-10-10)
 
 - **Fuel range by distance** (for as long as there is no fuel gauge): the rider taps FILLED UP on the main screen;

@@ -7,7 +7,7 @@ import { GpsLean } from '../src/core/GpsLean';
 import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } from '../src/core/LineLog';
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
-import { ClaudeClient, buildClaudeRequest, extractText } from '../src/core/ClaudeClient';
+import { ClaudeClient, buildClaudeRequest, cleanSpoken, extractText } from '../src/core/ClaudeClient';
 import { clockNote, greetingFor, BANTER_MODES, banterContext, banterTopics, chooseAmbient, freshPlace, pickMode, pickTopic, placesFromHere, travelDirection, whereIs } from '../src/core/ambient';
 import { RideStats } from '../src/core/RideStats';
 import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
@@ -622,7 +622,7 @@ const ride0 = () => new RideStats(now).snapshot();
   resetConfig();
 
   const topics = banterTopics({ s, ride: ride0(), history: [], at: new Date(2026, 0, 1, 7), placeRadiusKm: 4, fuelKmLeft: 132 });
-  assert.match(topics.find((x) => x.id === 'range')!.text, /roughly 130 km of fuel range left/);
+  assert.match(topics.find((x) => x.id === 'range')!.text, /no fuel gauge to read\), he has roughly 130 km of range left/);
   assert.match(e.force('rider_query', s).context, /km of fuel range is left \(an estimate, not a gauge\)/);
 }
 // ---- sunset
@@ -658,7 +658,7 @@ const ride0 = () => new RideStats(now).snapshot();
   e.evaluate(s);
   for (let i = 0; i < 120; i++) { clock += 5000; e.evaluate({ ...s, altitudeM: 1500 + i }); } // 10 min, 10 km, 119 m up
   e.force('local_fact', s); e.force('rain_soon', s);
-  clock += 5000; e.evaluate({ ...s, speedKmh: 0 });
+  clock += 5000; e.evaluate({ ...s, speedKmh: 0 }); clock += 5000; e.evaluate({ ...s, speedKmh: 0 });
   const d = e.force('ride_debrief', { ...s, speedKmh: 0 });
   assert.equal(d.priority, 4);
   assert.match(d.context, /^The ride has just ended\. Summary: 10 minutes; 10 km; averaging 60 km\/h while moving; top speed 60 km\/h; 1 stop\(s\)/);
@@ -666,5 +666,90 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.equal(d.fallback, 'Ride done: 10 minutes and 10 kilometres, with 1 stop. Good one.');
   const req = buildClaudeRequest(d, s, []);
   assert.match(req.system, /sign-off/); assert.ok(!/Bike state|Local time/.test(req.messages[0].content));
+}
+// ---- findings from the first real ride log (2026-10-08)
+// replies are cleaned before they are spoken: the model twice read out its own second thoughts
+{
+  const opt = { ambient: true, name: 'sir', recent: [] as string[], maxSentences: 2 };
+  const leak1 = `Modderfontein Stadium is about 1.5 km ahead of us, sir, and it's mostly used for football. I'd call that the most interesting thing the notes give us, so enjoy the ride, Betty says.
+
+Wait, that breaks the two-sentence and word limits and repeats the ride-level framing. Corrected:
+
+Modderfontein Stadium is near us,`;
+  assert.deepEqual(cleanSpoken(leak1, opt), { text: '', note: 'talked about its instructions, dropped' }, 'a tour-guide line that talks about "the notes" is not spoken');
+  const leak2 = `The notes only say Kempton Park West is one of the westernmost suburbs of Kempton Park, which is dull and already covered by the description, so there is no genuinely surprising fact to share.
+
+Wait, the fact needs to be in the spoken output only, so correcting that: SILENT`;
+  assert.deepEqual(cleanSpoken(leak2, opt), { text: '', note: 'chose silence' }, 'SILENT anywhere in an ambient reply means silence');
+  const second = cleanSpoken('Kelvin Power Station was city-owned until 2001.\n\nWait, let me shorten that: Kelvin was city-owned.', opt);
+  assert.equal(second.text, 'Kelvin Power Station was city-owned until 2001.'); assert.match(second.note, /talking to itself/);
+  assert.equal(cleanSpoken('One. Two. Three. Four.', opt).text, 'One. Two.', 'never more than two sentences');
+  assert.equal(cleanSpoken('It is about 1.5 km away. Nice spot.', opt).text, 'It is about 1.5 km away. Nice spot.', 'a decimal point is not a sentence end');
+  assert.equal(cleanSpoken('  SILENT. ', opt).text, '');
+
+  // an alert is never silenced: talk about the prompt is cut out, and the rest is still said
+  const alert = cleanSpoken('Rain is close, about ten minutes out. The situation says nothing else, so that is all.', { ...opt, ambient: false });
+  assert.equal(alert.text, 'Rain is close, about ten minutes out.'); assert.match(alert.note, /removed talk/);
+
+  // his name in line after line: taken out when either of the last two lines used it
+  assert.equal(cleanSpoken('Sir, sunset is 45 minutes away.', opt).text, 'Sir, sunset is 45 minutes away.', 'fine the first time');
+  const recent = ['Sir, an hour in the saddle now.', 'Plenty of road left.'];
+  assert.equal(cleanSpoken('Sir, sunset is 45 minutes away.', { ...opt, recent }).text, 'Sunset is 45 minutes away.');
+  assert.equal(cleanSpoken('Thirty minutes in, sir, and the light is going. Easy does it, sir.', { ...opt, recent }).text, 'Thirty minutes in, and the light is going. Easy does it.');
+  assert.equal(cleanSpoken('Sirens ahead, pull over.', { ...opt, recent }).text, 'Sirens ahead, pull over.', 'not fooled by a word that starts with the name');
+  assert.equal(cleanSpoken('Sunset is close, sir.', { ...opt, recent: [...recent, 'Clear skies.'] }).text, 'Sunset is close, sir.', 'allowed again after two lines without it');
+  assert.equal(cleanSpoken('Fuel is fine, N.', { ...opt, name: 'N', recent: ['Morning, N.'] }).text, 'Fuel is fine.');
+}
+// ClaudeClient applies the cleaning; an alert with an unusable reply falls back to the canned line
+{
+  const realFetch = globalThis.fetch;
+  const reply = (text: string) => { globalThis.fetch = (async () => new Response(JSON.stringify({ content: [{ type: 'text', text }] }))) as typeof fetch; };
+  const c = new ClaudeClient('key'); const s = initialState();
+  const fact: TriggerEvent = { id: 'local_fact', priority: 3, context: 'He is near X. Notes on X: dull.', fallback: '', createdAt: 0 };
+  const rain: TriggerEvent = { id: 'rain_soon', priority: 2, context: 'Rain.', fallback: 'Rain within the hour.', createdAt: 0 };
+  try {
+    reply('The notes only say it is a suburb.\n\nWait, correcting that: SILENT');
+    let p = await c.phrase(fact, s);
+    assert.equal(p.text, ''); assert.equal(p.source, 'claude'); assert.equal(p.detail, 'chose silence');
+    reply('SILENT');
+    p = await c.phrase(rain, s);
+    assert.equal(p.text, 'Rain within the hour.', 'an alert is never lost to an unusable reply'); assert.equal(p.source, 'fallback'); assert.equal(p.detail, 'unusable reply');
+    reply('Rain is ten minutes out. Ease off the open stretches.\n\nWait, that is two sentences, fine.');
+    p = await c.phrase(rain, s);
+    assert.equal(p.text, 'Rain is ten minutes out. Ease off the open stretches.');
+  } finally { globalThis.fetch = realFetch; }
+}
+// prompt: first person, never told to hurry, and a bike that shares her name is "I" too
+{
+  const sys = () => buildClaudeRequest(new TriggerEngine(now).force('rain_soon', obdState()), obdState(), []).system;
+  assert.match(sys(), /Always speak in the first person/); assert.match(sys(), /Never tell him to speed up, pick up the pace, hurry/);
+  assert.match(sys(), /No reasoning, no notes to yourself, no second attempt/);
+  CONFIG.bikeName = 'Betty';
+  assert.match(sys(), /The motorcycle shares your name: you are its voice/); assert.ok(!/You call the motorcycle Betty/.test(sys()));
+  resetConfig();
+}
+// stops: flickering GPS speed in crawling traffic is not a string of stops
+{
+  const st = new RideStats(now);
+  const tick = (kmh: number, ms = 1000) => { clock += ms; st.update({ ...initialState(), speedKmh: kmh }); };
+  tick(50, 0); tick(50);
+  for (const v of [2, 5, 1, 6, 0, 4, 2, 7, 3, 5]) tick(v); // crawling: in and out of "moving" every second
+  assert.equal(st.snapshot().stops, 0, 'never at a standstill for long enough');
+  for (let i = 0; i < 6; i++) tick(0);
+  assert.equal(st.snapshot().stops, 1, 'a real stop');
+  for (const v of [5, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0]) tick(v);
+  assert.equal(st.snapshot().stops, 1, 'shuffling forward in a queue is still the same stop');
+  tick(30); for (let i = 0; i < 6; i++) tick(0);
+  assert.equal(st.snapshot().stops, 2, 'got going properly, then stopped again');
+}
+// banter: stops and hard braking come round every half dozen, not after each one; a straight ride is called straight
+{
+  const base = { s: { ...initialState(), speedKmh: 40 }, history: [] as RideRecord[], at: new Date(2026, 0, 1, 16), placeRadiusKm: 4 };
+  const bucket = (ride: Partial<ReturnType<typeof ride0>>, id: string) => banterTopics({ ...base, ride: { ...ride0(), movingMin: 30, ...ride } }).find((t) => t.id === id)!;
+  assert.equal(bucket({ stops: 7 }, 'stops').bucket, bucket({ stops: 11 }, 'stops').bucket);
+  assert.notEqual(bucket({ stops: 11 }, 'stops').bucket, bucket({ stops: 12 }, 'stops').bucket);
+  assert.equal(bucket({ hardBrakes: 1, hardAccels: 1 }, 'braking').bucket, bucket({ hardBrakes: 2, hardAccels: 3 }, 'braking').bucket);
+  assert.match(bucket({ maxLeanDeg: 12, corneringPct: 0 }, 'corners').text, /almost all straight so far; the deepest lean was about 12 degrees/);
+  assert.match(bucket({ maxLeanDeg: 31, corneringPct: 8 }, 'corners').text, /leaned past 15 degrees for 8 percent/);
 }
 console.log('all core tests passed');
