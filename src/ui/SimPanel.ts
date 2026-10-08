@@ -31,6 +31,7 @@ export const LOCATION_PRESETS: Array<[string, number, number]> = [
 ];
 
 type NumKey = 'speedKmh' | 'leanDeg' | 'rpm' | 'engineTempC' | 'throttlePct' | 'fuelPct';
+const OBD_KEYS = new Set<NumKey>(['rpm', 'engineTempC', 'throttlePct', 'fuelPct']);
 const SENSORS: Array<[NumKey, string, number, number, number, string]> = [
   ['speedKmh', 'GPS speed', 0, 180, 1, 'km/h'],
   ['leanDeg', 'Lean angle', -60, 60, 1, '°'],
@@ -73,7 +74,14 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
     r.range.disabled = true;
     r.row.prepend(cbWrap);
     wrap.append(r.row);
-    refreshers.push((s) => { if (!cb.checked) { r.range.value = String(s[key]); r.show(); } });
+    refreshers.push((s) => {
+      // OBD rows only make sense while an OBD feed is on (Engine data switch on the main screen).
+      const off = OBD_KEYS.has(key) && !s.obd;
+      if (off && cb.checked) { cb.checked = false; r.range.disabled = true; ctx.agg.clearOverride(key); }
+      cb.disabled = off;
+      r.name.textContent = off ? `${label}: OBD off` : label;
+      if (!cb.checked) { r.range.value = String(s[key]); r.show(); }
+    });
   }
 
   // --- weather
@@ -140,6 +148,7 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
     if (ctx.agg.hasOverride('dtcs')) { ctx.agg.clearOverride('dtcs'); dtcBtn.textContent = 'Inject fault P0171'; }
     else { ctx.agg.setOverride('dtcs', ['P0171']); dtcBtn.textContent = 'Clear fault'; }
   });
+  refreshers.push((s) => { dtcBtn.disabled = !s.obd; });
   bar.append(
     dtcBtn,
     button('Zero lean', () => ctx.zeroLean()),

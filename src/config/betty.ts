@@ -1,5 +1,7 @@
 import type { Priority, TriggerId } from '../core/types';
 
+export type ObdMode = 'off' | 'mock';
+
 export interface Config {
   safeWindow: { maxLeanDeg: number };
   thresholds: {
@@ -15,6 +17,8 @@ export interface Config {
   milestoneEveryMin: number;
   /** Ambient flavour mix (relative weights) and how far out a place still counts as "here" */
   ambient: { banterWeight: number; tourGuideWeight: number; silenceWeight: number; placeRadiusKm: number };
+  /** 'off' = no engine data at all, Betty runs on GPS, lean and feeds. 'mock' = simulated OBD2. Real OBD2 is Phase 4. */
+  obdMode: ObdMode;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -42,6 +46,7 @@ export const DEFAULT_CONFIG: Config = {
   ambientMaxAgeMs: 60_000,
   milestoneEveryMin: 45,
   ambient: { banterWeight: 40, tourGuideWeight: 40, silenceWeight: 20, placeRadiusKm: 4 },
+  obdMode: 'off',
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,

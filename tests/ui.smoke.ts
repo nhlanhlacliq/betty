@@ -16,6 +16,7 @@ const fire = (el: Element, type: string) => el.dispatchEvent(new dom.window.Even
 
 // ---- simulator panel
 const agg = new StateAggregator();
+agg.push({ obd: true }); // simulated OBD on, so the OBD rows are live
 const engine = new TriggerEngine();
 const spoken: string[] = [];
 const queue = new AudioQueue({ speak: (_t, d) => d(), stop: () => {} }, () => true);
@@ -71,6 +72,19 @@ agg.push({ nearbyPlaces: [{ id: 'w1', name: 'Vilakazi Street', distanceKm: 0.8, 
 assert.match(q(root, '.places').textContent!, /Vilakazi Street 0.8 km/);
 locSel.value = ''; fire(locSel, 'change');
 assert.equal(agg.current.lat, null, 'back to live position');
+
+// OBD off: engine rows and the fault button are disabled and their overrides dropped
+const rowOf = (label: string) => [...root.querySelectorAll('.row')].find((r) => r.textContent!.includes(label))!;
+const rpmCb = q<HTMLInputElement>(rowOf('RPM'), 'input[type=checkbox]');
+rpmCb.checked = true; fire(rpmCb, 'change');
+assert.equal(agg.hasOverride('rpm'), true);
+agg.push({ obd: false });
+assert.equal(rpmCb.disabled, true); assert.equal(rpmCb.checked, false); assert.equal(agg.hasOverride('rpm'), false);
+assert.match(rowOf('RPM').textContent!, /OBD off/);
+assert.equal(q<HTMLInputElement>(rowOf('GPS speed'), 'input[type=checkbox]').disabled, false, 'GPS row unaffected');
+assert.equal(byText(/fault/).disabled, true);
+agg.push({ obd: true });
+assert.equal(rpmCb.disabled, false);
 
 // weather override
 const wxCb = [...root.querySelectorAll('input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Override live weather')) as HTMLInputElement;

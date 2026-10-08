@@ -59,11 +59,11 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInpu
   }
   if (mins >= 10) add('duration', Math.floor(mins / 20), `He has been out for ${Math.round(mins)} minutes.`);
   if (ride.distanceKm >= 2) add('distance', Math.floor(ride.distanceKm / 15), `He has covered ${ride.distanceKm} km this ride.`);
-  if (s.rpm > 0 || ride.fuelStartPct !== null) {
+  if (s.obd) {
     const used = ride.fuelStartPct !== null ? Math.round(ride.fuelStartPct - s.fuelPct) : 0;
     add('fuel', Math.floor(s.fuelPct / 20), `Fuel is at ${Math.round(s.fuelPct)} percent${used > 0 ? `, down ${used} since setting off` : ''}.`);
   }
-  if (ride.maxEngineTempC > 0) {
+  if (s.obd && ride.maxEngineTempC > 0) {
     const normal = s.engineTempC >= 70 && s.engineTempC < CONFIG.thresholds.overtempC - 5;
     add('engine', Math.floor(s.engineTempC / 10),
       `Engine is at ${Math.round(s.engineTempC)} C${normal ? ', which is normal' : ''}; the highest this ride was ${ride.maxEngineTempC} C.`);
@@ -76,7 +76,7 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm }: BanterInpu
     add('pace', Math.floor(ride.avgMovingKmh / 20), `His riding so far: averaging ${ride.avgMovingKmh} km/h while moving, top speed ${ride.maxSpeedKmh} km/h.`);
   }
   if (s.speedKmh > 0) add('speed_now', Math.floor(s.speedKmh / 30), `He is doing ${Math.round(s.speedKmh)} km/h right now.`);
-  if (s.rpm > 0) add('revs', Math.floor(s.rpm / 2000), `The engine is turning ${Math.round(s.rpm / 100) * 100} rpm right now, throttle at ${Math.round(s.throttlePct)} percent.`);
+  if (s.obd && s.rpm > 0) add('revs', Math.floor(s.rpm / 2000), `The engine is turning ${Math.round(s.rpm / 100) * 100} rpm right now, throttle at ${Math.round(s.throttlePct)} percent.`);
   if (ride.stops >= 1) {
     add('stops', ride.stops, `He has made ${ride.stops} stop(s) so far this ride${s.speedKmh > 0 ? ' and is moving again now' : ''}.`);
   }

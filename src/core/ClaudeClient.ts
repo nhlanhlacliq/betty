@@ -77,9 +77,10 @@ export class ClaudeClient {
 export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[]) {
   const flavour = FLAVOUR_PROMPTS[ev.id];
   // Ambient flavours get no telemetry: given readings, the model recites them or comments on the riding.
-  const bike = flavour ? '' : `\nBike state: ${JSON.stringify({
-    speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, fuelPct: s.fuelPct,
-  })}`;
+  const readings = s.obd
+    ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, fuelPct: s.fuelPct }
+    : { speedKmh: s.speedKmh, engineData: 'not connected: do not mention engine temperature, revs, fuel or faults' };
+  const bike = flavour ? '' : `\nBike state: ${JSON.stringify(readings)}`;
   return {
     model: CONFIG.claudeModel,
     max_tokens: 120,

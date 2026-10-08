@@ -53,6 +53,7 @@ export class TriggerEngine {
 
   /** True while a condition whose trigger is configured P1 is active: no banter or tour guide then. */
   ambientBlocked(s: BikeState): boolean {
+    if (!s.obd) return false; // no engine data, so no engine condition can be active
     const t = CONFIG.thresholds;
     const active: TriggerId[] = [];
     if (s.engineTempC >= t.overtempC) active.push('engine_overtemp');
@@ -78,9 +79,11 @@ export class TriggerEngine {
     const out: TriggerEvent[] = [];
     const t = CONFIG.thresholds;
 
-    if (s.engineTempC >= t.overtempC && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
-    if (s.dtcs.length && this.ready('dtc_detected')) out.push(this.force('dtc_detected', s));
-    if (s.fuelPct > 0 && s.fuelPct <= t.lowFuelPct && this.ready('low_fuel')) out.push(this.force('low_fuel', s));
+    if (s.obd) { // engine alerts need an OBD2 feed (simulated or real)
+      if (s.engineTempC >= t.overtempC && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
+      if (s.dtcs.length && this.ready('dtc_detected')) out.push(this.force('dtc_detected', s));
+      if (s.fuelPct > 0 && s.fuelPct <= t.lowFuelPct && this.ready('low_fuel')) out.push(this.force('low_fuel', s));
+    }
 
     const w = s.weather;
     if (w && (w.rainNowMm >= 0.1 || w.rainChanceNextHourPct >= t.rainChancePct) && this.ready('rain_soon')) {
@@ -182,11 +185,20 @@ export class TriggerEngine {
           mark: () => { this.mentioned.add(p.id); this.stats.notePlace(p.name); }, // never the same place twice in a ride
         };
       }
-      case 'rider_query':
+      case 'rider_query': {
+        if (!s.obd) {
+          const r = this.stats.snapshot();
+          const w = s.weather ? ` Weather: ${s.weather.summary}, ${s.weather.tempC} C.` : '';
+          return {
+            context: `The rider asked how things are going. No engine data is connected, so say nothing about engine, fuel or faults. He has been out ${Math.round(r.minutesOut)} minutes and covered ${r.distanceKm} km.${w}`,
+            fallback: `No engine data connected. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
+          };
+        }
         return {
           context: `The rider asked how the bike is doing. Engine ${s.engineTempC} C, fuel ${Math.round(s.fuelPct)} percent, ${s.dtcs.length ? 'fault codes ' + s.dtcs.join(', ') : 'no fault codes'}.`,
           fallback: `Engine's at ${s.engineTempC} degrees, fuel's at ${Math.round(s.fuelPct)} percent, ${s.dtcs.length ? 'and there are fault codes' : 'no faults'}.`,
         };
+      }
     }
   }
 }

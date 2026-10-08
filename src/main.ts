@@ -1,6 +1,6 @@
-import { loadConfig } from './config/persist';
-import { CONFIG } from './config/betty';
-import { StateAggregator } from './core/StateAggregator';
+import { loadConfig, saveConfig } from './config/persist';
+import { CONFIG, ObdMode } from './config/betty';
+import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { AudioQueue } from './core/AudioQueue';
 import { ClaudeClient } from './core/ClaudeClient';
@@ -34,12 +34,21 @@ const feed = { weather: 'idle', traffic: 'idle', places: 'idle' };
 const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places}`;
 
 interface Rig {
-  agg: StateAggregator; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
+  agg: StateAggregator; setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
 }
 let rig: Rig | null = null;
 const lines: string[] = [];
 
 mountTuningPanel($('tuning'));
+
+// OBD mode: off = GPS, lean and feeds only. Switchable before or during a ride.
+const obdSel = $<HTMLSelectElement>('obdmode');
+obdSel.value = CONFIG.obdMode;
+obdSel.addEventListener('change', () => {
+  CONFIG.obdMode = obdSel.value as ObdMode;
+  saveConfig();
+  rig?.setObd(CONFIG.obdMode);
+});
 
 async function start() {
   // Must run synchronously inside the tap (iOS speech + motion permission rules).
@@ -64,10 +73,15 @@ async function start() {
     agg.addSource(new WebGeoSource((m) => setStatus(m, true)));
     if (motionOk) agg.addSource(motion); else setStatus('Motion sensors unavailable: lean stays 0.', true);
   }
-  agg.addSource(obd);
   agg.addSource(weather);
   agg.addSource(traffic);
   agg.addSource(places);
+
+  // The OBD feed is started and stopped by the mode switch, so it is not one of the aggregator's own sources.
+  const setObd = (mode: ObdMode) => {
+    obd.stop();
+    if (mode === 'mock') { obd.reset(); obd.start((p) => agg.push(p)); } else agg.push(NO_OBD);
+  };
 
   const engine = new TriggerEngine();
   engine.setHistory(RideLog.load());
@@ -96,9 +110,9 @@ async function start() {
   const unsub = agg.subscribe((s) => {
     $('speed').textContent = String(s.speedKmh);
     $('lean').textContent = s.leanDeg.toFixed(0);
-    $('rpm').textContent = String(s.rpm);
-    $('temp').textContent = String(s.engineTempC);
-    $('fuel').textContent = String(Math.round(s.fuelPct));
+    $('rpm').textContent = s.obd ? String(s.rpm) : '-';
+    $('temp').textContent = s.obd ? String(s.engineTempC) : '-';
+    $('fuel').textContent = s.obd ? String(Math.round(s.fuelPct)) : '-';
     $('rain').textContent = s.weather ? String(s.weather.rainChanceNextHourPct) : '-';
     $('feeds').textContent = s.weather
       ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby`
@@ -124,8 +138,9 @@ async function start() {
   const wake = new WakeLock();
   await wake.enable();
   await agg.start();
+  setObd(CONFIG.obdMode);
   say(engine.startup());
-  rig = { agg, unsub, unmountSim, wake, remember, memTimer };
+  rig = { agg, setObd, unsub, unmountSim, wake, remember, memTimer };
   toggle.textContent = 'END RIDE';
   toggle.classList.add('stop');
   realBox.disabled = true;
@@ -134,6 +149,7 @@ async function start() {
 
 async function stop() {
   if (rig) { clearInterval(rig.memTimer); rig.remember(); }
+  rig?.setObd('off');
   rig?.unsub();
   rig?.agg.stop();
   rig?.unmountSim();

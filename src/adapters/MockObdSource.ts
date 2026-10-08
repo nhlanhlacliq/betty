@@ -15,6 +15,7 @@ export class MockObdSource implements DataSource {
       this.temp = Math.min(112, this.temp + 0.15);
       this.fuel = Math.max(0, this.fuel - 0.05);
       onUpdate({
+        obd: true,
         rpm: Math.round(3500 + 1800 * Math.sin(this.t / 8)),
         engineTempC: Math.round(this.temp * 10) / 10,
         throttlePct: Math.round(25 + 20 * Math.sin(this.t / 6)),

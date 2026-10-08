@@ -44,6 +44,8 @@ export interface NearbyPlace {
 
 export interface BikeState {
   timestamp: number;
+  /** True while an OBD2 feed (simulated or real) is supplying the five fields below. False = ignore them. */
+  obd: boolean;
   // OBD2 (mocked until Phase 4)
   rpm: number;
   engineTempC: number;

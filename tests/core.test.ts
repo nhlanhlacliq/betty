@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { TriggerEngine, isSafeWindow } from '../src/core/TriggerEngine';
 import { AudioQueue, Speaker } from '../src/core/AudioQueue';
-import { StateAggregator, initialState } from '../src/core/StateAggregator';
+import { NO_OBD, StateAggregator, initialState } from '../src/core/StateAggregator';
 import { bboxAround, haversineKm } from '../src/core/geo';
 import { CONFIG, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
@@ -10,6 +10,9 @@ import { BANTER_MODES, banterContext, banterTopics, chooseAmbient, freshPlace, p
 import { RideStats } from '../src/core/RideStats';
 import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
 import { parseWikiPlaces } from '../src/adapters/PlaceSource';
+
+/** Most tests want engine data present; OBD-off behaviour has its own block. */
+const obdState = (): BikeState => ({ ...initialState(), obd: true });
 
 let clock = 1_000_000;
 const now = () => clock;
@@ -29,48 +32,48 @@ const inc = (over: Partial<TrafficIncident> = {}): TrafficIncident => ({
 // overtemp fires P1 once, then respects cooldown
 {
   const e = new TriggerEngine(now);
-  const s = { ...initialState(), engineTempC: 108 };
+  const s = { ...obdState(), engineTempC: 108 };
   const a = e.evaluate(s); assert.equal(a[0].id, 'engine_overtemp'); assert.equal(a[0].priority, 1);
   assert.equal(e.evaluate(s).length, 0, 'dedupe within cooldown');
   clock += 61_000;
   assert.equal(e.evaluate(s).length, 1, 'refires after cooldown');
 }
 // low fuel is P2
-assert.equal(new TriggerEngine(now).evaluate({ ...initialState(), fuelPct: 10 })[0].priority, 2);
+assert.equal(new TriggerEngine(now).evaluate({ ...obdState(), fuelPct: 10 })[0].priority, 2);
 
 // rain: fires on chance or on rain now; not below threshold
 {
   const e = new TriggerEngine(now);
-  assert.equal(e.evaluate({ ...initialState(), weather: wx({ rainChanceNextHourPct: 20 }) }).length, 0);
-  const r = e.evaluate({ ...initialState(), weather: wx({ rainChanceNextHourPct: 80 }) });
+  assert.equal(e.evaluate({ ...obdState(), weather: wx({ rainChanceNextHourPct: 20 }) }).length, 0);
+  const r = e.evaluate({ ...obdState(), weather: wx({ rainChanceNextHourPct: 80 }) });
   assert.equal(r[0].id, 'rain_soon'); assert.equal(r[0].priority, 2);
-  assert.equal(new TriggerEngine(now).evaluate({ ...initialState(), weather: wx({ rainNowMm: 0.5 }) })[0].id, 'rain_soon');
+  assert.equal(new TriggerEngine(now).evaluate({ ...obdState(), weather: wx({ rainNowMm: 0.5 }) })[0].id, 'rain_soon');
 }
 // traffic: radius, severity and per-incident dedupe
 {
   const e = new TriggerEngine(now, () => 0.99); // rng pinned to "silence" so no ambient slot fires in this test
-  assert.equal(e.evaluate({ ...initialState(), incidents: [inc({ distanceKm: 9 })] }).length, 0, 'outside radius');
-  assert.equal(e.evaluate({ ...initialState(), incidents: [inc({ severity: 1 })] }).length, 0, 'below min severity');
-  const t = e.evaluate({ ...initialState(), incidents: [inc()] });
+  assert.equal(e.evaluate({ ...obdState(), incidents: [inc({ distanceKm: 9 })] }).length, 0, 'outside radius');
+  assert.equal(e.evaluate({ ...obdState(), incidents: [inc({ severity: 1 })] }).length, 0, 'below min severity');
+  const t = e.evaluate({ ...obdState(), incidents: [inc()] });
   assert.equal(t[0].id, 'traffic_incident');
   assert.match(t[0].fallback, /accident/);
   clock += 200_000;
-  assert.equal(e.evaluate({ ...initialState(), incidents: [inc()] }).length, 0, 'same incident not re-announced');
-  assert.equal(e.evaluate({ ...initialState(), incidents: [inc({ id: 'b' })] }).length, 1, 'new incident announced');
+  assert.equal(e.evaluate({ ...obdState(), incidents: [inc()] }).length, 0, 'same incident not re-announced');
+  assert.equal(e.evaluate({ ...obdState(), incidents: [inc({ id: 'b' })] }).length, 1, 'new incident announced');
 }
 // runtime config: priority + cooldown changes take effect immediately
 {
   CONFIG.priorities.low_fuel = 1;
-  assert.equal(new TriggerEngine(now).evaluate({ ...initialState(), fuelPct: 10 })[0].priority, 1);
+  assert.equal(new TriggerEngine(now).evaluate({ ...obdState(), fuelPct: 10 })[0].priority, 1);
   CONFIG.cooldownsMs.engine_overtemp = 0;
-  const e = new TriggerEngine(now); const s = { ...initialState(), engineTempC: 110 };
+  const e = new TriggerEngine(now); const s = { ...obdState(), engineTempC: 110 };
   assert.equal(e.evaluate(s).length, 1); assert.equal(e.evaluate(s).length, 1, 'zero cooldown refires');
   resetConfig();
   assert.equal(CONFIG.priorities.low_fuel, 2); assert.equal(CONFIG.cooldownsMs.engine_overtemp, 60_000);
 }
 // engine.force ignores cooldown; reset clears state
 {
-  const e = new TriggerEngine(now); const s = { ...initialState(), engineTempC: 110 };
+  const e = new TriggerEngine(now); const s = { ...obdState(), engineTempC: 110 };
   e.evaluate(s);
   assert.equal(e.evaluate(s).length, 0);
   assert.equal(e.force('engine_overtemp', s).id, 'engine_overtemp');
@@ -78,11 +81,11 @@ assert.equal(new TriggerEngine(now).evaluate({ ...initialState(), fuelPct: 10 })
   assert.equal(e.evaluate(s).length, 1, 'reset clears cooldowns');
 }
 // safe window follows config
-assert.equal(isSafeWindow({ ...initialState(), rpm: 3000, leanDeg: 5 }), true);
-assert.equal(isSafeWindow({ ...initialState(), rpm: 9500, leanDeg: 5 }), true, 'rpm no longer holds speech back');
-assert.equal(isSafeWindow({ ...initialState(), rpm: 3000, leanDeg: 30 }), false);
+assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 5 }), true);
+assert.equal(isSafeWindow({ ...obdState(), rpm: 9500, leanDeg: 5 }), true, 'rpm no longer holds speech back');
+assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 30 }), false);
 CONFIG.safeWindow.maxLeanDeg = 40;
-assert.equal(isSafeWindow({ ...initialState(), rpm: 3000, leanDeg: 30 }), true); resetConfig();
+assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 30 }), true); resetConfig();
 
 // aggregator overrides layer over real values and clear back
 {
@@ -180,7 +183,7 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
 // engine: one ambient slot per cooldown, nothing right at ride start, banter never runs dry
 {
   const e = new TriggerEngine(now, () => 0); // rng 0 = banter
-  const s = { ...initialState(), speedKmh: 60, weather: wx() };
+  const s = { ...obdState(), speedKmh: 60, weather: wx() };
   assert.equal(e.evaluate(s).length, 0, 'no ambient at ride start');
   clock += SLOT();
   const a = e.evaluate(s);
@@ -204,7 +207,7 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
 // engine: tour guide is grounded and never repeats a place
 {
   const e = new TriggerEngine(now, () => 0.5); // rng 0.5 = tour guide with default weights
-  const s = { ...initialState(), nearbyPlaces: [place()] };
+  const s = { ...obdState(), nearbyPlaces: [place()] };
   clock += SLOT();
   const a = e.evaluate(s);
   assert.equal(a[0].id, 'local_fact');
@@ -222,27 +225,27 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   CONFIG.ambient.banterWeight = 0; CONFIG.ambient.tourGuideWeight = 0;
   const quiet = new TriggerEngine(now, () => 0);
   clock += SLOT();
-  assert.equal(quiet.evaluate({ ...initialState(), nearbyPlaces: [place()] }).length, 0, 'zero weights are silent');
+  assert.equal(quiet.evaluate({ ...obdState(), nearbyPlaces: [place()] }).length, 0, 'zero weights are silent');
   resetConfig();
 
   const e = new TriggerEngine(now, () => 0);
-  const hot = { ...initialState(), engineTempC: 110 };
+  const hot = { ...obdState(), engineTempC: 110 };
   e.evaluate(hot); // overtemp fires, now in cooldown
   CONFIG.cooldownsMs.engine_overtemp = 3_600_000;
   clock += SLOT();
   assert.equal(e.ambientBlocked(hot), true);
   assert.equal(e.evaluate(hot).length, 0, 'no banter while overtemp is active');
   assert.equal(e.evaluate(initialState()).length, 1, 'banter resumes once it clears');
-  assert.equal(e.ambientBlocked({ ...initialState(), fuelPct: 10 }), false, 'P2 low fuel does not block');
+  assert.equal(e.ambientBlocked({ ...obdState(), fuelPct: 10 }), false, 'P2 low fuel does not block');
   CONFIG.priorities.low_fuel = 1;
-  assert.equal(e.ambientBlocked({ ...initialState(), fuelPct: 10 }), true, 'follows configured priority');
+  assert.equal(e.ambientBlocked({ ...obdState(), fuelPct: 10 }), true, 'follows configured priority');
   resetConfig();
 }
 // ride stats: distance, corners, stops, alerts; a quiet tab does not invent riding time
 const ride0 = () => new RideStats(now).snapshot();
 {
   const st = new RideStats(now);
-  const tick = (over: Partial<BikeState>, ms: number) => { clock += ms; st.update({ ...initialState(), rpm: 3000, fuelPct: 80, ...over }); };
+  const tick = (over: Partial<BikeState>, ms: number) => { clock += ms; st.update({ ...obdState(), rpm: 3000, fuelPct: 80, ...over }); };
   tick({ speedKmh: 60 }, 0);
   for (let i = 0; i < 60; i++) tick({ speedKmh: 60, leanDeg: i < 15 ? 25 : 2 }, 5000); // 5 min at 60 km/h
   tick({ speedKmh: 0, engineTempC: 96 }, 5000);
@@ -282,7 +285,7 @@ const ride0 = () => new RideStats(now).snapshot();
   const rec: RideRecord = { startedAt: at.getTime() - 2 * 86_400_000, minutes: 40, distanceKm: 30, weather: 'rain, 14 C', places: ['Soweto'], events: ['rain'] };
   const full = {
     ...base, history: [rec, rec],
-    s: { ...initialState(), speedKmh: 0, rpm: 4130, fuelPct: 55, engineTempC: 91, weather: wx(), incidents: [inc()],
+    s: { ...obdState(), speedKmh: 0, rpm: 4130, fuelPct: 55, engineTempC: 91, weather: wx(), incidents: [inc()],
       nearbyPlaces: [place({ distanceKm: 9, id: 'far', name: 'Faraway' }), place()] },
     ride: { ...ride0(), minutesOut: 50, movingMin: 40, distanceKm: 37, stops: 2, maxSpeedKmh: 118, avgMovingKmh: 56, maxLeanDeg: 28, corneringPct: 30, maxEngineTempC: 97,
       fuelStartPct: 80, events: [{ what: 'rain', atMin: 12 }], places: ['Edenvale'] },
@@ -311,7 +314,7 @@ const ride0 = () => new RideStats(now).snapshot();
 // engine remembers alerts and places for later banter, and takes past rides
 {
   const e = new TriggerEngine(now, () => 0);
-  const s = { ...initialState(), speedKmh: 50, fuelPct: 10, nearbyPlaces: [place()] };
+  const s = { ...obdState(), speedKmh: 50, fuelPct: 10, nearbyPlaces: [place()] };
   e.evaluate(s); e.force('local_fact', s);
   const sn = e.rideSnapshot();
   assert.equal(sn.events[0].what, 'low fuel'); assert.deepEqual(sn.places, ['Testville']);
@@ -325,7 +328,7 @@ const ride0 = () => new RideStats(now).snapshot();
 // prompt builder: only the supplied place notes, flavour instructions attached
 {
   const e = new TriggerEngine(now);
-  const s: BikeState = { ...initialState(), nearbyPlaces: [place(), place({ id: 'p2', name: 'Otherton', distanceKm: 2, summary: 'Otherton has a dam.' })] };
+  const s: BikeState = { ...obdState(), nearbyPlaces: [place(), place({ id: 'p2', name: 'Otherton', distanceKm: 2, summary: 'Otherton has a dam.' })] };
   const req = buildClaudeRequest(e.force('local_fact', s), s, ['earlier line']);
   const user = req.messages[0].content;
   assert.match(user, /railway siding/); assert.ok(!/Otherton/.test(user), 'only the chosen place is supplied');
@@ -386,5 +389,36 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.deepEqual(ps.map((p) => p.id), ['wiki-1', 'wiki-2']);
   assert.equal(ps[0].name, 'Edenvale'); assert.ok(ps[0].distanceKm < 1 && ps[1].distanceKm > 3);
   assert.deepEqual(parseWikiPlaces({}, { lat: 0, lon: 0 }), []);
+}
+// ---- OBD mode off: GPS, lean and feeds only
+{
+  const e = new TriggerEngine(now, () => 0);
+  // readings that would trip every engine alert, but no OBD feed behind them
+  const s: BikeState = { ...initialState(), speedKmh: 80, engineTempC: 120, fuelPct: 5, dtcs: ['P0171'], rpm: 9000 };
+  assert.equal(s.obd, false, 'OBD is off unless a feed says otherwise');
+  assert.equal(e.evaluate(s).length, 0, 'no engine alerts without OBD');
+  assert.equal(e.ambientBlocked(s), false, 'and nothing engine-related blocks banter');
+  assert.equal(e.evaluate({ ...s, weather: wx({ rainNowMm: 1 }) })[0].id, 'rain_soon', 'feed alerts still work');
+  assert.equal(e.evaluate({ ...s, obd: true }).length, 3, 'same readings with OBD on do alert');
+
+  const topics = banterTopics({ s, ride: { ...ride0(), movingMin: 10, avgMovingKmh: 60, maxSpeedKmh: 90, distanceKm: 10 }, history: [], at: new Date(2026, 0, 1, 7), placeRadiusKm: 4 });
+  const ids = topics.map((t) => t.id);
+  assert.ok(!ids.includes('fuel') && !ids.includes('engine') && !ids.includes('revs'), 'no engine topics in banter');
+  assert.ok(ids.includes('pace') && ids.includes('speed_now') && ids.includes('distance'), 'GPS topics remain');
+
+  const q = e.force('rider_query', s);
+  assert.match(q.context, /No engine data is connected/); assert.ok(!/120|P0171/.test(q.context + q.fallback));
+  const user = buildClaudeRequest(e.force('rain_soon', s), s, []).messages[0].content;
+  assert.match(user, /"speedKmh":80/); assert.match(user, /not connected/); assert.ok(!/engineTempC|fuelPct|rpm/.test(user));
+
+  const st = new RideStats(now);
+  st.update(s); clock += 1000; st.update(s);
+  assert.equal(st.snapshot().maxEngineTempC, 0); assert.equal(st.snapshot().fuelStartPct, null);
+
+  const agg = new StateAggregator();
+  agg.push({ obd: true, rpm: 4000, engineTempC: 95, fuelPct: 40, dtcs: ['P0171'] });
+  agg.push(NO_OBD);
+  assert.deepEqual([agg.current.obd, agg.current.rpm, agg.current.engineTempC, agg.current.dtcs.length], [false, 0, 0, 0], 'switching off clears stale readings');
+  assert.equal(CONFIG.obdMode, 'off', 'default until the hardware exists');
 }
 console.log('all core tests passed');

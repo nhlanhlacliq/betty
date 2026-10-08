@@ -58,8 +58,10 @@ export class RideStats {
       this.stops++;
     }
     this.wasMoving = moving;
-    this.maxTemp = Math.max(this.maxTemp, s.engineTempC);
-    if (this.fuelStart === null && s.rpm > 0) this.fuelStart = s.fuelPct;
+    if (s.obd) {
+      this.maxTemp = Math.max(this.maxTemp, s.engineTempC);
+      if (this.fuelStart === null) this.fuelStart = s.fuelPct;
+    }
   }
 
   noteEvent(what: string) { this.events.push({ what, atMin: Math.round((this.now() - this.startedAt) / 60_000) }); }

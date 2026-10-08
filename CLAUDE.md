@@ -128,6 +128,20 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 - AudioQueue uses a generation counter: `speechSynthesis.cancel()` still fires `onend` for the cancelled utterance,
   and without the guard that stale callback released the speaker mid-P1. There is a regression test; keep it.
 
+## OBD mode (switch on the main screen, persisted)
+
+`CONFIG.obdMode`: `off` (default until the hardware exists) or `mock`. A disabled "Real OBD2" option marks where
+Phase 4 slots in: add a mode value and start the real adapter in `setObd` in `main.ts`.
+
+- `BikeState.obd` says whether an OBD2 feed is live. The feed sets it (`MockObdSource` pushes `obd: true`); switching
+  off pushes `NO_OBD`, which also zeroes rpm/temp/throttle/fuel/dtcs so nothing stale lingers.
+- With `obd` false: no engine alerts (overtemp, fault, low fuel), nothing engine-related blocks ambient, banter has
+  no fuel/engine/revs topics, Claude is told engine data is not connected, `rider_query` answers from ride stats
+  and weather, the dashboard shows `-`, and the simulator's OBD sliders and fault button are disabled.
+- GPS speed, lean, weather, traffic, places, ride stats and memory work the same in both modes.
+- The switch works mid-ride. Anything new that reads rpm, engineTempC, throttlePct, fuelPct or dtcs must check
+  `s.obd` first.
+
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

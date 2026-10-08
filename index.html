@@ -21,6 +21,8 @@
     #toggle.stop { background: var(--red); color: #fff; }
     button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); font-weight: 600; letter-spacing: 0; }
     #startopts { margin-top: 12px; font-size: 13px; color: var(--dim); }
+    #startopts .obd { display: block; margin-top: 8px; }
+    #startopts select { background: var(--bg); color: var(--bright); border: 1px solid var(--border); padding: 4px; }
     #status { color: var(--dim); font-size: 12px; margin-top: 12px; min-height: 16px; }
     #status.err { color: var(--red); }
     #feeds { color: var(--dim); font-size: 12px; margin-top: 6px; }
@@ -49,7 +51,15 @@
     <div class="stat"><div class="l">FUEL</div><div class="v" id="fuel">0</div><div class="u">% mock</div></div>
     <div class="stat"><div class="l">RAIN</div><div class="v" id="rain">-</div><div class="u">% next hour</div></div>
   </div>
-  <div id="startopts"><label><input type="checkbox" id="real" checked /> Use real phone sensors (GPS, motion). Untick on desktop to run fully simulated.</label></div>
+  <div id="startopts"><label><input type="checkbox" id="real" checked /> Use real phone sensors (GPS, motion). Untick on desktop to run fully simulated.</label>
+    <label class="obd">Engine data (OBD2):
+      <select id="obdmode">
+        <option value="off">Off: GPS only</option>
+        <option value="mock">Simulated (mock)</option>
+        <option value="real" disabled>Real OBD2 (needs the hardware)</option>
+      </select>
+    </label>
+  </div>
   <button id="toggle">START RIDE</button>
   <div id="status"></div>
   <div id="feeds"></div>
