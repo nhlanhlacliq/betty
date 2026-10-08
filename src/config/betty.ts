@@ -3,7 +3,8 @@ import type { Priority, TriggerId } from '../core/types';
 export type ObdMode = 'off' | 'mock';
 
 export interface Config {
-  safeWindow: { maxLeanDeg: number };
+  /** useLean off (default): P2/P3 lines are never held back. The phone's lean reading proved too jumpy to gate on. */
+  safeWindow: { useLean: boolean; maxLeanDeg: number };
   thresholds: {
     overtempC: number; lowFuelPct: number; rainChancePct: number;
     trafficRadiusKm: number; trafficMinSeverity: number;
@@ -32,7 +33,7 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Config = {
-  safeWindow: { maxLeanDeg: 20 },
+  safeWindow: { useLean: false, maxLeanDeg: 20 },
   thresholds: { overtempC: 105, lowFuelPct: 15, rainChancePct: 60, trafficRadiusKm: 5, trafficMinSeverity: 2 },
   priorities: {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,

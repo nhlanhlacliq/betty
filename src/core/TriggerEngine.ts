@@ -5,8 +5,12 @@ import { RideSnapshot, RideStats } from './RideStats';
 import { initialState } from './StateAggregator';
 import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 
-/** Lean only. The RPM limit was removed on the owner's request (2026-10-08). */
-export const isSafeWindow = (s: BikeState) => Math.abs(s.leanDeg) < CONFIG.safeWindow.maxLeanDeg;
+/**
+ * Whether P2/P3 lines may be spoken right now. Always yes unless the lean hold is switched on in TUNING:
+ * the owner had both the RPM and the lean condition removed (2026-10-08/09).
+ */
+export const isSafeWindow = (s: BikeState) =>
+  !CONFIG.safeWindow.useLean || Math.abs(s.leanDeg) < CONFIG.safeWindow.maxLeanDeg;
 
 /** Margin on top of ambientCooldownMs so a new ambient line is not dropped by the queue's own P3 rate limit. */
 const AMBIENT_SLACK_MS = 5000;

@@ -2,7 +2,7 @@ import { CONFIG } from '../config/betty';
 import { resetAndSave, saveConfig } from '../config/persist';
 import { RideLog } from '../adapters/RideLog';
 import { Priority, TRIGGER_IDS } from '../core/types';
-import { button, el } from './dom';
+import { button, checkbox, el } from './dom';
 
 function numRow(label: string, get: () => number, set: (v: number) => void, min: number, max: number, step: number, unit: string) {
   const row = el('div', 'row');
@@ -73,7 +73,10 @@ export function mountTuningPanel(root: HTMLElement) {
     numRow('Traffic min severity', () => t.trafficMinSeverity, (v) => (t.trafficMinSeverity = v), 0, 4, 1, '0-4'),
   );
 
-  wrap.append(el('h3', '', 'Safe window (when P2/P3 may speak)'));
+  wrap.append(el('h3', '', 'Hold lines back while leaned over (off = she speaks any time)'));
+  wrap.append(checkbox('Hold advisory and ambient lines while leaned past the max', CONFIG.safeWindow.useLean, (on) => {
+    CONFIG.safeWindow.useLean = on; saveConfig();
+  }).wrap);
   wrap.append(
     numRow('Max lean', () => CONFIG.safeWindow.maxLeanDeg, (v) => (CONFIG.safeWindow.maxLeanDeg = v), 1, 60, 1, '°'),
   );

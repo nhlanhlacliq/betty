@@ -103,6 +103,10 @@ const ambient = nums.find((n) => n.parentElement?.textContent?.startsWith('Min g
 assert.equal(ambient.value, '120', 'ambient gap defaults to 2 min');
 ambient.value = '30'; fire(ambient, 'change');
 assert.equal(CONFIG.ambientCooldownMs, 30_000);
+const leanHold = [...troot.querySelectorAll('input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('while leaned past')) as HTMLInputElement;
+assert.equal(leanHold.checked, false, 'lean hold is off by default');
+leanHold.checked = true; fire(leanHold, 'change');
+assert.equal(CONFIG.safeWindow.useLean, true);
 const banterW = nums.find((n) => n.parentElement?.textContent?.startsWith('Banter weight'))!;
 assert.equal(banterW.value, '40');
 banterW.value = '0'; fire(banterW, 'change');
@@ -113,7 +117,7 @@ overtemp.value = '999'; fire(overtemp, 'change');
 assert.equal(CONFIG.thresholds.overtempC, 130, 'clamped to max');
 [...troot.querySelectorAll('button')].find((b) => b.textContent?.startsWith('Reset'))!.click();
 assert.equal(CONFIG.ambientCooldownMs, 120_000); assert.equal(CONFIG.priorities.startup, 4);
-assert.equal(CONFIG.ambient.banterWeight, 40);
+assert.equal(CONFIG.ambient.banterWeight, 40); assert.equal(CONFIG.safeWindow.useLean, false);
 resetConfig();
 
 // ---- main screen: the real index.html wired by main.ts (catches a missing element id or a broken listener)
@@ -140,7 +144,29 @@ resetConfig();
   name.value = 'Boss'; ev(name, 'change');
   [...doc.querySelectorAll('#tuning button')].find((b) => b.textContent?.startsWith('Reset all'))!.dispatchEvent(new page.window.Event('click'));
   assert.equal(name.value, 'N'); assert.equal(obd.value, 'off', 'reset to defaults is reflected on the main screen');
-  for (const id of ['toggle', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  // lock screen: covers the page, swallows presses, and only a held press on its button unlocks
+  const { mountLockScreen } = await import('../src/ui/LockScreen');
+  const cover = doc.querySelector('.lockcover') as HTMLElement;
+  assert.equal(cover.hidden, true);
+  doc.getElementById('lock')!.dispatchEvent(new page.window.Event('click'));
+  assert.equal(cover.hidden, false, 'LOCK SCREEN shows the cover');
+  const host = doc.createElement('div'); doc.body.append(host);
+  const ls = mountLockScreen(host, 30);
+  const c2 = host.querySelector('.lockcover') as HTMLElement; const b2 = host.querySelector('.lockbtn') as HTMLElement;
+  ls.lock(); ls.setInfo('87', 'Rain ahead.');
+  assert.equal(ls.locked, true); assert.match(c2.textContent!, /87/); assert.match(c2.textContent!, /Rain ahead\./);
+  let leaked = 0; host.addEventListener('click', () => leaked++);
+  const tap = new page.window.Event('click', { bubbles: true, cancelable: true });
+  c2.dispatchEvent(tap);
+  assert.equal(leaked, 0, 'presses do not get through'); assert.equal(tap.defaultPrevented, true);
+  ev(b2, 'pointerdown'); ev(b2, 'pointerup');
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(ls.locked, true, 'a quick tap does not unlock');
+  ev(b2, 'pointerdown');
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(ls.locked, false, 'holding the button unlocks');
+
+  for (const id of ['toggle', 'lock', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   resetConfig();

@@ -20,6 +20,7 @@ import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
 import { WakeLock, WakeStatus } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
 import { mountTuningPanel } from './ui/TuningPanel';
+import { mountLockScreen } from './ui/LockScreen';
 
 loadConfig();
 
@@ -40,6 +41,12 @@ let rig: Rig | null = null;
 const lines: string[] = [];
 
 mountTuningPanel($('tuning'));
+
+// Lock screen: covers everything so nothing can be pressed by accident; hold its button to get back.
+const lockScreen = mountLockScreen($('lockroot'));
+$('lock').addEventListener('click', () => lockScreen.lock());
+let lastLine = '';
+const showLocked = (speed: number) => lockScreen.setInfo(String(speed), lastLine);
 
 // What Betty calls the rider. Applies from the next line she speaks.
 const nameInput = $<HTMLInputElement>('ridername');
@@ -127,10 +134,12 @@ async function start() {
     lines.unshift(`[P${ev.priority}] ${ev.id} (${meta}): ${text || (dropped ? '(dropped: critical alert active)' : '(silent)')}`);
     logEl.innerHTML = lines.slice(0, 10).map((l) => `<div>${l.replace(/</g, '&lt;')}</div>`).join('');
     queue.enqueue(text, ev.priority);
+    if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
   };
 
   const unsub = agg.subscribe((s) => {
     $('speed').textContent = String(s.speedKmh);
+    showLocked(s.speedKmh);
     $('lean').textContent = s.leanDeg.toFixed(0);
     $('rpm').textContent = s.obd ? String(s.rpm) : '-';
     $('temp').textContent = s.obd ? String(s.engineTempC) : '-';

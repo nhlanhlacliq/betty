@@ -86,6 +86,7 @@ src/
   ui/
     SimPanel.ts            SIMULATOR panel (mounted per ride)
     TuningPanel.ts         TUNING panel (always mounted)
+    LockScreen.ts          Full-screen touch cover for riding; hold the unlock button for 1 s to get out
     dom.ts                 el/button/checkbox helpers
 tests/core.test.ts         Pure logic tests
 tests/ui.smoke.ts          Drives both panels in jsdom, then loads the real index.html with main.ts (name box, OBD switch)
@@ -119,8 +120,10 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 
 - P1 interrupts immediately, clears other queued items, and NEVER waits on the network: ClaudeClient returns the
   canned fallback for P1 (this follows the *configured* priority, so a trigger promoted to P1 also skips Claude).
-- P2 waits for a safe window: |lean| < 20 deg (tunable). The RPM < 5000 condition was removed on the owner's
-  request (2026-10-08); do not reintroduce it unless asked.
+- P2 waits for a safe window. By default the window is always open: the owner had the RPM condition removed
+  (2026-10-08) and the lean condition switched off (2026-10-09, the phone IMU reads past 20 deg just from
+  mounting and vibration). The lean hold survives as a TUNING checkbox (`safeWindow.useLean`, default off) for when
+  a trustworthy lean source exists. Do not turn it on by default or reintroduce RPM unless asked.
 - P3 waits for a safe window, is rate-limited by `ambientCooldownMs` (default 2 min, enforced in AudioQueue), and is
   dropped if queued longer than `ambientMaxAgeMs` (60 s).
 - P4 always speaks next.

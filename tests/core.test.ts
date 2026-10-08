@@ -83,6 +83,8 @@ assert.equal(new TriggerEngine(now).evaluate({ ...obdState(), fuelPct: 10 })[0].
 // safe window follows config
 assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 5 }), true);
 assert.equal(isSafeWindow({ ...obdState(), rpm: 9500, leanDeg: 5 }), true, 'rpm no longer holds speech back');
+assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 55 }), true, 'lean does not hold speech back by default');
+CONFIG.safeWindow.useLean = true; // the optional lean hold from TUNING
 assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 30 }), false);
 CONFIG.safeWindow.maxLeanDeg = 40;
 assert.equal(isSafeWindow({ ...obdState(), rpm: 3000, leanDeg: 30 }), true); resetConfig();
@@ -192,10 +194,15 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.match(a[0].context, /Topic for this remark:/); assert.match(a[0].context, /Background/);
   assert.equal(e.evaluate(s).length, 0, 'slot used');
   clock += SLOT();
-  assert.equal(e.evaluate({ ...s, leanDeg: 35 }).length, 0, 'waits for the safe window');
+  const leaned = e.evaluate({ ...s, leanDeg: 35 });
+  assert.equal(leaned.length, 1, 'lean does not hold ambient back by default');
+  clock += SLOT();
+  CONFIG.safeWindow.useLean = true;
+  assert.equal(e.evaluate({ ...s, leanDeg: 35 }).length, 0, 'with the lean hold on, waits for the safe window');
+  CONFIG.safeWindow.useLean = false;
   const topicOf = (ev: TriggerEvent) => ev.context.split('\n')[0];
   const modeOf = (ev: TriggerEvent) => ev.context.split('\n')[1];
-  const seen = [a[0]];
+  const seen = [a[0], leaned[0]];
   seen.push(e.evaluate(s)[0]);
   for (let i = 0; i < 20; i++) { clock += SLOT(); const r = e.evaluate(s); assert.equal(r.length, 1, 'banter never runs out'); seen.push(r[0]); }
   for (let i = 1; i < seen.length; i++) {
