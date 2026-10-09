@@ -737,7 +737,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
 // no blanket ban on pace advice; line length follows the tunable limit
 {
   const req = () => buildClaudeRequest(new TriggerEngine(now).force('rain_soon', obdState()), obdState(), []);
-  assert.match(req().system, /You and the motorcycle are two separate characters/);
+  assert.ok(!/two separate characters|go-between/.test(req().system), 'she is not lectured on how she relates to the bike');
   assert.match(req().system, /No reasoning, no notes to yourself, no second attempt/);
   assert.ok(!/first person|Never tell him to speed up/.test(req().system), 'personality rules the owner asked to be removed stay removed');
   CONFIG.bikeName = 'Betty';

@@ -164,7 +164,9 @@ What was wrong, and the fix (all in place, with tests built from the real lines)
   bike, and speaking of herself in the third person is wanted character, even if the bike is also named Betty.
   The pace line was fine in context. Owner: "do not make the system more dull." Do not add first-person rules or
   blanket bans on what she may say; ask first. The banter-only rule (never dare him, never suggest going faster or
-  leaning further) stands, as he has not objected to it.
+  leaning further) stands, as he has not objected to it. He also had the sentence telling her that she and the bike
+  are "two separate characters" and that she is the "go-between" taken OUT of the prompt (2026-10-09): the prompt just
+  names the bike and leaves the relationship to her. Do not put it back.
 - **"Sir," at the head of almost every line.** `cleanSpoken` removes his name from a line when either of the last
   two lines used it. The prompt rule alone ("rarely") was ignored.
 - **32 "stops" in 76 minutes.** GPS speed flickering around walking pace in traffic counted each dip. A stop now
