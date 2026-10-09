@@ -49,6 +49,7 @@ export function mountTuningPanel(root: HTMLElement) {
 
   wrap.append(el('h3', '', 'Ambient (P3) behaviour'));
   wrap.append(
+    numRow('Longest line', () => CONFIG.maxSpokenSentences, (v) => (CONFIG.maxSpokenSentences = Math.round(v)), 1, 5, 1, 'sentences'),
     numRow('Min gap between P3 remarks', () => CONFIG.ambientCooldownMs / 1000, (v) => (CONFIG.ambientCooldownMs = v * 1000), 0, 3600, 5, 's'),
     numRow('Drop queued P3 after', () => CONFIG.ambientMaxAgeMs / 1000, (v) => (CONFIG.ambientMaxAgeMs = v * 1000), 5, 600, 5, 's'),
     numRow('Ride milestone every', () => CONFIG.milestoneEveryMin, (v) => (CONFIG.milestoneEveryMin = v), 1, 240, 1, 'min'),
@@ -71,6 +72,7 @@ export function mountTuningPanel(root: HTMLElement) {
     numRow('Rain chance alert', () => t.rainChancePct, (v) => (t.rainChancePct = v), 5, 100, 5, '%'),
     numRow('Traffic alert radius', () => t.trafficRadiusKm, (v) => (t.trafficRadiusKm = v), 1, 20, 1, 'km'),
     numRow('Traffic min severity', () => t.trafficMinSeverity, (v) => (t.trafficMinSeverity = v), 0, 4, 1, '0-4'),
+    numRow('Traffic min delay', () => t.trafficMinDelaySec, (v) => (t.trafficMinDelaySec = v), 0, 1800, 30, 's'),
     numRow('Sunset warning', () => t.sunsetWarnMin, (v) => (t.sunsetWarnMin = v), 5, 180, 5, 'min before'),
     numRow('Full-tank range', () => CONFIG.fuel.rangeKm, (v) => (CONFIG.fuel.rangeKm = v), 50, 600, 10, 'km'),
     numRow('Fuel range warning', () => CONFIG.fuel.warnKmLeft, (v) => (CONFIG.fuel.warnKmLeft = v), 10, 200, 5, 'km left'),

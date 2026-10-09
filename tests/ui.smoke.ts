@@ -68,7 +68,7 @@ assert.deepEqual(said.slice(-2), ['ambient_banter', 'local_fact']);
 const locSel = q<HTMLSelectElement>(root, 'select');
 locSel.value = '2'; fire(locSel, 'change'); // Soweto
 assert.equal(agg.current.lat, -26.2678); assert.equal(agg.current.lon, 27.8585); assert.equal(refreshes, 1);
-agg.push({ nearbyPlaces: [{ id: 'w1', name: 'Vilakazi Street', distanceKm: 0.8, summary: 'x', lat: 0, lon: 0 }] });
+agg.push({ nearbyPlaces: [{ id: 'w1', name: 'Vilakazi Street', distanceKm: 0.8, summary: 'x', lat: 0, lon: 0, interest: 1 }] });
 assert.match(q(root, '.places').textContent!, /Vilakazi Street 0.8 km/);
 locSel.value = ''; fire(locSel, 'change');
 assert.equal(agg.current.lat, null, 'back to live position');
@@ -118,7 +118,7 @@ const leanHold = [...troot.querySelectorAll('input[type=checkbox]')].find((c) =>
 assert.equal(leanHold.checked, false, 'lean hold is off by default');
 leanHold.checked = true; fire(leanHold, 'change');
 assert.equal(CONFIG.safeWindow.useLean, true);
-for (const label of ['Sunset warning', 'Full-tank range', 'Fuel range warning']) assert.ok(nums.some((n) => n.parentElement?.textContent?.startsWith(label)), `${label} is tunable`);
+for (const label of ['Longest line', 'Traffic min delay', 'Sunset warning', 'Full-tank range', 'Fuel range warning']) assert.ok(nums.some((n) => n.parentElement?.textContent?.startsWith(label)), `${label} is tunable`);
 const tank = nums.find((n) => n.parentElement?.textContent?.startsWith('Full-tank range'))!;
 tank.value = '320'; fire(tank, 'change');
 assert.equal(CONFIG.fuel.rangeKm, 320);
@@ -287,6 +287,7 @@ resetConfig();
       assert.equal(toggle.textContent, 'START RIDE'); assert.equal(doc.getElementById('sim')!.innerHTML, '');
       assert.match(logText(), /Good one\. \[spoken\]/, 'she finished before the ride was torn down');
       assert.match(page.window.localStorage.getItem('betty.log.v1')!, /ride_debrief/, 'the sign-off is in the saved log');
+      assert.match(page.window.localStorage.getItem('betty.log.v1')!, /\[sensors\].*simulated session; GPS altitude none.*ride so far: deepest lean 0 deg, 0 stops/, 'a sensor summary is logged at END RIDE');
 
       // a second tap during the sign-off ends the ride at once
       click(toggle); await wait(150);

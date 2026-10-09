@@ -2,6 +2,7 @@ import { CONFIG, cleanBikeName } from '../config/betty';
 import { banterContext, banterTopics, chooseAmbient, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
+import { angleDiff, bearingDeg } from './geo';
 import { initialState } from './StateAggregator';
 import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 
@@ -22,6 +23,27 @@ const EVENT_LABELS: Partial<Record<TriggerId, string>> = {
 const byDistance = (a: TrafficIncident, b: TrafficIncident) => a.distanceKm - b.distanceKm;
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 const km = (n: number) => `${Math.round(n * 10) / 10} km`;
+
+/** A closure shorter than this is a side street or a driveway, not something to plan around. */
+const MIN_CLOSURE_M = 150;
+/** How far either side of straight ahead still counts as "on his way". */
+const AHEAD_DEG = 50;
+
+/**
+ * A city has dozens of incidents within a few kilometres at rush hour. Only the ones that matter get a line:
+ * close enough, serious enough, costing real time, and, once he is moving, roughly in the direction he is going.
+ */
+export function worthMentioning(i: TrafficIncident, s: BikeState): boolean {
+  const t = CONFIG.thresholds;
+  if (i.distanceKm > t.trafficRadiusKm || i.severity < t.trafficMinSeverity) return false;
+  if (i.severity === 4 && i.lengthM != null && i.lengthM < MIN_CLOSURE_M) return false;
+  if (i.severity < 4 && i.delaySec != null && i.delaySec < t.trafficMinDelaySec) return false;
+  const placed = i.lat !== 0 || i.lon !== 0; // simulator incidents have no position
+  if (placed && s.lat != null && s.lon != null && s.headingDeg != null && s.speedKmh >= 10) {
+    return Math.abs(angleDiff(s.headingDeg, bearingDeg({ lat: s.lat, lon: s.lon }, i))) <= AHEAD_DEG;
+  }
+  return true;
+}
 
 /** Evaluates state, emits deduplicated trigger events. Pure logic: no I/O, easy to test. All tuning is read live from CONFIG. */
 export class TriggerEngine {
@@ -121,9 +143,7 @@ export class TriggerEngine {
       out.push(this.force('sunset_soon', s));
     }
 
-    const inc = s.incidents
-      .filter((i) => i.distanceKm <= t.trafficRadiusKm && i.severity >= t.trafficMinSeverity && !this.announced.has(i.id))
-      .sort(byDistance)[0];
+    const inc = s.incidents.filter((i) => worthMentioning(i, s) && !this.announced.has(i.id)).sort(byDistance)[0];
     if (inc && this.ready('traffic_incident')) {
       this.announced.add(inc.id);
       out.push(this.force('traffic_incident', s, inc));
@@ -197,9 +217,11 @@ export class TriggerEngine {
         const i = incident ?? [...s.incidents].sort(byDistance)[0]
           ?? { id: 'x', description: 'an incident', severity: 2, distanceKm: 2, lat: 0, lon: 0 };
         const where = i.roadName ? ` on ${i.roadName}` : '';
+        const mins = i.delaySec ? Math.max(1, Math.round(i.delaySec / 60)) : 0;
+        const delay = mins ? `, adding about ${mins} minute${mins === 1 ? '' : 's'}` : '';
         return {
-          context: `Traffic report: ${i.description}${where}, about ${km(i.distanceKm)} away, severity ${i.severity} of 4.`,
-          fallback: `Heads up. ${i.description}${where}, about ${km(i.distanceKm)} away.`,
+          context: `Traffic report: ${i.description}${where}, about ${km(i.distanceKm)} away in the direction he is heading${delay}. Severity ${i.severity} of 4 (4 means closed).`,
+          fallback: `Heads up. ${cap(i.description)}${where}, about ${km(i.distanceKm)} away${delay}.`,
         };
       }
       case 'ride_milestone': {

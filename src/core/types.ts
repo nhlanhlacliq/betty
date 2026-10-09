@@ -35,8 +35,13 @@ export interface TrafficIncident {
   /** 0 unknown, 1 minor, 2 moderate, 3 major, 4 closure/undefined */
   severity: number;
   distanceKm: number;
+  /** 0,0 for simulator incidents, which have no real position */
   lat: number;
   lon: number;
+  /** Extra time it costs, in seconds, when the provider knows it */
+  delaySec?: number | null;
+  /** Length of the affected stretch in metres */
+  lengthM?: number | null;
 }
 
 /** A notable place near the rider, with the only facts Betty may use about it. */
@@ -47,6 +52,8 @@ export interface NearbyPlace {
   summary: string;
   lat: number;
   lon: number;
+  /** How much there is to say about it (the article's size); the tour guide goes for the richest place in range */
+  interest: number;
 }
 
 export interface BikeState {

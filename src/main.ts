@@ -45,7 +45,7 @@ const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | 
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number;
+  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -243,6 +243,15 @@ async function beginRide() {
     FuelStore.save(engine.kmSinceFill());
   };
   const memTimer = window.setInterval(remember, 60_000);
+  // What the sensors actually delivered, written into the log now and then and at END RIDE.
+  const logSensors = () => {
+    const s = agg.current; const r = engine.rideSnapshot();
+    newLine('[sensors]', `${real ? (motionOk ? motion.diagnostics() : 'motion sensor: permission not granted') : 'simulated session'}; `
+      + `GPS altitude ${s.altitudeM ?? 'none'}, course ${s.headingDeg == null ? 'none' : Math.round(s.headingDeg) + ' deg'}; `
+      + `ride so far: deepest lean ${r.maxLeanDeg} deg, ${r.stops} stops, ${r.hardBrakes} hard brakes, ${r.hardAccels} hard pulls, ${r.jolts} jolts`);
+    renderLog();
+  };
+  const sensorTimer = window.setInterval(logSensors, 15 * 60_000);
   const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined);
   const speaker = new SwitchableSpeaker(new WebSpeaker(speechProblem));
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
@@ -302,7 +311,7 @@ async function beginRide() {
   await agg.start();
   setObd(CONFIG.obdMode);
   say(engine.startup());
-  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, wake, remember, memTimer };
+  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, wake, remember, memTimer, logSensors, sensorTimer };
   toggle.textContent = 'END RIDE';
   toggle.classList.add('stop');
   realBox.disabled = true;
@@ -325,7 +334,9 @@ async function stop() {
   endNow = () => { hurry = true; };
   toggle.textContent = 'ENDING RIDE... (tap to stop now)';
   window.clearInterval(r.memTimer);
+  window.clearInterval(r.sensorTimer);
   r.remember();
+  r.logSensors();
   r.unsub(); // no new alerts or banter from here on; the queue and speaker stay alive
 
   // A sign-off for any ride worth remembering.

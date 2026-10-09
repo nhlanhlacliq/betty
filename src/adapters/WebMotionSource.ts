@@ -18,6 +18,8 @@ export class WebMotionSource implements DataSource {
   private jolts = 0;
   private lastJoltAt = 0;
   private compass: number | null = null;
+  private readings = 0;
+  private peak = 0;
   private timer?: ReturnType<typeof setInterval>;
   private onMotion?: (e: DeviceMotionEvent) => void;
   private onOrient?: (e: DeviceOrientationEvent) => void;
@@ -37,6 +39,8 @@ export class WebMotionSource implements DataSource {
       const a = e.acceleration; // gravity already removed
       if (!a || a.x == null || a.y == null || a.z == null) return;
       const now = Date.now();
+      this.readings++;
+      this.peak = Math.max(this.peak, Math.hypot(a.x, a.y, a.z));
       if (Math.hypot(a.x, a.y, a.z) >= JOLT_MS2 && now - this.lastJoltAt >= JOLT_GAP_MS) { this.jolts++; this.lastJoltAt = now; }
     };
     this.onOrient = (e) => {
@@ -51,6 +55,16 @@ export class WebMotionSource implements DataSource {
       onUpdate({ jolts: this.jolts, compassDeg: this.compass == null ? null : Math.round(this.compass) });
     }, PUSH_EVERY_MS);
   }
+  /**
+   * One line for the ride log, so a ride can tell us whether the accelerometer delivered anything and how hard the
+   * hardest knock was. Without it there is no way to tell "no bumps" from "sensor never worked" or "threshold too high".
+   */
+  diagnostics(): string {
+    if (!this.readings) return 'motion sensor: no readings at all (permission refused, or the browser sends none)';
+    return `motion sensor: ${this.readings} readings, hardest knock ${this.peak.toFixed(1)} m/s2, ${this.jolts} counted as jolts (needs ${JOLT_MS2}), `
+      + `compass ${this.compass == null ? 'none' : Math.round(this.compass) + ' deg'}`;
+  }
+
   stop() {
     if (this.timer) clearInterval(this.timer);
     if (this.onMotion) window.removeEventListener('devicemotion', this.onMotion);

@@ -93,7 +93,7 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
   const bike = flavour ? '' : `\nLocal time: ${clockNote(new Date(ev.createdAt))}\nBike state: ${JSON.stringify(readings)}`;
   return {
     model: CONFIG.claudeModel,
-    max_tokens: 120,
+    max_tokens: 60 + 60 * Math.max(1, Math.round(CONFIG.maxSpokenSentences)), // room for the configured line length
     // Without this the model thinks first: the thinking block eats max_tokens and blows the timeout.
     thinking: { type: CONFIG.claudeThinkingOff },
     system: flavour ? `${base}\n\n${flavour}` : base,

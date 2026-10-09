@@ -159,10 +159,12 @@ What was wrong, and the fix (all in place, with tests built from the real lines)
   `SILENT` anywhere in an ambient reply as silence, drops ambient lines that talk about "the notes"/instructions
   (alerts keep the rest and are never silenced; an unusable alert reply falls back to the canned line), and caps
   the reply at `maxSpokenSentences`.
-- **Third person in nearly every line** ("Betty finds that..."). The prompt now demands first person. If the bike
-  is named "Betty" too, the prompt says she is the bike's voice, so the bike is "I" as well.
-- **She told him to "pick up the pace"** before sunset. The system prompt now forbids telling him to speed up or
-  hurry for any reason, in every kind of line, not just banter.
+- **Third person ("Betty finds that...") and "pick up the pace"**: I "fixed" both and the owner had both REVERTED
+  the next day. The co-pilot and the bike are two separate characters, the co-pilot is the go-between for rider and
+  bike, and speaking of herself in the third person is wanted character, even if the bike is also named Betty.
+  The pace line was fine in context. Owner: "do not make the system more dull." Do not add first-person rules or
+  blanket bans on what she may say; ask first. The banter-only rule (never dare him, never suggest going faster or
+  leaning further) stands, as he has not objected to it.
 - **"Sir," at the head of almost every line.** `cleanSpoken` removes his name from a line when either of the last
   two lines used it. The prompt rule alone ("rarely") was ignored.
 - **32 "stops" in 76 minutes.** GPS speed flickering around walking pace in traffic counted each dip. A stop now
@@ -171,7 +173,15 @@ What was wrong, and the fix (all in place, with tests built from the real lines)
 - **"Leaning past 15 degrees for none of the moving time"**: 0 percent after rounding. Now phrased as "almost all
   straight so far". The GPS lean estimate reads low in town: slow corners are under the 15 km/h floor.
 - **"Betty's tank gauge says 270 km"**: the banter topic now says there is no gauge to read.
-- Dull tour-guide lines (a suburb, a school): prompt tightened; expect some to still get through.
+- **Dull tour-guide lines** (a suburb, a school): the owner wanted her more interesting, not quieter. The source
+  is now richer (see Feeds: Places) and the prompt asks for the best story (a name's origin, a founder, an event)
+  instead of telling her to be picky and stay silent.
+- **Line length** is tunable (`maxSpokenSentences`, TUNING "Longest line", 1 to 5). The prompt, `max_tokens` and
+  `cleanSpoken` all follow it.
+- **Jolts**: the owner saw and heard no jolt count on the ride. Unknown whether the accelerometer delivered nothing,
+  the threshold (8 m/s2) is too high for a damped mount, or it simply stayed under 5. The log now gets a
+  `[sensors]` line every 15 min and at END RIDE (motion readings, hardest knock, jolts, compass, GPS altitude and
+  course, lean, stops, hard brakes) so the next log answers it. Tune `JOLT_MS2` from the "hardest knock" figure.
 
 Still open, owner's call: his TUNING had the milestone at about every 5 min and the ambient gap at 60 s, which gave
 18 near-identical time checks ("N minutes out, and Betty suspects the road/clock/scenery..."). The default is 45
@@ -249,10 +259,26 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
   Also requests `daily=sunrise,sunset&forecast_days=2`. Verified against the live API on 2026-10-10.
   Requests `current=temperature_2m,precipitation,wind_speed_10m,weather_code` and
   `hourly=precipitation_probability&forecast_hours=3`. Rain chance = max of the first two hourly values.
+- **Places (tour guide)**: Wikipedia in two steps. (1) `generator=geosearch` over `ambient.placeRadiusKm` (default
+  6 km, API max 10) with `prop=info|coordinates`, up to 50 articles; list pages and stubs under 2,500 bytes are
+  dropped and the 8 largest kept, since article size is the best cheap sign of a story. (2) For each, a separate
+  request for the first 1,800 characters as plain text (the API caps it near 1,200), which reaches into the History
+  section; section titles and bare lists are stripped. `NearbyPlace.interest` is the article size and `freshPlace`
+  takes the richest unmentioned place in range, not the nearest. Requests go one at a time: eight in parallel got
+  HTTP 429 in testing. A partly failed read is used but not cached. Checked live for Edenvale and Pretoria.
 - **Traffic**: there is no keyless live-traffic-incident API. The real provider is TomTom Traffic Incident Details v5
   (free developer key, set `VITE_TOMTOM_API_KEY`; free-tier limits not confirmed from the docs read, check them).
-  Parser follows TomTom's documented response shape but has NOT been run against the live API. Without a key,
-  traffic is simulator-only. `TrafficProvider` is an interface: another provider is one small class.
+  LIVE as of 2026-10-09: the owner added the key (in `.env` and in Vercel production env) and the parser
+  (`parseTomTom`) was checked against a real Gauteng response. It now also reads `delay` (seconds) and `length`
+  (metres), turns "Closed" into "a road closure", and merges the two directions of one closure. A city has dozens
+  of incidents in range, so `worthMentioning` in TriggerEngine only passes ones that are in radius, severe enough,
+  cost at least `thresholds.trafficMinDelaySec` (120 s), are not closures under 150 m, and, once he is moving with
+  a GPS course, lie within 50 degrees of straight ahead. Without a key, traffic is simulator-only.
+  Other providers looked at: HERE has a free tier whose traffic allowance sources disagree on; Waze has no public
+  API (its data programme is for government partners; "Waze APIs" on the market are unofficial scrapers); Google and
+  Mapbox offer traffic-aware routing rather than a free incident feed. TomTom's free quota is quoted as 2,500
+  requests per day by some sources and per month by its pricing page: CHECK, because Betty polls every 2 minutes
+  (about 60 calls on a 2 hour ride, fine daily, tight monthly). `TrafficProvider` is an interface: another provider is one small class.
 - Both sources only update `BikeState.weather` / `.incidents`; triggers decide what to say.
 
 ## Browser constraints (learned the hard way, keep in mind)

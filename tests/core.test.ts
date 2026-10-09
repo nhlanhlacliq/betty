@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { TriggerEngine, isSafeWindow } from '../src/core/TriggerEngine';
+import { TriggerEngine, isSafeWindow, worthMentioning } from '../src/core/TriggerEngine';
+import { parseTomTom } from '../src/adapters/TomTomTraffic';
 import { AudioQueue, Speaker } from '../src/core/AudioQueue';
 import { NO_OBD, StateAggregator, initialState } from '../src/core/StateAggregator';
 import { angleDiff, bboxAround, bearingDeg, compassPoint, haversineKm, relativeDirection } from '../src/core/geo';
@@ -11,7 +12,7 @@ import { ClaudeClient, buildClaudeRequest, cleanSpoken, extractText } from '../s
 import { clockNote, greetingFor, BANTER_MODES, banterContext, banterTopics, chooseAmbient, freshPlace, pickMode, pickTopic, placesFromHere, travelDirection, whereIs } from '../src/core/ambient';
 import { RideStats } from '../src/core/RideStats';
 import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
-import { parseWikiPlaces } from '../src/adapters/PlaceSource';
+import { parseCandidates, pickCandidates, toPlace } from '../src/adapters/PlaceSource';
 import { nextTime } from '../src/adapters/WeatherSource';
 
 /** Most tests want engine data present; OBD-off behaviour has its own block. */
@@ -175,7 +176,7 @@ assert.ok(Math.abs(haversineKm({ lat: 0, lon: 0 }, { lat: 0, lon: 1 }) - 111.19)
 
 // ---- ambient personality
 const place = (over: Partial<NearbyPlace> = {}): NearbyPlace => ({
-  id: 'p1', name: 'Testville', distanceKm: 1, summary: 'Testville was founded as a railway siding.', lat: 0, lon: 0, ...over,
+  id: 'p1', name: 'Testville', distanceKm: 1, summary: 'Testville was founded as a railway siding.', lat: 0, lon: 0, interest: 0, ...over,
 });
 const SLOT = () => CONFIG.ambientCooldownMs + 5001;
 const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -193,12 +194,15 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.equal(chooseAmbient({ banterWeight: 0, tourGuideWeight: 0, silenceWeight: 0 }, true, () => 0), null);
   assert.equal(chooseAmbient({ banterWeight: 0, tourGuideWeight: 0, silenceWeight: 10 }, true, () => 0), null);
 }
-// freshPlace: nearest unmentioned within radius
+// freshPlace: richest unmentioned place within radius, nearest on a tie
 {
   const ps = [place({ id: 'far', distanceKm: 9 }), place({ id: 'b', distanceKm: 2 }), place({ id: 'a', distanceKm: 1 })];
   assert.equal(freshPlace(ps, new Set(), 4)?.id, 'a');
   assert.equal(freshPlace(ps, new Set(['a']), 4)?.id, 'b');
   assert.equal(freshPlace(ps, new Set(['a', 'b']), 4), null, 'out-of-radius place is not used');
+  const rich = [...ps, place({ id: 'story', distanceKm: 3.5, interest: 16000 }), place({ id: 'stub', distanceKm: 0.2, interest: 2600 })];
+  assert.equal(freshPlace(rich, new Set(), 4)?.id, 'story', 'the place with a story beats the stub next door');
+  assert.equal(freshPlace(rich, new Set(['story']), 4)?.id, 'stub');
 }
 // engine: one ambient slot per cooldown, nothing right at ride start, banter never runs dry
 {
@@ -403,19 +407,29 @@ const ride0 = () => new RideStats(now).snapshot();
     assert.equal(p.detail, 'no API key'); assert.equal(called, 0);
   } finally { globalThis.fetch = realFetch; }
 }
-// Wikipedia parser: distance computed, thin stubs and pages without coordinates dropped, nearest first
+// Wikipedia places: wide search, meatiest articles first, stubs and list pages left out, notes reach the history
 {
-  const long = 'Edenvale is a town on the East Rand in Gauteng. It is part of the Ekurhuleni Metropolitan Municipality.';
-  const ps = parseWikiPlaces({ query: { pages: [
-    { pageid: 2, title: 'Far Place', extract: long, coordinates: [{ lat: -26.17, lon: 28.15 }] },
-    { pageid: 1, title: 'Edenvale, South Africa', extract: long, coordinates: [{ lat: -26.141, lon: 28.152 }] },
-    { pageid: 3, title: 'Stub', extract: 'Too short.', coordinates: [{ lat: -26.14, lon: 28.15 }] },
-    { pageid: 4, title: 'No coords', extract: long },
-    { pageid: 5, title: 'List of ambassadors', extract: long, coordinates: [{ lat: -26.14, lon: 28.15 }] },
-  ] } }, { lat: -26.14, lon: 28.15 });
-  assert.deepEqual(ps.map((p) => p.id), ['wiki-1', 'wiki-2']);
-  assert.equal(ps[0].name, 'Edenvale'); assert.ok(ps[0].distanceKm < 1 && ps[1].distanceKm > 3);
-  assert.deepEqual(parseWikiPlaces({}, { lat: 0, lon: 0 }), []);
+  const here = { lat: -26.14, lon: 28.15 };
+  const all = parseCandidates({ query: { pages: [
+    { pageid: 1, title: 'Edenvale, South Africa', length: 9250, coordinates: [{ lat: -26.141, lon: 28.152 }] },
+    { pageid: 2, title: 'Alexandra, South Africa', length: 16238, coordinates: [{ lat: -26.10, lon: 28.10 }] },
+    { pageid: 3, title: 'Esther Park, Kempton Park', length: 1900, coordinates: [{ lat: -26.12, lon: 28.17 }] },
+    { pageid: 4, title: 'No coords', length: 50000 },
+    { pageid: 5, title: 'List of ambassadors', length: 40000, coordinates: [{ lat: -26.14, lon: 28.15 }] },
+  ] } }, here);
+  assert.deepEqual(all.map((c) => c.pageid), [1, 2, 3], 'no coordinates and list pages are out');
+  assert.ok(all[0].distanceKm < 1 && all[1].distanceKm > 5);
+  assert.deepEqual(pickCandidates(all).map((c) => c.pageid), [2, 1], 'biggest article first, stub dropped');
+  assert.equal(pickCandidates(all, 1).length, 1);
+  assert.deepEqual(parseCandidates({}, here), []);
+
+  const extract = 'Edenvale is a town on the East Rand in Gauteng, South Africa. It is part of the Ekurhuleni Metropolitan Municipality.\n\n\nHistory\nIt started out in 1903, after the Anglo Boer War as a small settlement on the farm Rietfontein which sprung up around the Rietfontein Gold Mine. It was initially populated by Cornish mineworkers.\n\n\nSuburbs of Edenvale\nResidential suburbs include:\n\nClarens Park\nDe Klerkshof\nDowerglen\n';
+  const p = toPlace(all[0], { query: { pages: [{ extract }] } })!;
+  assert.equal(p.id, 'wiki-1'); assert.equal(p.name, 'Edenvale'); assert.equal(p.interest, 9250);
+  assert.match(p.summary, /Cornish mineworkers/, 'the notes reach past the lead into the history');
+  assert.ok(!/Clarens Park|De Klerkshof|Suburbs of Edenvale|History It/.test(p.summary), 'section titles and bare lists are dropped');
+  assert.equal(toPlace(all[0], { query: { pages: [{ extract: 'Too short.' }] } }), null);
+  assert.equal(toPlace(all[0], {}), null);
 }
 // ---- OBD mode off: GPS, lean and feeds only
 {
@@ -719,14 +733,62 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(p.text, 'Rain is ten minutes out. Ease off the open stretches.');
   } finally { globalThis.fetch = realFetch; }
 }
-// prompt: first person, never told to hurry, and a bike that shares her name is "I" too
+// prompt: co-pilot and bike are separate characters (owner wants the character, third person included);
+// no blanket ban on pace advice; line length follows the tunable limit
 {
-  const sys = () => buildClaudeRequest(new TriggerEngine(now).force('rain_soon', obdState()), obdState(), []).system;
-  assert.match(sys(), /Always speak in the first person/); assert.match(sys(), /Never tell him to speed up, pick up the pace, hurry/);
-  assert.match(sys(), /No reasoning, no notes to yourself, no second attempt/);
+  const req = () => buildClaudeRequest(new TriggerEngine(now).force('rain_soon', obdState()), obdState(), []);
+  assert.match(req().system, /You and the motorcycle are two separate characters/);
+  assert.match(req().system, /No reasoning, no notes to yourself, no second attempt/);
+  assert.ok(!/first person|Never tell him to speed up/.test(req().system), 'personality rules the owner asked to be removed stay removed');
   CONFIG.bikeName = 'Betty';
-  assert.match(sys(), /The motorcycle shares your name: you are its voice/); assert.ok(!/You call the motorcycle Betty/.test(sys()));
+  assert.match(req().system, /You call the motorcycle Betty:/, 'a bike that shares her name is still its own character');
   resetConfig();
+  assert.match(req().system, /at most 2 short sentences\..*under 30 words/s); assert.equal(req().max_tokens, 180);
+  CONFIG.maxSpokenSentences = 4;
+  assert.match(req().system, /at most 4 short sentences\..*under 50 words/s); assert.equal(req().max_tokens, 300);
+  assert.equal(cleanSpoken('One. Two. Three. Four. Five.', { ambient: true, name: 'sir', recent: [], maxSentences: CONFIG.maxSpokenSentences }).text, 'One. Two. Three. Four.');
+  CONFIG.maxSpokenSentences = 1;
+  assert.match(req().system, /at most 1 short sentence\./);
+  resetConfig();
+}
+// live traffic: only what matters on his way gets a line
+{
+  const here = { lat: -26.14, lon: 28.15 };
+  const moving: BikeState = { ...initialState(), ...here, speedKmh: 60, headingDeg: 0 }; // heading north
+  const north = { lat: -26.12, lon: 28.15 }, south = { lat: -26.16, lon: 28.15 };
+  const jam = (over: Partial<TrafficIncident> = {}): TrafficIncident => inc({ id: 'j', description: 'stationary traffic', severity: 3, distanceKm: 2.2, delaySec: 300, lengthM: 900, ...north, ...over });
+  assert.equal(worthMentioning(jam(), moving), true, 'a real jam ahead');
+  assert.equal(worthMentioning(jam(south), moving), false, 'the same jam behind him is not his problem');
+  assert.equal(worthMentioning(jam(south), { ...moving, speedKmh: 0 }), true, 'standing still, direction is unknown, so it counts');
+  assert.equal(worthMentioning(jam({ delaySec: 45 }), moving), false, 'a 45 second hold-up is not worth a line');
+  assert.equal(worthMentioning(jam({ severity: 4, description: 'a road closure', delaySec: null, lengthM: 53 }), moving), false, 'a 53 m closure is a side street');
+  assert.equal(worthMentioning(jam({ severity: 4, description: 'a road closure', delaySec: null, lengthM: 800 }), moving), true);
+  assert.equal(worthMentioning(jam({ distanceKm: 9 }), moving), false); assert.equal(worthMentioning(jam({ severity: 1 }), moving), false);
+  assert.equal(worthMentioning(inc(), moving), true, 'simulator incidents have no position and always count');
+
+  const e = new TriggerEngine(now, () => 0.99);
+  assert.equal(e.evaluate({ ...moving, incidents: [jam(south), jam({ id: 'tiny', delaySec: 30 })] }).length, 0);
+  const ev = e.evaluate({ ...moving, incidents: [jam(south), jam({ roadName: 'Modderfontein Road' })] })[0];
+  assert.match(ev.context, /stationary traffic on Modderfontein Road, about 2\.2 km away in the direction he is heading, adding about 5 minutes/);
+  assert.equal(ev.fallback, 'Heads up. Stationary traffic on Modderfontein Road, about 2.2 km away, adding about 5 minutes.');
+
+  // TomTom's real response shape (trimmed from a live Gauteng reply, 2026-10-09)
+  const live = { incidents: [
+    { type: 'Feature', properties: { id: 'A', iconCategory: 8, magnitudeOfDelay: 4, from: 'Hefer Street', to: 'Chaplin Street', length: 53.48, delay: null, roadNumbers: [], events: [{ code: 401, description: 'Closed' }] },
+      geometry: { type: 'LineString', coordinates: [[28.151, -26.141], [28.152, -26.1405]] } },
+    { type: 'Feature', properties: { id: 'B', iconCategory: 8, magnitudeOfDelay: 4, from: 'Chaplin Street', to: 'Hefer Street', length: 53.48, delay: null, roadNumbers: [], events: [{ code: 401, description: 'Closed' }] },
+      geometry: { type: 'LineString', coordinates: [[28.152, -26.1405], [28.151, -26.141]] } },
+    { type: 'Feature', properties: { id: 'C', iconCategory: 6, magnitudeOfDelay: 3, from: 'Ysterhout Drive (M6)', to: 'Oudoring Avenue', length: 281.0, delay: 139, roadNumbers: [], events: [{ code: 101, description: 'Stationary traffic' }] },
+      geometry: { type: 'LineString', coordinates: [[28.15, -26.12], [28.15, -26.119]] } },
+    { type: 'Feature', properties: { id: 'D', magnitudeOfDelay: 2, events: [{ description: 'Slow traffic' }], delay: 200, length: 400 }, geometry: { type: 'Point', coordinates: [29.5, -26.14] } },
+  ] };
+  const parsed = parseTomTom(live, here.lat, here.lon, 5);
+  assert.deepEqual(parsed.map((i) => i.id), ['A', 'C'], 'the two directions of one closure are one incident; the far one is out of range');
+  assert.deepEqual([parsed[0].description, parsed[0].severity, parsed[0].lengthM, parsed[0].delaySec, parsed[0].roadName], ['a road closure', 4, 53, null, 'Hefer Street']);
+  assert.deepEqual([parsed[1].description, parsed[1].delaySec, parsed[1].roadName], ['stationary traffic', 139, 'Ysterhout Drive (M6)']);
+  assert.ok(Math.abs(parsed[1].distanceKm - 2.2) < 0.15);
+  assert.deepEqual(parsed.map((i) => worthMentioning(i, moving)), [false, true]);
+  assert.deepEqual(parseTomTom({}, 0, 0, 5), []);
 }
 // stops: flickering GPS speed in crawling traffic is not a string of stops
 {

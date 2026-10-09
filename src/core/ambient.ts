@@ -22,11 +22,14 @@ export function chooseAmbient(w: AmbientWeights, hasFreshPlace: boolean, rng: ()
   return null;
 }
 
-/** Nearest place within range that has not been mentioned this ride. */
+/**
+ * The place in range with the most to say about it that has not been mentioned this ride (nearest wins a tie).
+ * It used to be simply the nearest, which on a real ride meant a run of stub articles about suburbs and schools.
+ */
 export function freshPlace(places: NearbyPlace[], mentioned: ReadonlySet<string>, radiusKm: number): NearbyPlace | null {
   return places
     .filter((p) => p.distanceKm <= radiusKm && !mentioned.has(p.id))
-    .sort((a, b) => a.distanceKm - b.distanceKm)[0] ?? null;
+    .sort((a, b) => b.interest - a.interest || a.distanceKm - b.distanceKm)[0] ?? null;
 }
 
 /** Which way he is pointing: GPS course while moving, the phone compass when stopped, null if neither is known. */
