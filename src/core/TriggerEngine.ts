@@ -24,6 +24,12 @@ const byDistance = (a: TrafficIncident, b: TrafficIncident) => a.distanceKm - b.
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 const km = (n: number) => `${Math.round(n * 10) / 10} km`;
 
+/**
+ * What identifies an incident across rides. TomTom's ids are not guaranteed to stay the same from day to day, so a
+ * named one is known by what and where ("a road closure|Hendrik Potgieter Street").
+ */
+export const incidentKey = (i: TrafficIncident) => (i.roadName ? `${i.description}|${i.roadName}` : i.id);
+
 /** A closure shorter than this is a side street or a driveway, not something to plan around. */
 const MIN_CLOSURE_M = 150;
 /** How far either side of straight ahead still counts as "on his way". */
@@ -49,6 +55,8 @@ export function worthMentioning(i: TrafficIncident, s: BikeState): boolean {
 export class TriggerEngine {
   private lastFired = new Map<TriggerId, number>();
   private announced = new Set<string>();
+  /** Incidents announced on earlier rides (by incidentKey): the same closure near home is not news every ride. */
+  private known = new Set<string>();
   private rideStart: number;
   private milestonesHit = 0;
   /** Place ids already talked about this ride. */
@@ -93,6 +101,11 @@ export class TriggerEngine {
 
   /** Past rides Betty remembers (loaded by the UI layer from wherever they are stored). */
   setHistory(history: RideRecord[]) { this.history = history; }
+  /** Incidents already announced on earlier rides (keys from incidentKey). */
+  setKnownIncidents(keys: string[]) { this.known = new Set(keys); }
+  private announcedKeys: string[] = [];
+  /** Keys of the incidents announced this ride, to remember for the next ones. */
+  announcedIncidents(): string[] { return [...this.announcedKeys]; }
   rideSnapshot(): RideSnapshot { return this.stats.snapshot(); }
 
   /** True while a condition whose trigger is configured P1 is active: no banter or tour guide then. */
@@ -151,9 +164,12 @@ export class TriggerEngine {
       out.push(this.force('sunset_soon', s));
     }
 
-    const inc = s.incidents.filter((i) => worthMentioning(i, s) && !this.announced.has(i.id)).sort(byDistance)[0];
+    const inc = s.incidents
+      .filter((i) => worthMentioning(i, s) && !this.announced.has(i.id) && !this.known.has(incidentKey(i)))
+      .sort(byDistance)[0];
     if (inc && this.ready('traffic_incident')) {
       this.announced.add(inc.id);
+      this.announcedKeys.push(incidentKey(inc));
       out.push(this.force('traffic_incident', s, inc));
     }
 

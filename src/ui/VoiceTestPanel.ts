@@ -15,6 +15,8 @@ export interface VoiceDeps {
   makeAudio: () => HTMLAudioElement;
   makeAudioContext: (() => AudioContext) | undefined;
   objectUrl: (b: Blob) => string;
+  /** Microphones the phone offers. Names only appear once mic permission has been given on this page. */
+  listInputs: () => Promise<Array<{ deviceId: string; label: string }>>;
 }
 
 export function browserVoiceDeps(): VoiceDeps {
@@ -29,6 +31,10 @@ export function browserVoiceDeps(): VoiceDeps {
     makeAudio: () => new Audio(),
     makeAudioContext: AC ? () => new AC() : undefined,
     objectUrl: (b) => URL.createObjectURL(b),
+    listInputs: async () => {
+      const all = (await nav.mediaDevices?.enumerateDevices?.()) ?? [];
+      return all.filter((d) => d.kind === 'audioinput').map((d) => ({ deviceId: d.deviceId, label: d.label }));
+    },
   };
 }
 
@@ -95,6 +101,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     if (micOnPress.cb.checked) void record(3, `opened by the ${name} button`);
   };
   const startBtn = button('Start listening for buttons', async () => {
+    if (!listening) { counts.clear(); pressLog.innerHTML = ''; } // each session counts on its own
     if (listening) {
       listening = false;
       audio?.pause();
@@ -127,6 +134,26 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
   // ---- 2 and 3. mic recordings
   wrap.append(el('h3', '', '2 and 3. Helmet mic: record and play back'));
   wrap.append(el('p', 'hint', 'Record 5 seconds while talking normally at a standstill, at 60 and at 100 km/h. Each recording is labelled with the speed and which mic was used. Play them back when you stop.'));
+  // Which mic: the first test recorded from the phone's own mic, not the helmet. Let him pick it.
+  const micRow = el('div', 'row');
+  const micSel = el('select'); micSel.id = 'micpick';
+  const fillMics = async () => {
+    let inputs: Array<{ deviceId: string; label: string }> = [];
+    try { inputs = await deps.listInputs(); } catch { /* not supported */ }
+    const keep = micSel.value;
+    micSel.innerHTML = '';
+    const auto = el('option', '', "Phone's choice"); auto.value = ''; micSel.append(auto);
+    inputs.forEach((d, i) => { const o = el('option', '', d.label || `Microphone ${i + 1} (name shows after the first recording)`); o.value = d.deviceId; micSel.append(o); });
+    micSel.value = [...micSel.options].some((o) => o.value === keep) ? keep : '';
+    return inputs;
+  };
+  const findMics = button('Find mics', async () => {
+    const inputs = await fillMics();
+    say(`[voice test] microphones offered: ${inputs.map((d) => d.label || 'unnamed').join(', ') || 'none listed'}`);
+  });
+  micRow.append(el('span', 'name', 'Record from'), micSel, findMics);
+  wrap.append(el('p', 'hint', 'Connect the helmet first. If the recording says "iPhone Microphone", tap Find mics and pick the headset, then record again.'), micRow);
+  void fillMics();
   const status = el('div', 'info', '');
   const meter = el('div', 'meter'); const bar = el('div', 'meterbar'); meter.append(bar);
   const recs = el('div', 'recs');
@@ -140,7 +167,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     busy = true;
     let stream: MediaStream;
     try {
-      stream = await deps.getUserMedia({ audio: true });
+      stream = await deps.getUserMedia({ audio: micSel.value ? { deviceId: { exact: micSel.value } } : true });
     } catch (e) {
       busy = false;
       const msg = `mic did not open (${why}): ${(e as Error).name}`;
@@ -192,6 +219,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     row.append(el('div', 'meta', label), player, save);
     recs.prepend(row);
     status.textContent = `Recorded ${(blob.size / 1024).toFixed(0)} KB.`;
+    void fillMics(); // names become available once the mic has been used
     say(`[voice test] recording: ${label}, ${(blob.size / 1024).toFixed(0)} KB`);
   }
 

@@ -325,7 +325,18 @@ wake word last / on the Pi.
   press that reaches the page. Optional: open the mic on a button press (does iOS allow it without a screen tap?).
   Records 5 s from the mic with the speed, the mic's name (is it the helmet?) and the loudest level, with playback
   and Save. Every finding is written to the saved log as `[voice-test]`. Browser pieces are injected (`VoiceDeps`)
-  so the smoke test runs it with stand-ins. Results from the bike are still to come.
+  so the smoke test runs it with stand-ins.
+  FIRST RESULTS (log of 2026-10-14, standing still): only `pause` reached the page (5 presses over 3 sessions; no
+  next/previous track seen, either not pressed or not delivered). One button that reaches the page is enough for
+  push-to-talk. The mic-on-button-press test was not run yet. The one recording came from "iPhone Microphone",
+  not the helmet: the panel now has a "Record from" mic picker (`enumerateDevices`) and "Find mics", and logs the
+  mics offered. Next: confirm the helmet mic appears and records, then record at speed.
+- Sensors from the same log: the accelerometer works (about 60 readings a second). Hardest knocks 14 to 52 m/s2;
+  jolts at the 8 m/s2 threshold ran 1 to 4 a minute on most rides but 484 in 28 minutes on one (probably the phone
+  rattling in the mount). Threshold left as is for now; the owner has not asked for a change.
+- Repeated closure: the same "Hendrik Potgieter Street" / "7th Street" closure near home was announced at the start
+  of almost every ride. Announced incidents are now remembered for 7 days (`adapters/IncidentMemory`,
+  `betty.incidents.v1`) by `incidentKey` (description + road, since TomTom ids may change), and not announced again.
 - **Stage 1, CHAT panel** (`ui/ChatPanel.ts`, mounted per ride above SIMULATOR): this is the chat test mode spec
   below, minus scenario scripts. Typed text -> `TriggerEngine.ask(text, state)` -> `rider_query` event with
   `riderSaid` and a full `situationDigest` (banter facts + rain chance + traffic on his way + engine data or

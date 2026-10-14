@@ -433,13 +433,15 @@ resetConfig();
   const track = { label: 'Cardo Packtalk', stop() {} };
   const deps = {
     mediaSession: { setActionHandler: (a: string, f: any) => { if (a === 'seekforward') throw new Error('unsupported'); if (f) handlers.set(a, f); else handlers.delete(a); }, metadata: null } as any,
-    getUserMedia: async () => { if (!micAllowed) { const err = new Error('denied'); err.name = 'NotAllowedError'; throw err; } return { getAudioTracks: () => [track], getTracks: () => [track] } as any; },
+    getUserMedia: async (c: any) => { constraints.push(c); if (!micAllowed) { const err = new Error('denied'); err.name = 'NotAllowedError'; throw err; } return { getAudioTracks: () => [track], getTracks: () => [track] } as any; },
     makeRecorder: () => { const r: any = { start() {}, stop() { r.ondataavailable({ data: new Blob(['x'.repeat(2048)]) }); r.onstop(); } }; return r; },
     recorderType: () => 'audio/mp4',
     makeAudio: () => ({ play: async () => { played++; }, pause() {}, paused: false, loop: false, src: '' }) as any,
     makeAudioContext: undefined,
     objectUrl: () => 'blob:test',
+    listInputs: async () => [{ deviceId: 'phone', label: 'iPhone Microphone' }, { deviceId: 'helmet', label: 'Cardo Packtalk' }],
   };
+  const constraints: any[] = [];
   const host = document.createElement('div'); document.body.append(host);
   const panel = mountVoiceTestPanel(host, { speed: () => speed, log: (m) => logs.push(m) }, deps);
   const btn = (t: RegExp) => [...host.querySelectorAll('button')].find((b) => t.test(b.textContent!))!;
@@ -464,12 +466,26 @@ resetConfig();
     btn(/Record 5 seconds/).click(); await new Promise((r) => realTimeout(r, 20));
     assert.match(host.querySelector('.recs')!.textContent!, /no ride running · Cardo Packtalk/);
     assert.equal(host.querySelectorAll('.rec audio').length, 2);
+    // pick the helmet mic explicitly
+    // (by tag: jsdom's id lookup misses it here because the real page in this test also has a #micpick)
+    const pick = host.querySelector('select') as HTMLSelectElement;
+    assert.deepEqual([...pick.options].map((o) => o.textContent), ["Phone's choice", 'iPhone Microphone', 'Cardo Packtalk']);
+    assert.equal(constraints.at(-1).audio, true, "phone's choice by default");
+    pick.value = 'helmet';
+    btn(/Record 5 seconds/).click(); await new Promise((r) => realTimeout(r, 20));
+    assert.deepEqual(constraints.at(-1).audio, { deviceId: { exact: 'helmet' } }, 'records from the chosen mic');
+    btn(/Find mics/).click(); await new Promise((r) => realTimeout(r, 0));
+    assert.match(logs.at(-1)!, /microphones offered: iPhone Microphone, Cardo Packtalk/);
     micAllowed = false;
     btn(/Record 5 seconds/).click(); await new Promise((r) => realTimeout(r, 20));
     assert.match(logs.at(-1)!, /mic did not open \(tapped on screen\): NotAllowedError/);
   } finally { (globalThis as any).setTimeout = realTimeout; }
   btn(/Stop listening/).click();
   assert.equal(handlers.size, 0, 'buttons handed back when the test stops');
+  btn(/Start listening/).click(); await new Promise((r) => setTimeout(r, 0));
+  handlers.get('pause')();
+  assert.match(host.textContent!, /Heard: pause x1/, 'a new session counts from zero');
+  btn(/Stop listening/).click();
   assert.ok(panel);
 }
 console.log('ui smoke tests passed');

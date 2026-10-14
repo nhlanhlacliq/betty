@@ -28,6 +28,7 @@ import { mountLockScreen } from './ui/LockScreen';
 import { mountLogPanel } from './ui/LogPanel';
 import { LineLogStore } from './adapters/LineLogStore';
 import { FuelStore } from './adapters/FuelStore';
+import { IncidentMemory } from './adapters/IncidentMemory';
 import { LogEntry } from './core/LineLog';
 
 loadConfig();
@@ -243,6 +244,7 @@ async function beginRide() {
 
   const engine = new TriggerEngine();
   engine.setHistory(RideLog.load());
+  engine.setKnownIncidents(IncidentMemory.load());
   currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
   engine.setFuelKm(FuelStore.load());
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
@@ -251,6 +253,7 @@ async function beginRide() {
     const rec = toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null);
     if (rec) RideLog.save(rec);
     FuelStore.save(engine.kmSinceFill());
+    IncidentMemory.save(engine.announcedIncidents());
   };
   const memTimer = window.setInterval(remember, 60_000);
   // What the sensors actually delivered, written into the log now and then and at END RIDE.

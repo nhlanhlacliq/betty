@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { TriggerEngine, isSafeWindow, worthMentioning } from '../src/core/TriggerEngine';
+import { TriggerEngine, incidentKey, isSafeWindow, worthMentioning } from '../src/core/TriggerEngine';
 import { parseTomTom } from '../src/adapters/TomTomTraffic';
 import { AudioQueue, Speaker } from '../src/core/AudioQueue';
 import { NO_OBD, StateAggregator, initialState } from '../src/core/StateAggregator';
@@ -864,5 +864,18 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     const off = await new ClaudeClient(undefined).phrase(e.ask('anyone there?', s), s);
     assert.equal(off.source, 'fallback'); assert.match(off.request.system, /answering him/, 'the prompt can be inspected even without a key');
   } finally { globalThis.fetch = realFetch; }
+}
+// the same closure near home is not announced at the start of every ride
+{
+  const closure = inc({ id: 'TTI-day1', description: 'a road closure', roadName: 'Hendrik Potgieter Street', severity: 4, distanceKm: 0.3, lengthM: 400 });
+  const s: BikeState = { ...initialState(), incidents: [closure] };
+  const ride1 = new TriggerEngine(now, () => 0.99);
+  assert.equal(ride1.evaluate(s)[0].id, 'traffic_incident');
+  assert.deepEqual(ride1.announcedIncidents(), ['a road closure|Hendrik Potgieter Street']);
+  const ride2 = new TriggerEngine(now, () => 0.99);
+  ride2.setKnownIncidents(ride1.announcedIncidents());
+  assert.equal(ride2.evaluate({ ...s, incidents: [{ ...closure, id: 'TTI-day2' }] }).length, 0, 'known by what and where, even with a new id');
+  assert.equal(ride2.evaluate({ ...s, incidents: [{ ...closure, id: 'x', roadName: '7th Street' }] })[0].id, 'traffic_incident', 'a different road is news');
+  assert.equal(incidentKey(inc({ id: 'nameless', roadName: undefined })), 'nameless');
 }
 console.log('all core tests passed');
