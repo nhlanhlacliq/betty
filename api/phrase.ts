@@ -1,4 +1,4 @@
-import { env, fromBetty, json } from './_shared';
+import { env, fromBetty, json } from './_shared.js';
 
 /** Models the page may ask for, and the most it may ask for in one line. Anything else is refused. */
 const MODELS = new Set(['claude-haiku-5-5', 'claude-sonnet-5-5']);

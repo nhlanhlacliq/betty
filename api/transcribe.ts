@@ -1,4 +1,4 @@
-import { env, fromBetty, json } from './_shared';
+import { env, fromBetty, json } from './_shared.js';
 
 /** A push-to-talk clip is a few seconds; anything this big is not one. */
 const MAX_BYTES = 3 * 1024 * 1024;

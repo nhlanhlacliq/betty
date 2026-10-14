@@ -1,4 +1,4 @@
-import { env, fromBetty, json } from './_shared';
+import { env, fromBetty, json } from './_shared.js';
 
 const FIELDS = '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description},from,to,roadNumbers,delay,length}}}';
 /** Largest area the page may ask about, in degrees (about 55 km across): a few km around the rider is normal. */

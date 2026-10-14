@@ -1,0 +1,4 @@
+# Never upload local secrets: Vite would bake VITE_ keys from .env into the deployed page.
+.env
+.env.*
+!.env.example
