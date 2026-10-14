@@ -8,7 +8,7 @@ import { GpsLean } from '../src/core/GpsLean';
 import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } from '../src/core/LineLog';
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
-import { ClaudeClient, buildClaudeRequest, cleanSpoken, extractText } from '../src/core/ClaudeClient';
+import { ClaudeClient, TALK_MEMORY, buildClaudeRequest, cleanSpoken, extractText } from '../src/core/ClaudeClient';
 import { clockNote, greetingFor, BANTER_MODES, banterContext, banterTopics, chooseAmbient, freshPlace, pickMode, pickTopic, placesFromHere, travelDirection, whereIs } from '../src/core/ambient';
 import { RideStats } from '../src/core/RideStats';
 import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
@@ -813,5 +813,56 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(bucket({ hardBrakes: 1, hardAccels: 1 }, 'braking').bucket, bucket({ hardBrakes: 2, hardAccels: 3 }, 'braking').bucket);
   assert.match(bucket({ maxLeanDeg: 12, corneringPct: 0 }, 'corners').text, /almost all straight so far; the deepest lean was about 12 degrees/);
   assert.match(bucket({ maxLeanDeg: 31, corneringPct: 8 }, 'corners').text, /leaned past 15 degrees for 8 percent/);
+}
+// ---- voice input stage 1: talking to her (typed now, spoken later)
+{
+  const here = { lat: -26.14, lon: 28.15 };
+  const e = new TriggerEngine(now, () => 0.99);
+  const s: BikeState = {
+    ...initialState(), ...here, speedKmh: 60, headingDeg: 0,
+    weather: wx({ rainChanceNextHourPct: 70, summary: 'partly cloudy' }),
+    incidents: [inc({ id: 'j', description: 'stationary traffic', roadName: 'the N3', severity: 3, distanceKm: 2.2, delaySec: 300, lat: -26.12, lon: 28.15 })],
+    nearbyPlaces: [place({ name: 'Edenvale', lat: -26.141, lon: 28.152 })],
+  };
+  e.evaluate(s);
+  const ev = e.ask('  is it going to rain?  ', s);
+  assert.equal(ev.id, 'rider_query'); assert.equal(ev.priority, 4); assert.equal(ev.riderSaid, 'is it going to rain?');
+  assert.match(ev.context, /^He just said to you: "is it going to rain\?"\. What you know right now:/);
+  assert.match(ev.context, /70 percent chance in the next hour/);
+  assert.match(ev.context, /Traffic on his way: stationary traffic on the N3, 2\.2 km/);
+  assert.match(ev.context, /No engine data is connected/); assert.match(ev.context, /Places nearby: Edenvale/);
+  assert.match(ev.fallback, /can't think that one through without a signal/);
+  assert.equal(e.force('rider_query', s).riderSaid, undefined, 'the old "how is the bike" button still works without words');
+  assert.match(e.force('rider_query', s).context, /asked how things are going/);
+  assert.match(e.ask('how hot is the engine?', { ...s, obd: true, engineTempC: 93 }).context, /Engine data: 93 C/);
+
+  // the request: answer prompt, clock and readings, earlier exchanges as real turns
+  const talk = [{ said: 'is it going to rain?', answer: 'Seventy percent within the hour.' }];
+  const req = buildClaudeRequest(ev, s, [], talk);
+  assert.match(req.system, /answering him\. Answer what he actually asked/);
+  assert.deepEqual(req.messages.map((m) => m.role), ['user', 'assistant', 'user']);
+  assert.equal(req.messages[0].content, 'He said: "is it going to rain?"'); assert.equal(req.messages[1].content, 'Seventy percent within the hour.');
+  assert.match(req.messages[2].content, /Local time: .*\nBike state:/);
+  assert.equal(buildClaudeRequest(e.force('ambient_banter', s), s, [], talk).messages.length, 1, 'only a question carries the conversation');
+
+  // the client remembers the conversation (only his questions, only real answers), capped, and forgets on reset
+  const realFetch = globalThis.fetch;
+  let n = 0; const bodies: any[] = [];
+  globalThis.fetch = (async (_u: any, init: any) => { bodies.push(JSON.parse(init.body)); return new Response(JSON.stringify({ content: [{ type: 'text', text: `Answer ${++n}.` }] })); }) as typeof fetch;
+  try {
+    const c = new ClaudeClient('key');
+    for (let i = 0; i < TALK_MEMORY + 2; i++) await c.phrase(e.ask(`question ${i}`, s), s);
+    assert.equal(bodies.at(-1).messages.length, TALK_MEMORY * 2 + 1, `remembers the last ${TALK_MEMORY} exchanges`);
+    assert.equal(bodies.at(-1).messages[0].content, `He said: "question 1"`);
+    await c.phrase(e.force('ambient_banter', s), s);
+    assert.equal(bodies.at(-1).messages.length, 1);
+    const p = await c.phrase(e.ask('and after that?', s), s);
+    assert.equal(p.request.messages.length, TALK_MEMORY * 2 + 1, 'the phrase carries exactly what was sent');
+    c.forgetTalk();
+    await c.phrase(e.ask('new ride', s), s);
+    assert.equal(bodies.at(-1).messages.length, 1, 'a new ride starts a new conversation');
+    const off = await new ClaudeClient(undefined).phrase(e.ask('anyone there?', s), s);
+    assert.equal(off.source, 'fallback'); assert.match(off.request.system, /answering him/, 'the prompt can be inspected even without a key');
+  } finally { globalThis.fetch = realFetch; }
 }
 console.log('all core tests passed');

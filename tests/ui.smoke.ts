@@ -264,6 +264,15 @@ resetConfig();
       click(toggle); click(toggle); // the second tap lands while it is still starting and must be ignored
       await wait(150);
       assert.equal(toggle.textContent, 'END RIDE');
+      // chat: a typed question goes through the real pipeline and both sides appear on the timeline
+      const chatIn = doc.getElementById('chatinput') as HTMLInputElement;
+      chatIn.value = 'how far have we gone?';
+      doc.querySelector('#chat form')!.dispatchEvent(new page.window.Event('submit', { cancelable: true }));
+      await wait(50);
+      const chatText = doc.getElementById('chat')!.textContent!;
+      assert.match(chatText, /how far have we gone\?/); assert.match(chatText, /can't think that one through without a signal/);
+      assert.match(chatText, /fallback: no API key · \d+ ms · P4 · rider_query/);
+      assert.match(logText(), /rider_query \(fallback: no API key/);
       assert.match(logText(), /startup \(fallback: no API key/); assert.match(logText(), /Systems online\./);
       assert.equal((logText().match(/startup/g) ?? []).length, 1, 'one ride, not two');
       assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/);
@@ -302,7 +311,7 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; Date.now = realNow; }
   }
 
-  for (const id of ['toggle', 'lock', 'voice', 'voicetest', 'filled', 'range', 'rangesrc', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['toggle', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'filled', 'range', 'rangesrc', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   resetConfig();
@@ -378,5 +387,89 @@ resetConfig();
     await wait(120);
     assert.equal(done, 0, 'a stopped line never calls back'); assert.ok(synth.cancels >= 1);
   }
+}
+
+// ---- CHAT panel
+{
+  const { mountChatPanel } = await import('../src/ui/ChatPanel');
+  const host = document.createElement('div'); document.body.append(host);
+  const asked: string[] = []; let push: (e: any) => void = () => {};
+  const unmount = mountChatPanel(host, { ask: (t) => asked.push(t), listen: (fn) => { push = fn; return () => { push = () => {}; }; } });
+  const input = host.querySelector('#chatinput') as HTMLInputElement; const form = host.querySelector('form')!;
+  input.value = '   '; form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+  assert.deepEqual(asked, [], 'blank message not sent');
+  input.value = 'is it going to rain?'; form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+  assert.deepEqual(asked, ['is it going to rain?']); assert.equal(input.value, '', 'box clears after sending');
+  push({ from: 'rider', text: 'is it going to rain?', at: Date.now() });
+  const request = { system: 'SYSTEM PROMPT HERE', messages: [{ role: 'user', content: 'Situation: He just said to you: "is it going to rain?"' }] };
+  push({ from: 'betty', text: 'Seventy percent in the next hour.', at: Date.now(),
+    ev: { id: 'rider_query', priority: 4, context: 'x', fallback: 'No signal, sorry.', createdAt: 0 },
+    phrase: { text: 'Seventy percent in the next hour.', source: 'claude', detail: '', latencyMs: 912, request } });
+  const bubbles = [...host.querySelectorAll('.bubble')];
+  assert.equal(bubbles.length, 2); assert.ok(bubbles[0].classList.contains('rider')); assert.ok(bubbles[1].classList.contains('betty'));
+  assert.match(bubbles[1].querySelector('.meta')!.textContent!, /^claude · 912 ms · P4 · rider_query/);
+  const pre = bubbles[1].querySelector('pre') as HTMLElement;
+  assert.equal(pre.hidden, true);
+  const show = [...bubbles[1].querySelectorAll('button')].find((b) => b.textContent === 'Show prompt')!;
+  show.click();
+  assert.equal(pre.hidden, false); assert.match(pre.textContent!, /--- system ---\nSYSTEM PROMPT HERE/); assert.match(pre.textContent!, /--- to Claude ---\nSituation: He just said/);
+  assert.equal(show.textContent, 'Hide prompt');
+  const cmp = [...host.querySelectorAll('input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('canned fallback')) as HTMLInputElement;
+  assert.ok(!host.querySelector('.chatlist')!.classList.contains('compare'));
+  cmp.checked = true; fire(cmp, 'change');
+  assert.ok(host.querySelector('.chatlist')!.classList.contains('compare')); assert.match(bubbles[1].textContent!, /Fallback: No signal, sorry\./);
+  unmount(); assert.equal(host.innerHTML, '');
+}
+
+// ---- VOICE TEST panel, with stand-ins for the phone's media pieces
+{
+  const { mountVoiceTestPanel, quietWav, toDb } = await import('../src/ui/VoiceTestPanel');
+  const wav = new Uint8Array(await quietWav(1, 8000).arrayBuffer());
+  assert.equal(String.fromCharCode(...wav.slice(0, 4)), 'RIFF'); assert.equal(wav.length, 44 + 16000);
+  assert.equal(toDb(1), 0); assert.equal(toDb(0.1), -20); assert.equal(toDb(0), -Infinity);
+
+  const handlers = new Map<string, any>(); const logs: string[] = []; let played = 0;
+  let micAllowed = true; let speed: number | null = 62;
+  const track = { label: 'Cardo Packtalk', stop() {} };
+  const deps = {
+    mediaSession: { setActionHandler: (a: string, f: any) => { if (a === 'seekforward') throw new Error('unsupported'); if (f) handlers.set(a, f); else handlers.delete(a); }, metadata: null } as any,
+    getUserMedia: async () => { if (!micAllowed) { const err = new Error('denied'); err.name = 'NotAllowedError'; throw err; } return { getAudioTracks: () => [track], getTracks: () => [track] } as any; },
+    makeRecorder: () => { const r: any = { start() {}, stop() { r.ondataavailable({ data: new Blob(['x'.repeat(2048)]) }); r.onstop(); } }; return r; },
+    recorderType: () => 'audio/mp4',
+    makeAudio: () => ({ play: async () => { played++; }, pause() {}, paused: false, loop: false, src: '' }) as any,
+    makeAudioContext: undefined,
+    objectUrl: () => 'blob:test',
+  };
+  const host = document.createElement('div'); document.body.append(host);
+  const panel = mountVoiceTestPanel(host, { speed: () => speed, log: (m) => logs.push(m) }, deps);
+  const btn = (t: RegExp) => [...host.querySelectorAll('button')].find((b) => t.test(b.textContent!))!;
+  btn(/Start listening/).click(); await new Promise((r) => setTimeout(r, 0));
+  assert.equal(played, 1, 'the silent track starts so the page can receive buttons');
+  assert.ok(handlers.has('nexttrack') && handlers.has('play') && !handlers.has('seekforward'));
+  assert.match(logs.at(-1)!, /listening for headset buttons \(page accepts: play, pause, previous track, next track, skip back, stop\)/);
+  handlers.get('nexttrack')(); handlers.get('nexttrack')(); handlers.get('play')();
+  assert.match(host.textContent!, /Heard: next track x2, play x1/);
+  assert.ok(logs.includes('[voice test] headset button reached the page: next track'));
+
+  // test 2: a button press opens the mic
+  const tick = [...host.querySelectorAll('input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('open the mic')) as HTMLInputElement;
+  tick.checked = true;
+  const realTimeout = globalThis.setTimeout;
+  (globalThis as any).setTimeout = (f: any) => realTimeout(f, 0); // recordings take no real time in the test
+  try {
+    handlers.get('pause')(); await new Promise((r) => realTimeout(r, 20));
+    assert.match(logs.at(-1)!, /recording: .* · 62 km\/h · Cardo Packtalk · loudest not measured · opened by the pause button, 2 KB/);
+    // test 3: recording from the screen, at a standstill without a ride, then a refusal
+    speed = null;
+    btn(/Record 5 seconds/).click(); await new Promise((r) => realTimeout(r, 20));
+    assert.match(host.querySelector('.recs')!.textContent!, /no ride running · Cardo Packtalk/);
+    assert.equal(host.querySelectorAll('.rec audio').length, 2);
+    micAllowed = false;
+    btn(/Record 5 seconds/).click(); await new Promise((r) => realTimeout(r, 20));
+    assert.match(logs.at(-1)!, /mic did not open \(tapped on screen\): NotAllowedError/);
+  } finally { (globalThis as any).setTimeout = realTimeout; }
+  btn(/Stop listening/).click();
+  assert.equal(handlers.size, 0, 'buttons handed back when the test stops');
+  assert.ok(panel);
 }
 console.log('ui smoke tests passed');

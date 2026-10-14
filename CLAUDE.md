@@ -315,7 +315,30 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
   With no keys set, Betty uses fallback phrases and traffic is simulator-only; everything else works.
 - Never commit `.env`. `.env.example` documents the variables.
 
-## Backlog: chat-style test mode (NOT BUILT, spec for the next session)
+## Voice input, stages 0 and 1 (BUILT 2026-10-14)
+
+Plan agreed with the owner: 0 hardware test, 1 typed conversation, 2 push-to-talk (cloud transcription, forces
+the Vercel key proxy), 3 commands and memory ("quiet for ten minutes", "repeat that", "mark this spot"),
+wake word last / on the Pi.
+- **Stage 0, VOICE TEST panel** (`ui/VoiceTestPanel.ts`, always mounted): plays a looping near-silent WAV so the
+  page becomes the phone's "now playing" app, registers Media Session handlers, and lists every headset button
+  press that reaches the page. Optional: open the mic on a button press (does iOS allow it without a screen tap?).
+  Records 5 s from the mic with the speed, the mic's name (is it the helmet?) and the loudest level, with playback
+  and Save. Every finding is written to the saved log as `[voice-test]`. Browser pieces are injected (`VoiceDeps`)
+  so the smoke test runs it with stand-ins. Results from the bike are still to come.
+- **Stage 1, CHAT panel** (`ui/ChatPanel.ts`, mounted per ride above SIMULATOR): this is the chat test mode spec
+  below, minus scenario scripts. Typed text -> `TriggerEngine.ask(text, state)` -> `rider_query` event with
+  `riderSaid` and a full `situationDigest` (banter facts + rain chance + traffic on his way + engine data or
+  "not connected" + places nearby) -> `ClaudeClient` -> queue -> speaker, honouring Speak aloud. Her unprompted
+  lines appear on the same timeline. Each of her bubbles shows source, latency, priority, trigger id, a Show
+  prompt view of the exact request (`Phrase.request`, built even without a key) and, with the compare box ticked,
+  the canned fallback. `ClaudeClient` keeps the last `TALK_MEMORY` (6) exchanges as real user/assistant turns
+  for his questions only; Reset ride forgets them. The `rider_query` flavour prompt says answer what he asked and
+  say "I don't know" rather than guess. Lines she makes up herself are `UNPROMPTED_IDS` (no clock, no readings).
+  Checked live: rain, sunset follow-up, traffic, fuel range, engine ("no engine data connected") and "what was
+  the first thing I asked" all answered correctly from the state and the conversation.
+
+## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)
 
 Goal: talk to Betty from the desk as if you were the rider, against the live (or simulated) `BikeState`, to tune her
 personality and see exactly what is sent to Claude, without riding.

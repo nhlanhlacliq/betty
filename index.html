@@ -45,6 +45,29 @@
     #feeds { color: var(--dim); font-size: 12px; margin-top: 6px; }
     #log { margin-top: 16px; display: grid; gap: 6px; font-size: 13px; }
     .logview { margin-top: 10px; max-height: 340px; overflow: auto; font-size: 11px; white-space: pre-wrap; word-break: break-word; color: var(--text); user-select: text; -webkit-user-select: text; }
+    .chatlist { margin-top: 10px; display: grid; gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+    .chatempty { color: var(--dim); font-size: 12px; }
+    .bubble { padding: 8px 10px; border: 1px solid var(--border); max-width: 88%; min-width: 0; }
+    .bubble.rider { justify-self: end; background: var(--surface); }
+    .bubble.betty { justify-self: start; border-color: var(--accent); }
+    .bubble .said { font-size: 14px; color: var(--bright); }
+    .bubble .meta { font-size: 11px; color: var(--dim); margin-top: 4px; }
+    .bubble .fallback { display: none; font-size: 12px; color: var(--dim); margin-top: 4px; font-style: italic; }
+    .chatlist.compare .bubble .fallback { display: block; }
+    .bubble button.small { padding: 2px 8px; font-size: 11px; margin-top: 6px; }
+    .bubble .prompt { white-space: pre-wrap; word-break: break-word; font-size: 11px; color: var(--text); background: var(--bg); padding: 8px; margin: 6px 0 0; max-height: 300px; overflow: auto; }
+    .chatform { display: flex; gap: 8px; margin-top: 10px; }
+    .chatform input { flex: 1; min-width: 0; background: var(--bg); color: var(--bright); border: 1px solid var(--border); padding: 8px; font-size: 14px; }
+    .chatform button { width: auto; padding: 8px 16px; margin: 0; }
+    .hint { color: var(--dim); font-size: 12px; margin: 4px 0 8px; }
+    .presslog { font-size: 12px; color: var(--text); max-height: 120px; overflow-y: auto; white-space: pre; }
+    .meter { height: 6px; background: var(--border); margin: 8px 0; }
+    .meterbar { height: 100%; width: 0%; background: var(--accent); transition: width 0.1s linear; }
+    .recs { display: grid; gap: 10px; margin-top: 8px; }
+    .rec { display: grid; gap: 4px; }
+    .rec .meta { font-size: 11px; color: var(--dim); }
+    .rec audio { width: 100%; }
+    .rec a { font-size: 12px; color: var(--accent); }
     #log .fate { color: var(--dim); font-size: 11px; }
     .panel { margin-top: 20px; border: 1px solid var(--border); padding: 12px 14px; background: var(--surface); }
     .panel summary { cursor: pointer; color: var(--accent); font-weight: 800; letter-spacing: 3px; font-size: 12px; }
@@ -96,8 +119,10 @@
   <div id="wake"></div>
   <div id="feeds"></div>
   <div id="log"></div>
+  <div id="chat"></div>
   <div id="sim"></div>
   <div id="tuning"></div>
+  <div id="voicetestpanel"></div>
   <div id="logpanel"></div>
   <div id="lockroot"></div>
   <script type="module" src="/src/main.ts"></script>

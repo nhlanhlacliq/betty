@@ -1,6 +1,6 @@
 import { CONFIG, bettySystemPrompt, cleanRiderName, FLAVOUR_PROMPTS, SILENT_TOKEN } from '../config/betty';
 import { clockNote } from './ambient';
-import { BikeState, TriggerEvent } from './types';
+import { BikeState, TriggerEvent, UNPROMPTED_IDS } from './types';
 
 /** What Betty will say (empty text = say nothing) and where the words came from. */
 export interface Phrase {
@@ -9,7 +9,15 @@ export interface Phrase {
   /** Why the fallback was used, or a note on the Claude reply. Empty when there is nothing to add. */
   detail: string;
   latencyMs: number;
+  /** Exactly what was (or, without a key, would have been) sent to Claude: shown by the chat panel's Show prompt */
+  request: ClaudeRequest;
 }
+
+export type ClaudeRequest = ReturnType<typeof buildClaudeRequest>;
+/** One exchange of the conversation with the rider. */
+export interface Turn { said: string; answer: string }
+/** How many earlier exchanges she remembers, so a follow-up ("and after that?") makes sense. */
+export const TALK_MEMORY = 6;
 
 type Attempt = { text: string } | { error: string };
 
@@ -20,6 +28,7 @@ type Attempt = { text: string } | { error: string };
  */
 export class ClaudeClient {
   private spoken: string[] = [];
+  private talk: Turn[] = [];
   /** Result of the most recent phrase() call, for the UI. */
   last: Phrase | null = null;
 
@@ -27,20 +36,24 @@ export class ClaudeClient {
 
   async phrase(ev: TriggerEvent, state: BikeState): Promise<Phrase> {
     const t0 = Date.now();
-    const r = await this.callClaude(ev, state);
+    const request = buildClaudeRequest(ev, state, this.spoken, this.talk);
+    const r = await this.callClaude(ev, request);
     const latencyMs = Date.now() - t0;
     let out: Phrase;
     if ('text' in r) {
       const c = cleanSpoken(r.text, {
-        ambient: FLAVOUR_PROMPTS[ev.id] !== undefined && ev.id !== 'ride_debrief',
+        ambient: UNPROMPTED_IDS.includes(ev.id),
         name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences: CONFIG.maxSpokenSentences,
       });
       // An alert whose reply turned out unusable still has to be said: use the canned line.
       out = c.text || !ev.fallback
-        ? { text: c.text, source: 'claude', detail: c.note, latencyMs }
-        : { text: ev.fallback, source: 'fallback', detail: 'unusable reply', latencyMs };
+        ? { text: c.text, source: 'claude', detail: c.note, latencyMs, request }
+        : { text: ev.fallback, source: 'fallback', detail: 'unusable reply', latencyMs, request };
     } else {
-      out = { text: ev.fallback, source: 'fallback', detail: ev.fallback ? r.error : `${r.error}, staying silent`, latencyMs };
+      out = { text: ev.fallback, source: 'fallback', detail: ev.fallback ? r.error : `${r.error}, staying silent`, latencyMs, request };
+    }
+    if (ev.riderSaid && out.source === 'claude' && out.text) {
+      this.talk = [...this.talk, { said: ev.riderSaid, answer: out.text }].slice(-TALK_MEMORY);
     }
     if (out.text) {
       this.spoken.push(out.text);
@@ -50,7 +63,10 @@ export class ClaudeClient {
     return out;
   }
 
-  private async callClaude(ev: TriggerEvent, s: BikeState): Promise<Attempt> {
+  /** Forget the conversation (a new ride). */
+  forgetTalk() { this.talk = []; }
+
+  private async callClaude(ev: TriggerEvent, request: ClaudeRequest): Promise<Attempt> {
     if (ev.priority === 1) return { error: 'P1 never waits on the network' };
     if (!ev.context) return { error: 'nothing to go on' };
     if (!this.apiKey) return { error: 'no API key' };
@@ -67,7 +83,7 @@ export class ClaudeClient {
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        body: JSON.stringify(buildClaudeRequest(ev, s, this.spoken)),
+        body: JSON.stringify(request),
       });
       if (!res.ok) return { error: `HTTP ${res.status}` };
       const text = extractText(await res.json());
@@ -81,23 +97,28 @@ export class ClaudeClient {
 }
 
 /** Exactly what is sent to Claude for an event. Pure, so it can be tested and shown in the UI. */
-export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[]) {
+export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[], talk: Turn[] = []) {
   const flavour = FLAVOUR_PROMPTS[ev.id];
   const base = bettySystemPrompt();
-  // Ambient flavours get no telemetry: given readings, the model recites them or comments on the riding.
   const readings = s.obd
     ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, fuelPct: s.fuelPct }
     : { speedKmh: s.speedKmh, engineData: 'not connected: do not mention engine temperature, revs, fuel or faults' };
-  // Alerts and answers get the clock so she never has to guess the hour. Ambient flavours get the time of day
-  // only as a banter topic: given it every time, every quip opened with it.
-  const bike = flavour ? '' : `\nLocal time: ${clockNote(new Date(ev.createdAt))}\nBike state: ${JSON.stringify(readings)}`;
+  // Alerts and answers get the clock and the readings. Lines she makes up on her own get neither: given readings,
+  // the model recites them; given the clock, every quip opened with the time.
+  const unprompted = UNPROMPTED_IDS.includes(ev.id) || ev.id === 'ride_debrief';
+  const bike = unprompted ? '' : `\nLocal time: ${clockNote(new Date(ev.createdAt))}\nBike state: ${JSON.stringify(readings)}`;
+  // Earlier exchanges come first as real turns, so a follow-up question reads naturally.
+  const history = (ev.riderSaid ? talk : []).flatMap((t) => [
+    { role: 'user' as const, content: `He said: "${t.said}"` },
+    { role: 'assistant' as const, content: t.answer },
+  ]);
   return {
     model: CONFIG.claudeModel,
     max_tokens: 60 + 60 * Math.max(1, Math.round(CONFIG.maxSpokenSentences)), // room for the configured line length
     // Without this the model thinks first: the thinking block eats max_tokens and blows the timeout.
     thinking: { type: CONFIG.claudeThinkingOff },
     system: flavour ? `${base}\n\n${flavour}` : base,
-    messages: [{
+    messages: [...history, {
       role: 'user' as const,
       content: `Situation: ${ev.context}${bike}\nAlready said this ride: ${JSON.stringify(spoken)}`,
     }],

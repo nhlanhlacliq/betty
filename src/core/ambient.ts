@@ -2,7 +2,7 @@ import { CONFIG } from '../config/betty';
 import { RideRecord, describeRide, describeTotals } from './RideMemory';
 import { RideSnapshot } from './RideStats';
 import { bearingDeg, compassPoint, haversineKm, relativeDirection } from './geo';
-import { BikeState, NearbyPlace } from './types';
+import { BikeState, NearbyPlace, TrafficIncident } from './types';
 
 export type AmbientChoice = 'ambient_banter' | 'local_fact' | null;
 export interface AmbientWeights { banterWeight: number; tourGuideWeight: number; silenceWeight: number }
@@ -185,4 +185,24 @@ export function pickMode(lastId: string | null, rng: () => number = Math.random)
 export function banterContext(topic: BanterTopic, mode: BanterMode, all: BanterTopic[]): string {
   const background = all.filter((t) => t.id !== topic.id && t.id !== 'open').map((t) => t.text).join(' ');
   return `Topic for this remark: ${topic.text}\nDelivery: ${mode.text}.\nBackground (for colour only, do not list it): ${background || 'none'}`;
+}
+
+/**
+ * Everything she knows right now, as plain sentences, for answering a question he asks. Built from the same
+ * facts as banter so the two never disagree, plus the forecast, the traffic on his way and what is nearby.
+ */
+export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncident[] }): string {
+  const lines = banterTopics(i).filter((t) => t.id !== 'open').map((t) => t.text);
+  const w = i.s.weather;
+  if (w) lines.push(`Rain: ${w.rainNowMm >= 0.1 ? 'raining now' : 'not raining now'}, ${w.rainChanceNextHourPct} percent chance in the next hour.`);
+  const ahead = i.incidentsAhead ?? [];
+  lines.push(ahead.length
+    ? `Traffic on his way: ${ahead.slice(0, 3).map((x) => `${x.description}${x.roadName ? ` on ${x.roadName}` : ''}, ${x.distanceKm} km`).join('; ')}.`
+    : 'No traffic problems reported on his way.');
+  if (i.s.obd) {
+    lines.push(`Engine data: ${Math.round(i.s.engineTempC)} C, fuel ${Math.round(i.s.fuelPct)} percent, ${i.s.dtcs.length ? 'fault codes ' + i.s.dtcs.join(', ') : 'no fault codes'}.`);
+  } else lines.push('No engine data is connected: engine temperature, revs, fuel level and faults are unknown.');
+  const near = placesFromHere(i.s).filter((p) => p.distanceKm <= i.placeRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 4);
+  if (near.length) lines.push(`Places nearby: ${near.map((p) => `${p.name} (${p.distanceKm} km)`).join(', ')}.`);
+  return lines.join(' ');
 }

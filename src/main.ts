@@ -21,6 +21,8 @@ import { toRecord } from './core/RideMemory';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
 import { WakeLock, WakeStatus } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
+import { ChatEntry, mountChatPanel } from './ui/ChatPanel';
+import { mountVoiceTestPanel } from './ui/VoiceTestPanel';
 import { mountTuningPanel } from './ui/TuningPanel';
 import { mountLockScreen } from './ui/LockScreen';
 import { mountLogPanel } from './ui/LogPanel';
@@ -45,7 +47,7 @@ const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | 
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
+  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; unmountChat: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -94,6 +96,14 @@ const speechProblem = (msg: string) => {
 };
 
 mountTuningPanel($('tuning'));
+// Voice input, stage 0: always available, ride or not. Findings go into the saved log.
+mountVoiceTestPanel($('voicetestpanel'), {
+  speed: () => (rig ? rig.agg.current.speedKmh : null),
+  log: (msg) => { newLine('[voice-test]', msg); renderLog(); },
+});
+/** Everyone following the chat timeline (the CHAT panel while a ride runs). */
+const chatListeners = new Set<(e: ChatEntry) => void>();
+const toChat = (e: ChatEntry) => chatListeners.forEach((f) => f(e));
 mountLogPanel($('logpanel'), {
   entries: () => { saveLog(); return LineLogStore.load(); },
   rides: () => RideLog.load(),
@@ -264,6 +274,7 @@ async function beginRide() {
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
     const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (dropped ? '(dropped: critical alert active)' : '(silent)'));
     line.item = queue.enqueue(text, ev.priority); // the item carries its fate: waiting, speaking, spoken, or why not
+    toChat({ from: 'betty', text: line.text, at: Date.now(), ev, phrase: p });
     renderLog();
     if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
     return line.item;
@@ -296,7 +307,7 @@ async function beginRide() {
     setAloud: (on) => { speaker.aloud = on; },
     refreshFeeds: () => { weather.refresh(); traffic.refresh(); places.refresh(); },
     resetRide: () => {
-      engine.reset(); obd.reset(); queue.clear(); lines.length = 0; renderLog();
+      engine.reset(); claude.forgetTalk(); obd.reset(); queue.clear(); lines.length = 0; renderLog();
       currentRideId = engine.rideSnapshot().startedAt; // the screen starts clean; the saved log keeps the earlier lines
     },
     feedStatus,
@@ -311,7 +322,15 @@ async function beginRide() {
   await agg.start();
   setObd(CONFIG.obdMode);
   say(engine.startup());
-  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, wake, remember, memTimer, logSensors, sensorTimer };
+  const unmountChat = mountChatPanel($('chat'), {
+    ask: (text) => {
+      toChat({ from: 'rider', text, at: Date.now() });
+      void say(engine.ask(text, agg.current));
+    },
+    listen: (fn) => { chatListeners.add(fn); return () => { chatListeners.delete(fn); }; },
+  });
+
+  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, unmountChat, wake, remember, memTimer, logSensors, sensorTimer };
   toggle.textContent = 'END RIDE';
   toggle.classList.add('stop');
   realBox.disabled = true;
@@ -351,6 +370,7 @@ async function stop() {
   r.setObd('off');
   r.agg.stop();
   r.unmountSim();
+  r.unmountChat();
   saveLog();
   await r.wake.disable();
   showWake(null);

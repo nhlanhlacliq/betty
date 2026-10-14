@@ -1,5 +1,5 @@
 import { CONFIG, cleanBikeName } from '../config/betty';
-import { banterContext, banterTopics, chooseAmbient, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
+import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
 import { angleDiff, bearingDeg } from './geo';
@@ -107,6 +107,14 @@ export class TriggerEngine {
   }
 
   startup(): TriggerEvent { return this.force('startup', initialState()); }
+
+  private riderText: string | null = null;
+
+  /** He said something to her (typed in the chat panel now; spoken once voice input exists). */
+  ask(text: string, s: BikeState): TriggerEvent {
+    this.riderText = text.trim();
+    try { return { ...this.force('rider_query', s), riderSaid: this.riderText }; } finally { this.riderText = null; }
+  }
 
   /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
   force(id: TriggerId, s: BikeState, incident?: TrafficIncident): TriggerEvent {
@@ -288,6 +296,17 @@ export class TriggerEngine {
         };
       }
       case 'rider_query': {
+        if (this.riderText) {
+          const r = this.stats.snapshot();
+          const digest = situationDigest({
+            s, ride: r, history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
+            fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
+          });
+          return {
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}`,
+            fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
+          };
+        }
         if (!s.obd) {
           const r = this.stats.snapshot();
           const w = s.weather ? ` Weather: ${s.weather.summary}, ${s.weather.tempC} C.` : '';

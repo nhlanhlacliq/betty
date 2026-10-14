@@ -15,6 +15,8 @@ export const TRIGGER_IDS: TriggerId[] = [
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */
 export const AMBIENT_IDS: TriggerId[] = ['ambient_banter', 'local_fact'];
+/** Lines she makes up on her own (no alert, no question): they get no clock or bike readings, and may be silent. */
+export const UNPROMPTED_IDS: TriggerId[] = [...AMBIENT_IDS, 'ride_milestone'];
 
 export interface WeatherState {
   tempC: number;
@@ -93,6 +95,8 @@ export interface TriggerEvent {
   context: string;
   /** Spoken if Claude is unavailable. Empty = stay silent (ambient flavours). */
   fallback: string;
+  /** What the rider actually said, when this is his question (typed in the chat panel now, spoken later) */
+  riderSaid?: string;
   createdAt: number;
 }
 
