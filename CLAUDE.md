@@ -310,11 +310,18 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
 ## Vercel deployment
 
 - Framework preset: Vite. Build command `npm run build`, output directory `dist`. No `vercel.json` needed.
-- Env vars (all optional): `VITE_ANTHROPIC_API_KEY`, `VITE_TOMTOM_API_KEY`.
-  **Anything `VITE_`-prefixed is baked into the public JS bundle.** Acceptable only for a private personal deployment.
-  Before sharing the URL with anyone, move the Claude call (and TomTom call) to Vercel serverless functions
-  (`/api/phrase`, `/api/traffic`) that hold the keys server-side and point the clients at them.
-  With no keys set, Betty uses fallback phrases and traffic is simulator-only; everything else works.
+- KEYS LIVE ON THE SERVER since 2026-10-14. `api/phrase.ts`, `api/traffic.ts`, `api/transcribe.ts` are Vercel
+  functions (web-standard `POST`/`GET` exports; `api/_shared.ts` is not an endpoint). Production env:
+  `ANTHROPIC_API_KEY`, `TOMTOM_API_KEY`, `GROQ_API_KEY` (server-only, Secret) and `VITE_USE_SERVER=1`, which makes
+  the page call `/api/*` instead of the providers. `VITE_ANTHROPIC_API_KEY`/`VITE_TOMTOM_API_KEY` were REMOVED from
+  Vercel; they remain only in the local `.env` for `npm run dev`, where the page calls the providers directly.
+- The functions refuse other origins (`fromBetty`), only allow Betty's models and a capped `max_tokens`, and cap the
+  traffic box and audio size. That stops casual reuse, not a determined script: keep spend limits on the keys.
+- `.vercelignore` excludes `.env*`. Before it existed, `vercel deploy` uploaded the local `.env` and Vite baked the
+  VITE_ keys into the page even with them removed from Vercel's env. Server functions in an ESM package must import
+  siblings with a `.js` extension (`./_shared.js`), or they crash with FUNCTION_INVOCATION_FAILED.
+- Older deployment URLs (betty-<hash>-....vercel.app) still serve the old pages with the keys inside: rotate the
+  Claude and TomTom keys, and/or delete old deployments.
 - Never commit `.env`. `.env.example` documents the variables.
 
 ## Voice input, stages 0 and 1 (BUILT 2026-10-14)
@@ -350,6 +357,23 @@ wake word last / on the Pi.
   say "I don't know" rather than guess. Lines she makes up herself are `UNPROMPTED_IDS` (no clock, no readings).
   Checked live: rain, sunset follow-up, traffic, fuel range, engine ("no engine data connected") and "what was
   the first thing I asked" all answered correctly from the state and the conversation.
+
+- **Stage 2, push-to-talk (BUILT 2026-10-14)**. Stage 0 on the bike: play/pause, next and previous track reach the
+  page; a button press CAN open the mic with no screen tap; the helmet mic ("V6") records once picked. Taking the
+  buttons pauses music from other apps (iPhone gives buttons to the last app to start sound), so it is a per-ride
+  switch on the start screen (`CONFIG.headsetButtons`, default off). Mapping (owner): play/pause = talk (press
+  again to finish), next track = repeat her last line, previous track = nothing (owner said no).
+  `HeadsetButtons` (silent loop + Media Session, primed inside the START tap), `PushToTalk` (mic from
+  `CONFIG.micDeviceId`, chosen in the VOICE TEST picker; `core/SilenceDetector` stops 1.2 s after speech, gives up
+  after 4 s of nothing, 8 s cap; mic closed straight after), tones at start and end, `AudioQueue.hold` so she does
+  not talk over him (P1 still goes). Words go to `/api/transcribe` -> Groq `whisper-large-v3-turbo` (open-source
+  Whisper; free tier 2,000 requests and 28,800 audio seconds a day, each request billed as at least 10 s; checked
+  2026-10-14) with a hint of local names, then into the same `askBetty` path as the chat. The lock screen shows
+  TAP TO TALK during a ride for when the buttons are not Betty's. Every step is logged as `[voice]`.
+  Queue fix found on the way: items were sorted by the raw priority number, so a rider answer (P4) waited behind
+  queued banter (P3). Order is now P1, P4, P2, P3.
+  Still unverified: transcription quality at speed with wind (no at-speed recording yet), and the pause thresholds.
+- Stage 3 (commands and memory) not started.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)
 
