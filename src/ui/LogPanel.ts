@@ -9,7 +9,14 @@ export interface LogContext {
   clear(): void;
 }
 
-/** LOG panel: read what Betty said on this and earlier rides, and get it off the phone (copy, share, save). */
+const LATEST = 'latest';
+const ALL = 'all';
+
+/**
+ * LOG panel: read what Betty said on this and earlier rides, and get it off the phone (copy, share, save).
+ * Opens on the latest ride; any single ride, or all of them, can be picked instead. Copy, Share and Save file
+ * always take exactly what is shown.
+ */
 export function mountLogPanel(root: HTMLElement, ctx: LogContext) {
   root.innerHTML = '';
   const wrap = el('details', 'panel');
@@ -20,28 +27,37 @@ export function mountLogPanel(root: HTMLElement, ctx: LogContext) {
   const note = el('span', 'val');
 
   let entries: LogEntry[] = [];
-  const chosen = () => (pick.value === '' ? undefined : Number(pick.value));
+  let latestId: number | undefined;
+  /** The ride shown, or undefined for all of them. */
+  const chosen = () => (pick.value === ALL ? undefined : pick.value === LATEST ? latestId : Number(pick.value));
   const text = () => formatLog(entries, ctx.rides(), chosen());
   const show = () => { view.textContent = text(); };
   const refresh = () => {
     entries = ctx.entries();
     const listed = ridesInLog(entries, ctx.rides());
-    const keep = pick.value;
+    // "Latest" is the newest ride that has lines (the one in progress, or the last one ridden).
+    const latest = listed.find((r) => r.count) ?? listed[0];
+    latestId = latest?.rideId;
+    const lines = (r: { count: number }) => (r.count ? `${r.count} lines` : 'summary only');
+    const keep = pick.value || LATEST;
     pick.innerHTML = '';
-    const all = el('option', '', `All rides (${listed.length} rides, ${entries.length} lines)`); all.value = '';
-    pick.append(all);
-    for (const r of listed) {
-      const o = el('option', '', `${stamp(r.rideId)} (${r.count ? `${r.count} lines` : 'summary only'})`); o.value = String(r.rideId);
-      pick.append(o);
-    }
-    pick.value = [...pick.options].some((o) => o.value === keep) ? keep : '';
+    const opt = (value: string, label: string) => { const o = el('option', '', label); o.value = value; pick.append(o); };
+    if (latest) opt(LATEST, `Latest ride: ${stamp(latest.rideId)} (${lines(latest)})`);
+    opt(ALL, `All rides (${listed.length} rides, ${entries.length} lines)`);
+    for (const r of listed) opt(String(r.rideId), `${stamp(r.rideId)} (${lines(r)})`);
+    pick.value = [...pick.options].some((o) => o.value === keep) ? keep : (latest ? LATEST : ALL);
     const summaryOnly = listed.filter((r) => !r.count).length;
     info.textContent = `${listed.length} ride(s), ${entries.length} saved line(s)`
       + `${summaryOnly ? `, ${summaryOnly} with a summary only (from before lines were saved)` : ''}. Newest lines appear after Refresh.`;
     show();
   };
   const say = (msg: string) => { note.textContent = msg; };
-  const fileName = () => `betty-log-${stamp(Date.now()).replace(/[: ]/g, '-')}.txt`;
+  /** Named after what is in it: one ride's start time, or all rides and today's date. */
+  const fileName = () => {
+    const id = chosen();
+    const tag = id === undefined ? `all-rides-${stamp(Date.now())}` : `ride-${stamp(id)}`;
+    return `betty-${tag.replace(/[: ]/g, '-')}.txt`;
+  };
 
   pick.onchange = show;
   const row = el('div', 'row');

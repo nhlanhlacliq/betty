@@ -233,7 +233,10 @@ resetConfig();
   const remembered = [{ startedAt: r0, minutes: 95, distanceKm: 88, weather: 'showers, 17 C', places: ['Soweto'], events: ['rain'] }];
   const panel = mountLogPanel(lhost, { entries: () => stored, rides: () => remembered, clear: () => { stored = []; } });
   const lsel = lhost.querySelector('select') as HTMLSelectElement; const lview = lhost.querySelector('.logview') as HTMLElement;
-  assert.deepEqual([...lsel.options].map((o) => o.textContent), ['All rides (3 rides, 2 lines)', '2026-10-10 08:05 (1 lines)', '2026-10-09 16:30 (1 lines)', '2026-10-05 07:45 (summary only)']);
+  assert.deepEqual([...lsel.options].map((o) => o.textContent), ['Latest ride: 2026-10-10 08:05 (1 lines)', 'All rides (3 rides, 2 lines)', '2026-10-10 08:05 (1 lines)', '2026-10-09 16:30 (1 lines)', '2026-10-05 07:45 (summary only)']);
+  assert.equal(lsel.value, 'latest', 'opens on the latest ride');
+  assert.match(lview.textContent!, /Rain within the hour/); assert.ok(!/Afternoon, sir\.|95 min/.test(lview.textContent!), 'earlier rides are not in the default view');
+  lsel.value = 'all'; ev(lsel, 'change');
   assert.match(lview.textContent!, /Ride 2026-10-05 07:45: 95 min, 88 km, showers, 17 C/); assert.match(lview.textContent!, /Talked about: Soweto/);
   assert.match(lhost.querySelector('.info')!.textContent!, /3 ride\(s\), 2 saved line\(s\), 1 with a summary only/);
   assert.match(lview.textContent!, /Afternoon, sir\./); assert.match(lview.textContent!, /fallback: timeout/);
@@ -246,7 +249,8 @@ resetConfig();
   for (const t of ['Refresh', 'Copy', 'Share', 'Save file', 'Clear saved log']) assert.ok(lbtn(t), `${t} button`);
   lbtn('Clear saved log').dispatchEvent(new page.window.Event('click'));
   assert.ok(!lview.textContent!.includes('Afternoon, sir.'), 'saved lines are gone');
-  assert.match(lview.textContent!, /95 min, 88 km/, "clearing the log leaves Betty's ride memory alone"); assert.equal(lsel.options.length, 2);
+  assert.match(lview.textContent!, /95 min, 88 km/, "clearing the log leaves Betty's ride memory alone");
+  assert.deepEqual([...lsel.options].map((o) => o.textContent), ['Latest ride: 2026-10-05 07:45 (summary only)', 'All rides (1 rides, 0 lines)', '2026-10-05 07:45 (summary only)']);
 
   // ---- a whole simulated ride on the real page: START, a line is logged, END waits for the sign-off, then shuts down
   {
