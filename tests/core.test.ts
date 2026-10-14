@@ -5,6 +5,11 @@ import { AudioQueue, Speaker } from '../src/core/AudioQueue';
 import { NO_OBD, StateAggregator, initialState } from '../src/core/StateAggregator';
 import { angleDiff, bboxAround, bearingDeg, compassPoint, haversineKm, relativeDirection } from '../src/core/geo';
 import { GpsLean } from '../src/core/GpsLean';
+import { SilenceDetector } from '../src/core/SilenceDetector';
+import { POST as phraseApi } from '../api/phrase';
+import { GET as trafficApi } from '../api/traffic';
+import { POST as transcribeApi } from '../api/transcribe';
+import { TomTomTrafficProvider } from '../src/adapters/TomTomTraffic';
 import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } from '../src/core/LineLog';
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
@@ -877,5 +882,91 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(ride2.evaluate({ ...s, incidents: [{ ...closure, id: 'TTI-day2' }] }).length, 0, 'known by what and where, even with a new id');
   assert.equal(ride2.evaluate({ ...s, incidents: [{ ...closure, id: 'x', roadName: '7th Street' }] })[0].id, 'traffic_incident', 'a different road is news');
   assert.equal(incidentKey(inc({ id: 'nameless', roadName: undefined })), 'nameless');
+}
+// ---- voice input stage 2
+// silence detection: waits for speech, stops after a pause, gives up if he never speaks
+{
+  const d = new SilenceDetector();
+  let t = 0; const step = (level: number, ms = 100) => { t += ms; return d.update(level, t); };
+  for (let i = 0; i < 10; i++) assert.equal(step(0.02), false, 'no speech yet: keeps listening');
+  for (let i = 0; i < 15; i++) assert.equal(step(0.4), false, 'talking');
+  assert.equal(step(0.08), false, 'quiet word, still talking');
+  for (let i = 0; i < 12; i++) assert.equal(step(0.02), false); // the first quiet sample starts the clock
+  assert.equal(step(0.02), true, 'a 1.2 s pause ends it'); assert.equal(d.heardSpeech, true);
+  const shy = new SilenceDetector(); let u = 0; let stopped = false;
+  for (let i = 0; i < 45 && !stopped; i++) stopped = shy.update(0.03, (u += 100));
+  assert.equal(stopped, true, 'nothing said for 4 s: give up'); assert.equal(shy.heardSpeech, false);
+}
+// the queue holds her lines while he talks; a critical alert still goes
+{
+  const sp = new FakeSpeaker();
+  const q = new AudioQueue(sp, () => true, now);
+  q.hold(true);
+  q.enqueue('banter', 3); q.enqueue('rain soon', 2); q.enqueue('answer', 4);
+  assert.deepEqual(sp.spoken, [], 'nothing starts while held');
+  q.enqueue('engine hot', 1);
+  assert.deepEqual(sp.spoken, ['engine hot'], 'critical still interrupts');
+  sp.done!();
+  const sp2 = new FakeSpeaker(); const q2 = new AudioQueue(sp2, () => true, now);
+  q2.hold(true); q2.enqueue('banter', 3); q2.enqueue('answer', 4);
+  q2.hold(false);
+  assert.deepEqual(sp2.spoken, ['answer'], 'released: his answer goes first');
+}
+// the deployed app reaches Claude and TomTom through Betty's server, with no key in the page
+{
+  const realFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init: any }> = [];
+  globalThis.fetch = (async (url: any, init: any) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify(String(url).includes('traffic') ? { incidents: [] } : { content: [{ type: 'text', text: 'Via the server.' }] }));
+  }) as typeof fetch;
+  try {
+    const c = new ClaudeClient(undefined, 2500, 6000, '/api/phrase');
+    const p = await c.phrase({ id: 'rain_soon', priority: 2, context: 'Rain.', fallback: 'Rain.', createdAt: 0 }, initialState());
+    assert.equal(p.text, 'Via the server.'); assert.equal(calls[0].url, '/api/phrase');
+    assert.ok(!('x-api-key' in calls[0].init.headers), 'no key sent from the page');
+    assert.equal(JSON.parse(calls[0].init.body).model, CONFIG.claudeModel);
+    await new TomTomTrafficProvider(null).fetchIncidents(-26.14, 28.15, 5);
+    assert.match(calls[1].url, /^\/api\/traffic\?bbox=28\.0\d+,-26\.18\d+,28\.2\d+,-26\.09\d+$/);
+  } finally { globalThis.fetch = realFetch; }
+}
+// the server functions: only Betty's page, only sane requests, key added on the server
+{
+  const realFetch = globalThis.fetch; const saved = { ...process.env };
+  const sent: Array<{ url: string; init: any }> = [];
+  globalThis.fetch = (async (url: any, init: any) => {
+    sent.push({ url: String(url), init });
+    if (String(url).includes('groq')) return new Response(JSON.stringify({ text: ' is it going to rain ' }));
+    return new Response('{"ok":true}', { status: 200 });
+  }) as typeof fetch;
+  const req = (url: string, init: RequestInit & { origin?: string } = {}) =>
+    new Request(`https://betty-zeta.vercel.app${url}`, { ...init, headers: { host: 'betty-zeta.vercel.app', origin: init.origin ?? 'https://betty-zeta.vercel.app', ...(init.headers as any) } });
+  const body = JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 180, messages: [{ role: 'user', content: 'hi' }] });
+  try {
+    delete process.env.ANTHROPIC_API_KEY; delete process.env.TOMTOM_API_KEY; delete process.env.GROQ_API_KEY;
+    assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body }))).status, 503, 'no key on the server');
+    process.env.ANTHROPIC_API_KEY = 'sk-test'; process.env.TOMTOM_API_KEY = 'tt-test'; process.env.GROQ_API_KEY = 'gq-test';
+    assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body, origin: 'https://evil.example' }))).status, 403, 'other sites refused');
+    assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body: JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 100, messages: [] }) }))).status, 400, 'only the models Betty uses');
+    assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 99999, messages: [] }) }))).status, 400, 'no huge requests');
+    const ok = await phraseApi(req('/api/phrase', { method: 'POST', body }));
+    assert.equal(ok.status, 200); assert.equal(sent.at(-1)!.url, 'https://api.anthropic.com/v1/messages'); assert.equal(sent.at(-1)!.init.headers['x-api-key'], 'sk-test');
+
+    assert.equal((await trafficApi(req('/api/traffic?bbox=28,-26.2,28.2,-26'))).status, 200);
+    assert.match(sent.at(-1)!.url, /^https:\/\/api\.tomtom\.com\/.*key=tt-test&bbox=28\.00000,-26\.20000,28\.20000,-26\.00000/);
+    assert.equal((await trafficApi(req('/api/traffic?bbox=20,-30,30,-20'))).status, 400, 'no country-sized boxes');
+    assert.equal((await trafficApi(req('/api/traffic?bbox=nonsense'))).status, 400);
+
+    const audio = new Uint8Array(4000).fill(7);
+    const tr = await transcribeApi(req('/api/transcribe', { method: 'POST', body: audio, headers: { 'content-type': 'audio/mp4' } }));
+    assert.deepEqual(await tr.json(), { text: 'is it going to rain' });
+    const form = sent.at(-1)!.init.body as FormData;
+    assert.equal(sent.at(-1)!.url, 'https://api.groq.com/openai/v1/audio/transcriptions'); assert.equal(sent.at(-1)!.init.headers.authorization, 'Bearer gq-test');
+    assert.equal(form.get('model'), 'whisper-large-v3-turbo'); assert.equal(form.get('language'), 'en'); assert.equal((form.get('file') as File).name, 'speech.m4a');
+    assert.equal((await transcribeApi(req('/api/transcribe', { method: 'POST', body: new Uint8Array(0) }))).status, 400);
+    delete process.env.GROQ_API_KEY;
+    const none = await transcribeApi(req('/api/transcribe', { method: 'POST', body: audio }));
+    assert.equal(none.status, 503); assert.match((await none.json()).error, /not set up/);
+  } finally { globalThis.fetch = realFetch; process.env = saved; }
 }
 console.log('all core tests passed');

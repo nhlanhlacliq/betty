@@ -32,7 +32,11 @@ export class ClaudeClient {
   /** Result of the most recent phrase() call, for the UI. */
   last: Phrase | null = null;
 
-  constructor(private apiKey: string | undefined, private timeoutMs = 2500, private ambientTimeoutMs = 6000) {}
+  /**
+   * With a key, calls Anthropic straight from the page (local development). Without one, and with proxyUrl set,
+   * posts the same request to Betty's server, which adds the key (the deployed app). With neither, it falls back.
+   */
+  constructor(private apiKey: string | undefined, private timeoutMs = 2500, private ambientTimeoutMs = 6000, private proxyUrl?: string) {}
 
   async phrase(ev: TriggerEvent, state: BikeState): Promise<Phrase> {
     const t0 = Date.now();
@@ -69,22 +73,26 @@ export class ClaudeClient {
   private async callClaude(ev: TriggerEvent, request: ClaudeRequest): Promise<Attempt> {
     if (ev.priority === 1) return { error: 'P1 never waits on the network' };
     if (!ev.context) return { error: 'nothing to go on' };
-    if (!this.apiKey) return { error: 'no API key' };
+    if (!this.apiKey && !this.proxyUrl) return { error: 'no API key' };
     const ctrl = new AbortController();
     // Ambient lines are not urgent, so they get longer than the 3 s alert budget.
     const timer = setTimeout(() => ctrl.abort(), ev.priority === 3 ? this.ambientTimeoutMs : this.timeoutMs);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify(request),
-      });
+      const res = this.apiKey
+        ? await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': this.apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify(request),
+        })
+        : await fetch(this.proxyUrl!, {
+          method: 'POST', signal: ctrl.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify(request),
+        });
       if (!res.ok) return { error: `HTTP ${res.status}` };
       const text = extractText(await res.json());
       return text ? { text } : { error: 'empty reply' };

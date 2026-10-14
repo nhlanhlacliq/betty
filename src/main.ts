@@ -28,6 +28,9 @@ import { mountLockScreen } from './ui/LockScreen';
 import { mountLogPanel } from './ui/LogPanel';
 import { LineLogStore } from './adapters/LineLogStore';
 import { FuelStore } from './adapters/FuelStore';
+import { HeadsetButtons } from './adapters/HeadsetButtons';
+import { PushToTalk, browserPttDeps, transcribe } from './adapters/PushToTalk';
+import { beep } from './adapters/audio';
 import { IncidentMemory } from './adapters/IncidentMemory';
 import { LogEntry } from './core/LineLog';
 
@@ -35,6 +38,8 @@ loadConfig();
 
 /** Build-time keys. Absent when the page is run outside Vite (the smoke test), where Betty simply has no keys. */
 const ENV: Record<string, string | undefined> = import.meta.env ?? {};
+/** Deployed: keys live on Betty's server (api/), not in this page. Local development uses VITE_ keys from .env. */
+const SERVER = ENV.VITE_USE_SERVER === '1';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const toggle = $<HTMLButtonElement>('toggle');
@@ -48,7 +53,7 @@ const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | 
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; unmountChat: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
+  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; unmountChat: () => void; buttons: HeadsetButtons; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -100,6 +105,8 @@ mountTuningPanel($('tuning'));
 // Voice input, stage 0: always available, ride or not. Findings go into the saved log.
 mountVoiceTestPanel($('voicetestpanel'), {
   speed: () => (rig ? rig.agg.current.speedKmh : null),
+  mic: () => CONFIG.micDeviceId,
+  setMic: (id) => { CONFIG.micDeviceId = id; saveConfig(); },
   log: (msg) => { newLine('[voice-test]', msg); renderLog(); },
 });
 /** Everyone following the chat timeline (the CHAT panel while a ride runs). */
@@ -112,7 +119,9 @@ mountLogPanel($('logpanel'), {
 });
 
 // Lock screen: covers everything so nothing can be pressed by accident; hold its button to get back.
-const lockScreen = mountLockScreen($('lockroot'));
+/** Set while a ride runs: start or finish talking to Betty. */
+let talkNow: (() => void) | null = null;
+const lockScreen = mountLockScreen($('lockroot'), 1000, () => talkNow?.());
 $('lock').addEventListener('click', () => lockScreen.lock());
 let lastLine = '';
 const showLocked = (speed: number) => lockScreen.setInfo(String(speed), lastLine);
@@ -189,6 +198,11 @@ const showWake = (s: WakeStatus | null) => {
         : 'This browser cannot keep the screen awake. Set Auto-Lock to Never in the phone settings before riding.';
 };
 
+// Headset buttons for Betty: a per-ride choice because it pauses music from other apps.
+const buttonsBox = $<HTMLInputElement>('buttons');
+buttonsBox.checked = CONFIG.headsetButtons;
+buttonsBox.addEventListener('change', () => { CONFIG.headsetButtons = buttonsBox.checked; saveConfig(); });
+
 // OBD mode: off = GPS, lean and feeds only. Switchable before or during a ride.
 const obdSel = $<HTMLSelectElement>('obdmode');
 obdSel.value = CONFIG.obdMode;
@@ -199,7 +213,7 @@ obdSel.addEventListener('change', () => {
 });
 // TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
 window.addEventListener('betty-config', () => {
-  nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
+  nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); buttonsBox.checked = CONFIG.headsetButtons; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
 });
 
 let starting = false;
@@ -210,8 +224,10 @@ async function start() {
 }
 
 async function beginRide() {
-  // Must run synchronously inside the tap (iOS speech + motion permission rules).
+  // Must run synchronously inside the tap (iOS speech, sound and motion permission rules).
   WebSpeaker.prime();
+  const buttons = new HeadsetButtons();
+  if (CONFIG.headsetButtons) buttons.prime(); // starting it pauses music from other apps: the rider chose this
   const real = realBox.checked;
   const motionOk = real ? await WebMotionSource.requestPermission() : false;
 
@@ -224,7 +240,8 @@ async function beginRide() {
   };
   const weather = new WeatherSource(pos, (m) => { feed.weather = m; });
   const key = ENV.VITE_TOMTOM_API_KEY as string | undefined;
-  const traffic = new TrafficSource(key ? new TomTomTrafficProvider(key) : null, pos, (m) => { feed.traffic = m; });
+  const provider = key ? new TomTomTrafficProvider(key) : SERVER ? new TomTomTrafficProvider(null) : null;
+  const traffic = new TrafficSource(provider, pos, (m) => { feed.traffic = m; });
 
   const places = new PlaceSource(pos, (m) => { feed.places = m; });
 
@@ -265,7 +282,7 @@ async function beginRide() {
     renderLog();
   };
   const sensorTimer = window.setInterval(logSensors, 15 * 60_000);
-  const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined);
+  const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined);
   const speaker = new SwitchableSpeaker(new WebSpeaker(speechProblem));
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
 
@@ -325,15 +342,62 @@ async function beginRide() {
   await agg.start();
   setObd(CONFIG.obdMode);
   say(engine.startup());
+  /** Something he said to her, typed or spoken: one path for both. */
+  const askBetty = (text: string) => {
+    toChat({ from: 'rider', text, at: Date.now() });
+    return say(engine.ask(text, agg.current));
+  };
+
+  // ---- talking to her: headset play/pause (if switched on) or the lock screen's talk button
+  const ptt = new PushToTalk(browserPttDeps(), () => CONFIG.micDeviceId);
+  const sayNow = (text: string) => { newLine('[P4] voice', text).item = queue.enqueue(text, 4); renderLog(); };
+  const talk = async () => {
+    if (ptt.listening) { ptt.stop(); return; } // second press: done talking
+    queue.hold(true); // she must not start a line over him
+    lockScreen.setTalk(true, true);
+    beep(880);
+    try {
+      const clip = await ptt.record();
+      beep(440);
+      lockScreen.setTalk(true, false);
+      if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic})`); return; }
+      const t0 = Date.now();
+      let text: string;
+      try {
+        text = await transcribe(clip.audio);
+      } catch (e) {
+        const why = (e as Error).message;
+        newLine('[voice]', `could not turn speech into words: ${why}`);
+        queue.hold(false);
+        sayNow(/not set up/.test(why) ? "Talking to me isn't set up yet." : "Sorry, I couldn't make that out. Try again?");
+        return;
+      }
+      newLine('[voice]', `heard "${text}" in ${Date.now() - t0} ms (${Math.round(clip.ms / 100) / 10} s from ${clip.mic})`);
+      if (!text) { queue.hold(false); sayNow("Sorry, I didn't catch that."); return; }
+      await askBetty(text); // her answer is queued before anything she was holding back
+    } catch (e) {
+      newLine('[voice]', `mic did not open: ${(e as Error).name}`);
+    } finally {
+      lockScreen.setTalk(true, false);
+      queue.hold(false);
+      renderLog();
+    }
+  };
+  /** Next track: say the last line again, as it was. */
+  const repeat = () => { if (lastLine) sayNow(lastLine); };
+  talkNow = () => void talk();
+  lockScreen.setTalk(true);
+  if (CONFIG.headsetButtons) {
+    const ok = buttons.start({ talk: () => void talk(), repeat });
+    newLine('[voice]', ok ? 'headset buttons: play/pause talks to Betty, next track repeats her last line' : 'headset buttons are not available in this browser');
+  }
+
   const unmountChat = mountChatPanel($('chat'), {
-    ask: (text) => {
-      toChat({ from: 'rider', text, at: Date.now() });
-      void say(engine.ask(text, agg.current));
-    },
+    ask: (text) => { void askBetty(text); },
     listen: (fn) => { chatListeners.add(fn); return () => { chatListeners.delete(fn); }; },
   });
 
-  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, unmountChat, wake, remember, memTimer, logSensors, sensorTimer };
+  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, unmountChat, buttons, wake, remember, memTimer, logSensors, sensorTimer };
   toggle.textContent = 'END RIDE';
   toggle.classList.add('stop');
   realBox.disabled = true;
@@ -374,6 +438,9 @@ async function stop() {
   r.agg.stop();
   r.unmountSim();
   r.unmountChat();
+  r.buttons.stop();
+  talkNow = null;
+  lockScreen.setTalk(false);
   saveLog();
   await r.wake.disable();
   showWake(null);

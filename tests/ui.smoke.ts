@@ -158,6 +158,13 @@ resetConfig();
   assert.equal(CONFIG.bikeName, 'Rocinante');
   assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"bikeName":"Rocinante"/, 'bike name is remembered');
 
+  // the per-ride switch for headset buttons: off by default, remembered
+  const btnBox = doc.getElementById('buttons') as HTMLInputElement;
+  assert.equal(btnBox.checked, false, 'off by default: it pauses music from other apps');
+  btnBox.checked = true; ev(btnBox, 'change');
+  assert.equal(CONFIG.headsetButtons, true); assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"headsetButtons":true/);
+  btnBox.checked = false; ev(btnBox, 'change');
+
   const obd = doc.getElementById('obdmode') as HTMLSelectElement;
   assert.equal(obd.value, 'off');
   obd.value = 'mock'; ev(obd, 'change');
@@ -265,9 +272,12 @@ resetConfig();
       const click = (el: Element) => el.dispatchEvent(new page.window.Event('click', { bubbles: true }));
       (doc.getElementById('real') as HTMLInputElement).checked = false;
 
+      const talkBtn = doc.querySelector('.locktalk') as HTMLElement;
+      assert.equal(talkBtn.hidden, true, 'no talk button without a ride');
       click(toggle); click(toggle); // the second tap lands while it is still starting and must be ignored
       await wait(150);
       assert.equal(toggle.textContent, 'END RIDE');
+      assert.equal(talkBtn.hidden, false, 'the lock screen offers TAP TO TALK during a ride');
       // chat: a typed question goes through the real pipeline and both sides appear on the timeline
       const chatIn = doc.getElementById('chatinput') as HTMLInputElement;
       chatIn.value = 'how far have we gone?';
@@ -286,6 +296,7 @@ resetConfig();
       click(toggle); await wait(100);
       assert.equal(toggle.textContent, 'START RIDE'); assert.equal(doc.getElementById('sim')!.innerHTML, '');
       assert.ok(!/ride_debrief/.test(logText()));
+      assert.equal(talkBtn.hidden, true, 'talk button goes with the ride');
 
       // a 5-minute ride: she signs off, and the ride is not torn down until she has finished speaking
       click(toggle); await wait(150);
@@ -491,5 +502,41 @@ resetConfig();
   assert.match(host.textContent!, /Heard: pause x1/, 'a new session counts from zero');
   btn(/Stop listening/).click();
   assert.ok(panel);
+}
+
+// ---- push-to-talk recording, with stand-ins for the mic
+{
+  const { PushToTalk, transcribe } = await import('../src/adapters/PushToTalk');
+  const track = { label: 'V6', stopped: false, stop() { this.stopped = true; } };
+  let levels: number[] = []; let asked: any = null;
+  const deps = {
+    getUserMedia: async (c: any) => { asked = c; return { getAudioTracks: () => [track], getTracks: () => [track] } as any; },
+    makeRecorder: () => { const r: any = { start() {}, stop() { r.ondataavailable({ data: new Blob(['a'.repeat(3000)]) }); r.onstop(); } }; return r; },
+    recorderType: () => 'audio/mp4',
+    meter: (_s: any, on: (l: number) => void) => { const t = setInterval(() => on(levels.shift() ?? 0.01), 1); return () => clearInterval(t); },
+  };
+  let clock = 0; const now = () => (clock += 100);
+  const ptt = new PushToTalk(deps, () => 'helmet', 8000, now);
+  levels = [0.3, 0.4, 0.5, 0.3, ...Array(20).fill(0.01)];
+  const clip = await ptt.record();
+  assert.deepEqual(asked, { audio: { deviceId: { exact: 'helmet' } } }, 'listens on the chosen mic');
+  assert.equal(clip.heardSpeech, true); assert.equal(clip.mic, 'V6'); assert.equal(clip.audio.size, 3000); assert.equal(clip.audio.type, 'audio/mp4');
+  assert.equal(track.stopped, true, 'mic closed straight after, so the headset leaves call mode');
+  assert.equal(ptt.listening, false);
+  // a second press ends it early
+  levels = Array(1000).fill(0.5);
+  const p2 = ptt.record();
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(ptt.listening, true); ptt.stop();
+  assert.equal((await p2).heardSpeech, true);
+  // nothing said
+  levels = Array(100).fill(0.02);
+  assert.equal((await ptt.record()).heardSpeech, false);
+
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_u: any, init: any) => new Response(JSON.stringify(init.headers['content-type'] === 'audio/mp4' ? { text: ' how far to empty? ' } : {}))) as typeof fetch;
+  try { assert.equal(await transcribe(clip.audio), 'how far to empty?'); } finally { globalThis.fetch = realFetch; }
+  globalThis.fetch = (async () => new Response(JSON.stringify({ error: "voice is not set up yet (server has no GROQ_API_KEY)" }), { status: 503 })) as typeof fetch;
+  try { await assert.rejects(transcribe(clip.audio), /not set up/); } finally { globalThis.fetch = realFetch; }
 }
 console.log('ui smoke tests passed');

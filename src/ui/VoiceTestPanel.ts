@@ -43,6 +43,9 @@ export interface VoiceTestContext {
   speed(): number | null;
   /** Write a finding into the saved ride log */
   log(msg: string): void;
+  /** The mic chosen for talking to Betty, and where to save a new choice */
+  mic?(): string;
+  setMic?(id: string): void;
 }
 
 const BUTTONS: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'stop'];
@@ -51,22 +54,8 @@ const BUTTON_NAMES: Partial<Record<MediaSessionAction, string>> = {
   seekbackward: 'skip back', seekforward: 'skip forward', stop: 'stop',
 };
 
-/**
- * One second of near-silent audio as a WAV file. Playing it on a loop makes the page the phone's "now playing" app,
- * which is the only way a web page receives headset button presses. A faint dither is used rather than pure silence
- * in case the phone ignores an all-zero track.
- */
-export function quietWav(seconds = 1, rate = 8000): Blob {
-  const n = seconds * rate;
-  const buf = new ArrayBuffer(44 + n * 2);
-  const v = new DataView(buf);
-  const str = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
-  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
-  v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, i % 2 ? 1 : -1, true);
-  return new Blob([buf], { type: 'audio/wav' });
-}
+export { quietWav } from '../adapters/audio';
+import { quietWav } from '../adapters/audio';
 
 /** Loudest moment of a recording in dBFS (0 = clipping), from the analyser's peak sample level. */
 export const toDb = (peak: number) => (peak > 0 ? Math.round(20 * Math.log10(peak)) : -Infinity);
@@ -140,7 +129,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
   const fillMics = async () => {
     let inputs: Array<{ deviceId: string; label: string }> = [];
     try { inputs = await deps.listInputs(); } catch { /* not supported */ }
-    const keep = micSel.value;
+    const keep = micSel.value || ctx.mic?.() || '';
     micSel.innerHTML = '';
     const auto = el('option', '', "Phone's choice"); auto.value = ''; micSel.append(auto);
     inputs.forEach((d, i) => { const o = el('option', '', d.label || `Microphone ${i + 1} (name shows after the first recording)`); o.value = d.deviceId; micSel.append(o); });
@@ -151,8 +140,9 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     const inputs = await fillMics();
     say(`[voice test] microphones offered: ${inputs.map((d) => d.label || 'unnamed').join(', ') || 'none listed'}`);
   });
+  micSel.onchange = () => { ctx.setMic?.(micSel.value); say(`[voice test] mic for talking to Betty: ${micSel.selectedOptions[0]?.textContent ?? "phone's choice"}`); };
   micRow.append(el('span', 'name', 'Record from'), micSel, findMics);
-  wrap.append(el('p', 'hint', 'Connect the helmet first. If the recording says "iPhone Microphone", tap Find mics and pick the headset, then record again.'), micRow);
+  wrap.append(el('p', 'hint', 'Connect the helmet first. If the recording says "iPhone Microphone", tap Find mics and pick the headset, then record again. The mic picked here is also the one Betty listens on when you talk to her.'), micRow);
   void fillMics();
   const status = el('div', 'info', '');
   const meter = el('div', 'meter'); const bar = el('div', 'meterbar'); meter.append(bar);

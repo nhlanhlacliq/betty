@@ -49,10 +49,16 @@ export function parseTomTom(j: any, lat: number, lon: number, radiusKm: number):
  * Checked against the live API for Gauteng on 2026-10-09: the response matches this parser.
  */
 export class TomTomTrafficProvider implements TrafficProvider {
-  constructor(private key: string) {}
+  /** With a key, calls TomTom directly (local development); otherwise asks Betty's server, which holds the key. */
+  constructor(private key: string | null, private proxyUrl = '/api/traffic') {}
 
   async fetchIncidents(lat: number, lon: number, radiusKm: number): Promise<TrafficIncident[]> {
     const b = bboxAround(lat, lon, radiusKm);
+    if (!this.key) {
+      const res = await fetch(`${this.proxyUrl}?bbox=${[b.minLon, b.minLat, b.maxLon, b.maxLat].map((n) => n.toFixed(5)).join(',')}`);
+      if (!res.ok) throw new Error(`traffic server HTTP ${res.status}`);
+      return parseTomTom(await res.json(), lat, lon, radiusKm);
+    }
     const fields = '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description},from,to,roadNumbers,delay,length}}}';
     const url = 'https://api.tomtom.com/traffic/services/5/incidentDetails'
       + `?key=${encodeURIComponent(this.key)}`

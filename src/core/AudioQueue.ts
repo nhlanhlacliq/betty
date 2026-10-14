@@ -5,6 +5,8 @@ export interface Speaker {
   speak(text: string, onDone: () => void): void;
   stop(): void;
 }
+const RANK: Record<Priority, number> = { 1: 0, 4: 1, 2: 2, 3: 3 };
+
 export interface QueueItem { text: string; priority: Priority; queuedAt: number; fate: Fate }
 /** What became of a line: waiting its turn, being spoken, finished, or why it was never (fully) heard. */
 export type Fate = 'queued' | 'speaking' | 'spoken' | 'expired' | 'interrupted' | 'cleared';
@@ -20,6 +22,7 @@ export class AudioQueue {
   private items: QueueItem[] = [];
   private speaking: QueueItem | null = null;
   private gen = 0;
+  private held = false;
 
   constructor(
     private speaker: Speaker,
@@ -42,11 +45,20 @@ export class AudioQueue {
     }
     const item: QueueItem = { text, priority, queuedAt: this.now(), fate: 'queued' };
     this.items.push(item);
-    this.items.sort((a, b) => a.priority - b.priority || a.queuedAt - b.queuedAt);
+    // Order: critical, then his own question or request, then advisories, then ambient. Sorting by the raw number
+    // put a rider answer behind waiting banter, contradicting "P4 always speaks next".
+    this.items.sort((a, b) => RANK[a.priority] - RANK[b.priority] || a.queuedAt - b.queuedAt);
     this.onFate(item, 'queued');
     this.pump();
     return item;
   }
+
+  /**
+   * While he is talking to her (push-to-talk), she must not start a line over him. Held lines wait; a critical
+   * alert still goes. Releasing lets the waiting lines play in the usual order.
+   */
+  hold(on: boolean) { this.held = on; if (!on) this.pump(); }
+  get isHeld() { return this.held; }
 
   /** Call periodically (e.g. each state tick) so deferred items get their safe window. */
   pump() {
@@ -54,7 +66,7 @@ export class AudioQueue {
     const stale = (i: QueueItem) => i.priority === 3 && this.now() - i.queuedAt > CONFIG.ambientMaxAgeMs;
     this.items.filter(stale).forEach((i) => this.onFate(i, 'expired'));
     this.items = this.items.filter((i) => !stale(i));
-    const idx = this.items.findIndex((i) => i.priority <= 1 || i.priority === 4 || this.isSafe());
+    const idx = this.items.findIndex((i) => i.priority <= 1 || (!this.held && (i.priority === 4 || this.isSafe())));
     if (idx === -1) return;
     const [item] = this.items.splice(idx, 1);
     this.speaking = item;

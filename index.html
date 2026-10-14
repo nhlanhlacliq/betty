@@ -38,6 +38,7 @@
     .lockline { font-size: 14px; color: #889; min-height: 60px; max-width: 480px; margin-top: 16px; }
     .lockbtn { margin-top: 24px; width: 220px; padding: 22px 0; font-size: 13px; letter-spacing: 2px; background: #111; color: #9aa;
       border: 1px solid #334; background-image: linear-gradient(#2a3a2a, #2a3a2a); background-repeat: no-repeat; background-size: 0% 100%; touch-action: none; }
+    .locktalk { margin-top: 20px; width: 260px; padding: 34px 0; font-size: 16px; letter-spacing: 3px; background: #1d2a1d; color: #cfe; border: 1px solid #3a5a3a; touch-action: manipulation; }
     .lockbtn.holding { background-size: 100% 100%; transition: background-size var(--hold, 1000ms) linear; }
     #wake { font-size: 12px; margin-top: 6px; }
     #wake.ok { color: var(--green); }
@@ -104,6 +105,7 @@
       <select id="voice"></select>
       <button id="voicetest" class="ghost" type="button">Test</button>
     </label>
+    <label class="obd"><input type="checkbox" id="buttons" /> Headset buttons talk to Betty: play/pause to talk, next track to repeat (pauses your music)</label>
     <label class="obd">Engine data (OBD2):
       <select id="obdmode">
         <option value="off">Off: GPS only</option>

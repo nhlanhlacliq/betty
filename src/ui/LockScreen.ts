@@ -6,6 +6,8 @@ export interface LockScreen {
   readonly locked: boolean;
   /** What the locked screen shows: current speed and Betty's latest line. */
   setInfo(speed: string, line: string): void;
+  /** Show the talk button (only while a ride is running). */
+  setTalk(on: boolean, listening?: boolean): void;
 }
 
 /**
@@ -13,7 +15,7 @@ export interface LockScreen {
  * The only way out is holding the unlock button for holdMs; a brush or a raindrop is too short to count.
  * The page stays in front underneath, so the screen wake lock keeps holding.
  */
-export function mountLockScreen(root: HTMLElement, holdMs = 1000): LockScreen {
+export function mountLockScreen(root: HTMLElement, holdMs = 1000, onTalk: () => void = () => {}): LockScreen {
   const cover = el('div', 'lockcover');
   cover.hidden = true;
   const speed = el('div', 'lockspeed', '0');
@@ -21,7 +23,12 @@ export function mountLockScreen(root: HTMLElement, holdMs = 1000): LockScreen {
   const line = el('div', 'lockline');
   const btn = el('button', 'lockbtn', 'HOLD TO UNLOCK');
   btn.type = 'button';
-  cover.append(el('div', 'locktitle', 'LOCKED'), speed, unit, line, btn);
+  // The one other control on the locked screen: a big target, for when the headset buttons are not Betty's.
+  const talk = el('button', 'locktalk', 'TAP TO TALK');
+  talk.type = 'button';
+  talk.hidden = true;
+  talk.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); onTalk(); });
+  cover.append(el('div', 'locktitle', 'LOCKED'), speed, unit, line, talk, btn);
   root.append(cover);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -30,6 +37,7 @@ export function mountLockScreen(root: HTMLElement, holdMs = 1000): LockScreen {
     lock() { cover.hidden = false; },
     unlock() { cancel(); cover.hidden = true; },
     setInfo(s, l) { speed.textContent = s; line.textContent = l; },
+    setTalk(on, listening = false) { talk.hidden = !on; talk.textContent = listening ? 'LISTENING... TAP TO FINISH' : 'TAP TO TALK'; },
   };
   const cancel = () => { clearTimeout(timer); timer = undefined; btn.classList.remove('holding'); };
   const begin = (e: Event) => {

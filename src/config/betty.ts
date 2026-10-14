@@ -32,6 +32,10 @@ export interface Config {
   bikeName: string;
   /** Chosen speech voice (its voiceURI). Empty = let the phone pick an en-ZA voice. */
   voiceURI: string;
+  /** Headset play/pause = talk to Betty, next track = repeat that. Pauses music from other apps, so it is a choice. */
+  headsetButtons: boolean;
+  /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
+  micDeviceId: string;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -68,6 +72,8 @@ export const DEFAULT_CONFIG: Config = {
   riderName: 'sir',
   bikeName: 'the bike',
   voiceURI: '',
+  headsetButtons: false,
+  micDeviceId: '',
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,
