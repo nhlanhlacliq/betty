@@ -897,6 +897,23 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   for (let i = 0; i < 45 && !stopped; i++) stopped = shy.update(0.03, (u += 100));
   assert.equal(stopped, true, 'nothing said for 4 s: give up'); assert.equal(shy.heardSpeech, false);
 }
+// the thresholds follow the background: a quiet helmet mic (speech at -26 dB) and a windy one both work
+{
+  const quiet = new SilenceDetector(); let t = 0; const q = (l: number) => quiet.update(l, (t += 100));
+  for (let i = 0; i < 6; i++) q(0.004);
+  for (let i = 0; i < 10; i++) assert.equal(q(0.05), false, 'talking at -26 dB');
+  assert.equal(quiet.heardSpeech, true, 'a quiet mic still counts as speech');
+  let done = false; for (let i = 0; i < 14 && !done; i++) done = q(0.004);
+  assert.equal(done, true, 'and the pause ends it');
+  const windy = new SilenceDetector(); let u = 0; const w = (l: number) => windy.update(l, (u += 100));
+  for (let i = 0; i < 6; i++) assert.equal(w(0.08), false);
+  for (let i = 0; i < 20; i++) w(0.08);
+  assert.equal(windy.heardSpeech, false, 'steady wind is not speech');
+  for (let i = 0; i < 10; i++) w(0.4);
+  let end = false; for (let i = 0; i < 14 && !end; i++) end = w(0.09);
+  assert.equal(end, true, 'back to just wind counts as a pause');
+  assert.equal(windy.peak, 0.4);
+}
 // the queue holds her lines while he talks; a critical alert still goes
 {
   const sp = new FakeSpeaker();

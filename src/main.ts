@@ -358,9 +358,10 @@ async function beginRide() {
     beep(880);
     try {
       const clip = await ptt.record();
+      buttons.resume(); // the mic stopped the loop: without it the next press never arrives
       beep(440);
       lockScreen.setTalk(true, false);
-      if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic})`); return; }
+      if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); return; }
       const t0 = Date.now();
       let text: string;
       try {
@@ -372,12 +373,13 @@ async function beginRide() {
         sayNow(/not set up/.test(why) ? "Talking to me isn't set up yet." : "Sorry, I couldn't make that out. Try again?");
         return;
       }
-      newLine('[voice]', `heard "${text}" in ${Date.now() - t0} ms (${Math.round(clip.ms / 100) / 10} s from ${clip.mic})`);
+      newLine('[voice]', `heard "${text}" in ${Date.now() - t0} ms (${Math.round(clip.ms / 100) / 10} s from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`);
       if (!text) { queue.hold(false); sayNow("Sorry, I didn't catch that."); return; }
       await askBetty(text); // her answer is queued before anything she was holding back
     } catch (e) {
       newLine('[voice]', `mic did not open: ${(e as Error).name}`);
     } finally {
+      buttons.resume();
       lockScreen.setTalk(true, false);
       queue.hold(false);
       renderLog();

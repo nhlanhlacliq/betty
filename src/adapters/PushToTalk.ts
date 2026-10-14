@@ -31,7 +31,7 @@ export function browserPttDeps(): PttDeps {
   };
 }
 
-export interface Clip { audio: Blob; ms: number; heardSpeech: boolean; mic: string }
+export interface Clip { audio: Blob; ms: number; heardSpeech: boolean; mic: string; /** loudest level, dBFS */ peakDb: number | null }
 
 /**
  * Records one question: opens the chosen mic, stops after a pause in his speech, on a second press, or at the
@@ -72,6 +72,7 @@ export class PushToTalk {
       ms: this.now() - t0,
       heardSpeech: measured ? silence.heardSpeech : true, // unmeasured: let the transcriber decide
       mic,
+      peakDb: measured && silence.peak > 0 ? Math.round(20 * Math.log10(silence.peak)) : null,
     };
   }
 }

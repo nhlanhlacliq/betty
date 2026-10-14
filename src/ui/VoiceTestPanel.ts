@@ -75,6 +75,12 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
   const micOnPress = checkbox('Also try to open the mic when a button is pressed (test 2)', false, () => {});
   let audio: HTMLAudioElement | null = null;
   let listening = false;
+  /** Opening the mic pauses the silent loop on iPhone, and then presses stop arriving: start it again. */
+  const keepPlaying = () => {
+    if (!listening || !audio) return;
+    if (audio.paused) void audio.play().catch(() => {});
+    try { if (deps.mediaSession) deps.mediaSession.playbackState = 'playing'; } catch { /* older browsers */ }
+  };
   const showCounts = () => {
     heard.textContent = counts.size
       ? `Heard: ${[...counts].map(([k, n]) => `${k} x${n}`).join(', ')}`
@@ -86,7 +92,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     pressLog.prepend(el('div', '', `${new Date().toTimeString().slice(0, 8)}  ${name}`));
     showCounts();
     say(`[voice test] headset button reached the page: ${name}`);
-    if (audio?.paused) void audio.play().catch(() => {}); // a pause press must not end the test
+    keepPlaying(); // a pause press must not end the test
     if (micOnPress.cb.checked) void record(3, `opened by the ${name} button`);
   };
   const startBtn = button('Start listening for buttons', async () => {
@@ -104,6 +110,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     audio = deps.makeAudio();
     audio.src = deps.objectUrl(quietWav());
     audio.loop = true;
+    audio.addEventListener?.('pause', () => setTimeout(keepPlaying, 300));
     try { await audio.play(); } catch (e) { say(`[voice test] could not start the silent track: ${(e as Error).name}`); }
     try {
       const MM = (window as any).MediaMetadata;
@@ -114,6 +121,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
       try { deps.mediaSession.setActionHandler(a, () => onButton(a)); supported.push(BUTTON_NAMES[a] ?? a); } catch { /* not supported */ }
     }
     listening = true;
+    keepPlaying();
     startBtn.textContent = 'Stop listening';
     showCounts();
     say(`[voice test] listening for headset buttons (page accepts: ${supported.join(', ')})`);
@@ -196,6 +204,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     if (poll) clearInterval(poll);
     void ac?.close().catch(() => {});
     stream.getTracks().forEach((t) => t.stop()); // releases the mic so the headset leaves call mode
+    keepPlaying();
     bar.style.width = '0%';
     busy = false;
 

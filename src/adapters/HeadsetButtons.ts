@@ -23,7 +23,10 @@ export class HeadsetButtons {
   start(on: { talk(): void; repeat(): void }): boolean {
     const ms = 'mediaSession' in navigator ? navigator.mediaSession : undefined;
     if (!ms || !this.audio) return false;
-    const keepPlaying = () => { if (this.audio?.paused) void this.audio.play().catch(() => {}); };
+    const keepPlaying = () => this.resume();
+    // Opening the mic pauses the loop on iPhone, and a page that is not playing stops getting the buttons: only
+    // the first press got through until the test was restarted (2026-10-14). Start it again whenever it stops.
+    this.audio.addEventListener('pause', () => { if (this.held) setTimeout(() => this.resume(), 300); });
     try {
       const MM = (window as any).MediaMetadata;
       if (MM) ms.metadata = new MM({ title: 'Betty is listening for your buttons', artist: 'Betty' });
@@ -34,7 +37,15 @@ export class HeadsetButtons {
     set('pause', () => { keepPlaying(); on.talk(); });
     set('nexttrack', () => { keepPlaying(); on.repeat(); });
     this.held = true;
+    try { ms.playbackState = 'playing'; } catch { /* older browsers */ }
     return true;
+  }
+
+  /** Make sure the loop is playing, so the next press still reaches Betty. Call it after the mic closes. */
+  resume() {
+    if (!this.held || !this.audio) return;
+    if (this.audio.paused) void this.audio.play().catch(() => {});
+    try { navigator.mediaSession.playbackState = 'playing'; } catch { /* older browsers */ }
   }
 
   stop() {
@@ -43,7 +54,7 @@ export class HeadsetButtons {
         try { navigator.mediaSession.setActionHandler(a, null); } catch { /* unsupported */ }
       }
     }
-    this.held = false;
+    this.held = false; // before pause(), so the pause listener leaves it stopped
     this.audio?.pause();
     this.audio = null;
   }

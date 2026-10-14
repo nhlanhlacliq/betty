@@ -294,6 +294,8 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
   drops the lock when the tab is hidden; `WakeLock` re-acquires it when the tab returns.
 - Backgrounded tab / locked screen = GPS and timers throttled, Betty effectively stops. Wake lock mitigates
   but does not solve it. This is the main limitation versus native and the reason for Phase 4.
+  EXCEPT while the page plays sound: with the headset-button loop running she kept working locked and in the
+  background (2026-10-14). See voice input stage 2.
 - Lean does NOT come from the phone's tilt sensor any more. On a handlebar mount it read past 20 degrees from
   mounting angle and vibration alone (road test, 2026-10-09). `GpsLean` estimates it from GPS speed and how fast the
   course is changing, which is independent of the mount. It is a balanced-turn estimate from about one fix per
@@ -372,7 +374,19 @@ wake word last / on the Pi.
   TAP TO TALK during a ride for when the buttons are not Betty's. Every step is logged as `[voice]`.
   Queue fix found on the way: items were sorted by the raw priority number, so a rider answer (P4) waited behind
   queued banter (P3). Order is now P1, P4, P2, P3.
-  Still unverified: transcription quality at speed with wind (no at-speed recording yet), and the pause thresholds.
+  Still unverified: transcription quality at speed with wind, and the pause thresholds.
+  Rides of 2026-10-14 afternoon (VOICE TEST only; stage 2 not used yet, GROQ_API_KEY still not set):
+  - **One press, then nothing**: opening the mic pauses the silent loop on iPhone, and a page that is not playing
+    stops getting the buttons, so only the first press worked until the test was restarted. Both `HeadsetButtons`
+    and the VOICE TEST panel now restart the loop after every recording and whenever it pauses
+    (`resume()`, `playbackState = 'playing'`). Unverified on the phone.
+  - **Runs in the background**: while the silent loop plays, Betty kept working with the screen locked and with
+    another app in front (owner, 2026-10-14). iPhone keeps a page that is playing sound alive. This is the fix for
+    the main limitation under Browser constraints, but only with the headset switch on (it costs his music).
+  - **Helmet mic levels** (peaks): -26, -23, -17, -16, -1 dB talking at a standstill; -5 dB at 28 km/h, -34 dB at
+    41 km/h (said nothing, or the V6 gates wind hard). The fixed speech level of 0.12 (-18 dB) would have missed
+    quiet speech, so `SilenceDetector` now measures the background for 0.5 s and sets speech at 3x it (0.04 to
+    0.15) and a pause at 1.6x (from 0.02). Every `[voice]` line logs the loudest level, to tune from.
 - Stage 3 (commands and memory) not started.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)
