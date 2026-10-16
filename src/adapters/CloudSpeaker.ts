@@ -16,7 +16,7 @@ export function engineFor(mode: CloudVoiceMode, priority: number): Engine | null
 }
 
 /** How long speak() waits for the audio before saying the line with the phone voice instead. */
-export const WAIT_MS: Record<Engine, number> = { chirp: 2500, gemini: 5000 };
+export const WAIT_MS: Record<Engine, number> = { chirp: 3500, gemini: 5000 }; // live from SA: Chirp about 2 s round trip
 /** How long an unprompted line may wait for its Gemini audio BEFORE it is queued (see ready()). */
 export const READY_MS = 12_000;
 

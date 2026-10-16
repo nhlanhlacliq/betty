@@ -745,7 +745,7 @@ brake or a "mark this" press.
    everything he is waiting on (answers, command replies, startup, debrief). P3 lines wait for their audio
    (`CloudSpeaker.ready`, up to 12 s) BEFORE they are queued, so a slow clip never holds up an answer; one that
    arrives after he asked for quiet is dropped. `adapters/CloudSpeaker` falls back to the phone voice
-   for any line whose audio is not there in `WAIT_MS` (Chirp 2.5 s, Gemini 5 s), fails, or will not play; a 503 (key
+   for any line whose audio is not there in `WAIT_MS` (Chirp 3.5 s: about 2 s round trip from SA through Vercel; Gemini 5 s), fails, or will not play; a 503 (key
    not set) stops that engine for the session. Audio is prefetched as soon as a line is written and kept (40 clips),
    so a queued line and repeated phrases are instant. It plays on the headset buttons' own track while those are
    Betty's (`HeadsetButtons.play`), otherwise on an element unlocked in the START tap (`ElementPlayer`). Main screen:
