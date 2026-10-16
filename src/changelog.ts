@@ -8,9 +8,9 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
-      'New look: a home screen to start from, a calm ride screen (Betty\'s orb, what she is saying, one cue at a glance, and big Ask Betty, lock and quiet buttons), Journeys for your past rides with what she said on each, Explore for your marked spots and notes, and Settings for her personality. All the testing tools moved to the Workshop (wrench button on the ride screen, or the bottom of Settings; beside the phone on a computer).',
-      'Ride screen buttons: Ask Betty talks to her (tap again when you are done), tap the orb to hear her last line again, the speaker button asks her to be quiet until you tap it again (alerts still come through). End ride asks first.',
-      'Settings: humour and JARVIS/TARS sliders, "How often should I talk?" (Minimal, Balanced, Stories) and a switch for the cue under Betty on the ride screen.',
+      'New design: a calm, light look with Betty as a little yellow companion. Ride shows a sketch map of the road you are riding (with nearby places, traffic and your marked spots), one cue at a glance (rain, fuel range, traffic, the area), what she is saying, and Lock, Quiet and End ride. On a phone the ride view fits exactly on one screen, above the bottom bar.',
+      'Ask her by tapping the microphone, a question chip, or typing under the ride view. Tap the orb to hear her last line again. Quiet silences her until you tap it again (alerts still come through).',
+      'My journeys keeps each ride with the road you took on a map, what she flagged and every line she said, with Copy and Save as a file. Explore lists your marked spots, notes and the area stories she knows. Garage & settings holds her personality (narration, humour, JARVIS/TARS), voices, names, fuel range and headset buttons; the testing tools are in the Workshop at the bottom.',
       'Area stories come up on their own: when you reach a new town or suburb, her next remark is a story about it, then they mix in with the tour guide.',
       'Fixed: when one Gemini model ran out, a second refusal could switch Gemini off before the other model was tried. Long lines like the briefing get longer for Chirp, so they no longer drop to the phone voice.',
       'Gemini Lite is the default (faster); Full takes over when Lite reaches its daily limit.',

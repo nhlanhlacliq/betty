@@ -1,17 +1,22 @@
 /**
- * The app shell: which screen is showing, bottom sheets, the toast, and the desktop layout.
+ * The app shell: which screen is showing, dialogs, and the toast.
  *
- * Screens and sheets are static markup in index.html (`<section data-screen="...">`, `<div data-sheet="...">`), so
+ * Screens and dialogs are static markup in index.html (`<section data-screen="...">`, `<div data-sheet="...">`), so
  * the controls inside them exist from page load and main.ts can bind them by id. This module only shows and hides.
  * Markup hooks, all delegated from the document:
  *   data-go="screen"          show that screen
  *   data-back                 go back to the previous screen
- *   data-nav="screen"         a bottom-nav button (marked active while its screen shows)
- *   data-sheet-open="sheet"   open a sheet; data-sheet-close closes the open one (so does the backdrop and Escape)
+ *   data-nav="screen"         a navigation button (marked active while its screen, or one under it, shows)
+ *   data-sheet-open="sheet"   open a dialog; data-sheet-close closes it (so do the backdrop and Escape)
  */
 import { hydrateIcons } from './icons';
 
 export type ScreenId = 'home' | 'ride' | 'journeys' | 'story' | 'explore' | 'settings' | 'workshop';
+
+/** Which navigation button is lit for each screen. */
+const NAV_OF: Record<ScreenId, ScreenId> = {
+  home: 'home', ride: 'home', journeys: 'journeys', story: 'journeys', explore: 'explore', settings: 'settings', workshop: 'settings',
+};
 
 export interface Shell {
   readonly current: ScreenId;
@@ -23,10 +28,9 @@ export interface Shell {
   /** Called with the screen id every time a screen is shown (screens refresh their content then). */
   onShow(fn: (id: ScreenId) => void): void;
   onSheet(fn: (id: string) => void): void;
+  /** Rewrite a navigation target (while a ride runs, "Ride" goes to the ride, not the start page). */
+  setRedirect(fn: (id: ScreenId) => ScreenId): void;
 }
-
-/** Desktop wide enough for a side column: the Workshop lives there, always open, instead of being a screen. */
-const WIDE = '(min-width: 1100px)';
 
 export function mountShell(doc: Document = document): Shell {
   hydrateIcons(doc.body);
@@ -36,46 +40,44 @@ export function mountShell(doc: Document = document): Shell {
   const sheetFns: Array<(id: string) => void> = [];
   const history: ScreenId[] = [];
   let current: ScreenId = 'home';
+  let redirect = (id: ScreenId) => id;
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
   const paint = () => {
-    for (const [id, el] of screens) if (!el.classList.contains('docked')) el.hidden = id !== current;
+    for (const [id, el] of screens) el.hidden = id !== current;
     doc.querySelectorAll<HTMLElement>('[data-nav]').forEach((b) => {
-      const on = b.dataset.nav === current || (b.dataset.nav === 'journeys' && current === 'story');
+      const on = b.dataset.nav === NAV_OF[current];
       b.classList.toggle('active', on);
       if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
-    const theme = screens.get(current)?.dataset.theme ?? 'light';
-    doc.documentElement.dataset.screenTheme = theme;
+    doc.documentElement.dataset.view = current;
+  };
+  const enter = (id: ScreenId) => {
+    current = id;
+    shell.closeSheet();
+    paint();
+    showFns.forEach((f) => f(id));
+    const win = doc.defaultView;
+    if (win && !/jsdom/.test(win.navigator.userAgent)) win.scrollTo({ top: 0 }); // jsdom has no scrolling
   };
 
   const shell: Shell = {
     get current() { return current; },
-    show(id) {
+    show(target) {
+      const id = redirect(target);
       if (!screens.has(id)) return;
-      // In the wide layout the Workshop is always open beside the phone; "showing" it just scrolls it into view.
-      if (id === 'workshop' && workshopDocked()) { screens.get(id)?.scrollIntoView?.({ behavior: 'smooth' }); return; }
       if (id !== current) history.push(current);
       if (history.length > 20) history.shift();
-      current = id;
-      shell.closeSheet();
-      paint();
-      showFns.forEach((f) => f(id));
-      screens.get(id)?.querySelector<HTMLElement>('.scroll')?.scrollTo?.({ top: 0 });
+      enter(id);
     },
-    back() {
-      const prev = history.pop() ?? 'home';
-      current = prev;
-      paint();
-      showFns.forEach((f) => f(prev));
-    },
+    back() { enter(redirect(history.pop() ?? 'home')); },
     openSheet(id) {
       shell.closeSheet();
       const sheet = doc.querySelector<HTMLElement>(`[data-sheet="${id}"]`);
       if (!sheet) return;
       sheetFns.forEach((f) => f(id));
       sheet.hidden = false;
-      sheet.querySelector<HTMLElement>('button, input, select')?.focus?.({ preventScroll: true });
+      sheet.querySelector<HTMLElement>('.primary, button')?.focus?.({ preventScroll: true });
     },
     closeSheet() { doc.querySelectorAll<HTMLElement>('[data-sheet]').forEach((s) => { s.hidden = true; }); },
     toast(msg, err = false) {
@@ -89,6 +91,7 @@ export function mountShell(doc: Document = document): Shell {
     },
     onShow(fn) { showFns.push(fn); },
     onSheet(fn) { sheetFns.push(fn); },
+    setRedirect(fn) { redirect = fn; },
   };
 
   doc.addEventListener('click', (e) => {
@@ -99,33 +102,10 @@ export function mountShell(doc: Document = document): Shell {
     else if (el.hasAttribute('data-back')) shell.back();
     else if (el.dataset.sheetOpen) shell.openSheet(el.dataset.sheetOpen);
     else if (el.hasAttribute('data-sheet-close')) shell.closeSheet();
-    else if (el.dataset.sheet && e.target === el) shell.closeSheet(); // a tap on the backdrop, not inside the sheet
+    else if (el.dataset.sheet && e.target === el) shell.closeSheet(); // a tap on the backdrop, not inside the dialog
   });
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') shell.closeSheet(); });
-
-  // Desktop: move the Workshop section out of the phone into the side column (and back on a narrow window).
-  // Moving a node keeps its listeners, so the panels inside it carry on working.
-  const workshop = screens.get('workshop');
-  const studio = doc.getElementById('studio');
-  const phone = doc.getElementById('phone');
-  const mq = doc.defaultView?.matchMedia?.(WIDE);
-  const workshopDocked = () => !!workshop && workshop.parentElement === studio;
-  const dock = () => {
-    if (!workshop || !studio || !phone) return;
-    if (mq?.matches) {
-      if (current === 'workshop') shell.back();
-      studio.append(workshop);
-      workshop.hidden = false;
-      workshop.classList.add('docked');
-    } else if (workshopDocked()) {
-      phone.append(workshop);
-      workshop.classList.remove('docked');
-      workshop.hidden = current !== 'workshop';
-    }
-  };
-  mq?.addEventListener?.('change', dock);
   paint();
-  dock();
   return shell;
 }
 
@@ -138,4 +118,16 @@ export async function copyText(text: string, doc: Document = document): Promise<
   const field = doc.createElement('textarea');
   field.value = text; doc.body.append(field); field.select();
   try { return doc.execCommand?.('copy') ?? false; } catch { return false; } finally { field.remove(); }
+}
+
+/** Offer text as a file download. */
+export function downloadText(name: string, text: string, doc: Document = document) {
+  const win = doc.defaultView as (Window & typeof globalThis) | null;
+  if (!win?.URL?.createObjectURL) return false;
+  const a = doc.createElement('a');
+  a.href = win.URL.createObjectURL(new win.Blob([text], { type: 'text/plain' }));
+  a.download = name;
+  doc.body.append(a); a.click(); a.remove();
+  setTimeout(() => win.URL.revokeObjectURL(a.href), 1000);
+  return true;
 }

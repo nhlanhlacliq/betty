@@ -1472,37 +1472,40 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const wx = (o: Partial<WeatherState> = {}): WeatherState => ({ tempC: 21.4, windKmh: 10, rainNowMm: 0, rainChanceNextHourPct: 10, summary: 'clear', fetchedAt: 0, sunriseAt: null, sunsetAt: null, ...o });
   const base = {
     now, state: { speedKmh: 60, weather: wx(), incidents: [], area: null, areaNotes: [], nearbyPlaces: [] },
-    speaking: null, lastSaid: null, talk: 'off' as const, quietMin: 0, ending: false, distanceKm: 12.34, fuelKmLeft: null,
+    speaking: null, lastSaid: null, talk: 'off' as const, quietMin: 0, ending: false, distanceKm: 12.34, minutesOut: 25.8, fuelKmLeft: null,
     fuelWarnKm: 60, rainChancePct: 60, trafficRadiusKm: 5, untoldStories: 0, showGlance: true,
   };
   const idle = rideView(base);
-  assert.equal(idle.orb, 'rest'); assert.equal(idle.headline, 'The road has the floor.');
-  assert.equal(idle.distance, '12 km'); assert.equal(idle.temp, '21°'); assert.equal(idle.place, 'FREE RIDE');
+  assert.equal(idle.orb, 'resting'); assert.equal(idle.headline, 'A little space to breathe.'); assert.equal(idle.state, 'Along for the ride');
+  assert.equal(idle.distance, '12'); assert.equal(idle.minutes, '25'); assert.equal(idle.speed, '60'); assert.equal(idle.temp, '21°'); assert.equal(idle.place, '');
+  assert.equal(idle.facts, '21°, clear');
   assert.equal(rideView({ ...base, state: { ...base.state, speedKmh: 0 } }).headline, 'Taking a breather.', 'standing still');
   const said = { text: 'Rain in twenty minutes. <sigh> Typical.', tag: 'rain_soon', priority: 2 as const, at: now };
   const sp = rideView({ ...base, speaking: said });
-  assert.equal(sp.orb, 'speaking'); assert.equal(sp.kicker, 'Heads up'); assert.equal(sp.sub, 'Rain in twenty minutes. Typical.', 'voice tags never reach the screen');
+  assert.equal(sp.orb, 'speaking'); assert.equal(sp.state, 'Speaking'); assert.equal(sp.kicker, 'Heads up'); assert.equal(sp.headline, 'Rain about.');
+  assert.equal(sp.message, 'Rain in twenty minutes. Typical.', 'voice tags never reach the screen');
   assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 10_000 } }).headline, 'Rain about.', 'a finished line lingers');
-  assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 60_000 } }).headline, 'The road has the floor.', 'then settles');
+  assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 60_000 } }).headline, 'A little space to breathe.', 'then settles');
   assert.equal(rideView({ ...base, speaking: { ...said, tag: 'not_a_trigger' } }).kicker, 'Betty', 'unknown tags fall back');
   assert.equal(rideView({ ...base, talk: 'listening', speaking: said }).orb, 'listening', 'listening beats speaking');
+  assert.equal(rideView({ ...base, talk: 'thinking' }).state, 'Thinking');
   const q = rideView({ ...base, quietMin: 7 });
-  assert.equal(q.orb, 'quiet'); assert.match(q.sub, /Back in 7 minutes/);
-  assert.match(rideView({ ...base, quietMin: Infinity }).sub, /Tap the speaker/);
+  assert.equal(q.orb, 'quiet'); assert.match(q.message, /Back in 7 minutes/);
+  assert.match(rideView({ ...base, quietMin: Infinity }).message, /Tap Quiet again/);
   assert.equal(rideView({ ...base, showGlance: false }).glance, null);
   // glance: most pressing first
   assert.equal(pickGlance(base).label, 'Free ride');
-  assert.equal(pickGlance({ ...base, state: { ...base.state, nearbyPlaces: [{ id: 'p', name: 'Gillooly’s Farm', distanceKm: 2.34, summary: '', lat: 0, lon: 0, interest: 1 }] } }).value, '2.3 km');
+  assert.deepEqual([pickGlance({ ...base, state: { ...base.state, nearbyPlaces: [{ id: 'p', name: 'Gillooly’s Farm', distanceKm: 2.34, summary: '', lat: 0, lon: 0, interest: 1 }] } })].map((g) => [g.title, g.value])[0], ['2.3 km', 'Gillooly’s Farm']);
   const inArea = { ...base, untoldStories: 2, state: { ...base.state, area: { suburb: 'Greenstone', town: 'Edenvale', region: null } } };
-  assert.deepEqual([pickGlance(inArea).title, pickGlance(inArea).value], ['Greenstone', '2 stories']);
-  assert.equal(rideView(inArea).place, 'GREENSTONE');
+  assert.deepEqual([pickGlance(inArea).title, pickGlance(inArea).value], ['Greenstone', '2 stories to tell']);
+  assert.equal(rideView(inArea).place, 'Greenstone'); assert.equal(rideView(inArea).facts, 'Greenstone, Edenvale · 21°, clear · 2 stories still to tell');
   const sunset = { ...inArea, state: { ...inArea.state, weather: wx({ sunsetAt: now + 30 * 60_000 }) } };
   assert.equal(pickGlance(sunset).label, 'Daylight');
   const jam: TrafficIncident = { id: 'j', description: 'Queuing traffic', roadName: 'N3', severity: 3, distanceKm: 3, lat: 0, lon: 0 };
-  assert.equal(pickGlance({ ...sunset, state: { ...sunset.state, incidents: [jam] } }).title, 'N3');
+  assert.deepEqual([pickGlance({ ...sunset, state: { ...sunset.state, incidents: [jam] } })].map((g) => [g.title, g.value])[0], ['3.0 km', 'N3']);
   assert.equal(pickGlance({ ...sunset, state: { ...sunset.state, incidents: [{ ...jam, distanceKm: 9 }] } }).label, 'Daylight', 'outside the radius');
   const rain = { ...sunset, state: { ...sunset.state, weather: wx({ rainChanceNextHourPct: 70 }) } };
-  assert.deepEqual([pickGlance(rain).title, pickGlance(rain).value], ['Rain likely', '70%']);
+  assert.equal(pickGlance(rain).title, 'Rain likely, 70%');
   assert.equal(pickGlance({ ...rain, fuelKmLeft: 40 }).title, '40 km left', 'fuel beats everything');
   assert.equal(pickGlance({ ...rain, fuelKmLeft: 200 }).label, 'On the road ahead', 'a full tank stays out of the way');
   // talk presets: applying one makes it current; a tuned mix is custom
@@ -1512,4 +1515,32 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   CONFIG.ambient.banterWeight = 26; assert.equal(currentTalkPreset(), null);
   resetConfig();
 }
+
+// ---- the ride's track and the map sketch (pure)
+{
+  const { addTrackPoint, thinTrack, TRACK_MAX_POINTS } = await import('../src/core/Track');
+  const { mapSvg, projector, spanFor, trackCenter, MAP_W, MAP_H } = await import('../src/ui/mapView');
+  const t: Array<[number, number]> = [];
+  assert.equal(addTrackPoint(t, { lat: -26.1, lon: 28.1 }), true);
+  assert.equal(addTrackPoint(t, { lat: -26.10005, lon: 28.1 }), false, 'GPS jitter of 5 m does not extend the track');
+  assert.equal(addTrackPoint(t, { lat: -26.1003, lon: 28.1 }), true, '33 m does');
+  for (let i = 0; i < TRACK_MAX_POINTS + 50; i++) addTrackPoint(t, { lat: -26.1 - i * 0.001, lon: 28.1 });
+  assert.equal(t.length, TRACK_MAX_POINTS, 'capped');
+  const thin = thinTrack(t, 100);
+  assert.equal(thin.length, 100); assert.deepEqual(thin[0], t[0]); assert.deepEqual(thin[99], t[t.length - 1], 'keeps both ends');
+  const c = { lat: -26.14, lon: 28.15 };
+  const at = projector(c, 6);
+  assert.deepEqual(at(c), { x: MAP_W / 2, y: MAP_H / 2 }, 'the centre is the middle');
+  assert.ok(at({ lat: c.lat + 0.01, lon: c.lon }).y < MAP_H / 2, 'north is up');
+  assert.ok(at({ lat: c.lat, lon: c.lon + 0.01 }).x > MAP_W / 2, 'east is right');
+  assert.ok(Math.abs(at({ lat: c.lat, lon: c.lon + 3 / (111.32 * Math.cos(c.lat * Math.PI / 180)) }).x - MAP_W) < 0.5, '3 km east is the edge of a 6 km map');
+  const ride: Array<[number, number]> = [[-26.10, 28.10], [-26.15, 28.18]];
+  assert.ok(spanFor(ride) >= 12, 'a 10 km ride fits its map'); assert.deepEqual(trackCenter(ride), { lat: -26.125, lon: 28.14 });
+  const svg = mapSvg({ center: c, here: c, headingDeg: 90, track: [[-26.14, 28.15], [-26.13, 28.16]], places: [{ lat: -26.135, lon: 28.152, label: 'Gillooly’s <Farm>' }, { lat: -27, lon: 29, label: 'Far away' }], incidents: [{ lat: 0, lon: 0 }], marks: [], spanKm: 6 });
+  assert.match(svg, /<svg class="map-art"/); assert.match(svg, /rotate\(90\)/, 'the marker points his way');
+  assert.match(svg, /Gillooly’s &lt;Farm&gt;/, 'labels are escaped'); assert.ok(!svg.includes('Far away'), 'off-map places are left out');
+  assert.ok(!/translate\(330 250\)"><circle r="13"/.test(svg), 'simulator incidents without a position are not drawn');
+  assert.match(mapSvg({ center: null, here: null, headingDeg: null, track: [], places: [], incidents: [], marks: [], spanKm: 6 }), /<svg/, 'no fix: just the background');
+}
+
 console.log('all core tests passed');

@@ -5,11 +5,19 @@
 import type { TriggerId } from '../core/types';
 import type { IconName } from './icons';
 
+export const BRAND = {
+  tagline: 'A little more journey.',
+  footer: ['A quieter mind. A better ride.', 'Made for the moments in between.'],
+  profileSub: 'Just you and the road.',
+  connection: 'A little more present.',
+  region: 'Gauteng, South Africa',
+};
+
 export interface MomentCopy { kicker: string; headline: string }
 
 /** Ride screen while she is saying something (or just said it), by trigger id. `voice` = command replies, "hang on". */
 export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
-  startup: { kicker: 'Briefing', headline: 'Systems online.' },
+  startup: { kicker: 'Before we go', headline: 'Systems online.' },
   engine_overtemp: { kicker: 'Heads up', headline: 'Engine running hot.' },
   dtc_detected: { kicker: 'Heads up', headline: 'Fault code on the bike.' },
   low_fuel: { kicker: 'Heads up', headline: 'Fuel is low.' },
@@ -19,8 +27,8 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
   traffic_incident: { kicker: 'Heads up', headline: 'Traffic on your way.' },
   ride_milestone: { kicker: 'Time check', headline: 'Still rolling.' },
   rider_query: { kicker: 'You asked', headline: "Here's what I know." },
-  ambient_banter: { kicker: 'Betty has a thought', headline: 'Just saying.' },
-  local_fact: { kicker: 'Betty has something', headline: 'Worth knowing.' },
+  ambient_banter: { kicker: 'A passing thought', headline: 'Just saying.' },
+  local_fact: { kicker: 'A sense of place', headline: 'Worth knowing.' },
   area_story: { kicker: 'A local story', headline: 'About this place.' },
   ride_debrief: { kicker: "That's a wrap", headline: 'Good ride.' },
   voice: { kicker: 'Betty', headline: 'On it.' },
@@ -28,14 +36,20 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
 
 /** Ride screen states that are not a line. */
 export const RIDE_STATES = {
-  idle: { kicker: 'Good company, no chatter', headline: 'The road has the floor.', sub: 'Betty is here, not interrupting.' },
-  parked: { kicker: 'Take your time', headline: 'Taking a breather.', sub: "I'll be here when you're rolling." },
-  quiet: { kicker: 'Betty is quiet', headline: 'Taking the hint.' },
+  idle: { kicker: 'The moment around you', headline: 'A little space to breathe.', sub: 'Betty is keeping an eye on the journey. For now, enjoy the road.' },
+  parked: { kicker: 'Taking a moment', headline: 'Taking a breather.', sub: "I'll be here when you're rolling." },
+  quiet: { kicker: 'A little quiet', headline: 'Taking the hint.' },
   quietFor: (min: number) => `Alerts still come through. Back in ${min} minute${min === 1 ? '' : 's'}.`,
-  quietUntilTold: 'Alerts still come through. Tap the speaker to have her back.',
-  listening: { kicker: "I'm listening", headline: 'Go ahead.', sub: 'Tap Ask Betty again when you are done.' },
-  thinking: { kicker: 'One moment', headline: 'Thinking it over.', sub: '' },
+  quietUntilTold: 'Alerts still come through. Tap Quiet again to have her back.',
+  listening: { kicker: "I'm listening", headline: 'Go ahead.', sub: 'Tap the microphone again when you are done.' },
+  thinking: { kicker: 'One moment', headline: 'Thinking it over.', sub: 'Let me think about that.' },
   ending: { kicker: 'Signing off', headline: 'Bringing it home.', sub: 'Tap End ride again to stop now.' },
+} as const;
+
+/** The little status beside "Your riding companion". */
+export const COMPANION_STATE = {
+  ready: 'Ready when you are', idle: 'Along for the ride', speaking: 'Speaking', listening: 'Listening',
+  thinking: 'Thinking', quiet: 'Quiet', ending: 'Signing off',
 } as const;
 
 /** How long a finished line stays on the ride screen before it settles back to idle. */
@@ -49,26 +63,36 @@ export const GLANCE: Record<'range' | 'rain' | 'traffic' | 'sunset' | 'area' | '
   sunset: { icon: 'sunset', label: 'Daylight' },
   area: { icon: 'pin', label: "You're in" },
   place: { icon: 'compass', label: 'Nearby' },
-  riding: { icon: 'route', label: 'Free ride' },
+  riding: { icon: 'ride', label: 'Free ride' },
 };
 
 export const HOME = {
-  eyebrow: 'Your open road',
-  headline: ['Go on.', 'Take the', 'long way.'],
-  lead: "I'll keep you company.",
-  orbCaption: 'Tap to hear me',
+  eyebrow: 'The road is calling',
+  headline: (name: string) => `Where shall we go, ${name}?`,
+  lead: 'A destination in mind. Or nowhere in particular.',
+  companion: 'Ready when you are. Tap me and I will say hello.',
+  companionCaption: 'Your next story starts with a ride.',
   hello: (name: string) => `Ready when you are, ${name}. Shall we take the long way?`,
+  pickerLabel: 'Make room for a little adventure',
   modes: {
-    real: { title: 'Free ride', sub: 'Phone GPS and sensors.' },
-    sim: { title: 'Desk test', sub: 'Simulated, no sensors.' },
+    real: { title: 'Free ride', sub: 'Phone GPS and sensors' },
+    sim: { title: 'Desk test', sub: 'Simulated, no sensors' },
   },
+  mapChip: 'Your next adventure',
+  mapTiny: 'A good day to take the long way',
+  mapFirst: 'Your first ride starts here.',
+  mapLast: (km: number, where: string | null) => `Last time: ${km} km${where ? ` around ${where}` : ''}.`,
+  roadsTitle: "Roads you've ridden",
+  roadsEmpty: 'Rides of three minutes or a kilometre and up land here, with the road you took.',
 };
 
-export const SETTINGS_TALK: Record<'minimal' | 'balanced' | 'stories', string> = {
-  minimal: 'Minimal', balanced: 'Balanced', stories: 'Stories',
+export const ASK_CHIPS = ["What's around me?", "How's the weather?", 'How far have we gone?', 'A little quiet, please'];
+
+export const TALK_LABELS: Record<'minimal' | 'balanced' | 'stories', string> = {
+  minimal: 'Minimal', balanced: 'Balanced', stories: 'Storyteller',
 };
 
-/** The Settings "Hear a sample" line, by humour. */
+/** The Settings "Hear Betty's voice" line, by humour. */
 export const sampleLine = (humour: number) => humour > 60
   ? 'Another coffee stop? I admire your dedication to research.'
   : "A good road ahead. I'll speak up when there's something worth knowing.";

@@ -22,7 +22,9 @@ import { SwitchableSpeaker } from './adapters/SwitchableSpeaker';
 import { WeatherSource } from './adapters/WeatherSource';
 import { TrafficSource } from './adapters/TrafficSource';
 import { PlaceSource } from './adapters/PlaceSource';
-import { AreaSource, ToldStore } from './adapters/AreaSource';
+import { AreaSource, AreaStore, ToldStore } from './adapters/AreaSource';
+import { TrackStore } from './adapters/TrackStore';
+import { TrackPoint, addTrackPoint } from './core/Track';
 import { RideLog } from './adapters/RideLog';
 import { toRecord } from './core/RideMemory';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
@@ -42,14 +44,14 @@ import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushT
 import { beep } from './adapters/audio';
 import { IncidentMemory } from './adapters/IncidentMemory';
 import { LogEntry, formatLog } from './core/LineLog';
-import { copyText, mountShell } from './ui/Shell';
+import { copyText, downloadText, mountShell } from './ui/Shell';
 import { ReadyRow, mountHomeScreen } from './ui/screens/HomeScreen';
 import { RideActions, mountRideScreen } from './ui/screens/RideScreen';
 import { mountJourneysScreen } from './ui/screens/JourneysScreen';
 import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { SaidLine, rideView } from './ui/rideView';
-import { END_BUTTON, HOME, sampleLine } from './ui/copy';
+import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 
 loadConfig();
 
@@ -151,11 +153,18 @@ const memoryCtx = {
   save: (m: ReturnType<typeof RiderMemoryStore.load>) => { RiderMemoryStore.save(m); rig?.engine.setMemory(m); },
 };
 mountMemoryPanel($('memorypanel'), memoryCtx);
-mountExploreScreen(document, shell, memoryCtx);
+mountExploreScreen(document, shell, {
+  ...memoryCtx,
+  stories: () => Object.fromEntries(Object.entries(AreaStore.all()).map(([area, kept]) => [area, kept.notes ?? []])),
+  told: () => new Set(rig ? rig.engine.toldNoteIds() : ToldStore.load()),
+});
+const rideLogText = (rideId: number) => { saveLog(); return formatLog(LineLogStore.load(), RideLog.load(), rideId); };
 const journeys = mountJourneysScreen(document, shell, {
   rides: () => RideLog.load(),
   entries: () => { saveLog(); return LineLogStore.load(); },
-  copyRide: (rideId) => { saveLog(); return copyText(formatLog(LineLogStore.load(), RideLog.load(), rideId)); },
+  track: (rideId) => TrackStore.get(rideId),
+  copyRide: (rideId) => copyText(rideLogText(rideId)),
+  saveRide: (rideId) => { if (!downloadText(`betty-ride-${new Date(rideId).toISOString().slice(0, 16).replace(':', '')}.txt`, rideLogText(rideId))) shell.toast('Saving a file is not available here'); },
   toast: (msg) => shell.toast(msg),
 });
 mountChangelogPanel($('changelogpanel'));
@@ -192,8 +201,7 @@ document.querySelectorAll('[data-filled]').forEach((b) => b.addEventListener('cl
   rig?.engine.filledUp();
   FuelStore.save(0);
   showRange(0);
-  const out = document.getElementById('readyfuel');
-  if (out) out.textContent = fuelText();
+  for (const id of ['readyfuel', 'garagefuel']) { const out = document.getElementById(id); if (out) out.textContent = fuelText(); }
   setStatus(`Fill-up noted. Range reset to ${CONFIG.fuel.rangeKm} km.`);
 }));
 
@@ -353,10 +361,10 @@ const sayOutsideRide = (text: string) => {
   testPlayer.prime(); testPcm.prime(); // inside the tap
   testSpeaker.stop();
   const t = new CloudSpeaker(testSpeaker, () => testPlayer, () => {}, undefined, undefined, undefined, testPcm, undefined, clipStore);
-  helloOrb.className = 'sound-orb speaking';
-  t.speak(text, () => { helloOrb.className = 'sound-orb rest'; }, { priority: 4, id: 'voice' });
+  helloOrb.className = 'orb speaking';
+  t.speak(text, () => { helloOrb.className = 'orb resting'; }, { priority: 4, id: 'voice' });
 };
-mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)) });
+mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
 
 let wakeOk = true;
 const wakeEl = $('wake');
@@ -386,8 +394,28 @@ obdSel.addEventListener('change', () => {
 // TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
 window.addEventListener('betty-config', () => {
   nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); showCloud(); buttonsBox.checked = CONFIG.headsetButtons; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
-  paintRide();
+  paintBrand(); paintRide();
 });
+nameInput.addEventListener('change', () => paintBrand());
+
+/** Sidebar, top line and footer: his name, where he is, the weather while riding, desk test or live. */
+const titleCase = (t: string) => t.replace(/^\p{L}/u, (c) => c.toUpperCase());
+function paintBrand() {
+  const name = titleCase(cleanRiderName(CONFIG.riderName));
+  $('tagline').textContent = BRAND.tagline;
+  $('connection').textContent = BRAND.connection;
+  $('profilename').textContent = name;
+  $('profileinitial').textContent = name.slice(0, 1);
+  $('profilesub').textContent = BRAND.profileSub;
+  $('footer').textContent = BRAND.footer.join('  ·  ');
+  const s = rig?.agg.current;
+  $('toplocation').textContent = (s?.area ? [s.area.suburb, s.area.town].filter(Boolean).join(', ') : '') || BRAND.region;
+  const pill = $('modepill');
+  pill.hidden = !rig;
+  pill.textContent = rig?.real ? 'Live ride' : 'Desk test';
+  $('topweather').hidden = !s?.weather;
+  if (s?.weather) { $('toptemp').textContent = `${Math.round(s.weather.tempC)}°`; $('topsummary').textContent = s.weather.summary; }
+}
 
 // ---- the rider screens
 const VOICE_MODES: Record<CloudVoiceMode, string> = { stream: 'Gemini', mixed: 'Gemini + Chirp', chirp: 'Chirp', gemini: 'Gemini', off: 'Phone voice' };
@@ -405,12 +433,23 @@ const readiness = (): ReadyRow[] => {
     { icon: 'lock', label: 'Screen', value: nav && 'wakeLock' in nav ? 'Kept awake while riding' : 'Set Auto-Lock to Never', ok: !!nav && 'wakeLock' in nav },
   ];
 };
-const home = mountHomeScreen(document, shell, { hello: () => sayOutsideRide(HOME.hello(cleanRiderName(CONFIG.riderName))), readiness, fuelText });
+const home = mountHomeScreen(document, shell, {
+  name: () => cleanRiderName(CONFIG.riderName), hello: () => sayOutsideRide(HOME.hello(cleanRiderName(CONFIG.riderName))), readiness, fuelText,
+  rides: () => RideLog.load(), track: (rideId) => TrackStore.get(rideId), home: () => CONFIG.feeds.fallbackLocation, openRide: (rideId) => journeys.open(rideId),
+});
+// While a ride runs, "Ride" in the navigation goes to the ride, not the start page.
+shell.setRedirect((id) => (id === 'home' && rig ? 'ride' : id));
+paintBrand();
 /** Set while a ride runs: what the ride screen's buttons do. */
 let rideHooks: RideActions | null = null;
 const rideScreen = mountRideScreen(document, {
-  talk: () => rideHooks?.talk(), repeat: () => rideHooks?.repeat(), toggleQuiet: () => rideHooks?.toggleQuiet(),
+  talk: () => rideHooks?.talk(), repeat: () => rideHooks?.repeat(), toggleQuiet: () => rideHooks?.toggleQuiet(), ask: (t) => rideHooks?.ask(t),
 });
+/** The road ridden so far (for the map, and kept with the ride afterwards). */
+let rideTrack: TrackPoint[] = [];
+/** Marked spots, for the map (re-read when memory changes, not every second). */
+let markPins = RiderMemoryStore.load().marks;
+window.addEventListener('betty-memory', () => { markPins = RiderMemoryStore.load().marks; });
 /** What she is saying now, and the last line she finished (for the ride screen). */
 let speakingNow: SaidLine | null = null;
 let lastSaid: SaidLine | null = null;
@@ -427,14 +466,32 @@ function paintRide() {
   const s = r.agg.current;
   const told = new Set(r.engine.toldNoteIds());
   const quietMin = r.engine.quietLeftMin();
+  const snap = r.engine.rideSnapshot();
   const view = rideView({
     now: Date.now(), state: s, speaking: speakingNow, lastSaid, talk: talkState, quietMin, ending: endNow !== null,
-    distanceKm: r.engine.rideSnapshot().distanceKm, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
+    distanceKm: snap.distanceKm, minutesOut: snap.minutesOut, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
     rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
     untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
   });
   const moving = s.speedKmh >= 3 ? 'On the road' : 'Parked';
-  rideScreen.paint(view, { status: r.real ? moving : `${moving} · desk test`, wakeOk: wakeOk || !r.real, quiet: quietMin > 0, listening: talkState === 'listening' });
+  const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : r.real ? null : CONFIG.feeds.fallbackLocation;
+  const voiceName = libraryVoice(CONFIG.cloudVoiceName)?.name ?? CONFIG.cloudVoiceName;
+  rideScreen.paint(view, {
+    status: moving,
+    line: [r.real ? 'Free ride' : 'Desk test, simulated', r.real && !wakeOk ? 'screen may sleep' : '', r.real && !here ? 'waiting for GPS' : ''].filter(Boolean).join(' · '),
+    quiet: quietMin > 0, listening: talkState === 'listening',
+    statusRow: [
+      { icon: 'dot', text: r.real ? (here ? 'Phone GPS' : 'Waiting for GPS') : 'Simulated location' },
+      { icon: 'headset', text: CONFIG.cloudVoice === 'off' ? 'Phone voice' : `${VOICE_MODES[CONFIG.cloudVoice]}, ${voiceName}` },
+      { icon: 'sun', text: s.weather ? `${Math.round(s.weather.tempC)}°, ${s.weather.summary}` : `Weather: ${feed.weather}` },
+    ],
+  }, {
+    center: here, here, headingDeg: travelDirection(s), track: rideTrack,
+    places: s.nearbyPlaces.map((p) => ({ lat: p.lat, lon: p.lon, label: p.name })),
+    incidents: s.incidents.map((i) => ({ lat: i.lat, lon: i.lon, label: i.description })),
+    marks: markPins,
+  });
+  paintBrand();
 }
 
 
@@ -458,6 +515,7 @@ async function beginRide() {
   const motionOk = real ? await WebMotionSource.requestPermission() : false;
 
   const agg = new StateAggregator();
+  rideTrack = [];
   const motion = new WebMotionSource();
   const obd = new MockObdSource();
   const pos = (): LatLon => {
@@ -502,6 +560,7 @@ async function beginRide() {
     if (rec) RideLog.save(rec);
     FuelStore.save(engine.kmSinceFill());
     IncidentMemory.save(engine.announcedIncidents());
+    TrackStore.save(engine.rideSnapshot().startedAt, rideTrack);
     ToldStore.save(engine.toldNoteIds());
   };
   const memTimer = window.setInterval(remember, 60_000);
@@ -545,6 +604,7 @@ async function beginRide() {
   };
 
   const unsub = agg.subscribe((s) => {
+    if (s.lat != null && s.lon != null) addTrackPoint(rideTrack, { lat: s.lat, lon: s.lon });
     $('speed').textContent = String(s.speedKmh);
     showLocked(s.speedKmh);
     $('lean').textContent = s.leanDeg.toFixed(0);
@@ -723,6 +783,7 @@ async function beginRide() {
   rideHooks = {
     talk: () => void talk(),
     repeat: () => { if (lastLine) sayNow(lastLine); else shell.toast("She hasn't said anything yet."); },
+    ask: (text) => { void askBetty(text); },
     toggleQuiet: () => { obey(engine.quietLeftMin() > 0 ? { kind: 'talk' } : { kind: 'quiet', minutes: null }); renderLog(); paintRide(); },
   };
   lockScreen.setTalk(true);

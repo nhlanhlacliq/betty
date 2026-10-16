@@ -1,33 +1,36 @@
 import type { LogEntry } from '../../core/LineLog';
 import type { RideRecord } from '../../core/RideMemory';
+import type { TrackPoint } from '../../core/Track';
 import { icon } from '../icons';
+import { mapSvg, spanFor, trackCenter } from '../mapView';
 import type { Shell } from '../Shell';
+import { rideTitle } from './HomeScreen';
 
 export interface JourneysContext {
   /** Remembered rides (oldest first, as RideLog keeps them) */
   rides(): RideRecord[];
   /** Every saved line */
   entries(): LogEntry[];
+  track(rideId: number): TrackPoint[];
   /** Copy one ride's log as plain text; resolves with whether it worked */
   copyRide(rideId: number): Promise<boolean>;
+  /** Save one ride's log as a file */
+  saveRide(rideId: number): void;
   toast(msg: string): void;
 }
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-const day = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { weekday: 'long' });
-const date = (ms: number) => new Date(ms).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const date = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+const longDate = (ms: number) => new Date(ms).toLocaleString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const duration = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : `${min} min`);
 /** What she said on a ride: her spoken lines only, not silences, drops or diagnostics. */
 const spokenLines = (entries: LogEntry[], rideId: number) =>
   entries.filter((e) => e.rideId === rideId && /^\[P\d\]/.test(e.head) && e.text && !e.text.startsWith('('));
 const triggerOf = (head: string) => head.match(/^\[P\d\] (\w+)/)?.[1] ?? '';
 
-/** The hills on the ride card, from the design prototype. */
-const POSTCARD = `<svg viewBox="0 0 340 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="340" height="220" fill="#e2b68c"/><circle cx="266" cy="45" r="29" fill="#f8d3a3"/><path d="M0 121Q55 68 107 117T210 110T340 98V220H0" fill="#a7a994"/><path d="M0 152Q50 102 105 149T220 130T340 142V220H0" fill="#758c79"/><path d="M0 172Q59 142 112 178T231 157T340 162V220H0" fill="#466b5b"/><path d="M86 220C127 184 172 199 192 173s5-29 33-43" stroke="#f5e0b3" stroke-width="23" fill="none"/><path d="M86 220C127 184 172 199 192 173s5-29 33-43" stroke="#bb976c" stroke-dasharray="4 16" stroke-width="1.5" fill="none"/></svg>`;
-
 /**
- * Journeys: every remembered ride, newest first. Tapping one opens its story: distance, time, the places she talked
- * about, what she flagged, and every line she said (from the saved log), with a button to copy the log.
+ * My journeys: every remembered ride, newest first. Opening one shows its story: the road taken (from the stored
+ * track), distance and time, the places she talked about and what she flagged, and every line she said.
  */
 export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysContext) {
   const list = doc.getElementById('journeylist')!;
@@ -38,55 +41,64 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const rides = [...ctx.rides()].reverse();
     if (!rides.length) {
       totals.innerHTML = '';
-      list.innerHTML = '<div class="info-note">Rides of three minutes or a kilometre and up land here, quietly organised by journey.</div>';
+      list.innerHTML = `<div class="empty"><button class="orb resting" type="button" tabindex="-1" aria-hidden="true"></button><h2>Your story starts on the road.</h2>
+        <p>Rides of three minutes or a kilometre and up land here, quietly organised by journey.</p></div>`;
       return;
     }
     const km = Math.round(rides.reduce((n, r) => n + r.distanceKm, 0));
     const min = rides.reduce((n, r) => n + r.minutes, 0);
-    totals.innerHTML = `<div class="stats-row"><div class="stat-cell"><b>${km} <small>km</small></b><span>${rides.length} ride${rides.length === 1 ? '' : 's'}</span></div>`
-      + `<div class="stat-cell"><b>${duration(min)}</b><span>Together</span></div></div>`;
-    list.innerHTML = rides.map((r) => `<button class="discover-card" type="button" data-ride="${r.startedAt}">
-      <div><div class="mini-label">${esc(date(r.startedAt))}</div><b style="margin-top:7px">${esc(title(r))}</b>
-      <small>${r.distanceKm} km · ${duration(r.minutes)}${r.weather ? ` · ${esc(r.weather)}` : ''}</small></div>
-      <div class="discover-icon">${icon('arrow')}</div></button>`).join('');
+    totals.innerHTML = `<div class="totals"><div><b>${rides.length}</b><small>ride${rides.length === 1 ? '' : 's'}</small></div><div><b>${km} km</b><small>together</small></div><div><b>${duration(min)}</b><small>in the saddle</small></div></div>`;
+    list.innerHTML = `<div class="journey-list">${rides.map((r) => `<button class="journey-row" type="button" data-ride="${r.startedAt}">
+      <div><p class="eyebrow">${esc(date(r.startedAt))}</p><h2 style="font-size:19px">${esc(rideTitle(r))}</h2><p class="sub" style="margin-top:7px">${esc(r.weather ?? 'Out with Betty')}</p></div>
+      <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(r.minutes)} · ${r.places.length + r.events.length} moments ↗</p></div></button>`).join('')}</div>`;
   };
-
-  const title = (r: RideRecord) => `${day(r.startedAt)} ride${r.places[0] ? `, ${r.places[0]}` : ''}`;
 
   const renderStory = (rideId: number) => {
     const r = ctx.rides().find((x) => x.startedAt === rideId);
     if (!r) return;
     const said = spokenLines(ctx.entries(), rideId);
+    const track = ctx.track(rideId);
+    const places = r.places.length ? `She told you about ${r.places.slice(0, 3).join(', ')}${r.places.length > 3 ? ' and more' : ''}.` : '';
+    const flags = r.events.length ? ` On the way she flagged ${r.events.join(', ')}.` : '';
+    const blurb = `${r.distanceKm} km and ${duration(r.minutes)} out${r.weather ? `, ${r.weather}` : ''}. ${places}${flags}`.trim();
     const moments = [
-      ...r.places.map((p) => ['compass', p, 'She told you about it'] as const),
-      ...r.events.map((e) => ['info', e, 'Flagged on the way'] as const),
+      ...r.places.map((p) => `<li>${esc(p)}<small>A sense of place</small></li>`),
+      ...r.events.map((e) => `<li>${esc(e)}<small>Flagged on the way</small></li>`),
     ];
-    story.innerHTML = `<div class="eyebrow warm">${esc(date(r.startedAt))}</div>
-      <h1>That was<br>a <em>good one.</em></h1>
-      <p class="page-lead">${r.weather ? `Weather: ${esc(r.weather)}.` : 'Out on the road with Betty.'}</p>
-      <div class="postcard">${POSTCARD}<div class="posttitle">${esc(title(r))}</div></div>
-      <div class="stats-row"><div class="stat-cell"><b>${r.distanceKm} <small>km</small></b><span>Distance</span></div>
-      <div class="stat-cell"><b>${duration(r.minutes)}</b><span>Duration</span></div></div>
-      <div class="eyebrow muted">The little moments</div>
-      ${moments.length ? moments.map(([ic, b, s]) => `<div class="moment-item"><span class="moment-symbol">${icon(ic)}</span><span class="grow"><b>${esc(b)}</b><small>${s}</small></span></div>`).join('')
-        : '<div class="empty-note">A quiet one: nothing flagged, no places talked about.</div>'}
-      <h2 class="section-title">What she said</h2>
-      ${said.length ? said.map((e) => `<div class="said"><small>${new Date(e.at).toTimeString().slice(0, 5)} · ${esc(triggerOf(e.head).replace(/_/g, ' '))}</small>${esc(e.text.replace(/<[^>]+>/g, ''))}</div>`).join('')
-        : '<div class="empty-note">No saved lines for this ride.</div>'}
-      <button class="outline-button" type="button" data-copy="${rideId}">${icon('share')} Copy the ride log</button>`;
+    story.innerHTML = `<div class="intro"><div><p class="eyebrow">A ride worth remembering</p><h1>Your little escape.</h1></div>
+        <button class="text-button" type="button" data-go="journeys">← My journeys</button></div>
+      <div class="summary-hero"><div class="orb resting"></div><p class="eyebrow">Saved privately on this phone</p>
+        <h1>${esc(rideTitle(r))}</h1><p>${esc(blurb)}</p>
+        <div class="summary-stats"><div><b>${r.distanceKm}</b><small>Kilometres</small></div><div><b>${r.minutes}</b><small>Minutes</small></div><div><b>${said.length}</b><small>Things she said</small></div></div></div>
+      <div class="page-grid">
+        <div class="settings-card"><h2>The road you took</h2>
+          ${track.length > 1 ? `<div class="story-map">${mapSvg({ center: trackCenter(track), here: null, headingDeg: null, track, places: [], incidents: [], marks: [], spanKm: spanFor(track) }, 'The road you took', 'story')}</div>`
+            : '<p class="empty-note">No map for this ride: it was recorded before Betty kept the road, or without GPS.</p>'}
+          <p>${esc(longDate(r.startedAt))}</p>
+          ${moments.length ? `<ul class="moments">${moments.join('')}</ul>` : '<p class="sub">A quiet ride is a good ride, too.</p>'}
+        </div>
+        <div class="settings-card"><h2>The moments in between</h2>
+          <ul class="moments">${said.length ? said.map((e) => `<li>${esc(triggerOf(e.head).replace(/_/g, ' '))}<small>${new Date(e.at).toTimeString().slice(0, 5)}</small><span class="said">${esc(e.text.replace(/<[^>]+>/g, ''))}</span></li>`).join('')
+            : '<li>A moment for yourself<small>No saved lines for this ride</small></li>'}</ul>
+          <div class="dialog-actions"><button class="secondary" type="button" data-copy="${rideId}">${icon('share', 'ico sm')} Copy the log</button>
+            <button class="secondary" type="button" data-save="${rideId}">Save as a file</button><button class="primary" type="button" data-go="home">Ride again →</button></div>
+        </div>
+      </div>`;
   };
 
   list.addEventListener('click', (e) => {
     const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
-    if (!b) return;
-    renderStory(Number(b.dataset.ride));
-    shell.show('story');
+    if (b) open(Number(b.dataset.ride));
   });
   story.addEventListener('click', (e) => {
-    const b = (e.target as Element).closest<HTMLElement>('[data-copy]');
-    if (b) void ctx.copyRide(Number(b.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
+    const t = e.target as Element;
+    const c = t.closest<HTMLElement>('[data-copy]');
+    if (c) void ctx.copyRide(Number(c.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
+    const s = t.closest<HTMLElement>('[data-save]');
+    if (s) ctx.saveRide(Number(s.dataset.save));
   });
+  const open = (rideId: number) => { renderStory(rideId); shell.show('story'); };
   shell.onShow((id) => { if (id === 'journeys') renderList(); });
   renderList();
-  return { renderList, renderStory };
+  return { renderList, renderStory, open };
 }
