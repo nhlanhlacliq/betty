@@ -448,6 +448,10 @@ wake word last / on the Pi.
     41 km/h (said nothing, or the V6 gates wind hard). The fixed speech level of 0.12 (-18 dB) would have missed
     quiet speech, so `SilenceDetector` now measures the background for 0.5 s and sets speech at 3x it (0.04 to
     0.15) and a pause at 1.6x (from 0.02). Every `[voice]` line logs the loudest level, to tune from.
+- **Android (2026-10-16)**: a friend on Android Chrome with a Cardo Packtalk Neo got no button presses in the VOICE
+  TEST. Chrome on Android only takes the media session (notification, headset buttons) for media at least 5 s long,
+  and the silent loop was 1 s. `quietWav` is now 10 s. UNVERIFIED on Android: check the Betty media notification
+  appears in the pull-down shade while the test listens.
 - Stage 3 (commands and memory) not started.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)

@@ -1,9 +1,11 @@
 /**
- * One second of near-silent audio as a WAV file. Playing it on a loop makes the page the phone's "now playing" app,
+ * Ten seconds of near-silent audio as a WAV file. Playing it on a loop makes the page the phone's "now playing" app,
  * which is the only way a web page receives headset button presses. A faint dither is used rather than pure silence
- * in case the phone ignores an all-zero track.
+ * in case the phone ignores an all-zero track. It must be at least 5 s long: Chrome on Android only takes the media
+ * session (notification and headset buttons) for media of 5 s and up. The 1 s track worked on iPhone and got no
+ * presses at all on Android (a friend's Cardo Packtalk Neo, 2026-10-16).
  */
-export function quietWav(seconds = 1, rate = 8000): Blob {
+export function quietWav(seconds = 10, rate = 8000): Blob {
   const n = seconds * rate;
   const buf = new ArrayBuffer(44 + n * 2);
   const v = new DataView(buf);
