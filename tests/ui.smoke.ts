@@ -301,6 +301,9 @@ resetConfig();
       assert.match(doc.getElementById('memorypanel')!.textContent!, /the chain needs lube/);
       await tell('forget that'); assert.match(doc.getElementById('memorypanel')!.textContent!, /MEMORY \(0 notes/);
       await tell('repeat that'); assert.match(doc.getElementById('chat')!.textContent!, /command: repeat/);
+      await tell('humour 40 percent'); assert.equal(CONFIG.persona.humour, 40); assert.match(doc.getElementById('chat')!.textContent!, /Humour at 40 percent\./);
+      await tell('more TARS'); assert.equal(CONFIG.persona.tars, 75);
+      await tell('status'); assert.match(doc.getElementById('chat')!.textContent!, /Humour 40 percent\. 25 percent JARVIS, 75 TARS\. Banter 40, tour guide 40, silence 20 percent, a remark every 2 minutes\./);
       assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/);
 
       // a 2-minute ride earns no sign-off: END shuts down straight away

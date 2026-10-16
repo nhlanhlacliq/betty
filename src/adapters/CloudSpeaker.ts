@@ -1,4 +1,4 @@
-import { CONFIG, CloudVoiceMode, VOICE_STYLES } from '../config/betty';
+import { CONFIG, CloudVoiceMode, voiceStyle } from '../config/betty';
 import { SpeakTag, Speaker } from '../core/AudioQueue';
 import { quietWav } from './audio';
 
@@ -79,7 +79,7 @@ export class CloudSpeaker implements Speaker {
   ) {}
 
   private build(engine: Engine, text: string, tag?: SpeakTag): Req {
-    const style = engine === 'gemini' ? ((tag?.priority ?? 4) <= 2 ? VOICE_STYLES.alert : VOICE_STYLES[tag?.id ?? ''] ?? VOICE_STYLES.voice) : undefined;
+    const style = engine === 'gemini' ? voiceStyle(tag?.id, tag?.priority ?? 4) : undefined;
     const body = { text, engine, voice: CONFIG.cloudVoiceName, ...(style ? { style } : {}) };
     return { engine, key: JSON.stringify(body), body };
   }

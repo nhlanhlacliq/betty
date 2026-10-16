@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-16 (night)',
     items: [
+      'Personality: Betty is now a blend of JARVIS (Iron Man) and TARS (Interstellar), with a humour dial. Set both in TUNING or by voice: "humour 60 percent", "humour up", "more TARS", "more JARVIS". Say "status" and she reads out her settings.',
+      'Betty\'s server now runs in Cape Town: answers, voice and transcription are quicker.',
       'The page fits the phone screen: no more zooming out because of wide boxes, and no zooming in when you tap a box.',
       'TUNING: each trigger\'s priority and cooldown sit neatly on one line under its name. Rounded buttons and boxes.',
       'Cloud voice (Google): Chirp 3 HD for alerts and answers (fast), Gemini for her banter and stories, with the tone matched to the line. Pick the voice and test it on the main screen. The phone voice takes over when there is no signal.',

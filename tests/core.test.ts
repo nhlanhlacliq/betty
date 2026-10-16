@@ -1025,6 +1025,19 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(none.status, 503); assert.match((await none.json()).error, /not set up/);
   } finally { globalThis.fetch = realFetch; process.env = saved; }
 }
+// ---- personality: JARVIS/TARS blend and humour dial reach the prompt; alerts stay straight
+{
+  resetConfig();
+  const { bettySystemPrompt, personaPrompt, voiceStyle } = await import('../src/config/betty');
+  assert.match(personaPrompt(), /50 percent JARVIS and 50 percent TARS\. An even blend/); assert.match(personaPrompt(), /Humour setting: 75 percent: dry humour in most/);
+  CONFIG.persona.tars = 100; CONFIG.persona.humour = 0;
+  assert.match(personaPrompt(), /Be TARS, with only a trace of JARVIS/); assert.match(personaPrompt(), /Humour setting: 0 percent: no jokes at all/);
+  assert.match(bettySystemPrompt(), /never quote or imitate lines from either film/); assert.match(bettySystemPrompt(), /Safety alerts ignore this setting/);
+  assert.match(voiceStyle('ambient_banter', 3), /deadpan, flat/); assert.equal(voiceStyle('rain_soon', 2), 'calm, clear and firm');
+  CONFIG.persona.tars = 0; assert.match(voiceStyle('ambient_banter', 3), /impeccably polite/);
+  resetConfig();
+}
+
 // ---- cloud voice: server function
 {
   const realFetch = globalThis.fetch; const saved = { ...process.env };
@@ -1140,6 +1153,20 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(c('Remember that the chain needs lube on Saturday.'), { kind: 'remember', fact: 'the chain needs lube on Saturday' });
   assert.deepEqual(c('Make a note: tyre pressure 2.2 front'), { kind: 'remember', fact: 'tyre pressure 2.2 front' });
   assert.deepEqual(c('Forget that.'), { kind: 'forget' });
+  assert.deepEqual(c('Humour, 75%.'), { kind: 'humour', set: 75 });
+  assert.deepEqual(c('Set humor to 60 percent'), { kind: 'humour', set: 60 });
+  assert.deepEqual(c('Hey Betty, humour up.'), { kind: 'humour', step: 10 });
+  assert.deepEqual(c('Humour down'), { kind: 'humour', step: -10 });
+  assert.deepEqual(c('Less jokes'), { kind: 'humour', step: -10 });
+  assert.deepEqual(c('More TARS.'), { kind: 'persona', step: 25 });
+  assert.deepEqual(c('More Jarvis'), { kind: 'persona', step: -25 });
+  assert.deepEqual(c('Less TARS'), { kind: 'persona', step: -25 });
+  assert.deepEqual(c('Full TARS'), { kind: 'persona', set: 100 });
+  assert.deepEqual(c('Jarvis 70 percent'), { kind: 'persona', set: 30 });
+  assert.deepEqual(c("What's your humour setting?"), { kind: 'settings' });
+  assert.deepEqual(c('Status report.'), { kind: 'settings' });
+  assert.deepEqual(c('What are your settings?'), { kind: 'settings' });
+  assert.equal(c('Is humour a South African word?'), null);
   // questions stay questions
   for (const q of ['Do you remember that ride to Clarens?', 'Is it quiet on the N3?', 'Why is it so quiet today?', 'Can you repeat the weather for tomorrow and the day after in Pretoria please?',
     'What can you tell me about Germiston?', 'Remember?', 'How far to empty?', 'Where did I mark that spot?']) {

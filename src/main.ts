@@ -406,7 +406,7 @@ async function beginRide() {
   const howLong = (min: number) => min === 60 ? 'an hour' : min === 30 ? 'half an hour' : min % 60 === 0 ? `${min / 60} hours` : `${min} minute${min === 1 ? '' : 's'}`;
   /** Voice stage 3: things he tells her to do rather than asks. */
   const obey = (c: Command) => {
-    newLine('[command]', c.kind === 'quiet' ? `quiet ${c.minutes === null ? 'until told' : `for ${c.minutes} min`}` : c.kind === 'mark' ? `mark${c.note ? `: ${c.note}` : ''}` : c.kind === 'remember' ? `remember: ${c.fact}` : c.kind);
+    newLine('[command]', c.kind === 'humour' || c.kind === 'persona' ? `${c.kind} ${c.set !== undefined ? `set ${c.set}` : `step ${c.step}`}` : c.kind === 'quiet' ? `quiet ${c.minutes === null ? 'until told' : `for ${c.minutes} min`}` : c.kind === 'mark' ? `mark${c.note ? `: ${c.note}` : ''}` : c.kind === 'remember' ? `remember: ${c.fact}` : c.kind);
     switch (c.kind) {
       case 'repeat': reply(lastLine || "I haven't said anything yet.", 'repeat'); return;
       case 'quiet':
@@ -431,6 +431,27 @@ async function beginRide() {
         remembered(addNote(RiderMemoryStore.load(), c.fact, Date.now()));
         reply("Noted. I'll remember that.", 'remember');
         return;
+      case 'humour': case 'persona': {
+        const pz = CONFIG.persona;
+        const field = c.kind === 'humour' ? 'humour' : 'tars';
+        pz[field] = Math.min(100, Math.max(0, c.set ?? pz[field] + (c.step ?? 0)));
+        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+        reply(c.kind === 'humour'
+          ? pz.humour === 0 ? 'Humour at zero. Facts only.' : pz.humour === 100 ? 'Humour at a hundred percent. You asked for it.' : `Humour at ${pz.humour} percent.`
+          : `${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS.`, c.kind);
+        return;
+      }
+      case 'settings': {
+        const pz = CONFIG.persona; const a = CONFIG.ambient;
+        const total = a.banterWeight + a.tourGuideWeight + a.silenceWeight || 1;
+        const share = (w: number) => Math.round((w / total) * 100);
+        const gap = Math.round(CONFIG.ambientCooldownMs / 60_000);
+        const quiet = engine.quietLeftMin();
+        reply(`Humour ${pz.humour} percent. ${100 - pz.tars} percent JARVIS, ${pz.tars} TARS. `
+          + `Banter ${share(a.banterWeight)}, tour guide ${share(a.tourGuideWeight)}, silence ${share(a.silenceWeight)} percent, a remark every ${gap <= 1 ? 'minute' : `${gap} minutes`}.`
+          + (quiet === Infinity ? ' Quiet until you say otherwise.' : quiet > 0 ? ` Quiet for another ${quiet} minutes.` : ''), 'settings');
+        return;
+      }
       case 'forget': {
         const { memory, gone } = forgetLast(RiderMemoryStore.load());
         if (gone) remembered(memory);

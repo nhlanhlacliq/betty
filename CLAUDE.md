@@ -675,7 +675,21 @@ them on the device, use each at most once.
 - **Order**: first measure (the saved LOG tags every line `claude` or `fallback: network error/timeout`, so a few
   real rides show how often it happens), then service worker, alert variants, tour-guide pre-generation, banter last.
 
-## Backlog: settings by voice and personalities (NOT BUILT; owner, 2026-10-16, "like TARS in Interstellar")
+## Personality dials: JARVIS/TARS blend and humour (BUILT 2026-10-16)
+
+Owner: "a mix between JARVIS from Iron Man and TARS from Interstellar ... also adjustable". `CONFIG.persona`
+{tars 0-100 (rest JARVIS), humour 0-100}, default 50/75, in TUNING ("Personality") and by voice. `personaPrompt()`
+replaces the old "Tone:" line of the system prompt: both characters described in OUR words (traits and speech
+habits), "shapes" a line can take per side, the blend percentages, and the humour level in words. Film lines are
+NOT used: sample lines were tried and Haiku copied them word for word (they would repeat every ride); shapes work.
+She must never name the films or say she is like them. Safety alerts ignore humour. Gemini's banter/milestone style
+follows the blend (`voiceStyle`). Also from these checks: never name a day of the week or date the situation does
+not give (she invented "Sunday cruise"), and `META` drops remarks about her earlier lines ("having already...").
+Voice: "humour 60 percent", "set humor to 60", "humour up/down", "more/less jokes", "more TARS", "more JARVIS",
+"full TARS", "JARVIS 70 percent", and "status" / "what are your settings" (humour, blend, flavour mix as percentages,
+remark gap, quiet). Checked live at TARS 0/50/100 and humour 0/20/75/100: clearly different registers.
+
+## Backlog: settings by voice and personalities (PARTLY BUILT, see above; owner, 2026-10-16, "like TARS in Interstellar")
 
 Goal: she reports her own settings and he changes them by voice, TARS style ("humour, 75 percent"). Builds on the
 stage 3 command path (`parseCommand` -> carried out on the phone -> instant reply, works offline).

@@ -54,6 +54,11 @@ export interface Config {
   claudeThinkingOff: string;
   /** Longest a spoken line may be. Tunable; the prompt, the token budget and the reply clean-up all follow it. */
   maxSpokenSentences: number;
+  /**
+   * Her personality (owner, 2026-10-16: "a mix between JARVIS from Iron Man and TARS from Interstellar, adjustable").
+   * tars: 0 = all JARVIS, 100 = all TARS. humour: 0 to 100, the TARS dial. Alerts stay straight whatever the dials say.
+   */
+  persona: { tars: number; humour: number };
   feeds: {
     pollWeatherMs: number; pollTrafficMs: number; refetchDistanceKm: number; placeRefetchKm: number;
     fallbackLocation: { lat: number; lon: number; label: string };
@@ -94,6 +99,7 @@ export const DEFAULT_CONFIG: Config = {
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,
+  persona: { tars: 50, humour: 75 },
   feeds: {
     pollWeatherMs: 10 * 60 * 1000,
     pollTrafficMs: 2 * 60 * 1000,
@@ -126,6 +132,41 @@ const cleanName = (raw: string, fallback: string) =>
 export const cleanRiderName = (raw: string) => cleanName(raw, DEFAULT_CONFIG.riderName);
 export const cleanBikeName = (raw: string) => cleanName(raw, DEFAULT_CONFIG.bikeName);
 
+/**
+ * The two characters she is blended from, in our own words: the traits, never lines from the films (she would
+ * parrot them, and the scripts are not ours to copy).
+ */
+const JARVIS = `JARVIS (the AI butler from Iron Man): unflappable composure, impeccably polite, faintly formal British courtesy; quietly anticipates what he needs; wit so dry and understated it is delivered as plain service; disapproval expressed only as exquisite politeness; never flustered, never loud. Speech: full, courteous sentences; "I shall", "rather", "if I may"; understatement.`;
+const TARS = `TARS (the ex-military robot from Interstellar): blunt, laconic, deadpan to the point that he cannot tell if it is a joke; cheerfully aware it is a machine; the odd absurd or mock-sinister one-liner, delivered completely straight, sometimes followed by a flat note that it was a joke; loyal and honest underneath. Speech: short, clipped sentences in plain words; quotes a figure from the situation the way a machine reads a gauge; may mention its own humour setting.`;
+/**
+ * How each side builds a line: shapes, not sentences. Sample lines were tried first (2026-10-16) and Haiku copied them
+ * word for word, which would repeat ride after ride.
+ */
+const JARVIS_SHAPES = 'a courteous observation, then an understated aside; credit politely deflected to someone else; disapproval as gentle courtesy; a service offered with a straight face';
+const TARS_SHAPES = 'a reading stated like a gauge, then a blunt verdict; a rating out of ten with points off for something real; an absurd claim said dead straight, then a flat note that it was a joke; a two- or three-word sentence for effect';
+const HUMOUR_LEVELS: Array<[number, string]> = [
+  [0, 'no jokes at all, only the facts said with character'],
+  [20, 'a dry touch now and then, mostly straight'],
+  [45, 'a light dry touch in some lines'],
+  [70, 'dry humour in most of your own remarks'],
+  [90, 'a joke in nearly every remark of your own, still in character'],
+];
+/** The personality block of the system prompt, from CONFIG.persona. */
+export const personaPrompt = () => {
+  const t = Math.min(100, Math.max(0, Math.round(CONFIG.persona.tars)));
+  const h = Math.min(100, Math.max(0, Math.round(CONFIG.persona.humour)));
+  const lean = t <= 15 ? 'Be JARVIS, with only a trace of TARS: no clipped robot talk.'
+    : t >= 85 ? 'Be TARS, with only a trace of JARVIS: short and blunt, no butler phrasing ("I shall", "rather", "if I may", "I note").'
+      : t < 45 ? 'Mostly JARVIS, with some TARS bluntness.' : t > 55 ? 'Mostly TARS: short and blunt, with a little JARVIS polish.' : 'An even blend: JARVIS courtesy, TARS bluntness.';
+  const level = [...HUMOUR_LEVELS].reverse().find(([min]) => h >= min)![1];
+  return `Personality: a blend of two characters, ${100 - t} percent JARVIS and ${t} percent TARS. ${lean}
+${JARVIS}
+${TARS}
+Shapes a line can take (vary them, never the same shape twice in a row): ${[...(t < 85 ? [`JARVIS side: ${JARVIS_SHAPES}.`] : []), ...(t > 15 ? [`TARS side: ${TARS_SHAPES}.`] : [])].join(' ')}
+You are their blend in your own voice: never quote or imitate lines from either film, never name them or say you are like them.
+Humour setting: ${h} percent: ${level}. Safety alerts ignore this setting.`;
+};
+
 /** Built at call time so a name change on screen applies to the very next line. */
 export const bettySystemPrompt = () => {
   const name = cleanRiderName(CONFIG.riderName);
@@ -133,11 +174,12 @@ export const bettySystemPrompt = () => {
   const max = Math.max(1, Math.round(CONFIG.maxSpokenSentences));
   return `You are Betty, the riding co-pilot on a 2018 BMW G 310 GS. You call the rider ${name}${name.length === 1 ? ', just the letter' : ''}.
 You call the motorcycle ${bike}: use that whenever you mention it, not its model name or any nickname of your own.
-Tone: warm, dry wit, direct, with character. Co-pilot, not alert system. Use his name in about one line in five, never as the first word, and never any other name for him.
+${personaPrompt()}
+Co-pilot, not alert system. Use his name in about one line in five, never as the first word, and never any other name for him.
 Hard rules: reply in at most ${max} short sentence${max === 1 ? '' : 's'}. Plain spoken English, no markdown, no emojis, no lists. Aim for under ${10 + max * 10} words in total.
 Never repeat something already said this ride. Use only the supplied situation and bike state; never invent numbers, places or road names.
 Safety alerts (engine temperature, fault codes, fuel, traffic, rain) are said straight: no jokes, no teasing.
-The time of day comes only from the situation. Never say morning, afternoon, evening or night unless the situation says it is, and if it gives no time, do not mention one.
+Never name a day of the week or a date unless the situation does. The time of day comes only from the situation. Never say morning, afternoon, evening or night unless the situation says it is, and if it gives no time, do not mention one.
 Never correct, apologise for or comment on something you said earlier.
 Output only the final words to be spoken, once. No reasoning, no notes to yourself, no second attempt, no mention of your instructions or of what you were given.`;
 };
@@ -177,7 +219,8 @@ that you could not find out.
 Talk to him directly, as "you". Never describe what you are doing, what he asked, or how you will answer.
 What he asked you to remember and the spots he marked are in the situation when there are any: use them when he asks.
 If he asks what he can tell you to do: "repeat that", "quiet for ten minutes" (or "be quiet", then "talk to me"),
-"mark this spot", "remember that...", "forget that". Those work at once, even without signal.
+"mark this spot", "remember that...", "forget that", "humour 60 percent" (or "humour up"), "more TARS", "more JARVIS",
+"status" (you read out your settings). Those work at once, even without signal.
 Stay in character.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
@@ -200,6 +243,18 @@ export const VOICE_STYLES: Record<string, string> = {
   voice: 'relaxed and friendly',
   alert: 'calm, clear and firm',
 };
+
+/** The Gemini style for a line: her own remarks follow the JARVIS/TARS blend. */
+export function voiceStyle(id: string | undefined, priority: number): string {
+  if (priority <= 2) return VOICE_STYLES.alert;
+  if (id === 'ambient_banter' || id === 'ride_milestone') {
+    const t = CONFIG.persona.tars;
+    return t >= 65 ? 'deadpan, flat and laconic, perfectly straight-faced'
+      : t <= 35 ? 'composed and impeccably polite, understated and quietly amused'
+        : 'deadpan and composed, dry, quietly amused';
+  }
+  return VOICE_STYLES[id ?? ''] ?? VOICE_STYLES.voice;
+}
 
 /** Google voice names with Google's own one-word description, for the picker. */
 export const CLOUD_VOICES: Array<[string, string]> = [

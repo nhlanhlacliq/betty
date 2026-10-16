@@ -159,7 +159,7 @@ export interface CleanOptions {
 }
 
 /** Talk about the prompt instead of to the rider: "the notes only say...", "that breaks the word limit". */
-const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b|\bsince he asked\b|\bhe (asked|wants|is asking)\b|\bi'?ll say so plainly\b|\bmake up a story\b|\bthe best story\b|\bso i'?ll keep it (short|brief)\b/i;
+const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b|\bsince he asked\b|\bhe (asked|wants|is asking)\b|\bi'?ll say so plainly\b|\bmake up a story\b|\bthe best story\b|\bso i'?ll keep it (short|brief)\b|\balready said this ride\b|\bto tie (it )?back to\b|\bnothing to call back\b|\bhaving already\b|\bnot repeating it\b|\bi shall say nothing (further|more)\b|\bi have not forgotten\b/i;
 /** The start of a second thought: everything from here on is the model talking to itself. */
 const SECOND_THOUGHT = /\n\s*\n|\n?\s*(Wait,|Correction:|Corrected:|Revised:|Actually, let me|Let me rephrase)/;
 

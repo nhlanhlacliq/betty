@@ -13,7 +13,13 @@ export type Command =
   | { kind: 'talk' }
   | { kind: 'mark'; note: string }
   | { kind: 'remember'; fact: string }
-  | { kind: 'forget' };
+  | { kind: 'forget' }
+  /** Humour dial: set to a value, or step it */
+  | { kind: 'humour'; set?: number; step?: number }
+  /** JARVIS/TARS blend: set the TARS share, or step it (+ = more TARS) */
+  | { kind: 'persona'; set?: number; step?: number }
+  /** "status": she reads out her settings */
+  | { kind: 'settings' };
 
 const NUMBERS: Record<string, number> = {
   a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -68,6 +74,25 @@ export function parseCommand(said: string): Command | null {
   if (n <= 12 && /^(be quiet|quiet|keep quiet|go quiet|stay quiet|shut up|hush|shh+|stop talking|stop chatting|silence|mute|mute yourself|give me (some )?(peace|quiet|silence)|no (more )?(talking|chatting|chatter|banter)|less talking|enough talking|not now)\b/.test(low)) {
     return { kind: 'quiet', minutes: minutesIn(low) };
   }
+
+  // Dials (TARS style): "humour 60 percent", "set humour to 60", "humour up", "more TARS", "full JARVIS", "status".
+  const pct = low.match(/(\d{1,3})\s*(%|percent|per cent)?/);
+  const num = pct ? Math.min(100, Number(pct[1])) : null;
+  if (n <= 10 && /^(what('?s| is| are) (your|the) (humou?r|settings?|personality|parameters)( settings?| level)?|status( report)?|settings( report)?|report your settings|give me a status( report)?)$/.test(low)) {
+    return { kind: 'settings' };
+  }
+  if (n <= 8 && /^(set (your )?)?humou?r\b/.test(low)) {
+    if (num !== null && /\d/.test(low)) return { kind: 'humour', set: num };
+    if (/\b(up|higher|more|increase|raise)\b/.test(low)) return { kind: 'humour', step: 10 };
+    if (/\b(down|lower|less|decrease|reduce)\b/.test(low)) return { kind: 'humour', step: -10 };
+  }
+  if (n <= 6 && /^(more|less) (humou?r|jokes)$/.test(low)) return { kind: 'humour', step: low.startsWith('more') ? 10 : -10 };
+  if (n <= 6 && /^(more|less) (tars|jarvis)$/.test(low)) {
+    const towardTars = /tars$/.test(low) === low.startsWith('more');
+    return { kind: 'persona', step: towardTars ? 25 : -25 };
+  }
+  if (n <= 6 && /^(full|be|all|pure) (tars|jarvis)$/.test(low)) return { kind: 'persona', set: /tars$/.test(low) ? 100 : 0 };
+  if (n <= 8 && /^(set )?(tars|jarvis)( share| level)?( to)? \d/.test(low) && num !== null) return { kind: 'persona', set: /^(set )?tars/.test(low) ? num : 100 - num };
 
   if (n <= 8 && /^((you can |ok you can |you may )?(talk|speak|chat)( to me)?( again| now)?|unmute|carry on( talking)?|i'm back|back on|you're back|keep talking|talk to me)$/.test(low)) {
     return { kind: 'talk' };

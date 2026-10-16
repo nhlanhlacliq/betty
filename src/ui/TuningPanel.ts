@@ -16,6 +16,7 @@ function numRow(label: string, get: () => number, set: (v: number) => void, min:
     saveConfig();
   };
   row.append(el('span', 'name', label), input, el('span', 'val', unit));
+  window.addEventListener('betty-config', () => { input.value = String(get()); }); // changed by voice or reset
   return row;
 }
 
@@ -47,6 +48,14 @@ export function mountTuningPanel(root: HTMLElement) {
     row.append(el('span', 'name', id), sel, cd, el('span', 'val', 's'));
     wrap.append(row);
   }
+
+  wrap.append(el('h3', '', 'Personality'));
+  wrap.append(el('p', 'hint', 'A blend of JARVIS (Iron Man) and TARS (Interstellar). By voice: "humour 60 percent", "humour up", "more TARS", "more JARVIS", "what\'s your humour setting?"'));
+  const pz = CONFIG.persona;
+  wrap.append(
+    numRow('TARS share (rest is JARVIS)', () => pz.tars, (v) => (pz.tars = Math.round(v)), 0, 100, 10, '%'),
+    numRow('Humour', () => pz.humour, (v) => (pz.humour = Math.round(v)), 0, 100, 5, '%'),
+  );
 
   wrap.append(el('h3', '', 'Ambient (P3) behaviour'));
   wrap.append(
