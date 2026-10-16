@@ -46,6 +46,9 @@ export interface VoiceTestContext {
   /** The mic chosen for talking to Betty, and where to save a new choice */
   mic?(): string;
   setMic?(id: string, label: string): void;
+  /** Whether Betty opens the mic without call processing, and where to save the choice */
+  micRaw?(): boolean;
+  setMicRaw?(on: boolean): void;
   /** True while a ride has the headset buttons: the test must not take them over (or switch them off when it stops) */
   buttonsBusy?(): boolean;
 }
@@ -159,7 +162,10 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
   void fillMics();
   // Android + Cardo (2026-10-16): every recording came back empty, even from the phone's own mic. Recording without
   // the call processing (echo cancelling etc.) may keep Android from switching the headset into call mode.
-  const raw = checkbox('Record without call processing (try this if recordings come back 0 KB)', false, () => {});
+  // The choice also applies when he talks to Betty.
+  const raw = checkbox('Record without call processing (try this if recordings come back 0 KB; Betty listens this way too)', ctx.micRaw?.() ?? false, (on) => {
+    ctx.setMicRaw?.(on); say(`[voice test] call processing ${on ? 'off' : 'on'} when talking to Betty`);
+  });
   wrap.append(raw.wrap);
   const status = el('div', 'info', '');
   const meter = el('div', 'meter'); const bar = el('div', 'meterbar'); meter.append(bar);

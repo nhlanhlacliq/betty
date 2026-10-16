@@ -111,6 +111,8 @@ mountVoiceTestPanel($('voicetestpanel'), {
   mic: () => CONFIG.micDeviceId,
   buttonsBusy: () => !!rig?.buttons.holding,
   setMic: (id, label) => { CONFIG.micDeviceId = id; CONFIG.micLabel = label; saveConfig(); },
+  micRaw: () => CONFIG.micRaw,
+  setMicRaw: (on) => { CONFIG.micRaw = on; saveConfig(); },
   log: (msg) => { newLine('[voice-test]', msg); renderLog(); },
 });
 /** Everyone following the chat timeline (the CHAT panel while a ride runs). */
@@ -358,7 +360,7 @@ async function beginRide() {
   };
 
   // ---- talking to her: headset play/pause (if switched on) or the lock screen's talk button
-  const ptt = new PushToTalk(browserPttDeps(), () => ({ id: CONFIG.micDeviceId, label: CONFIG.micLabel }));
+  const ptt = new PushToTalk(browserPttDeps(), () => ({ id: CONFIG.micDeviceId, label: CONFIG.micLabel, raw: CONFIG.micRaw }));
   const talk = async () => {
     if (ptt.listening) { ptt.stop(); return; } // second press: done talking
     queue.hold(true); // she must not start a line over him

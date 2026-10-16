@@ -38,6 +38,11 @@ export interface Config {
   micDeviceId: string;
   /** That mic's name, to find it again if the phone gives it a new id */
   micLabel: string;
+  /**
+   * Open the mic without call processing (echo cancelling, noise suppression, auto gain). A Cardo Packtalk Neo on
+   * Android recorded nothing at all until this was on (2026-10-16). Off by default: the iPhone and V6 work as they are.
+   */
+  micRaw: boolean;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -77,6 +82,7 @@ export const DEFAULT_CONFIG: Config = {
   headsetButtons: false,
   micDeviceId: '',
   micLabel: '',
+  micRaw: false,
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,

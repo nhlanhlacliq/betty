@@ -7,7 +7,7 @@ const pick = () => ({
   safeWindow: CONFIG.safeWindow, thresholds: CONFIG.thresholds, priorities: CONFIG.priorities,
   cooldownsMs: CONFIG.cooldownsMs, ambientCooldownMs: CONFIG.ambientCooldownMs,
   ambientMaxAgeMs: CONFIG.ambientMaxAgeMs, milestoneEveryMin: CONFIG.milestoneEveryMin,
-  ambient: CONFIG.ambient, maxSpokenSentences: CONFIG.maxSpokenSentences, fuel: CONFIG.fuel, obdMode: CONFIG.obdMode, riderName: CONFIG.riderName, bikeName: CONFIG.bikeName, voiceURI: CONFIG.voiceURI, headsetButtons: CONFIG.headsetButtons, micDeviceId: CONFIG.micDeviceId, micLabel: CONFIG.micLabel,
+  ambient: CONFIG.ambient, maxSpokenSentences: CONFIG.maxSpokenSentences, fuel: CONFIG.fuel, obdMode: CONFIG.obdMode, riderName: CONFIG.riderName, bikeName: CONFIG.bikeName, voiceURI: CONFIG.voiceURI, headsetButtons: CONFIG.headsetButtons, micDeviceId: CONFIG.micDeviceId, micLabel: CONFIG.micLabel, micRaw: CONFIG.micRaw,
 });
 
 export function loadConfig() {

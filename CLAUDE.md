@@ -461,6 +461,9 @@ wake word last / on the Pi.
   call-mode (SCO) link Android opens for the mic, and Android routes every mic through it while it is connected.
   The VOICE TEST now logs mic ended/muted/unmuted with times, recorder errors and the format, stops waiting when the
   mic ends, and has "Record without call processing" (echoCancellation/noiseSuppression/autoGainControl off).
+  THAT WORKED: with call processing off the Cardo recorded. The checkbox is now a saved setting, `CONFIG.micRaw`
+  (default off; iPhone + V6 are fine without it), and `PushToTalk` opens the mic the same way when it is on. Cost:
+  no noise suppression, so more wind in the clip for Whisper. Talking to Betty with it on is UNVERIFIED on a ride.
 - Stage 3 (commands and memory) not started.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)

@@ -539,6 +539,11 @@ resetConfig();
   levels = Array(100).fill(0.02);
   assert.equal((await ptt.record()).heardSpeech, false);
   assert.equal(opened, 3, 'a fresh mic for each question');
+  // Cardo on Android records nothing with call processing on
+  const rawPtt = new PushToTalk(deps, () => ({ id: '', label: '', raw: true }), 8000, now);
+  levels = [0.3, ...Array(20).fill(0.01)];
+  await rawPtt.record();
+  assert.deepEqual(asked, { audio: { deviceId: { exact: 'helmet' } , echoCancellation: false, noiseSuppression: false, autoGainControl: false } }, 'no call processing when asked');
 
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (_u: any, init: any) => new Response(JSON.stringify(init.headers['content-type'] === 'audio/mp4' ? { text: ' how far to empty? ' } : {}))) as typeof fetch;

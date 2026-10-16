@@ -77,7 +77,7 @@ export class PushToTalk {
 
   constructor(
     private deps: PttDeps,
-    private wanted: () => { id: string; label: string },
+    private wanted: () => { id: string; label: string; raw?: boolean },
     private maxMs = 8000,
     private now: () => number = Date.now,
   ) {}
@@ -92,14 +92,16 @@ export class PushToTalk {
     const want = this.wanted();
     let id = want.id;
     try { id = chooseMic(await within(this.deps.listInputs(), 3000, 'the mic list'), want.id, want.label); } catch { /* cannot list: use the id */ }
+    const plain = want.raw ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : {};
     const live = this.stream?.getAudioTracks().some((t) => (t as any).readyState !== 'ended');
     if (this.stream && live && this.streamFor === id) return this.stream;
     this.release();
     try {
-      this.stream = await within(this.deps.getUserMedia({ audio: id ? { deviceId: { exact: id } } : true }), 6000, 'the mic');
+      const audio = { ...(id ? { deviceId: { exact: id } } : {}), ...plain };
+      this.stream = await within(this.deps.getUserMedia({ audio: Object.keys(audio).length ? audio : true }), 6000, 'the mic');
     } catch (e) {
       if (!id) throw e;
-      this.stream = await within(this.deps.getUserMedia({ audio: true }), 6000, 'the mic'); // that mic has gone: take the phone's choice
+      this.stream = await within(this.deps.getUserMedia({ audio: want.raw ? plain : true }), 6000, 'the mic'); // that mic has gone: take the phone's choice
     }
     this.streamFor = id;
     return this.stream;
