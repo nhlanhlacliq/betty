@@ -210,7 +210,14 @@ $('voicetest').addEventListener('click', () => {
 // Cloud voice (Google): engine mode, voice name, and a test that plays an alert and a banter line as a ride would.
 const cloudSel = $<HTMLSelectElement>('cloudvoice');
 const cloudName = $<HTMLSelectElement>('cloudname');
-for (const [name, desc] of CLOUD_VOICES) { const o = document.createElement('option'); o.value = name; o.textContent = `${name} (${desc})`; cloudName.append(o); }
+for (const [label, gender] of [['Female voices', 'female'], ['Male voices', 'male']] as const) {
+  const group = document.createElement('optgroup'); group.label = label;
+  for (const [name, desc, g] of CLOUD_VOICES) {
+    if (g !== gender) continue;
+    const o = document.createElement('option'); o.value = name; o.textContent = `${name} (${g}, ${desc})`; group.append(o);
+  }
+  cloudName.append(group);
+}
 const geminiSel = $<HTMLSelectElement>('geminimodel');
 const chirpSel = $<HTMLSelectElement>('chirplocale');
 const showCloud = () => {

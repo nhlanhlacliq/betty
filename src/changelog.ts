@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-16 (night)',
     items: [
+      'The cloud voice picker is grouped into female and male voices (14 and 16).',
       'More voice sounds: chuckle, snicker, phew, pff, tsk, yawn, throat-clearing and a short pause, alongside laugh and sigh. Hear them all with "Test sounds" on the main screen.',
       'Her stock phrases ("Hang on, let me check" and the like) are kept on the phone, so Gemini makes them once per voice instead of every ride.',
       'Pre-ride briefing: at the start of a ride she introduces herself and tells you the weather, rain chance, traffic, fuel range and how your rides together are going.',

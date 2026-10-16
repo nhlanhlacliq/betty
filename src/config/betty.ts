@@ -290,12 +290,36 @@ function baseStyle(id: string | undefined): string {
   return VOICE_STYLES[id ?? ''] ?? VOICE_STYLES.voice;
 }
 
-/** Google voice names with Google's own one-word description, for the picker. */
-export const CLOUD_VOICES: Array<[string, string]> = [
-  ['Aoede', 'breezy'], ['Kore', 'firm'], ['Leda', 'youthful'], ['Zephyr', 'bright'], ['Autonoe', 'bright'], ['Callirrhoe', 'easy-going'],
-  ['Despina', 'smooth'], ['Erinome', 'clear'], ['Laomedeia', 'upbeat'], ['Achernar', 'soft'], ['Gacrux', 'mature'],
-  ['Pulcherrima', 'forward'], ['Vindemiatrix', 'gentle'], ['Sulafat', 'warm'], ['Achird', 'friendly'], ['Sadachbia', 'lively'],
-  ['Puck', 'upbeat'], ['Charon', 'informative'], ['Fenrir', 'excitable'], ['Orus', 'firm'], ['Enceladus', 'breathy'],
-  ['Iapetus', 'clear'], ['Umbriel', 'easy-going'], ['Algieba', 'smooth'], ['Algenib', 'gravelly'], ['Rasalgethi', 'informative'],
-  ['Alnilam', 'firm'], ['Schedar', 'even'], ['Sadaltager', 'knowledgeable'], ['Zubenelgenubi', 'casual'],
+/** Google voice names with Google's one-word description and the gender its Chirp 3 HD table gives (checked 2026-10-16). */
+export const CLOUD_VOICES: Array<[string, string, 'female' | 'male']> = [
+  ['Aoede', 'breezy', 'female'],
+  ['Kore', 'firm', 'female'],
+  ['Leda', 'youthful', 'female'],
+  ['Zephyr', 'bright', 'female'],
+  ['Autonoe', 'bright', 'female'],
+  ['Callirrhoe', 'easy-going', 'female'],
+  ['Despina', 'smooth', 'female'],
+  ['Erinome', 'clear', 'female'],
+  ['Laomedeia', 'upbeat', 'female'],
+  ['Achernar', 'soft', 'female'],
+  ['Gacrux', 'mature', 'female'],
+  ['Pulcherrima', 'forward', 'female'],
+  ['Vindemiatrix', 'gentle', 'female'],
+  ['Sulafat', 'warm', 'female'],
+  ['Achird', 'friendly', 'male'],
+  ['Sadachbia', 'lively', 'male'],
+  ['Puck', 'upbeat', 'male'],
+  ['Charon', 'informative', 'male'],
+  ['Fenrir', 'excitable', 'male'],
+  ['Orus', 'firm', 'male'],
+  ['Enceladus', 'breathy', 'male'],
+  ['Iapetus', 'clear', 'male'],
+  ['Umbriel', 'easy-going', 'male'],
+  ['Algieba', 'smooth', 'male'],
+  ['Algenib', 'gravelly', 'male'],
+  ['Rasalgethi', 'informative', 'male'],
+  ['Alnilam', 'firm', 'male'],
+  ['Schedar', 'even', 'male'],
+  ['Sadaltager', 'knowledgeable', 'male'],
+  ['Zubenelgenubi', 'casual', 'male'],
 ];
