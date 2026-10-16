@@ -27,8 +27,9 @@ export function mountTuningPanel(root: HTMLElement) {
   wrap.append(el('summary', '', 'TUNING (saved on this device)'));
 
   wrap.append(el('h3', '', 'Per-trigger priority and cooldown'));
+  wrap.append(el('p', 'hint', 'For each line: its priority, and the seconds before it may be said again.'));
   for (const id of TRIGGER_IDS) {
-    const row = el('div', 'row');
+    const row = el('div', 'row trig');
     const sel = el('select');
     ([1, 2, 3, 4] as Priority[]).forEach((p) => {
       const o = el('option', '', PRIORITY_LABELS[p]); o.value = String(p); sel.append(o);
@@ -43,7 +44,7 @@ export function mountTuningPanel(root: HTMLElement) {
       cd.value = String(CONFIG.cooldownsMs[id] / 1000);
       saveConfig();
     };
-    row.append(el('span', 'name', id), sel, cd, el('span', 'val', 's cooldown'));
+    row.append(el('span', 'name', id), sel, cd, el('span', 'val', 's'));
     wrap.append(row);
   }
 

@@ -94,6 +94,16 @@
     .row select { flex: 1 1 140px; min-width: 0; }
     .row .name { flex: 0 1 150px; min-width: 0; }
     .presslog { white-space: pre-wrap; }
+    /* TUNING trigger rows: the name on its own line, then priority, cooldown and "s" side by side */
+    .row.trig { display: grid; grid-template-columns: minmax(0, 1fr) 84px 14px; gap: 4px 8px; margin: 10px 0; }
+    .row.trig .name { grid-column: 1 / -1; color: var(--dim); }
+    .row.trig select, .row.trig input[type=number] { width: 100%; }
+    .row.trig .val { text-align: left; }
+    /* Rounded corners */
+    button { border-radius: 10px; }
+    select, input[type=text], input[type=number], textarea { border-radius: 8px; }
+    .panel, .stat { border-radius: 12px; }
+    .bubble { border-radius: 12px; }
     .panel summary { letter-spacing: 2px; }
     /* iPhone zooms in on any field under 16px when it is tapped, and does not zoom back out. */
     select, input[type=text], input[type=number], textarea, .chatform input, .row input[type=number], .row select,

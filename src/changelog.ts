@@ -9,6 +9,7 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-16 (night)',
     items: [
       'The page fits the phone screen: no more zooming out because of wide boxes, and no zooming in when you tap a box.',
+      'TUNING: each trigger\'s priority and cooldown sit neatly on one line under its name. Rounded buttons and boxes.',
     ],
   },
   {
