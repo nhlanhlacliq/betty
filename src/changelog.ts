@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Betty\'s look: choose your own picture or GIF in Settings. It is cropped to a circle and moves just like her (GIFs keep animating). "Use the default" brings her back.',
       'New look, like a native iPhone app: the map fills the screen, with Betty, how you are riding and Let\'s ride in a dock at the bottom, and four tabs (Ride, Journeys, Explore, Garage). On a computer it shows as a phone with the Workshop beside it.',
       'Riding: the map with one cue card at the top, and the ride numbers, Betty and Lock / End ride in the dock. The headset button at the top makes her quiet (tap again to have her back); the microphone talks to her; the speech bubble opens "I\'m listening." to type a question, tap one, or use the microphone.',
       'Chat is back: during a ride, "See the whole conversation" shows everything you and Betty said. With no ride running, the chat in the Workshop works on its own (it starts a desk chat behind it: simulated, never saved as a ride, ended with End desk chat).',

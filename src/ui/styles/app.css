@@ -399,3 +399,17 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Custom avatar (Settings > Betty's look): his picture or GIF, circle-cropped, with the companion's movement.
+   Only the keyframes change (no blob reshaping); durations, speaking pace, quiet and listening states are kept. */
+.has-avatar .orb { background: var(--orb-image) center / cover no-repeat, #f3da80; border-radius: 50%; box-shadow: 0 5px 13px #b29c5730;
+  height: auto; aspect-ratio: 1 / 1; } /* the companion is 74 x 70: a picture needs a true circle */
+.has-avatar .orb, .has-avatar .orb.speaking, .has-avatar .orb.quiet { animation-name: breathe-round; }
+.has-avatar .orb::before, .has-avatar .orb::after { display: none; }
+.has-avatar .orb.listening { box-shadow: 0 0 0 8px #c9dfe477, 0 0 0 15px #c9dfe433; }
+@keyframes breathe-round {
+  0%, 100% { transform: rotate(-8deg) scale(1); }
+  50% { transform: rotate(9deg) scale(1.03); }
+}
+.file-button { cursor: pointer; position: relative; overflow: hidden; }
+.file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; } /* hidden but still tappable on iPhone */

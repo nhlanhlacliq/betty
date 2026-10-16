@@ -155,6 +155,8 @@
             <div class="setting"><div><p>Narration</p><small id="talkhint">How much company feels right?</small></div><select id="talkpreset" aria-label="How often Betty talks"></select></div>
             <div class="setting"><div><p>A little dry humour <b class="val" id="humourval"></b></p><small>Facts only → Playful</small></div><input type="range" id="humour" min="0" max="100" step="5" aria-label="Sense of humour" /></div>
             <div class="setting"><div><p>Character <b class="val" id="blendval"></b></p><small>JARVIS (polished) → TARS (blunt)</small></div><input type="range" id="blend" min="0" max="100" step="10" aria-label="Character blend" /></div>
+            <div class="setting"><div><p>Betty's look</p><small>The yellow companion, or your own picture or GIF, cropped to a circle.</small></div><div class="orb mini resting" id="avatarpreview" aria-hidden="true"></div></div>
+            <div class="setting buttons"><label class="secondary file-button">Choose a picture or GIF<input type="file" id="avatarfile" accept="image/*" /></label><button id="avatarreset" class="secondary" type="button" hidden>Use the default</button></div>
             <div class="setting"><div><p>Visual companion</p><small>One glanceable cue on the ride map.</small></div><input type="checkbox" id="glanceswitch" aria-label="Visual companion" /></div>
             <button class="text-button" id="sample" type="button">Hear Betty's voice <i data-icon="arrow" class="sm"></i></button>
           </section>

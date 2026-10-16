@@ -722,4 +722,43 @@ resetConfig();
   const { toneWav } = await import('../src/adapters/audio');
   assert.equal(toneWav(440, 140).size, 44 + 2240 * 2, 'a 140 ms tone at 16 kHz');
 }
+// ---- Betty's look: his own picture or GIF, circle-cropped, kept on the phone
+{
+  const { prepareAvatar, applyAvatar, mountAvatarSetting, MemoryAvatarStore, MAX_AVATAR_BYTES } = await import('../src/ui/avatar');
+  const gif = new Blob(['GIF89a...'], { type: 'image/gif' });
+  assert.equal(await prepareAvatar(gif, async () => { throw new Error('a GIF must not be resized'); }), gif, 'GIFs kept as they are, so they keep moving');
+  await assert.rejects(prepareAvatar(new Blob([new Uint8Array(MAX_AVATAR_BYTES + 1)], { type: 'image/gif' })), /under 6 MB/);
+  await assert.rejects(prepareAvatar(new Blob(['x'], { type: 'text/plain' })), /not a picture/);
+  const small = new Blob(['jpg'], { type: 'image/jpeg' });
+  let side = 0;
+  assert.equal(await prepareAvatar(new Blob(['big photo'], { type: 'image/jpeg' }), async (_b, s) => { side = s; return small; }), small, 'still photos are shrunk');
+  assert.equal(side, 320);
+
+  const av = new JSDOM(`<!doctype html><div class="orb resting"></div><label><input type="file" id="avatarfile" /></label><button id="avatarreset" hidden></button>`);
+  const d = av.window.document;
+  (globalThis as any).URL.revokeObjectURL ??= () => {};
+  applyAvatar(d, gif, () => 'blob:one');
+  assert.ok(d.documentElement.classList.contains('has-avatar')); assert.equal(d.documentElement.style.getPropertyValue('--orb-image'), 'url("blob:one")');
+  applyAvatar(d, null);
+  assert.ok(!d.documentElement.classList.contains('has-avatar')); assert.equal(d.documentElement.style.getPropertyValue('--orb-image'), '');
+
+  const store = new MemoryAvatarStore(); const toasts: string[] = [];
+  const realCreate = URL.createObjectURL; (URL as any).createObjectURL = () => 'blob:test';
+  try {
+    mountAvatarSetting(d, store, (m) => toasts.push(m));
+    const input = d.getElementById('avatarfile') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [gif], configurable: true });
+    input.dispatchEvent(new av.window.Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(store.blob, gif, 'kept'); assert.ok(d.documentElement.classList.contains('has-avatar'));
+    assert.equal((d.getElementById('avatarreset') as HTMLButtonElement).hidden, false); assert.match(toasts.at(-1)!, /GIF keeps moving/);
+    (d.getElementById('avatarreset') as HTMLButtonElement).dispatchEvent(new av.window.Event('click'));
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(store.blob, null); assert.ok(!d.documentElement.classList.contains('has-avatar')); assert.match(toasts.at(-1)!, /usual self/);
+  } finally { (URL as any).createObjectURL = realCreate; }
+  // the styles keep the companion's movement for a picture: same breathing, round, eyes hidden
+  const css = (await import('node:fs')).readFileSync(new URL('../src/ui/styles/app.css', import.meta.url), 'utf8');
+  assert.match(css, /\.has-avatar \.orb, \.has-avatar \.orb\.speaking, \.has-avatar \.orb\.quiet \{ animation-name: breathe-round; \}/);
+  assert.match(css, /@keyframes breathe-round/);
+}
 console.log('ui smoke tests passed');

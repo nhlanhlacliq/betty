@@ -51,6 +51,7 @@ import { RideActions, mountRideScreen } from './ui/screens/RideScreen';
 import { mountJourneysScreen } from './ui/screens/JourneysScreen';
 import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
+import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { SaidLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 
@@ -367,6 +368,8 @@ const sayOutsideRide = (text: string) => {
   t.speak(text, () => { helloOrb.className = 'orb resting'; }, { priority: 4, id: 'voice' });
 };
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
+// Betty's look: the default companion or his own picture/GIF, kept on the phone.
+mountAvatarSetting(document, new IdbAvatarStore(), (m, err) => shell.toast(m, err));
 
 let wakeOk = true;
 const wakeEl = $('wake');
