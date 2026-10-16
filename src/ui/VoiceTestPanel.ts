@@ -46,6 +46,8 @@ export interface VoiceTestContext {
   /** The mic chosen for talking to Betty, and where to save a new choice */
   mic?(): string;
   setMic?(id: string, label: string): void;
+  /** True while a ride has the headset buttons: the test must not take them over (or switch them off when it stops) */
+  buttonsBusy?(): boolean;
 }
 
 const BUTTONS: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'stop'];
@@ -106,6 +108,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
       say(`[voice test] button test stopped. ${heard.textContent}`);
       return;
     }
+    if (ctx.buttonsBusy?.()) { heard.textContent = 'Betty has the headset buttons during this ride. End the ride, or untick the switch, to test them here.'; return; }
     if (!deps.mediaSession) { heard.textContent = 'This browser cannot receive headset buttons at all (no Media Session).'; say('[voice test] no Media Session support'); return; }
     audio = deps.makeAudio();
     audio.src = deps.objectUrl(quietWav());

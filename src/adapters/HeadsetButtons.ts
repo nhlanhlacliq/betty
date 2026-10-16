@@ -1,4 +1,4 @@
-import { quietWav } from './audio';
+import { quietWav, toneWav } from './audio';
 
 /**
  * Takes the headset's media buttons for Betty for the length of a ride. iPhone sends those buttons to whichever
@@ -9,12 +9,21 @@ import { quietWav } from './audio';
 export class HeadsetButtons {
   private audio: HTMLAudioElement | null = null;
   private held = false;
+  private quietUrl = '';
+  /** Until when a tone is swapping the track: its pause/emptied events are expected, not news */
+  private toneUntil = 0;
+  private tones = new Map<number, string>();
   private log: (msg: string) => void = () => {};
 
   /** Must run inside the START RIDE tap: the phone only lets a page start sound from a tap. */
   prime() {
     try {
-      this.audio = new Audio(URL.createObjectURL(quietWav()));
+      this.quietUrl = URL.createObjectURL(quietWav());
+      this.audio = new Audio(this.quietUrl);
+      // What the phone does to the track, for the log: the buttons stop arriving when it stops playing.
+      for (const t of ['pause', 'play', 'stalled', 'emptied'] as const) {
+        this.audio.addEventListener(t, () => { if (this.held && t !== 'play' && Date.now() > this.toneUntil) this.log(`silent track: ${t}`); });
+      }
       this.audio.loop = true;
       void this.audio.play().catch(() => {});
     } catch { this.audio = null; }
@@ -38,8 +47,31 @@ export class HeadsetButtons {
     set('play', () => { this.log('button: play'); keepPlaying(); on.talk(); });
     set('pause', () => { this.log('button: pause'); keepPlaying(); on.talk(); });
     set('nexttrack', () => { this.log('button: next track'); keepPlaying(); on.repeat(); });
+    // Owner: previous track does nothing. Registered anyway (as the VOICE TEST did, the setup that kept working),
+    // so no press falls through to the phone.
+    for (const a of ['previoustrack', 'seekbackward', 'seekforward', 'stop'] as MediaSessionAction[]) {
+      set(a, () => { this.log(`button: ${a} (does nothing)`); keepPlaying(); });
+    }
     this.held = true;
     try { ms.playbackState = 'playing'; } catch { /* older browsers */ }
+    return true;
+  }
+
+  /**
+   * Plays a tone on the silent track itself and goes back to the loop. The tones used to come from a separate Web
+   * Audio context, which on iPhone is likely what took the buttons away after the first press (2026-10-16: the
+   * VOICE TEST, which has no tones, got five presses in a row; talking to Betty got one). False if not holding.
+   */
+  tone(freq: number): boolean {
+    const a = this.audio;
+    if (!this.held || !a) return false;
+    let url = this.tones.get(freq);
+    if (!url) { url = URL.createObjectURL(toneWav(freq)); this.tones.set(freq, url); }
+    const back = () => { a.removeEventListener('ended', back); a.loop = true; a.src = this.quietUrl; this.resume(); };
+    this.toneUntil = Date.now() + 1500;
+    a.loop = false; a.src = url;
+    a.addEventListener('ended', back);
+    void a.play().catch((e) => { this.log(`tone did not play: ${(e as Error).name}`); back(); });
     return true;
   }
 
@@ -50,9 +82,11 @@ export class HeadsetButtons {
     try { navigator.mediaSession.playbackState = 'playing'; } catch { /* older browsers */ }
   }
 
+  get holding() { return this.held; }
+
   stop() {
     if (this.held && 'mediaSession' in navigator) {
-      for (const a of ['play', 'pause', 'nexttrack'] as MediaSessionAction[]) {
+      for (const a of ['play', 'pause', 'nexttrack', 'previoustrack', 'seekbackward', 'seekforward', 'stop'] as MediaSessionAction[]) {
         try { navigator.mediaSession.setActionHandler(a, null); } catch { /* unsupported */ }
       }
     }

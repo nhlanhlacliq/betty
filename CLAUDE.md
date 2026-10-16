@@ -391,6 +391,19 @@ wake word last / on the Pi.
   the mic times out after 6 s, the recorder is given up on 2 s after it is told to stop (`Clip.stalled`, the mic is
   reopened next time), transcription times out after 12 s, `hold` is always released, and each go logs
   `[voice] listening` first, so a hang shows exactly where it stopped.
+- **Ride of 2026-10-16 16:48** (keep-mic-open version): TAP TO TALK worked four times in a row from "V6" (picked
+  automatically), so the recording hang is fixed. The headset button still worked once only: one `button: pause`,
+  then none. "It worked a few versions ago": the VOICE TEST on 2026-10-14 got five presses in one session, and the
+  one thing talk-to-Betty adds that the test never had is the start/end tones, played from a separate Web Audio
+  context. On iPhone that is the likely thief of the buttons. Tones now play ON the silent track itself
+  (`HeadsetButtons.tone`, `toneWav`: swap src to the tone, back to the loop on `ended`); Web Audio `beep` is only
+  used when the buttons are not Betty's. HeadsetButtons now also registers every action the VOICE TEST did
+  (previous track, seek, stop do nothing, as the owner asked) and logs `silent track: pause/stalled/emptied`
+  outside tones. The VOICE TEST button test refuses to run while a ride holds the buttons: its Stop set every
+  handler to null, which also switched off Betty's (he opened it mid-ride at 16:49:39). Whisper hint gained
+  Germiston, Bedfordview, Boksburg, Benoni, Midrand, Sandton ("Dremiston", "Jermiston" on this ride).
+  UNVERIFIED ON THE PHONE: if presses still stop after the first, the `silent track:` lines say whether the track
+  stopped.
 - **Questions about places** (owner, 2026-10-16: "why is she not able to tell me about places i ask about?"): the
   answer digest held place NAMES only, and the answer prompt says "I don't know" rather than guess. Now
   `placesToExplain` adds notes (up to 900 characters each, at most 3) for any place whose name he used (any distance),

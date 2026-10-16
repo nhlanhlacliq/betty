@@ -109,6 +109,7 @@ mountTuningPanel($('tuning'));
 mountVoiceTestPanel($('voicetestpanel'), {
   speed: () => (rig ? rig.agg.current.speedKmh : null),
   mic: () => CONFIG.micDeviceId,
+  buttonsBusy: () => !!rig?.buttons.holding,
   setMic: (id, label) => { CONFIG.micDeviceId = id; CONFIG.micLabel = label; saveConfig(); },
   log: (msg) => { newLine('[voice-test]', msg); renderLog(); },
 });
@@ -345,6 +346,8 @@ async function beginRide() {
   await agg.start();
   setObd(CONFIG.obdMode);
   say(engine.startup());
+  /** Tones go through the headset buttons' own track when it is running, so they do not steal the buttons. */
+  const tone = (freq: number) => { if (!buttons.tone(freq)) beep(freq); };
   const sayNow = (text: string) => { newLine('[P4] voice', text).item = queue.enqueue(text, 4); renderLog(); };
   /** Something he said to her, typed or spoken: one path for both. */
   const askBetty = async (text: string) => {
@@ -360,13 +363,13 @@ async function beginRide() {
     if (ptt.listening) { ptt.stop(); return; } // second press: done talking
     queue.hold(true); // she must not start a line over him
     lockScreen.setTalk(true, true);
-    beep(880);
+    tone(880);
     newLine('[voice]', 'listening'); renderLog();
     try {
       const clip = await ptt.record();
       if (clip.stalled) newLine('[voice]', 'the recorder did not stop cleanly; the mic will be reopened next time');
       buttons.resume(); // the mic stopped the loop: without it the next press never arrives
-      beep(440);
+      tone(440);
       lockScreen.setTalk(true, false);
       queue.hold(true, true); // he has finished: his answer (and "hang on") may go, banter still waits
       if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); return; }

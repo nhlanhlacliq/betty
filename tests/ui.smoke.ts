@@ -547,4 +547,8 @@ resetConfig();
   globalThis.fetch = (async () => new Response(JSON.stringify({ error: "voice is not set up yet (server has no GROQ_API_KEY)" }), { status: 503 })) as typeof fetch;
   try { await assert.rejects(transcribe(clip.audio), /not set up/); } finally { globalThis.fetch = realFetch; }
 }
+{
+  const { toneWav } = await import('../src/adapters/audio');
+  assert.equal(toneWav(440, 140).size, 44 + 2240 * 2, 'a 140 ms tone at 16 kHz');
+}
 console.log('ui smoke tests passed');
