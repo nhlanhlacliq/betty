@@ -64,7 +64,8 @@ export class CloudSpeaker implements Speaker {
   private cache = new Map<string, Promise<Blob>>();
   /** Lines whose audio just failed: said straight away with the phone voice rather than tried again */
   private failed = new Set<string>();
-  private notSetUp = new Set<Engine>();
+  /** Engines that said no for the rest of this ride: not set up (503), or out of quota (429) */
+  private unavailable = new Set<Engine>();
   private token = 0;
   private stopPlay: (() => void) | null = null;
 
@@ -77,12 +78,23 @@ export class CloudSpeaker implements Speaker {
     private keep = 40,
   ) {}
 
-  private request(text: string, tag?: SpeakTag): Req | null {
-    const engine = engineFor(CONFIG.cloudVoice, tag?.priority ?? 4);
-    if (!engine || this.notSetUp.has(engine) || !text.trim()) return null;
+  private build(engine: Engine, text: string, tag?: SpeakTag): Req {
     const style = engine === 'gemini' ? ((tag?.priority ?? 4) <= 2 ? VOICE_STYLES.alert : VOICE_STYLES[tag?.id ?? ''] ?? VOICE_STYLES.voice) : undefined;
     const body = { text, engine, voice: CONFIG.cloudVoiceName, ...(style ? { style } : {}) };
     return { engine, key: JSON.stringify(body), body };
+  }
+
+  /**
+   * The request for a line. A Gemini line that cannot be had (out of quota, not set up, or this clip failed) is
+   * asked of Chirp instead: same voice, plainer tone, still better than the phone. The free Gemini tier turned out
+   * to allow 10 lines a day (2026-10-16).
+   */
+  private request(text: string, tag?: SpeakTag): Req | null {
+    let engine = engineFor(CONFIG.cloudVoice, tag?.priority ?? 4);
+    if (!engine || !text.trim()) return null;
+    if (engine === 'gemini' && (this.unavailable.has('gemini') || this.failed.has(this.build('gemini', text, tag).key))) engine = 'chirp';
+    if (this.unavailable.has(engine)) return null;
+    return this.build(engine, text, tag);
   }
 
   private get(r: Req): Promise<Blob> {
@@ -92,7 +104,11 @@ export class CloudSpeaker implements Speaker {
         const res = await this.fetcher(this.url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(r.body) });
         if (!res.ok) {
           const why: any = await res.json().catch(() => ({}));
-          if (res.status === 503) this.notSetUp.add(r.engine); // say it once, then stop trying this ride
+          // Not set up, or out of quota: say it once, then stop asking that engine this ride.
+          if (res.status === 503 || (res.status === 502 && /HTTP 429/.test(why?.error ?? ''))) {
+            if (!this.unavailable.has(r.engine)) this.log(`cloud voice (${r.engine}) unavailable for this ride: ${why?.error ?? res.status}`);
+            this.unavailable.add(r.engine);
+          }
           throw new Error(why?.error || `HTTP ${res.status}`);
         }
         return res.blob();
@@ -117,7 +133,8 @@ export class CloudSpeaker implements Speaker {
   ready(text: string, tag?: SpeakTag): Promise<void> {
     const r = this.request(text, tag);
     if (!r || this.failed.has(r.key)) return Promise.resolve();
-    return within(this.get(r), READY_MS).then(() => {}, () => {});
+    // If Gemini fails, wait for the Chirp version instead (request() now picks Chirp for this line).
+    return within(this.get(r), READY_MS).then(() => {}, () => (r.engine === 'gemini' && this.failed.has(r.key) ? this.ready(text, tag) : undefined));
   }
 
   speak(text: string, onDone: () => void, tag?: SpeakTag) {

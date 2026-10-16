@@ -1100,6 +1100,21 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   sp.speak('Closure ahead.', () => done++, { priority: 2 }); await flush();
   assert.equal(calls.length, 1, 'chirp not tried again'); assert.equal(phone.spoken.at(-1), 'Closure ahead.'); phone.done!();
   assert.equal(done, 6);
+  // Gemini out of quota (free tier: 10 a day): that line and every later one go to Chirp, not the phone
+  const sp2 = new CloudSpeaker(phone, () => player, (m) => logs.push(m), (async (_u: any, init: any) => {
+    const b = JSON.parse(init.body); calls.push(b);
+    return b.engine === 'gemini'
+      ? new Response(JSON.stringify({ error: 'Gemini voice said HTTP 429' }), { status: 502 })
+      : new Response(new Blob(['mp3']));
+  }) as typeof fetch);
+  calls = []; played = [];
+  await sp2.ready('Quiet road.', { priority: 3, id: 'ambient_banter' });
+  assert.deepEqual(calls.map((c) => c.engine), ['gemini', 'chirp']); assert.match(logs.at(-1)!, /gemini\) unavailable for this ride.*429/);
+  sp2.speak('Quiet road.', () => done++, { priority: 3, id: 'ambient_banter' }); await flush();
+  assert.equal(calls.length, 2, 'played from the Chirp clip already fetched'); assert.equal(played.length, 1); finish!();
+  await sp2.ready('Still quiet.', { priority: 3, id: 'ambient_banter' });
+  assert.deepEqual(calls.slice(2).map((c) => c.engine), ['chirp'], 'Gemini not asked again this ride');
+  assert.equal(done, 7);
   // off: straight to the phone
   CONFIG.cloudVoice = 'off'; calls = [];
   sp.speak('Phone only.', () => done++, { priority: 3 }); assert.equal(calls.length, 0); assert.equal(phone.spoken.at(-1), 'Phone only.');

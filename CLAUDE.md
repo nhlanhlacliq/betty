@@ -313,7 +313,9 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
 
 ## Vercel deployment
 
-- Framework preset: Vite. Build command `npm run build`, output directory `dist`. No `vercel.json` needed.
+- Framework preset: Vite. Build command `npm run build`, output directory `dist`. `vercel.json` only sets the
+  functions' region to Cape Town (`cpt1`, 2026-10-16, owner's OK): they ran in Washington (`iad1`) before. Measured
+  from Gauteng afterwards: Claude about 1.0 s, Chirp 0.9 to 1.2 s (was 1.3 to 2 s). `x-vercel-id` shows `cpt1::cpt1`.
 - KEYS LIVE ON THE SERVER since 2026-10-14. `api/phrase.ts`, `api/traffic.ts`, `api/transcribe.ts` are Vercel
   functions (web-standard `POST`/`GET` exports; `api/_shared.ts` is not an endpoint). Production env:
   `ANTHROPIC_API_KEY`, `TOMTOM_API_KEY`, `GROQ_API_KEY` (server-only, Secret) and `VITE_USE_SERVER=1`, which makes
@@ -744,7 +746,11 @@ brake or a "mark this" press.
    `mixed` = Gemini (with `VOICE_STYLES` by trigger id) ONLY for her unprompted P3 lines, Chirp for alerts and for
    everything he is waiting on (answers, command replies, startup, debrief). P3 lines wait for their audio
    (`CloudSpeaker.ready`, up to 12 s) BEFORE they are queued, so a slow clip never holds up an answer; one that
-   arrives after he asked for quiet is dropped. `adapters/CloudSpeaker` falls back to the phone voice
+   arrives after he asked for quiet is dropped.
+   GEMINI FREE TIER = 10 REQUESTS A DAY for `gemini-3.8-flash-tts` (429 on the 11th, 2026-10-16): useless for a ride.
+   A Gemini line that fails is asked of Chirp instead (same voice), and a 429 or 503 stops that engine for the rest of
+   the ride (`unavailable`, logged once as `[audio]`). Real Gemini use needs billing on the AI Studio project (paid
+   tier; text is then not used for training). Owner's call. `adapters/CloudSpeaker` falls back to the phone voice
    for any line whose audio is not there in `WAIT_MS` (Chirp 3.5 s: about 2 s round trip from SA through Vercel; Gemini 5 s), fails, or will not play; a 503 (key
    not set) stops that engine for the session. Audio is prefetched as soon as a line is written and kept (40 clips),
    so a queued line and repeated phrases are instant. It plays on the headset buttons' own track while those are
