@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-16 (night)',
     items: [
+      'With an accent voice, choose which Chirp voice says the alerts ("Chirp voice for alerts").',
       'Accents: pick from about 400 Gemini voices with real accents (Southern US, British, South African, Irish, Australian, New Zealand) under Accent on the main screen. They are Gemini only: choose "Gemini for everything" to hear the accent on alerts too.',
       'The cloud voice picker is grouped into female and male voices (14 and 16).',
       'More voice sounds: chuckle, snicker, phew, pff, tsk, yawn, throat-clearing and a short pause, alongside laugh and sigh. Hear them all with "Test sounds" on the main screen.',

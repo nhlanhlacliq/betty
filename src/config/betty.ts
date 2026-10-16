@@ -44,6 +44,8 @@ export interface Config {
   geminiModel: GeminiModel;
   /** Chirp's accent. Gemini picks its own (it sounded best to the owner), so en-US by default to match it. */
   chirpLocale: 'en-US' | 'en-GB' | 'en-AU' | 'en-IN';
+  /** Chirp voice for alerts while the cloud voice is a Gemini library (accent) voice. Empty = same gender, automatic. */
+  chirpStandIn: string;
   /** Headset play/pause = talk to Betty, next track = repeat that. Pauses music from other apps, so it is a choice. */
   headsetButtons: boolean;
   /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
@@ -102,6 +104,7 @@ export const DEFAULT_CONFIG: Config = {
   cloudVoiceName: 'Aoede',
   geminiModel: 'full',
   chirpLocale: 'en-US',
+  chirpStandIn: '',
   headsetButtons: false,
   micDeviceId: '',
   micLabel: '',
@@ -335,5 +338,6 @@ export function chirpVoice(): { name: string; locale: Config['chirpLocale'] } {
   const lib = libraryVoice(CONFIG.cloudVoiceName);
   if (!lib) return { name: CONFIG.cloudVoiceName, locale: CONFIG.chirpLocale };
   const locale = /British|Irish|South African/.test(lib.accent) ? 'en-GB' : /Australian|New Zealand/.test(lib.accent) ? 'en-AU' : 'en-US';
-  return { name: lib.gender === 'male' ? 'Iapetus' : 'Aoede', locale };
+  const picked = CLOUD_VOICES.some(([n]) => n === CONFIG.chirpStandIn) ? CONFIG.chirpStandIn : '';
+  return { name: picked || (lib.gender === 'male' ? 'Iapetus' : 'Aoede'), locale };
 }

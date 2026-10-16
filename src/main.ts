@@ -231,6 +231,13 @@ cloudAccent.addEventListener('change', () => {
   fillNames(cloudAccent.value);
   CONFIG.cloudVoiceName = cloudName.value; saveConfig(); // the first voice of that accent until he picks one
 });
+// Chirp has no accent voices: with one picked, alerts come from this standard voice (closest by pitch and tone).
+const standInSel = $<HTMLSelectElement>('chirpstandin');
+{
+  const auto = document.createElement('option'); auto.value = ''; auto.textContent = 'Automatic (same gender)'; standInSel.append(auto);
+  for (const [name, desc, g] of CLOUD_VOICES) { const o = document.createElement('option'); o.value = name; o.textContent = `${name} (${g}, ${desc})`; standInSel.append(o); }
+}
+standInSel.addEventListener('change', () => { CONFIG.chirpStandIn = standInSel.value; saveConfig(); });
 const geminiSel = $<HTMLSelectElement>('geminimodel');
 const chirpSel = $<HTMLSelectElement>('chirplocale');
 const showCloud = () => {
@@ -240,6 +247,7 @@ const showCloud = () => {
   cloudName.disabled = cloudAccent.disabled = geminiSel.disabled = chirpSel.disabled = CONFIG.cloudVoice === 'off';
   // Chirp's accent only matters for the standard voices; with a library voice it follows the accent.
   chirpSel.disabled ||= accent !== STANDARD;
+  standInSel.value = CONFIG.chirpStandIn; standInSel.disabled = CONFIG.cloudVoice === 'off' || accent === STANDARD;
 };
 geminiSel.addEventListener('change', () => { CONFIG.geminiModel = geminiSel.value as typeof CONFIG.geminiModel; saveConfig(); });
 chirpSel.addEventListener('change', () => { CONFIG.chirpLocale = chirpSel.value as typeof CONFIG.chirpLocale; saveConfig(); });

@@ -1081,6 +1081,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(chirpVoice(), { name: 'Aoede', locale: 'en-US' });
   CONFIG.cloudVoiceName = 'en-gb-advisor-8'; assert.deepEqual(chirpVoice(), { name: 'Iapetus', locale: 'en-GB' });
   CONFIG.cloudVoiceName = 'en-us-veda'; assert.deepEqual(chirpVoice(), { name: 'Aoede', locale: 'en-US' });
+  CONFIG.chirpStandIn = 'Laomedeia'; assert.deepEqual(chirpVoice(), { name: 'Laomedeia', locale: 'en-US' }, 'his pick for alerts');
+  CONFIG.chirpStandIn = 'Nobody'; assert.equal(chirpVoice().name, 'Aoede', 'an unknown pick falls back to automatic');
   resetConfig();
 }
 
