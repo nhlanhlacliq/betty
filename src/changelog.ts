@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-16 (night)',
     items: [
+      'The line under the dashboard shows the area you are in and how many of its stories are still untold; area research also goes in the log.',
       'History and culture: she now tells stories about the town and suburb you are riding through (how they got their names, gold, railways, famous people, culture), researched on the web once per area and kept on the phone. Ask her about the area too.',
       'With an accent voice, choose which Chirp voice says the alerts ("Chirp voice for alerts").',
       'Accents: pick from about 400 Gemini voices with real accents (Southern US, British, South African, Irish, Australian, New Zealand) under Accent on the main screen. They are Gemini only: choose "Gemini for everything" to hear the accent on alerts too.',

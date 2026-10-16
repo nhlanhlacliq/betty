@@ -399,7 +399,8 @@ async function beginRide() {
   engine.setMemory(RiderMemoryStore.load());
   engine.setToldNotes(ToldStore.load());
   // History and culture of the area (researched on Betty's server, so only when deployed with it).
-  if (SERVER) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { feed.areas = m; }));
+  // Each change of what the area feed is doing goes in the saved log too ("researching Germiston", "ok, ...").
+  if (SERVER) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { if (m !== feed.areas) { newLine('[areas]', m); renderLog(); } feed.areas = m; }));
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
   const remember = () => {
     const w = agg.current.weather;
@@ -462,8 +463,14 @@ async function beginRide() {
     $('dirsrc').textContent = dir == null ? '\u00a0' : s.headingDeg != null && s.speedKmh >= 10 ? 'GPS course' : 'compass';
     $('jolts').textContent = String(engine.rideSnapshot().jolts);
     showRange(engine.kmSinceFill());
+    // Where he is and how many area stories she has (or what the area feed is doing: researching, an error).
+    const told = new Set(engine.toldNoteIds());
+    const areaNames = [s.area?.town, s.area?.suburb].filter(Boolean).join(', ');
+    const areaLine = s.areaNotes.length
+      ? `Area: ${areaNames}, ${s.areaNotes.filter((n) => !told.has(n.id)).length} of ${s.areaNotes.length} stories untold`
+      : `Area stories: ${feed.areas}`;
     $('feeds').textContent = s.weather
-      ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby`
+      ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby | ${areaLine}`
       : feedStatus();
     engine.evaluate(s).forEach(say);
     queue.pump();
