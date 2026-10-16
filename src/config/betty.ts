@@ -153,7 +153,8 @@ Where it lies (ahead, behind, left, right) may be said ONLY if the situation sta
 Never mention your notes or what they lack. Only if the notes truly hold no story at all, reply with exactly ${SILENT_TOKEN} and nothing else.`,
   rider_query: `He is talking to you over the intercom and you are answering him. Answer what he actually asked,
 from the situation and the conversation so far. If the situation does not tell you, say plainly that you do not
-know rather than guess. Stay in character.`,
+know rather than guess. About a place, the notes given are your only source: tell him the best story in them.
+Stay in character.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
   ride_milestone: `This is an ambient time check, not an alert. Note how long he has been out, with a dry touch, and nothing else.

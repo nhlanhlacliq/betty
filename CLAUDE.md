@@ -385,6 +385,18 @@ wake word last / on the Pi.
   helmet connected ("phone's choice"), so `chooseMic` now picks the saved mic by id, then by name (`micLabel`, ids
   can change), then any connected non-built-in mic; the picker's empty option is "Automatic (helmet if connected)".
   Whisper hint now includes "Hey Betty". UNVERIFIED ON THE PHONE.
+  Correction from the owner: that ride's question was asked with TAP TO TALK, not the headset, and the second TAP
+  also did nothing, and no line at all was logged after 16:37. So the recording path itself hangs on the second
+  go (iPhone getUserMedia/MediaRecorder never answering is the likely cause), not only the buttons. Now: opening
+  the mic times out after 6 s, the recorder is given up on 2 s after it is told to stop (`Clip.stalled`, the mic is
+  reopened next time), transcription times out after 12 s, `hold` is always released, and each go logs
+  `[voice] listening` first, so a hang shows exactly where it stopped.
+- **Questions about places** (owner, 2026-10-16: "why is she not able to tell me about places i ask about?"): the
+  answer digest held place NAMES only, and the answer prompt says "I don't know" rather than guess. Now
+  `placesToExplain` adds notes (up to 900 characters each, at most 3) for any place whose name he used (any distance),
+  the last place she talked about ("tell me more"), then the nearest; the prompt says those notes are her only source
+  on a place. Checked live: "Tell me about Greenstone Hill" and "What else is interesting around here?" answered from
+  the notes. A place that is not in `nearbyPlaces` (not within the Wikipedia search) still gets "I don't know".
   Rides of 2026-10-14 afternoon (VOICE TEST only; stage 2 not used yet):
   - **One press, then nothing**: opening the mic pauses the silent loop on iPhone, and a page that is not playing
     stops getting the buttons, so only the first press worked until the test was restarted. Both `HeadsetButtons`

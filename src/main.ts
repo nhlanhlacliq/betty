@@ -29,7 +29,7 @@ import { mountLogPanel } from './ui/LogPanel';
 import { LineLogStore } from './adapters/LineLogStore';
 import { FuelStore } from './adapters/FuelStore';
 import { HeadsetButtons } from './adapters/HeadsetButtons';
-import { PushToTalk, browserPttDeps, transcribe } from './adapters/PushToTalk';
+import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushToTalk';
 import { beep } from './adapters/audio';
 import { IncidentMemory } from './adapters/IncidentMemory';
 import { LogEntry } from './core/LineLog';
@@ -356,8 +356,10 @@ async function beginRide() {
     queue.hold(true); // she must not start a line over him
     lockScreen.setTalk(true, true);
     beep(880);
+    newLine('[voice]', 'listening'); renderLog();
     try {
       const clip = await ptt.record();
+      if (clip.stalled) newLine('[voice]', 'the recorder did not stop cleanly; the mic will be reopened next time');
       buttons.resume(); // the mic stopped the loop: without it the next press never arrives
       beep(440);
       lockScreen.setTalk(true, false);
@@ -365,7 +367,7 @@ async function beginRide() {
       const t0 = Date.now();
       let text: string;
       try {
-        text = await transcribe(clip.audio);
+        text = await within(transcribe(clip.audio), 12000, 'transcription');
       } catch (e) {
         const why = (e as Error).message;
         newLine('[voice]', `could not turn speech into words: ${why}`);
@@ -377,7 +379,7 @@ async function beginRide() {
       if (!text) { queue.hold(false); sayNow("Sorry, I didn't catch that."); return; }
       await askBetty(text); // her answer is queued before anything she was holding back
     } catch (e) {
-      newLine('[voice]', `mic did not open: ${(e as Error).name}`);
+      newLine('[voice]', `mic did not open: ${(e as Error).name}: ${(e as Error).message}`);
     } finally {
       buttons.resume();
       lockScreen.setTalk(true, false);

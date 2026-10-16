@@ -14,7 +14,7 @@ import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } fro
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
 import { BikeState, NearbyPlace, TrafficIncident, TriggerEvent, WeatherState } from '../src/core/types';
 import { ClaudeClient, TALK_MEMORY, buildClaudeRequest, cleanSpoken, extractText } from '../src/core/ClaudeClient';
-import { clockNote, greetingFor, BANTER_MODES, banterContext, banterTopics, chooseAmbient, freshPlace, pickMode, pickTopic, placesFromHere, travelDirection, whereIs } from '../src/core/ambient';
+import { placesToExplain, clockNote, greetingFor, BANTER_MODES, banterContext, banterTopics, chooseAmbient, freshPlace, pickMode, pickTopic, placesFromHere, travelDirection, whereIs } from '../src/core/ambient';
 import { RideStats } from '../src/core/RideStats';
 import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
 import { parseCandidates, pickCandidates, toPlace } from '../src/adapters/PlaceSource';
@@ -840,6 +840,14 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(e.force('rider_query', s).riderSaid, undefined, 'the old "how is the bike" button still works without words');
   assert.match(e.force('rider_query', s).context, /asked how things are going/);
   assert.match(e.ask('how hot is the engine?', { ...s, obd: true, engineTempC: 93 }).context, /Engine data: 93 C/);
+  // asking about a place: she gets its notes, even one outside the tour-guide radius, found from the words he used
+  const far = place({ id: 'g', name: 'Greenstone Hill', summary: 'Greenstone Hill mall opened in 2007.', lat: -26.0, lon: 28.3 });
+  const withFar = { ...s, nearbyPlaces: [...s.nearbyPlaces, far] };
+  const asked = e.ask('tell me about greenstone', withFar).context;
+  assert.match(asked, /Notes on Greenstone Hill \([\d.]+ km/); assert.match(asked, /mall opened in 2007/);
+  assert.match(asked, /Notes on Edenvale/, 'and the nearest place too');
+  assert.equal(placesToExplain(withFar, 'what about that place', ['Greenstone Hill'], 6)[0].name, 'Greenstone Hill', '"tell me more": the last place she talked about');
+  assert.equal(placesToExplain({ ...withFar, nearbyPlaces: [] }, 'greenstone', [], 6).length, 0);
 
   // the request: answer prompt, clock and readings, earlier exchanges as real turns
   const talk = [{ said: 'is it going to rain?', answer: 'Seventy percent within the hour.' }];

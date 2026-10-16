@@ -191,7 +191,25 @@ export function banterContext(topic: BanterTopic, mode: BanterMode, all: BanterT
  * Everything she knows right now, as plain sentences, for answering a question he asks. Built from the same
  * facts as banter so the two never disagree, plus the forecast, the traffic on his way and what is nearby.
  */
-export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncident[] }): string {
+/** Words of a place's name worth matching in what he said ("Modderfontein (East Rand)" -> modderfontein, east, rand). */
+const nameWords = (name: string) => name.toLowerCase().replace(/[()]/g, ' ').split(/[^a-z']+/).filter((w) => w.length >= 5);
+
+/**
+ * Places to give her notes on when he asks something: any place he names, the last one she talked about (for
+ * "tell me more about that"), then the nearest. Without notes she only had names and said she did not know.
+ */
+export function placesToExplain(s: BikeState, said: string, talkedAbout: string[], radiusKm: number, max = 3): NearbyPlace[] {
+  const all = placesFromHere(s);
+  const heard = said.toLowerCase();
+  const named = all.filter((p) => nameWords(p.name).some((w) => heard.includes(w)));
+  const last = all.filter((p) => p.name === talkedAbout[talkedAbout.length - 1]);
+  const near = all.filter((p) => p.distanceKm <= radiusKm).sort((a, b) => a.distanceKm - b.distanceKm);
+  const out: NearbyPlace[] = [];
+  for (const p of [...named, ...last, ...near]) if (out.length < max && !out.includes(p)) out.push(p);
+  return out;
+}
+
+export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncident[]; riderSaid?: string }): string {
   const lines = banterTopics(i).filter((t) => t.id !== 'open').map((t) => t.text);
   const w = i.s.weather;
   if (w) lines.push(`Rain: ${w.rainNowMm >= 0.1 ? 'raining now' : 'not raining now'}, ${w.rainChanceNextHourPct} percent chance in the next hour.`);
@@ -204,5 +222,11 @@ export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncid
   } else lines.push('No engine data is connected: engine temperature, revs, fuel level and faults are unknown.');
   const near = placesFromHere(i.s).filter((p) => p.distanceKm <= i.placeRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 4);
   if (near.length) lines.push(`Places nearby: ${near.map((p) => `${p.name} (${p.distanceKm} km)`).join(', ')}.`);
+  if (i.riderSaid !== undefined) {
+    for (const p of placesToExplain(i.s, i.riderSaid, i.ride.places, i.placeRadiusKm)) {
+      const where = whereIs(i.s, p);
+      lines.push(`Notes on ${p.name} (${p.distanceKm} km${where ? `, ${where}` : ''}): ${p.summary.slice(0, 900)}`);
+    }
+  }
   return lines.join(' ');
 }

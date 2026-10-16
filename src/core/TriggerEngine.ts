@@ -317,6 +317,7 @@ export class TriggerEngine {
           const digest = situationDigest({
             s, ride: r, history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
             fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
+            riderSaid: this.riderText,
           });
           return {
             context: `He just said to you: "${this.riderText}". What you know right now: ${digest}`,
