@@ -739,8 +739,12 @@ brake or a "mark this" press.
    server: `GOOGLE_TTS_API_KEY` for Chirp 3 HD via texttospeech v1 `text:synthesize`, en-GB since there is no en-ZA,
    MP3; `GEMINI_API_KEY` for Gemini TTS via `v1beta/interactions`, model `GEMINI_TTS_MODEL` default
    `gemini-3.8-flash-tts`, WAV, with a per-line `style`). Both engines share the same 30 voice names, so she is one
-   person. `CONFIG.cloudVoice`: `mixed` (default: P1/P2 alerts on Chirp, fast and steady; everything else on Gemini
-   with `VOICE_STYLES` by trigger id), `chirp`, `gemini`, `off`. `adapters/CloudSpeaker` falls back to the phone voice
+   person. `CONFIG.cloudVoice`: `mixed` (default), `chirp`, `gemini`, `off`. Keys added to Vercel 2026-10-16 and both
+   engines checked from the Mac: Chirp about 1 s a line, Gemini 5 to 7 s (`gemini-3.8-flash-lite-tts` no faster). So
+   `mixed` = Gemini (with `VOICE_STYLES` by trigger id) ONLY for her unprompted P3 lines, Chirp for alerts and for
+   everything he is waiting on (answers, command replies, startup, debrief). P3 lines wait for their audio
+   (`CloudSpeaker.ready`, up to 12 s) BEFORE they are queued, so a slow clip never holds up an answer; one that
+   arrives after he asked for quiet is dropped. `adapters/CloudSpeaker` falls back to the phone voice
    for any line whose audio is not there in `WAIT_MS` (Chirp 2.5 s, Gemini 5 s), fails, or will not play; a 503 (key
    not set) stops that engine for the session. Audio is prefetched as soon as a line is written and kept (40 clips),
    so a queued line and repeated phrases are instant. It plays on the headset buttons' own track while those are

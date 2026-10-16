@@ -4,15 +4,21 @@ import { quietWav } from './audio';
 
 export type Engine = 'chirp' | 'gemini';
 
-/** Which Google engine says a line: in the mixed mode, alerts (P1/P2) get fast, steady Chirp, the rest Gemini. */
+/**
+ * Which Google engine says a line. Measured 2026-10-16: Chirp about 1 s a line, Gemini 5 to 7 s (the lite model no
+ * faster). So in the mixed mode Gemini only says her own unprompted lines (P3: banter, tour guide, time checks),
+ * which nobody is waiting for; alerts and answers to him get Chirp.
+ */
 export function engineFor(mode: CloudVoiceMode, priority: number): Engine | null {
   if (mode === 'off') return null;
-  if (mode === 'mixed') return priority <= 2 ? 'chirp' : 'gemini';
+  if (mode === 'mixed') return priority === 3 ? 'gemini' : 'chirp';
   return mode;
 }
 
-/** How long to wait for the audio before saying the line with the phone voice instead. */
+/** How long speak() waits for the audio before saying the line with the phone voice instead. */
 export const WAIT_MS: Record<Engine, number> = { chirp: 2500, gemini: 5000 };
+/** How long an unprompted line may wait for its Gemini audio BEFORE it is queued (see ready()). */
+export const READY_MS = 12_000;
 
 /** Plays one clip. Returns a function that stops it. */
 export interface CloudPlayer { play(url: string, onEnded: () => void, onError: (why: string) => void): () => void }
@@ -56,6 +62,8 @@ interface Req { engine: Engine; key: string; body: { text: string; engine: Engin
  */
 export class CloudSpeaker implements Speaker {
   private cache = new Map<string, Promise<Blob>>();
+  /** Lines whose audio just failed: said straight away with the phone voice rather than tried again */
+  private failed = new Set<string>();
   private notSetUp = new Set<Engine>();
   private token = 0;
   private stopPlay: (() => void) | null = null;
@@ -89,7 +97,7 @@ export class CloudSpeaker implements Speaker {
         }
         return res.blob();
       })();
-      p.catch(() => this.cache.delete(r.key)); // a failure is not kept: next time may have signal
+      p.catch(() => { this.cache.delete(r.key); this.failed.add(r.key); }); // not kept: next ride may have signal
       this.cache.set(r.key, p);
       while (this.cache.size > this.keep) this.cache.delete(this.cache.keys().next().value!);
     }
@@ -99,12 +107,22 @@ export class CloudSpeaker implements Speaker {
   /** Start fetching a line's audio now, while it waits its turn. */
   prefetch(text: string, tag?: SpeakTag) {
     const r = this.request(text, tag);
-    if (r) this.get(r).catch(() => {});
+    if (r && !this.failed.has(r.key)) this.get(r).catch(() => {});
+  }
+
+  /**
+   * Resolves once the line's audio is in (or has failed, or after READY_MS). Her unprompted lines wait on this
+   * before they are queued, so a slow Gemini clip never holds the queue up while he waits for an answer.
+   */
+  ready(text: string, tag?: SpeakTag): Promise<void> {
+    const r = this.request(text, tag);
+    if (!r || this.failed.has(r.key)) return Promise.resolve();
+    return within(this.get(r), READY_MS).then(() => {}, () => {});
   }
 
   speak(text: string, onDone: () => void, tag?: SpeakTag) {
     const r = this.request(text, tag);
-    if (!r) { this.fallback.speak(text, onDone, tag); return; }
+    if (!r || this.failed.has(r.key)) { this.fallback.speak(text, onDone, tag); return; }
     const my = ++this.token;
     let finished = false;
     let deadline: ReturnType<typeof setTimeout> | undefined;

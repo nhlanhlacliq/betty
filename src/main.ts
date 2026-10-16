@@ -334,12 +334,17 @@ async function beginRide() {
 
   const say = async (ev: TriggerEvent) => {
     const p = await claude.phrase(ev, agg.current);
-    // Safety stays serious: an ambient line that comes back while a critical condition is active is dropped.
-    const dropped = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
-    const text = dropped ? '' : p.text;
+    const tag = { priority: ev.priority, id: ev.id };
+    // Her own lines (Gemini, 5 to 7 s) are queued only once their audio is in, so they never block an answer.
+    if (p.text && speaker.aloud && ev.priority === 3) await cloud.ready(p.text, tag);
+    // Safety stays serious: an ambient line that comes back while a critical condition is active is dropped. So is
+    // one that arrives after he asked for quiet.
+    const critical = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
+    const hushed = ev.priority === 3 && engine.quietLeftMin() > 0;
+    const text = critical || hushed ? '' : p.text;
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
-    const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (dropped ? '(dropped: critical alert active)' : '(silent)'));
-    if (text && speaker.aloud) cloud.prefetch(text, { priority: ev.priority, id: ev.id }); // fetch the audio while it waits
+    const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : '(silent)'));
+    if (text && speaker.aloud) cloud.prefetch(text, tag); // fetch the audio while it waits its turn
     line.item = queue.enqueue(text, ev.priority, ev.id); // the item carries its fate: waiting, speaking, spoken, or why not
     toChat({ from: 'betty', text: line.text, at: Date.now(), ev, phrase: p });
     renderLog();

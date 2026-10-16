@@ -1064,7 +1064,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
 {
   resetConfig();
   assert.equal(engineFor('mixed', 1), 'chirp'); assert.equal(engineFor('mixed', 2), 'chirp'); assert.equal(engineFor('mixed', 3), 'gemini');
-  assert.equal(engineFor('mixed', 4), 'gemini'); assert.equal(engineFor('off', 1), null); assert.equal(engineFor('chirp', 4), 'chirp');
+  assert.equal(engineFor('mixed', 4), 'chirp', 'answers to him cannot wait 5 to 7 s for Gemini'); assert.equal(engineFor('off', 1), null); assert.equal(engineFor('chirp', 4), 'chirp');
   const phone = new FakeSpeaker();
   const logs: string[] = [];
   let calls: any[] = []; let reply: () => Promise<Response> = async () => new Response(new Blob(['mp3']));
@@ -1087,6 +1087,11 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   calls = [];
   sp.prefetch('Hang on, let me check.', { priority: 4, id: 'voice' }); sp.speak('Hang on, let me check.', () => done++, { priority: 4, id: 'voice' });
   await flush(); assert.equal(calls.length, 1); finish!(); assert.equal(done, 3);
+  // ready(): resolves when the clip is in, so an unprompted line is queued with its audio already there
+  calls = [];
+  await sp.ready('Nice bit of road.', { priority: 3, id: 'ambient_banter' });
+  sp.speak('Nice bit of road.', () => done++, { priority: 3, id: 'ambient_banter' }); await flush();
+  assert.equal(calls.length, 1); finish!(); assert.equal(done, 4);
   // a server error: phone voice; a 503 (not set up): phone voice, and no more tries for that engine
   reply = async () => new Response(JSON.stringify({ error: 'cloud voice is not set up yet' }), { status: 503 });
   calls = [];
@@ -1094,7 +1099,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(phone.spoken.at(-1), 'Traffic ahead.'); assert.match(logs.at(-1)!, /not set up.*phone voice/); phone.done!();
   sp.speak('Closure ahead.', () => done++, { priority: 2 }); await flush();
   assert.equal(calls.length, 1, 'chirp not tried again'); assert.equal(phone.spoken.at(-1), 'Closure ahead.'); phone.done!();
-  assert.equal(done, 5);
+  assert.equal(done, 6);
   // off: straight to the phone
   CONFIG.cloudVoice = 'off'; calls = [];
   sp.speak('Phone only.', () => done++, { priority: 3 }); assert.equal(calls.length, 0); assert.equal(phone.spoken.at(-1), 'Phone only.');
