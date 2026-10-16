@@ -1293,8 +1293,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   }) as typeof fetch);
   calls = []; played = [];
   await sp2.ready('Quiet road.', { priority: 3, id: 'ambient_banter' });
-  assert.deepEqual(calls.map((c) => `${c.engine}${c.model ? ' ' + c.model : ''}`), ['gemini full', 'gemini lite', 'chirp'], 'each Gemini model has its own daily limit: the other is tried first');
-  assert.ok(logs.some((l) => /gemini full\): out for the day.*switching to lite/.test(l))); assert.match(logs.at(-1)!, /gemini\) unavailable for this ride.*429/);
+  assert.deepEqual(calls.map((c) => `${c.engine}${c.model ? ' ' + c.model : ''}`), ['gemini lite', 'gemini full', 'chirp'], 'each Gemini model has its own daily limit: the other is tried first');
+  assert.ok(logs.some((l) => /gemini lite\): out for the day.*switching to full/.test(l))); assert.match(logs.at(-1)!, /gemini\) unavailable for this ride.*429/);
   sp2.speak('Quiet road.', () => done++, { priority: 3, id: 'ambient_banter' }); await flush();
   assert.equal(calls.length, 3, 'played from the Chirp clip already fetched'); assert.equal(played.length, 1); finish!();
   await sp2.ready('Still quiet.', { priority: 3, id: 'ambient_banter' });
@@ -1314,7 +1314,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     sp3.prefetch('About forty k left.', { priority: 4, id: 'rider_query' });
     sp3.speak('About forty k left.', () => d3++, { priority: 4, id: 'rider_query' });
     await flush();
-    assert.equal(bodies.length, 1, 'the prefetched stream is the one played'); assert.equal(bodies[0].stream, true); assert.equal(bodies[0].model, 'full');
+    assert.equal(bodies.length, 1, 'the prefetched stream is the one played'); assert.equal(bodies[0].stream, true); assert.equal(bodies[0].model, 'lite');
     assert.equal(clips[0].bytes, 4); assert.equal(clips[0].done, true);
     endClip!(); assert.equal(d3, 1);
     // a stream that fails before any audio: Chirp says it (same voice), not the phone

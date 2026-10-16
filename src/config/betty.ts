@@ -102,7 +102,7 @@ export const DEFAULT_CONFIG: Config = {
   voiceURI: '',
   cloudVoice: 'stream',
   cloudVoiceName: 'Aoede',
-  geminiModel: 'full',
+  geminiModel: 'lite', // owner, 2026-10-17: Lite first (faster), Full once Lite's daily limit is reached
   chirpLocale: 'en-US',
   chirpStandIn: '',
   headsetButtons: false,
