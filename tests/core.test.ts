@@ -1266,7 +1266,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const sp2 = new CloudSpeaker(phone, () => player, (m) => logs.push(m), (async (_u: any, init: any) => {
     const b = JSON.parse(init.body); calls.push(b);
     return b.engine === 'gemini'
-      ? new Response(JSON.stringify({ error: 'Gemini voice said HTTP 429' }), { status: 502 })
+      ? new Response(JSON.stringify({ error: 'Gemini voice said HTTP 429', detail: 'limit: 10 requests per day on Free Tier' }), { status: 502 })
       : new Response(new Blob(['mp3']));
   }) as typeof fetch);
   calls = []; played = [];
@@ -1318,6 +1318,32 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     CONFIG.cloudVoiceName = 'Kore';
     await later.ready(STOCK_LINES[0], { priority: 4, id: 'voice' });
     assert.equal(asked.length, 2, 'a new voice makes it again');
+    resetConfig();
+  }
+  // Tier 1: 10 Gemini requests a minute. Betty keeps to 8, then Chirp; a per-minute 429 pauses Gemini, not the ride
+  {
+    CONFIG.cloudVoice = 'mixed';
+    const asked: any[] = []; let limit = false;
+    const lg: string[] = [];
+    const sp4 = new CloudSpeaker(phone, () => player, (m) => lg.push(m), (async (_u: any, init: any) => {
+      const b = JSON.parse(init.body); asked.push(b);
+      if (b.engine === 'gemini' && limit) return new Response(JSON.stringify({ error: 'Gemini voice said HTTP 429', detail: 'Rate limit exceeded (limit: 10 requests per minute on Tier 1). Please retry in 54s' }), { status: 502 });
+      return new Response(new Blob(['a']));
+    }) as typeof fetch);
+    for (let i = 0; i < 10; i++) await sp4.ready(`Remark ${i}.`, { priority: 3, id: 'ambient_banter' });
+    assert.deepEqual(asked.map((b) => b.engine), [...Array(8).fill('gemini'), 'chirp', 'chirp'], 'the 9th and 10th in a minute go to Chirp');
+    const sp5 = new CloudSpeaker(phone, () => player, (m) => lg.push(m), (async (_u: any, init: any) => {
+      const b = JSON.parse(init.body); asked.push(b);
+      return b.engine === 'gemini'
+        ? new Response(JSON.stringify({ error: 'Gemini voice said HTTP 429', detail: 'Rate limit exceeded for model gemini-3.8-flash-tts (limit: 10 requests per minute on Tier 1). Please retry in 54s or upgrade your tier' }), { status: 502 })
+        : new Response(new Blob(['a']));
+    }) as typeof fetch);
+    asked.length = 0;
+    await sp5.ready('First.', { priority: 3, id: 'ambient_banter' });
+    assert.deepEqual(asked.map((b) => b.engine), ['gemini', 'chirp']); assert.match(lg.at(-1)!, /at its limit \(limit: 10 requests per minute on Tier 1\); Chirp for the next 54 s/);
+    assert.equal(sp5.geminiRoom(), false, 'paused for the 54 s Google asked');
+    assert.ok(!lg.some((l) => /unavailable for this ride/.test(l) && /per minute/.test(l)), 'a per-minute limit does not end Gemini for the ride');
+    void limit;
     resetConfig();
   }
   // off: straight to the phone

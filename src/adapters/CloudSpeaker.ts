@@ -28,6 +28,15 @@ export const streams = (mode: CloudVoiceMode, priority: number) => (mode === 'st
 export const WAIT_MS: Record<Engine, number> = { chirp: 3500, gemini: 5000 }; // live from SA: Chirp about 2 s round trip
 /** How long an unprompted line may wait for its Gemini audio BEFORE it is queued (see ready()). */
 export const READY_MS = 12_000;
+/**
+ * Gemini voice on the paid Tier 1 allows 10 requests a minute: a ride start (7 stock phrases + the briefing + her
+ * first remarks) hit it and got 429 (2026-10-17). Betty keeps to GEMINI_PER_MIN, and fetching stock phrases ahead
+ * leaves LOW_PRIORITY_RESERVE of those free for lines he will actually hear.
+ */
+export const GEMINI_PER_MIN = 8;
+const LOW_PRIORITY_RESERVE = 4;
+class GeminiBusy extends Error {}
+
 /** A streamed line with no audio yet after this long is said by Chirp instead. */
 export const STREAM_WAIT_MS = 4500;
 /** Lines she says often, made in her Gemini voice at ride start so they play at once (stream mode). */
@@ -104,6 +113,9 @@ export class CloudSpeaker implements Speaker {
   private unavailable = new Set<Engine>();
   private token = 0;
   private stopPlay: (() => void) | null = null;
+  /** When each Gemini request of the last minute went out, and until when Google asked us to wait */
+  private geminiAt: number[] = [];
+  private geminiPausedUntil = 0;
 
   constructor(
     private fallback: Speaker,
@@ -142,18 +154,44 @@ export class CloudSpeaker implements Speaker {
   private request(text: string, tag?: SpeakTag, force?: Engine): Req | null {
     let engine = force ?? engineFor(CONFIG.cloudVoice, tag?.priority ?? 4);
     if (!engine || !text.trim()) return null;
-    if (engine === 'gemini' && (this.unavailable.has('gemini') || this.failed.has(this.build('gemini', text, tag).key))) engine = 'chirp';
+    if (engine === 'gemini') {
+      const g = this.build('gemini', text, tag);
+      const have = this.cache.has(g.key) || this.pcm.has(g.key); // already fetched (or on its way): use it
+      // Kept lines may be on the phone already, so they go ahead and check the budget only if they must be fetched.
+      if (!have && (this.unavailable.has('gemini') || this.failed.has(g.key) || (!g.kept && !this.geminiRoom()))) engine = 'chirp';
+    }
     if (this.unavailable.has(engine)) return null;
     return this.build(engine, text, tag);
   }
 
+  /** Room for one more Gemini request this minute (keeping `reserve` free). */
+  geminiRoom(reserve = 0): boolean {
+    const now = Date.now();
+    this.geminiAt = this.geminiAt.filter((t) => now - t < 60_000);
+    return now >= this.geminiPausedUntil && this.geminiAt.length < GEMINI_PER_MIN - reserve;
+  }
+
+  /** Waits (up to maxMs) until Gemini has room: for the sound test, which plays ten Gemini lines in a row. */
+  async whenGeminiFree(maxMs = 60_000): Promise<void> {
+    const until = Date.now() + maxMs;
+    while (!this.geminiRoom() && Date.now() < until) await new Promise((r) => setTimeout(r, 500));
+  }
+
   private async post(r: Req): Promise<Response> {
+    if (r.engine === 'gemini') this.geminiAt.push(Date.now());
     const res = await this.fetcher(this.url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(r.body) });
     if (!res.ok) {
       const why: any = await res.json().catch(() => ({}));
-      // Not set up, or out of quota: say it once, then stop asking that engine this ride.
-      if (res.status === 503 || (res.status === 502 && /HTTP 429/.test(why?.error ?? ''))) {
-        if (!this.unavailable.has(r.engine)) this.log(`cloud voice (${r.engine}) unavailable for this ride: ${why?.error ?? res.status}`);
+      const detail = String(why?.detail ?? '');
+      const limited = res.status === 502 && /HTTP 429/.test(why?.error ?? '');
+      if (limited && !/per day/i.test(detail)) {
+        // A per-minute limit: wait as long as Google says, then carry on with Gemini. Chirp fills in meanwhile.
+        const secs = Number(detail.match(/retry in (\d+)/i)?.[1] ?? 60);
+        if (Date.now() >= this.geminiPausedUntil) this.log(`cloud voice (gemini): at its limit (${detail.match(/limit: [^)]+/)?.[0] ?? 'per minute'}); Chirp for the next ${secs} s`);
+        this.geminiPausedUntil = Date.now() + secs * 1000;
+      } else if (res.status === 503 || limited) {
+        // Not set up, or out of quota for the day: say it once, then stop asking that engine this ride.
+        if (!this.unavailable.has(r.engine)) this.log(`cloud voice (${r.engine}) unavailable for this ride: ${why?.error ?? res.status}${detail ? ` (${detail.slice(0, 120)})` : ''}`);
         this.unavailable.add(r.engine);
       }
       throw new Error(why?.error || `HTTP ${res.status}`);
@@ -167,11 +205,13 @@ export class CloudSpeaker implements Speaker {
       const kept = r.kept;
       p = (async () => {
         if (kept) { const hit = await this.store?.get(r.key).catch(() => null); if (hit) return hit; }
+        // Fetching a stock phrase ahead must not use up the minute's Gemini budget: it is fetched when needed instead.
+        if (r.engine === 'gemini' && !this.geminiRoom(kept ? LOW_PRIORITY_RESERVE : 0)) throw new GeminiBusy('Gemini busy this minute');
         const blob = await this.post(r).then((res) => res.blob());
         if (kept) void this.store?.put(r.key, blob).catch(() => {});
         return blob;
       })();
-      p.catch(() => { this.cache.delete(r.key); this.failed.add(r.key); }); // not kept: next ride may have signal
+      p.catch((e) => { this.cache.delete(r.key); if (!(e instanceof GeminiBusy)) this.failed.add(r.key); }); // busy: try again later
       this.cache.set(r.key, p);
       while (this.cache.size > this.keep) this.cache.delete(this.cache.keys().next().value!);
     }

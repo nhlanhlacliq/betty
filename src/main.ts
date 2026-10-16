@@ -303,12 +303,12 @@ $('cloudsounds').addEventListener('click', () => {
   const notes: string[] = [];
   const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m), undefined, undefined, undefined, testPcm, undefined, clipStore);
   const tag = { priority: 3 as const, id: 'voice' }; // P3 is Gemini in every Gemini mode
-  const ready = SOUND_TEST_LINES.map(([, line]) => t.ready(line, tag)); // all fetched at once
   void (async () => {
     for (let i = 0; i < SOUND_TEST_LINES.length; i++) {
       const [sound, line] = SOUND_TEST_LINES[i];
       setStatus(`Sound ${i + 1} of ${SOUND_TEST_LINES.length}: <${sound}>, "${voiceTags(line, false)}"`);
-      await ready[i];
+      await t.whenGeminiFree(); // ten Gemini lines in a row: stay under its 10-a-minute limit
+      await t.ready(line, tag);
       await new Promise<void>((done) => t.speak(line, done, tag));
       await new Promise((r) => setTimeout(r, 600));
     }

@@ -6,6 +6,12 @@ export interface ChangeDay { date: string; items: string[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-17',
+    items: [
+      'Gemini no longer drops out for the whole ride: your paid tier allows 10 Gemini lines a minute, so Betty spaces them out and uses Chirp for the odd line in between.',
+    ],
+  },
+  {
     date: '2026-10-16 (night)',
     items: [
       'The line under the dashboard shows the area you are in and how many of its stories are still untold; area research also goes in the log.',

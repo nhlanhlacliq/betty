@@ -762,6 +762,11 @@ brake or a "mark this" press.
    everything he is waiting on (answers, command replies, startup, debrief). P3 lines wait for their audio
    (`CloudSpeaker.ready`, up to 12 s) BEFORE they are queued, so a slow clip never holds up an answer; one that
    arrives after he asked for quiet is dropped.
+   GEMINI TIER 1 = 10 REQUESTS A MINUTE (2026-10-17, after billing): a ride start (7 stock phrases + briefing + first
+   remarks) got 429 and Betty then dropped Gemini for the whole ride. Now `CloudSpeaker` keeps to `GEMINI_PER_MIN` (8):
+   lines past it go to Chirp, stock-phrase fetches leave 4 of the 8 free (and are fetched on demand otherwise), a
+   per-minute 429 pauses Gemini for the "retry in N s" Google gives (logged once), and only a per-day 429 or a 503
+   ends Gemini for the ride. "Test sounds" now waits for room between lines.
    GEMINI FREE TIER = 10 REQUESTS A DAY for `gemini-3.8-flash-tts` (429 on the 11th, 2026-10-16): useless for a ride.
    A Gemini line that fails is asked of Chirp instead (same voice), and a 429 or 503 stops that engine for the rest of
    the ride (`unavailable`, logged once as `[audio]`). Real Gemini use needs billing on the AI Studio project (paid
