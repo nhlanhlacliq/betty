@@ -3,291 +3,306 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f5f3ed" />
+  <meta name="theme-color" content="#f7f6f0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="description" content="Betty, your riding companion. A quieter mind. A better ride." />
   <title>Betty</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" />
   <link rel="stylesheet" href="/src/ui/styles/tokens.css" />
   <link rel="stylesheet" href="/src/ui/styles/app.css" />
   <link rel="stylesheet" href="/src/ui/styles/devtools.css" />
 </head>
 <body>
-<div class="app-shell">
+<div class="stage">
+  <!-- Desktop only: a label above the phone frame -->
+  <div class="stage-label" aria-hidden="true"><span class="stage-brand">betty.</span><span>Your riding companion <span class="label-dot">·</span> <span id="stagenote">phone layout</span></span></div>
+  <div class="stage-row">
+    <div class="device" id="device">
+      <!-- On a phone this is only the space under the real status bar; on desktop it draws the frame's status bar -->
+      <div class="status-bar" aria-hidden="true"><span id="clock"></span><span class="dynamic-island"></span><span class="status-symbols"><svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor"><rect y="8" width="2.5" height="4" rx=".7"/><rect x="4" y="5" width="2.5" height="7" rx=".7"/><rect x="8" y="2" width="2.5" height="10" rx=".7"/><rect x="12" width="2.5" height="12" rx=".7"/></svg><svg width="24" height="12" viewBox="0 0 24 12" fill="none"><rect x=".5" y=".5" width="20" height="11" rx="3" stroke="currentColor"/><rect x="2.5" y="2.5" width="16" height="7" rx="1.5" fill="currentColor"/><path d="M22 4v4" stroke="currentColor" stroke-width="2"/></svg></span></div>
 
-  <!-- Sidebar on a wide screen, bottom bar on a phone -->
-  <aside class="sidebar">
-    <div class="logo"><span class="logo-mark"></span>betty</div>
-    <div class="tagline" id="tagline"></div>
-    <nav aria-label="Main navigation">
-      <button class="nav-button" type="button" data-go="home" data-nav="home"><i data-icon="ride"></i><span>Ride</span></button>
-      <button class="nav-button" type="button" data-go="journeys" data-nav="journeys"><i data-icon="journeys"></i><span>My journeys</span></button>
-      <button class="nav-button" type="button" data-go="explore" data-nav="explore"><i data-icon="explore"></i><span>Explore</span></button>
-      <button class="nav-button" type="button" data-go="settings" data-nav="settings"><i data-icon="garage"></i><span>Garage &amp; settings</span></button>
-    </nav>
-    <div class="side-bottom">
-      <div class="connection"><span class="dot"></span><span id="connection"></span></div>
-      <div class="profile"><div class="initial" id="profileinitial"></div><div><span id="profilename"></span><small id="profilesub"></small></div></div>
-    </div>
-  </aside>
-
-  <main class="main">
-    <header class="topline">
-      <div><span class="mobile-logo">betty<span class="logo-dot">.</span></span><span class="location-label"><i data-icon="pin" class="sm"></i><span id="toplocation"></span></span></div>
-      <div><span class="demo-pill" id="modepill" hidden></span><span class="weather" id="topweather" hidden><i data-icon="sun"></i><span id="toptemp"></span><span class="location-label" id="topsummary"></span></span></div>
-    </header>
-
-    <!-- ============ RIDE (before setting off) ============ -->
-    <section data-screen="home">
-      <div class="intro">
-        <div>
+      <!-- ============ RIDE (before setting off): map with the ride dock ============ -->
+      <section class="screen map-screen" data-screen="home">
+        <div class="ride-map"><div class="map-art-host" id="homemap"></div><div class="map-fade"></div></div>
+        <header class="home-header">
+          <div class="wordmark">betty<span>.</span></div>
+          <button class="avatar-button" type="button" data-go="settings" aria-label="Garage and settings" id="profileinitial"></button>
+        </header>
+        <div class="map-greeting">
           <p class="eyebrow" id="homeeyebrow"></p>
           <h1 id="homeheadline"></h1>
-          <p class="sub" id="homelead"></p>
+          <span class="condition-pill"><i data-icon="sun" class="sm"></i><b id="hometemp"></b><span id="homecondition"></span></span>
         </div>
-        <button class="text-button hide-mobile" type="button" data-sheet-open="ready">Before you go <i data-icon="arrow" class="sm"></i></button>
-      </div>
-      <div class="ride-grid">
-        <div class="map-panel">
-          <div class="map-art-host" id="homemap"></div>
-          <div class="map-top"><div class="map-chip"><span class="dot"></span><span id="homemapchip"></span></div><div class="map-chip" id="homemapbadge2" hidden></div></div>
-          <div class="map-bottom"><div><div class="tiny" id="homemaptiny"></div><strong id="homemaptext"></strong></div><span class="scenic-badge" id="homemapbadge"></span></div>
-          <span class="map-attribution">Sketch of your last ride · not for navigation</span>
-        </div>
-        <div class="ride-side">
-          <div class="betty-card">
-            <div class="betty-head"><b>Your riding companion</b><span class="resting"><span class="dot"></span><span>Ready when you are</span></span></div>
+        <div class="map-controls home-map-controls"><button type="button" id="homerecenter" aria-label="Recentre map"><i data-icon="target"></i></button></div>
+        <section class="ride-dock">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="ready-row">
             <button class="orb resting" id="helloorb" type="button" aria-label="Hear Betty's voice"></button>
-            <p id="homemessage"></p>
-            <div class="caption" id="homecaption"></div>
+            <div><p class="eyebrow">Your riding companion</p><h2 id="homemessage"></h2><p class="sub" id="homecaption"></p></div>
           </div>
-          <div class="route-picker">
-            <div class="label" id="pickerlabel"></div>
-            <div class="mode-options" role="radiogroup" aria-label="Ride mode">
-              <button class="mode-option" type="button" role="radio" data-mode="real"><i data-icon="ride"></i><span><b class="tile-label"></b><small></small></span></button>
-              <button class="mode-option" type="button" role="radio" data-mode="sim"><i data-icon="wrench"></i><span><b class="tile-label"></b><small></small></span></button>
-              <input type="checkbox" id="real" checked hidden />
-            </div>
-            <button class="primary wide" id="start" type="button"><span id="starttext">Let's ride</span><i data-icon="arrow" class="sm"></i></button>
-            <button class="text-button free ready-line" type="button" data-sheet-open="ready"><i class="dot" id="readydot"></i><b id="readytitle">Ready to roll</b> <span id="readysub"></span> <i data-icon="ne" class="sm"></i></button>
+          <button class="destination-button" type="button" data-sheet-open="mode">
+            <span class="destination-icon" id="modeicon"></span>
+            <span><small id="pickerlabel"></small><b id="modetitle"></b></span>
+            <span class="chevron"><i data-icon="chev"></i></span>
+          </button>
+          <input type="checkbox" id="real" checked hidden />
+          <button class="primary wide" id="start" type="button"><span id="starttext">Let's ride</span><i data-icon="arrow"></i></button>
+          <button class="free-button" type="button" data-sheet-open="ready">Check everything before you go <i data-icon="arrow" class="sm"></i></button>
+          <div class="readiness" id="homestatus">
+            <span><i class="dot" id="readydot"></i> <span id="readytitle">Betty ready</span></span>
+            <span id="readyvoice"></span>
+            <button type="button" data-sheet-open="ready"><span id="readysub">Details</span> <i data-icon="info" class="xs"></i></button>
           </div>
-        </div>
-        <div class="status-row" id="homestatus"></div>
-      </div>
-      <div class="section-title"><h2 id="roadstitle"></h2><button class="text-button" type="button" data-go="journeys">My journeys <i data-icon="arrow" class="sm"></i></button></div>
-      <div class="routes" id="roads"></div>
-    </section>
+        </section>
+      </section>
 
-    <!-- ============ RIDE (riding) ============ -->
-    <section data-screen="ride" hidden>
-      <div class="ride-fit">
-        <div class="intro">
-          <div>
-            <p class="eyebrow" id="ridestatus">On the road</p>
-            <h1 id="rideplace">Free ride</h1>
-            <p class="sub" id="rideline"></p>
+      <!-- ============ RIDE (riding): map, glance card and the active dock ============ -->
+      <section class="screen map-screen" data-screen="ride" hidden>
+        <div class="ride-map active-map"><div class="map-art-host" id="ridemap"></div><div class="map-fade"></div></div>
+        <header class="ride-topbar">
+          <span class="live-pill"><i class="dot"></i><span id="ridestatus">On the road</span><span class="pill-sep">·</span><span id="modepill">Live</span></span>
+          <div class="topbar-buttons">
+            <button class="round-button" type="button" data-go="workshop" aria-label="Workshop"><i data-icon="wrench" class="sm"></i></button>
+            <button class="round-button" id="mute" type="button" aria-label="Ask Betty to be quiet"><span id="muteicon"></span><span class="audio-dot on" id="mutedot"></span></button>
           </div>
-          <button class="text-button" type="button" data-go="workshop"><span class="hide-mobile">Workshop</span> <i data-icon="wrench" class="sm"></i></button>
+        </header>
+        <div class="turn-card" id="glance">
+          <div class="turn-icon" id="glanceicon"></div>
+          <div><span class="turn-label" id="glancelabel"></span><strong id="glancetitle"></strong><p id="glancevalue"></p></div>
         </div>
-        <div class="ride-grid active">
-          <div class="map-panel">
-            <div class="map-art-host" id="ridemap"></div>
-            <div class="map-top">
-              <div class="turn-card" id="glance">
-                <div class="turn-icon" id="glanceicon"></div>
-                <div><span class="turn-label" id="glancelabel"></span><strong id="glancetitle"></strong><p id="glancevalue"></p></div>
-              </div>
-            </div>
-            <div class="compass"><span>N</span><span id="compassarrow"><i data-icon="north"></i></span></div>
-            <div class="map-controls">
-              <button type="button" data-zoom="in" aria-label="Zoom map in"><i data-icon="plus"></i></button>
-              <button type="button" data-zoom="out" aria-label="Zoom map out"><i data-icon="minus"></i></button>
-              <button type="button" data-zoom="reset" aria-label="Recentre map"><i data-icon="target"></i></button>
-            </div>
-            <div class="map-bottom">
-              <div class="ride-stats">
-                <div><b id="ridedist">0.0</b><small>km ridden</small></div>
-                <div><b id="ridemin">0</b><small>min out</small></div>
-                <div><b id="ridespeed">0</b><small>km/h</small></div>
-              </div>
-              <span class="ride-temp" id="ridetemp"></span>
-            </div>
-            <span class="map-attribution">Sketch of the ride · not for navigation</span>
+        <div class="map-controls active-map-controls">
+          <button type="button" data-zoom="in" aria-label="Zoom map in"><i data-icon="plus" class="sm"></i></button>
+          <button type="button" data-zoom="out" aria-label="Zoom map out"><i data-icon="minus" class="sm"></i></button>
+          <button type="button" data-zoom="reset" aria-label="Recentre map"><i data-icon="target"></i></button>
+        </div>
+        <div class="active-dock">
+          <div class="ride-stats">
+            <div><b id="ridedist">0.0</b><small>km ridden</small></div><span class="stat-separator"></span>
+            <div><b id="ridemin">0</b><small>min out</small></div><span class="stat-separator"></span>
+            <div><b id="ridespeed">0</b><small>km/h</small></div>
           </div>
-          <div class="ride-side">
-            <div class="betty-card">
-              <div class="betty-head"><b>Your riding companion</b><span class="resting"><span class="dot"></span><span id="companionstate">Along for the ride</span></span></div>
-              <button class="orb resting" id="rideorb" type="button" aria-label="Repeat Betty's last line"></button>
-              <p id="ridesub" aria-live="polite"></p>
+          <div class="betty-ride">
+            <div class="betty-ride-heading">
+              <button class="orb mini resting" id="rideorb" type="button" aria-label="Repeat Betty's last line"></button>
+              <div><span class="eyebrow" id="ridekicker">Betty</span><span id="companionstate">Along for the ride</span></div>
+              <button class="ghost-round" type="button" data-sheet-open="ask" aria-label="Ask Betty a question"><i data-icon="chat"></i></button>
               <button class="voice-button" id="ask" type="button" aria-label="Talk to Betty"><i data-icon="mic"></i></button>
-              <div class="caption" id="asktext">Tap to talk · or ask a question</div>
             </div>
-            <div class="context-card">
-              <p class="eyebrow" id="ridekicker"></p>
-              <h3 id="rideheadline"></h3>
-              <p id="ridefacts"></p>
-            </div>
-            <div class="ride-actions">
-              <button class="secondary" id="lock" type="button"><i data-icon="lock" class="sm"></i> Lock</button>
-              <button class="secondary" id="mute" type="button" aria-label="Ask Betty to be quiet"><span id="muteicon"></span> <span id="mutetext">Quiet</span></button>
-              <button class="secondary danger" id="end" type="button">End ride</button>
-            </div>
+            <p id="ridesub" aria-live="polite"></p>
+            <span class="listening-note" id="asktext" hidden>Listening… tap the microphone when you are done</span>
           </div>
-          <div class="status-row" id="ridestatusrow"></div>
+          <div class="ride-actions">
+            <button class="secondary" id="lock" type="button"><i data-icon="lock" class="sm"></i> Lock</button>
+            <button class="end-button" id="end" type="button"><span class="end-square"></span> <span id="endtext">End ride</span></button>
+          </div>
+          <p class="simulation-note" id="rideline"></p>
+          <p class="hidden-copy" hidden><span id="rideplace"></span><span id="rideheadline"></span><span id="ridefacts"></span><span id="ridetemp"></span></p>
         </div>
-      </div>
-      <div class="detail-section">
-        <p class="eyebrow">Voice first. Screen second.</p>
-        <h3>Anything catch your curiosity?</h3>
-        <p class="sub">Ask out loud with the microphone, or tap a question. Alerts always get the right of way.</p>
-        <div class="recent" id="askchips"></div>
-        <form class="destination ask-form" id="askform"><i data-icon="mic" class="sm"></i><input id="askinput" placeholder="Ask Betty…" aria-label="Ask Betty" autocomplete="off" maxlength="200" /><button class="primary" type="submit">Ask</button></form>
-      </div>
-    </section>
+      </section>
 
-    <!-- ============ MY JOURNEYS ============ -->
-    <section data-screen="journeys" hidden>
-      <div class="intro">
-        <div><p class="eyebrow">The roads stay with you</p><h1>My journeys</h1><p class="sub">Little escapes. Good roads. Stories worth keeping.</p></div>
-        <span class="demo-pill hide-mobile">Private · on this phone</span>
-      </div>
-      <div id="journeytotals"></div>
-      <div id="journeylist"></div>
-    </section>
-
-    <!-- ============ RIDE STORY ============ -->
-    <section data-screen="story" hidden>
-      <div id="story"></div>
-    </section>
-
-    <!-- ============ EXPLORE ============ -->
-    <section data-screen="explore" hidden>
-      <div class="intro"><div><p class="eyebrow">Follow your curiosity</p><h1>Good roads. New stories.</h1><p class="sub">Spots you marked, things you asked her to remember, and the stories she knows.</p></div></div>
-      <div class="tabs" id="exploretabs"></div>
-      <div id="explorelist"></div>
-      <div class="detail-section">
-        <p class="eyebrow">A little less planning</p>
-        <h2>You don't always need a destination.</h2>
-        <p class="sub">On a ride, say "mark this spot" or "remember that…" and it lands here. Area stories are researched the first time you ride through a town.</p>
-      </div>
-    </section>
-
-    <!-- ============ GARAGE & SETTINGS ============ -->
-    <section data-screen="settings" hidden>
-      <div class="intro"><div><p class="eyebrow">Make yourself at home</p><h1>Your ride. Your Betty.</h1><p class="sub">A few thoughtful adjustments, then back to the road.</p></div></div>
-      <div class="page-grid">
-        <section class="settings-card">
-          <h2>Betty's personality</h2>
-          <div class="setting"><div><p>Narration</p><small id="talkhint">How much company feels right?</small></div><select id="talkpreset" aria-label="How often Betty talks"></select></div>
-          <div class="setting"><div><p>A little dry humour <b class="val" id="humourval"></b></p><small>Facts only → Playful</small></div><input type="range" id="humour" min="0" max="100" step="5" aria-label="Sense of humour" /></div>
-          <div class="setting"><div><p>Character <b class="val" id="blendval"></b></p><small>JARVIS (polished) → TARS (blunt)</small></div><input type="range" id="blend" min="0" max="100" step="10" aria-label="Character blend" /></div>
-          <div class="setting"><div><p>Visual companion</p><small>One glanceable cue on the ride map.</small></div><input type="checkbox" id="glanceswitch" aria-label="Visual companion" /></div>
-          <button class="text-button" id="sample" type="button">Hear Betty's voice <i data-icon="arrow" class="sm"></i></button>
-        </section>
-
-        <section class="settings-card">
-          <h2>Voice &amp; audio</h2>
-          <div class="setting stack"><div><p>Cloud voice</p><small>Google voices, with the phone voice as backup.</small></div>
-            <select id="cloudvoice">
-              <option value="stream">Gemini for everything but alerts (answers streamed)</option>
-              <option value="mixed">Gemini for her own remarks only, Chirp for alerts and answers</option>
-              <option value="chirp">Google Chirp 3 HD for everything</option>
-              <option value="gemini">Google Gemini for everything</option>
-              <option value="off">Off: phone voice only</option>
-            </select></div>
-          <div class="setting stack"><div><p>Accent</p></div><select id="cloudaccent"></select></div>
-          <div class="setting stack"><div><p>Voice</p></div><select id="cloudname"></select></div>
-          <div class="setting buttons"><button id="cloudtest" class="secondary" type="button">Test</button><button id="cloudsounds" class="secondary" type="button">Test sounds</button></div>
-          <div class="setting stack"><div><p>Gemini model</p></div>
-            <select id="geminimodel"><option value="full">Full (best sound)</option><option value="lite">Lite (starts about a second sooner)</option></select></div>
-          <div class="setting stack"><div><p>Chirp voice for alerts</p><small>Used with an accent voice.</small></div><select id="chirpstandin"></select></div>
-          <div class="setting stack"><div><p>Chirp accent (alerts)</p></div>
-            <select id="chirplocale"><option value="en-US">American</option><option value="en-GB">British</option><option value="en-AU">Australian</option><option value="en-IN">Indian</option></select></div>
-          <div class="setting stack"><div><p>Phone voice</p><small>Backup when there is no signal.</small></div><select id="voice"></select></div>
-          <button class="text-button" id="voicetest" type="button">Test the phone voice <i data-icon="arrow" class="sm"></i></button>
-        </section>
-
-        <section class="settings-card">
-          <h2>In your garage</h2>
-          <div class="setting"><div><p>What she calls you</p></div><input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
-          <div class="setting"><div><p>Your motorcycle</p><small>What she calls the bike.</small></div><input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
-          <div class="setting"><div><p>Fuel range</p><small id="garagefuel">Estimate by distance since the last fill-up.</small></div><button class="secondary" type="button" data-filled>Filled up</button></div>
-          <div class="setting stack"><div><p>Motorcycle telemetry</p><small>Real OBD2 needs the hardware.</small></div>
-            <select id="obdmode"><option value="off">Off: GPS only</option><option value="mock">Simulated (mock)</option><option value="real" disabled>Real OBD2 (needs the hardware)</option></select></div>
-        </section>
-
-        <section class="settings-card">
-          <h2>Talking to Betty</h2>
-          <div class="setting"><div><p>Headset buttons</p><small>Play/pause talks to Betty, next track repeats her. Pauses your music.</small></div><input type="checkbox" id="buttons" aria-label="Headset buttons talk to Betty" /></div>
-          <div class="setting"><div><p>Your journeys, your business</p><small>Rides, lines and notes stay on this phone.</small></div><i data-icon="shield"></i></div>
-          <button class="workshop-link" type="button" data-go="workshop"><span><b>Workshop</b><small>Simulator, tuning, log, voice test, chat and what's new.</small></span><i data-icon="wrench"></i></button>
-        </section>
-      </div>
-    </section>
-
-    <!-- ============ WORKSHOP (developer panels) ============ -->
-    <section class="devtools" data-screen="workshop" hidden>
-      <div class="workshop-head"><button class="text-button" type="button" data-back><i data-icon="back" class="sm"></i> Back</button><span class="eyebrow">Workshop</span></div>
-      <div class="workshop-body">
-        <h3>Instruments</h3>
-        <div class="grid">
-          <div class="stat"><div class="l">SPEED</div><div class="v" id="speed">0</div><div class="u">km/h</div></div>
-          <div class="stat"><div class="l">LEAN</div><div class="v" id="lean">0</div><div class="u">° GPS estimate</div></div>
-          <div class="stat"><div class="l">RPM</div><div class="v" id="rpm">0</div><div class="u">mock</div></div>
-          <div class="stat"><div class="l">TEMP</div><div class="v" id="temp">0</div><div class="u">°C mock</div></div>
-          <div class="stat"><div class="l">FUEL</div><div class="v" id="fuel">0</div><div class="u">% mock</div></div>
-          <div class="stat"><div class="l">RAIN</div><div class="v" id="rain">-</div><div class="u">% next hour</div></div>
-          <div class="stat"><div class="l">ALTITUDE</div><div class="v" id="alt">-</div><div class="u">m</div></div>
-          <div class="stat"><div class="l">HEADING</div><div class="v" id="dir">-</div><div class="u" id="dirsrc">&nbsp;</div></div>
-          <div class="stat"><div class="l">FUEL RANGE</div><div class="v" id="range">-</div><div class="u" id="rangesrc">tap FILLED UP</div></div>
-          <div class="stat"><div class="l">JOLTS</div><div class="v" id="jolts">0</div><div class="u">this ride</div></div>
+      <!-- ============ CHAT ============ -->
+      <section class="screen chat-screen" data-screen="chat" hidden>
+        <header class="chat-header">
+          <button class="text-button" type="button" id="chatback" data-go="ride"><i data-icon="back" class="sm"></i> <span>Ride</span></button>
+          <div class="chat-title"><span class="orb mini resting" id="chatorb"></span><span><b>Betty</b><small id="chatstate">Ready when you are</small></span></div>
+          <span class="head-spacer"></span>
+        </header>
+        <div class="chat-list" id="chatlist" aria-live="polite"></div>
+        <div class="chat-empty" id="chatempty">
+          <div class="orb resting"></div>
+          <h2>Talk to Betty on a ride.</h2>
+          <p class="sub">On a ride she answers from it: weather, traffic, fuel range, the places around you, anything you ask. To chat from the desk, use the chat in the Workshop.</p>
+          <button class="primary wide" type="button" data-go="home">Go to Ride <i data-icon="arrow"></i></button>
         </div>
-        <div id="status"></div>
-        <div id="wake"></div>
-        <div id="feeds"></div>
-        <div id="log"></div>
-        <div id="chat"></div>
-        <div id="sim"></div>
-        <div id="tuning"></div>
-        <div id="voicetestpanel"></div>
-        <div id="logpanel"></div>
-        <div id="memorypanel"></div>
-        <div id="changelogpanel"></div>
+        <div class="chat-chips recent" id="askchips"></div>
+        <form class="chat-composer" id="askform">
+          <input id="askinput" placeholder="Ask Betty…" aria-label="Ask Betty" autocomplete="off" maxlength="200" />
+          <button class="composer-mic" type="button" id="chatmic" aria-label="Speak to Betty"><i data-icon="mic"></i></button>
+          <button class="composer-send" type="submit" aria-label="Send"><i data-icon="send"></i></button>
+        </form>
+      </section>
+
+      <!-- ============ JOURNEYS ============ -->
+      <section class="screen page" data-screen="journeys" hidden>
+        <div class="intro"><div><p class="eyebrow">The roads stay with you</p><h1>My journeys</h1><p class="sub">Little escapes. Good roads. Stories worth keeping.</p></div><span class="demo-pill">Private · on this phone</span></div>
+        <div id="journeytotals"></div>
+        <div id="journeylist"></div>
+      </section>
+
+      <!-- ============ RIDE STORY ============ -->
+      <section class="screen page" data-screen="story" hidden>
+        <div id="story"></div>
+      </section>
+
+      <!-- ============ EXPLORE ============ -->
+      <section class="screen page" data-screen="explore" hidden>
+        <div class="intro"><div><p class="eyebrow">Follow your curiosity</p><h1>Good roads. New stories.</h1><p class="sub">Spots you marked, things you asked her to remember, and the stories she knows.</p></div></div>
+        <div class="tabs" id="exploretabs"></div>
+        <div id="explorelist"></div>
+        <div class="detail-section">
+          <p class="eyebrow">A little less planning</p>
+          <h2>You don't always need a destination.</h2>
+          <p class="sub">On a ride, say "mark this spot" or "remember that…" and it lands here. Area stories are researched the first time you ride through a town.</p>
+        </div>
+      </section>
+
+      <!-- ============ GARAGE & SETTINGS ============ -->
+      <section class="screen page" data-screen="settings" hidden>
+        <div class="intro"><div><p class="eyebrow">Make yourself at home</p><h1>Your ride. Your Betty.</h1><p class="sub">A few thoughtful adjustments, then back to the road.</p></div></div>
+        <div class="page-grid">
+          <section class="settings-card">
+            <h2>Betty's personality</h2>
+            <div class="setting"><div><p>Narration</p><small id="talkhint">How much company feels right?</small></div><select id="talkpreset" aria-label="How often Betty talks"></select></div>
+            <div class="setting"><div><p>A little dry humour <b class="val" id="humourval"></b></p><small>Facts only → Playful</small></div><input type="range" id="humour" min="0" max="100" step="5" aria-label="Sense of humour" /></div>
+            <div class="setting"><div><p>Character <b class="val" id="blendval"></b></p><small>JARVIS (polished) → TARS (blunt)</small></div><input type="range" id="blend" min="0" max="100" step="10" aria-label="Character blend" /></div>
+            <div class="setting"><div><p>Visual companion</p><small>One glanceable cue on the ride map.</small></div><input type="checkbox" id="glanceswitch" aria-label="Visual companion" /></div>
+            <button class="text-button" id="sample" type="button">Hear Betty's voice <i data-icon="arrow" class="sm"></i></button>
+          </section>
+
+          <section class="settings-card">
+            <h2>Voice &amp; audio</h2>
+            <div class="setting stack"><div><p>Cloud voice</p><small>Google voices, with the phone voice as backup.</small></div>
+              <select id="cloudvoice">
+                <option value="stream">Gemini for everything but alerts (answers streamed)</option>
+                <option value="mixed">Gemini for her own remarks only, Chirp for alerts and answers</option>
+                <option value="chirp">Google Chirp 3 HD for everything</option>
+                <option value="gemini">Google Gemini for everything</option>
+                <option value="off">Off: phone voice only</option>
+              </select></div>
+            <div class="setting stack"><div><p>Accent</p></div><select id="cloudaccent"></select></div>
+            <div class="setting stack"><div><p>Voice</p></div><select id="cloudname"></select></div>
+            <div class="setting buttons"><button id="cloudtest" class="secondary" type="button">Test</button><button id="cloudsounds" class="secondary" type="button">Test sounds</button></div>
+            <div class="setting stack"><div><p>Gemini model</p></div>
+              <select id="geminimodel"><option value="full">Full (best sound)</option><option value="lite">Lite (starts about a second sooner)</option></select></div>
+            <div class="setting stack"><div><p>Chirp voice for alerts</p><small>Used with an accent voice.</small></div><select id="chirpstandin"></select></div>
+            <div class="setting stack"><div><p>Chirp accent (alerts)</p></div>
+              <select id="chirplocale"><option value="en-US">American</option><option value="en-GB">British</option><option value="en-AU">Australian</option><option value="en-IN">Indian</option></select></div>
+            <div class="setting stack"><div><p>Phone voice</p><small>Backup when there is no signal.</small></div><select id="voice"></select></div>
+            <button class="text-button" id="voicetest" type="button">Test the phone voice <i data-icon="arrow" class="sm"></i></button>
+          </section>
+
+          <section class="settings-card">
+            <h2>In your garage</h2>
+            <div class="setting"><div><p>What she calls you</p></div><input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
+            <div class="setting"><div><p>Your motorcycle</p><small>What she calls the bike.</small></div><input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
+            <div class="setting"><div><p>Fuel range</p><small id="garagefuel">Estimate by distance since the last fill-up.</small></div><button class="secondary small" type="button" data-filled>Filled up</button></div>
+            <div class="setting stack"><div><p>Motorcycle telemetry</p><small>Real OBD2 needs the hardware.</small></div>
+              <select id="obdmode"><option value="off">Off: GPS only</option><option value="mock">Simulated (mock)</option><option value="real" disabled>Real OBD2 (needs the hardware)</option></select></div>
+          </section>
+
+          <section class="settings-card">
+            <h2>Talking to Betty</h2>
+            <div class="setting"><div><p>Headset buttons</p><small>Play/pause talks to Betty, next track repeats her. Pauses your music.</small></div><input type="checkbox" id="buttons" aria-label="Headset buttons talk to Betty" /></div>
+            <div class="setting"><div><p>Your journeys, your business</p><small>Rides, lines and notes stay on this phone.</small></div><i data-icon="shield"></i></div>
+            <button class="workshop-link" type="button" data-go="workshop"><span><b>Workshop</b><small>Simulator, tuning, log, voice test, developer chat and what's new.</small></span><i data-icon="wrench"></i></button>
+          </section>
+        </div>
+        <p class="footer-note" id="footer"></p>
+      </section>
+
+      <!-- ============ WORKSHOP (developer panels; docked beside the phone on a wide screen) ============ -->
+      <section class="screen devtools" data-screen="workshop" hidden>
+        <div class="workshop-head"><button class="text-button" type="button" data-back><i data-icon="back" class="sm"></i> Back</button><span class="eyebrow">Workshop</span></div>
+        <div class="workshop-body">
+          <h3>Instruments</h3>
+          <div class="grid">
+            <div class="stat"><div class="l">SPEED</div><div class="v" id="speed">0</div><div class="u">km/h</div></div>
+            <div class="stat"><div class="l">LEAN</div><div class="v" id="lean">0</div><div class="u">° GPS estimate</div></div>
+            <div class="stat"><div class="l">RPM</div><div class="v" id="rpm">0</div><div class="u">mock</div></div>
+            <div class="stat"><div class="l">TEMP</div><div class="v" id="temp">0</div><div class="u">°C mock</div></div>
+            <div class="stat"><div class="l">FUEL</div><div class="v" id="fuel">0</div><div class="u">% mock</div></div>
+            <div class="stat"><div class="l">RAIN</div><div class="v" id="rain">-</div><div class="u">% next hour</div></div>
+            <div class="stat"><div class="l">ALTITUDE</div><div class="v" id="alt">-</div><div class="u">m</div></div>
+            <div class="stat"><div class="l">HEADING</div><div class="v" id="dir">-</div><div class="u" id="dirsrc">&nbsp;</div></div>
+            <div class="stat"><div class="l">FUEL RANGE</div><div class="v" id="range">-</div><div class="u" id="rangesrc">tap FILLED UP</div></div>
+            <div class="stat"><div class="l">JOLTS</div><div class="v" id="jolts">0</div><div class="u">this ride</div></div>
+          </div>
+          <div id="status"></div>
+          <div id="wake"></div>
+          <div id="feeds"></div>
+          <div id="log"></div>
+          <div id="chat"></div>
+          <div id="sim"></div>
+          <div id="tuning"></div>
+          <div id="voicetestpanel"></div>
+          <div id="logpanel"></div>
+          <div id="memorypanel"></div>
+          <div id="changelogpanel"></div>
+        </div>
+      </section>
+
+      <!-- ============ TAB BAR (hidden while riding) ============ -->
+      <nav class="tab-bar" aria-label="App tabs">
+        <button class="tab" type="button" data-go="home" data-nav="home"><i data-icon="ride"></i><span>Ride</span></button>
+        <button class="tab" type="button" data-go="journeys" data-nav="journeys"><i data-icon="journeys"></i><span>Journeys</span></button>
+        <button class="tab" type="button" data-go="explore" data-nav="explore"><i data-icon="explore"></i><span>Explore</span></button>
+        <button class="tab" type="button" data-go="settings" data-nav="settings"><i data-icon="garage"></i><span>Garage</span></button>
+      </nav>
+      <div class="home-indicator" aria-hidden="true"></div>
+
+      <!-- ============ SHEETS (bottom sheets inside the phone) ============ -->
+      <div class="sheet-backdrop" data-sheet="mode" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="How are we riding?">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <p class="eyebrow">Your next little escape</p>
+          <h2>How are we riding?</h2>
+          <div class="mode-options" role="radiogroup" aria-label="Ride mode">
+            <button class="destination-result" type="button" role="radio" data-mode="real"><span class="place-icon"><i data-icon="ride"></i></span><span><b class="tile-label"></b><small></small></span><span class="check"></span></button>
+            <button class="destination-result" type="button" role="radio" data-mode="sim"><span class="place-icon"><i data-icon="wrench"></i></span><span><b class="tile-label"></b><small></small></span><span class="check"></span></button>
+          </div>
+          <p class="sheet-note">Destinations and routes are not built yet: Betty rides wherever you go and keeps you company on the way.</p>
+        </section>
       </div>
-    </section>
-
-    <p class="footer-note" id="footer"></p>
-  </main>
-</div>
-
-<!-- ============ DIALOGS ============ -->
-<div class="sheet-backdrop" data-sheet="ready" hidden>
-  <section class="sheet" role="dialog" aria-modal="true" aria-label="Before you go">
-    <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
-    <p class="eyebrow">Before you go</p>
-    <h2>Everything in place.</h2>
-    <p>A quick look before you set off. Nothing to fight through.</p>
-    <div id="readyrows"></div>
-    <div class="sheet-row"><b><i data-icon="fuel" class="sm"></i>Fuel range</b><span id="readyfuel">-</span></div>
-    <div class="dialog-actions">
-      <button class="secondary" id="filled" type="button" data-filled>Filled up</button>
-      <button class="primary" type="button" data-sheet-close>All good <i data-icon="check" class="sm"></i></button>
+      <div class="sheet-backdrop" data-sheet="ready" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Before you go">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <p class="eyebrow">Before you go</p>
+          <h2>Everything in place.</h2>
+          <div id="readyrows"></div>
+          <div class="sheet-row"><b><i data-icon="fuel" class="sm"></i>Fuel range</b><span id="readyfuel">-</span></div>
+          <div class="dialog-actions">
+            <button class="secondary" id="filled" type="button" data-filled>Filled up</button>
+            <button class="primary" type="button" data-sheet-close>All good</button>
+          </div>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="end" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="End ride">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <div class="orb resting"></div>
+          <h2>Call it a good ride?</h2>
+          <p>I'll sign off and gather the little moments into your journey story.</p>
+          <button class="primary wide" id="endconfirm" type="button">End &amp; see my story <i data-icon="arrow"></i></button>
+          <button class="free-button" type="button" data-sheet-close>Keep riding</button>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="ask" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Ask Betty">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <h2 id="asktitle">I'm listening.</h2>
+          <p>Ask about the road, the weather, the places around you, or ask for a quieter ride. She answers out loud.</p>
+          <form id="asksheetform">
+            <label class="destination"><input id="asksheetinput" aria-label="Your question for Betty" placeholder="What's around the next bend?" autocomplete="off" maxlength="200" /></label>
+            <div class="dialog-actions">
+              <button class="secondary" type="button" id="asksheetmic"><i data-icon="mic" class="sm"></i> <span id="asksheetmictext">Use microphone</span></button>
+              <button class="primary" type="submit">Ask Betty <i data-icon="arrow" class="sm"></i></button>
+            </div>
+          </form>
+          <div class="recent ask-chips" id="asksheetchips"></div>
+          <button class="free-button" type="button" data-go="chat">See the whole conversation <i data-icon="arrow" class="sm"></i></button>
+        </section>
+      </div>
+      <div class="toast" id="toast" role="status" hidden></div>
     </div>
-  </section>
+
+    <!-- Desktop only: the Workshop is moved here by the shell -->
+    <aside class="studio" id="studio" aria-label="Workshop"></aside>
+  </div>
 </div>
-<div class="sheet-backdrop" data-sheet="end" hidden>
-  <section class="sheet" role="dialog" aria-modal="true" aria-label="End ride">
-    <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
-    <h2>Call it a good ride?</h2>
-    <p>Betty signs off and gathers the little moments into your journey story.</p>
-    <div class="dialog-actions">
-      <button class="secondary" type="button" data-sheet-close>Keep riding</button>
-      <button class="primary" id="endconfirm" type="button">End &amp; see my story</button>
-    </div>
-  </section>
-</div>
-<div class="toast" id="toast" role="status" hidden></div>
 <div id="lockroot"></div>
 <script type="module" src="/src/main.ts"></script>
 </body>

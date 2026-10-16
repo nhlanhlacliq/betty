@@ -88,14 +88,15 @@ src/
     RideLog.ts             localStorage store for past rides (Betty's cross-ride memory)
     LineLogStore.ts        localStorage store for everything she has said (`betty.log.v1`)
   ui/
-    Shell.ts               Screens/dialogs/toast; data-go, data-back, data-nav, data-sheet-open hooks; nav redirect while riding
+    Shell.ts               Screens/sheets/toast; data-go, data-back, data-nav, data-sheet-open hooks; nav redirect while riding;
+                           docks the Workshop beside the phone on a wide screen; followDock (map ends at the dock)
     copy.ts                Every word the app shell shows (ride-screen kickers/headlines per trigger, home, glance labels)
     rideView.ts            Pure: ride state -> what the ride screen shows (orb mode, caption, glance cue). Tested in core tests
     icons.ts               SVG icon paths; <i data-icon="name"> placeholders are hydrated by the shell
     mapView.ts             Pure: track, position, places, incidents, marks -> SVG sketch map (no map library). Tested
     art.ts                 Decorative landscapes for ride cards
     styles/                tokens.css (palette, type), app.css (screens), devtools.css (Workshop panels, scoped .devtools)
-    screens/               HomeScreen, RideScreen, JourneysScreen (+ ride story), ExploreScreen, SettingsScreen
+    screens/               HomeScreen, RideScreen, ChatScreen (+ ask sheet), JourneysScreen (+ story), ExploreScreen, SettingsScreen
   core/Track.ts            (in core) ride path: addTrackPoint (15 m steps, capped), thinTrack
   adapters/TrackStore.ts   (in adapters) localStorage store for recent rides' paths (`betty.tracks.v1`)
     SimPanel.ts            SIMULATOR panel (mounted per ride)
@@ -253,33 +254,44 @@ Phase 4 slots in: add a mode value and start the real adapter in `setObd` in `ma
 - The switch works mid-ride. Anything new that reads rpm, engineTempC, throttlePct, fuelPct or dtcs must check
   `s.obd` first.
 
-## App shell (UI, design v2 BUILT 2026-10-17 from the owner's design at betty-riding-companion.vastox257.chatgpt.site)
+## App shell (UI, design v3 BUILT 2026-10-17 from the owner's design at betty-riding-companion.vastox257.chatgpt.site)
 
 The design will keep changing, so it is split by what changes: wording in `ui/copy.ts`, colours/type in
 `ui/styles/tokens.css`, layout in `ui/styles/app.css`, what the ride screen decides to show in `ui/rideView.ts`, the
-map in `ui/mapView.ts` (both pure, tested in core tests), markup in `index.html`. Screens and dialogs are STATIC sections
+map in `ui/mapView.ts` (both pure, tested in core tests), markup in `index.html`. Screens and sheets are STATIC sections
 in index.html (`data-screen`, `data-sheet`), shown and hidden by `ui/Shell.ts`, so every control exists at load and
 main.ts binds ids as before. Do not switch to re-rendering whole screens with innerHTML: it would drop main.ts's
 listeners. Add a screen = a `<section data-screen>`, its id in `ScreenId` (and `NAV_OF`), a `ui/screens/*` module if it
 has dynamic content, and a smoke test.
-- Layout: sidebar (Ride, My journeys, Explore, Garage & settings) above 800 px; below that a fixed bottom bar. While
-  riding on a phone `.ride-fit` is sized to exactly the screen between the top line and the bottom bar (100dvh minus
-  safe areas, `--top-h`, `--nav-h`); the map takes the leftover height. Short phones (height <= 720) drop the context
-  card and map buttons. Owner asked for proper mobile width/height: the screenshot check measures no horizontal
-  overflow and the ride view ending 12 px above the bar at 360x640, 375x667, 390x844 and 430x932. Keep it that way.
+- Layout: everything lives in `.device`. On a computer it is a framed phone (414 x up to 896) with the Workshop docked
+  beside it (1100 px and up; the shell moves the section into `#studio`). On a phone (520 px and down) the device IS
+  the screen, 100vw x 100dvh; `--status-h` is the safe-area top (the real status bar), the tab bar and docks keep clear
+  of the home indicator. Screens are absolutely positioned between status bar and tab bar, so nothing can be taller or
+  wider than the phone (owner asked for proper mobile width/height; the screenshot check measures no overflow at
+  360x640, 375x667, 390x844, 430x932). Riding hides the tab bar (`[data-view="ride"]` on <html>).
+- Tabs: FOUR (owner, 2026-10-17): Ride, Journeys, Explore, Garage. Chat is NOT a tab.
+- Home (Ride tab): full-screen map (sketch of the last ride), greeting, and the ride dock: Betty's orb (tap = hello),
+  "How are we riding?" (sheet with Free ride / Desk test driving the hidden `#real`), Let's ride (`#start`), readiness
+  line (Details sheet with FILLED UP). `followDock` keeps `--dock-h` = the dock's height so the map ends at the dock.
+- Riding: map with the glance card (`pickGlance`) on top, live pill, Workshop and Quiet (headset icon) buttons; the dock
+  has km / min / speed, Betty (mini orb = repeat last line, kicker + state, the ask button, the microphone =
+  push-to-talk, her line), Lock and End ride (`#end` opens the confirm sheet, `#endconfirm` ends, during the sign-off
+  `#end` ends at once; `#endtext` holds the label). The note under it: area, weather, warnings, voice.
+- Chat (owner, 2026-10-17: "add the chat in the ride screen when riding or in the workshop when not riding"):
+  while riding, the dock's speech-bubble button opens the "I'm listening." sheet (type, chips, Use microphone, Ask
+  Betty; as in the design) and "See the whole conversation" opens the chat screen (`ui/screens/ChatScreen`): bubbles of
+  everything said, chips, composer, mic. Not riding: the Workshop CHAT panel is always mounted; sending with no ride
+  running starts a DESK SESSION (`start({ desk: true })`): the same rig, simulated, no briefing, no wake lock, no ride
+  screen, no debrief, never saved as a ride; "End desk chat" stops it, and Let's ride replaces it with a real ride.
+  `riding()` in main.ts = a rig that is not a desk session (nav redirect, start/end buttons).
 - The design shows routes, turn-by-turn and destinations: Betty has none (route awareness is backlog), so nothing fake
-  was built. The turn card is the glance cue (`pickGlance`), route cards are past rides, the map is a sketch of the
-  real GPS track (`core/Track`, kept per ride in `adapters/TrackStore`, `betty.tracks.v1`, 12 rides x 400 points),
-  Explore is marked spots, notes and researched area stories.
+  was built: the "Where to?" button became the ride-mode picker, the turn card is the glance cue, the map is a sketch
+  of the real GPS track (`core/Track`, kept per ride in `adapters/TrackStore`, `betty.tracks.v1`).
 - SVG ids must be unique per drawing (`mapSvg(..., id)`, `scenery` counter): a `url(#id)` that resolves into a hidden
   copy draws nothing (the position marker vanished once).
-- Ride mode tiles drive the hidden `#real` checkbox. `#start` starts; while riding, "Ride" in the nav redirects to the
-  ride screen. `#end` opens the confirm dialog, `#endconfirm` ends; during the sign-off `#end` ends at once. Ending a
-  remembered ride opens its story. The microphone is the same `talk()` as the headset; chips and the ask box go
-  through `askBetty`; Quiet runs the quiet/talk commands (she answers out loud); the orb repeats her last line.
-- Garage & settings: narration (`TALK_PRESETS`, anything else shows as Custom), humour, JARVIS/TARS, visual companion
-  (`CONFIG.showGlance`), voices, names, fuel range, OBD, headset buttons, Workshop link. Workshop = every dev panel plus
-  `#status`, `#wake`, `#feeds`, `#log` and the instrument grid. Status messages also show as a toast.
+- My journeys: totals, rides, a ride's story (map of the road taken, moments, every line, copy/save the log). Explore:
+  marked spots, notes, area stories (tabs). Garage: personality (narration presets, humour, JARVIS/TARS, visual
+  companion), voices, names, fuel range, OBD, headset buttons, Workshop link.
 
 ## Simulator and tuning (dev tools, ship with the app)
 

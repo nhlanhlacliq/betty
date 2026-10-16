@@ -5,9 +5,12 @@
 .devtools {
   --bg: #0d1211; --surface: #1d2625; --border: #2f3a38; --green: #8fc48f; --red: var(--bad);
   --text: #c8d0c6; --dim: #7a857f; --bright: #f1f2ea;
-  background: var(--night); color: var(--text); font-size: 14px; border-radius: 16px; overflow: hidden;
+  background: var(--night); color: var(--text); font-size: 14px;
 }
-.devtools .workshop-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-bottom: 1px solid var(--border); }
+/* Docked beside the phone on a wide screen: the same section, moved into #studio by the shell, scrolling on its own. */
+.studio .devtools { position: relative; inset: auto; width: 100%; height: 100%; border-radius: 34px; overflow-y: auto; box-shadow: 0 25px 75px #30463822; }
+.studio .devtools .workshop-head [data-back] { visibility: hidden; }
+.devtools .workshop-head { position: sticky; top: 0; z-index: 2; background: var(--night); display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-bottom: 1px solid var(--border); }
 .devtools .workshop-head .text-button { color: var(--on-dark); }
 .devtools .workshop-head .eyebrow { margin: 0; color: var(--on-dark-muted); }
 .devtools .workshop-body { padding: 0 20px 30px; }
@@ -73,3 +76,5 @@
 /* iPhone zooms in on any field under 16px when it is tapped, and does not zoom back out. */
 .devtools select, .devtools input[type=text], .devtools input[type=number], .devtools textarea, .devtools .chatform input {
   font-size: 16px; background: var(--bg); color: var(--bright); border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px; }
+.devtools .chatsession { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin: 8px 0 4px; }
+.devtools .chatsession button { padding: 6px 10px; }

@@ -8,6 +8,9 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'New look, like a native iPhone app: the map fills the screen, with Betty, how you are riding and Let\'s ride in a dock at the bottom, and four tabs (Ride, Journeys, Explore, Garage). On a computer it shows as a phone with the Workshop beside it.',
+      'Riding: the map with one cue card at the top, and the ride numbers, Betty and Lock / End ride in the dock. The headset button at the top makes her quiet (tap again to have her back); the microphone talks to her; the speech bubble opens "I\'m listening." to type a question, tap one, or use the microphone.',
+      'Chat is back: during a ride, "See the whole conversation" shows everything you and Betty said. With no ride running, the chat in the Workshop works on its own (it starts a desk chat behind it: simulated, never saved as a ride, ended with End desk chat).',
       'Say "switch to stories" (or minimal, balanced), "banter up", "more stories", "less chatty" to change how she talks while riding.',
       'Marked spots: when you ride towards a spot you marked ("mark this spot, pothole"), she gives you a heads-up about 400 metres before it.',
       'New design: a calm, light look with Betty as a little yellow companion. Ride shows a sketch map of the road you are riding (with nearby places, traffic and your marked spots), one cue at a glance (rain, fuel range, traffic, the area), what she is saying, and Lock, Quiet and End ride. On a phone the ride view fits exactly on one screen, above the bottom bar.',

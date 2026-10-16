@@ -1,30 +1,31 @@
 /*
- * Design tokens (design v2: warm paper, deep teal ink, butter yellow for Betty, sage for the road).
+ * Design tokens (design v3: native iPhone feel, warm paper, deep green ink, butter yellow for Betty).
  * Change the look here first; app.css and devtools.css only use these names.
  */
 :root {
   /* palette */
-  --bg: #f5f3ed;
-  --card: #fbfaf5;
-  --card-2: #fffefa;
-  --ink: #283b3a;
-  --ink-deep: #2d4441;
-  --muted: #7a8179;
-  --line: #dedfd5;
-  --line-soft: #e7e7dd;
-  --yellow: #f4dc7b;
-  --yellow-hover: #ecd067;
-  --butter: #f3edd8;
-  --butter-line: #e2dfd0;
-  --blue: #e6eef0;
-  --blue-line: #d3e1e3;
-  --blue-text: #637a7b;
-  --green: #637c65;
-  --sage: #819a77;
-  --sage-soft: #e7ebdc;
-  --dot: #7e9475;
-  --danger: #9a594e;
-  --focus: #769aa9;
+  --bg: #f7f6f0;
+  --stage: #e7e9e2;
+  --card: #fffef9;
+  --card-line: #e4e7dc;
+  --ink: #273f39;
+  --ink-deep: #2c4540;
+  --muted: #7e8980;
+  --line: #e3e6dc;
+  --line-soft: #edf0e6;
+  --yellow: #f4dc85;
+  --yellow-hover: #f0d572;
+  --butter: #efeddf;
+  --sage: #819b77;
+  --sage-soft: #e8ede2;
+  --sage-text: #657960;
+  --chip: #edf0e6;
+  --map: #e7eadf;
+  --dot: #8a9c75;
+  --end: #f2e7dc;
+  --end-text: #946b57;
+  --danger: #a07161;
+  --focus: #7099a4;
 
   /* the Workshop (developer panels) stays dark */
   --night: #18201f;
@@ -33,21 +34,20 @@
   --accent: #e8c95c;
   --bad: #e07a6a;
 
-  /* type */
-  --font: 'DM Sans', system-ui, sans-serif;
-  --display: 'Manrope', 'DM Sans', system-ui, sans-serif;
+  /* type: the phone's own font, like a native app */
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --display: var(--font);
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* shape and layout */
-  --radius: 14px;
-  --radius-s: 9px;
-  --sidebar-w: 216px;
-  /* phone: bottom bar height (without the home-indicator area) and the top line above each page */
-  --nav-h: 64px;
-  --top-h: 40px;
-  --gap-m: 16px;
+  /* the phone: a framed device on a computer, the whole screen on a phone (see app.css, "Phone") */
+  --device-w: 414px;
+  --device-h: min(896px, calc(100dvh - 110px));
+  --status-h: 53px;
+  --tab-h: 88px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
+  /* height of the ride dock, measured by the ride screens so the map ends where the dock begins */
+  --dock-h: 300px;
 }

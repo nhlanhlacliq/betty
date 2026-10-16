@@ -68,26 +68,21 @@ export const GLANCE: Record<'range' | 'rain' | 'traffic' | 'sunset' | 'area' | '
 };
 
 export const HOME = {
-  eyebrow: 'The road is calling',
-  headline: (name: string) => `Where shall we go, ${name}?`,
-  lead: 'A destination in mind. Or nowhere in particular.',
-  companion: 'Ready when you are. Tap me and I will say hello.',
-  companionCaption: 'Your next story starts with a ride.',
+  eyebrow: 'A little more journey',
+  headline: 'The road is yours.',
+  companion: 'Ready when you are.',
+  companionCaption: 'Tap me to hear my voice. Or just ride.',
   hello: (name: string) => `Ready when you are, ${name}. Shall we take the long way?`,
-  pickerLabel: 'Make room for a little adventure',
+  pickerLabel: 'How are we riding?',
   modes: {
-    real: { title: 'Free ride', sub: 'Phone GPS and sensors' },
-    sim: { title: 'Desk test', sub: 'Simulated, no sensors' },
+    real: { title: 'Free ride', sub: 'Phone GPS and sensors. Betty rides wherever you go.' },
+    sim: { title: 'Desk test', sub: 'Simulated: no GPS, no sensors. For trying her out.' },
   },
-  mapChip: 'Your next adventure',
-  mapTiny: 'A good day to take the long way',
-  mapFirst: 'Your first ride starts here.',
-  mapLast: (km: number, where: string | null) => `Last time: ${km} km${where ? ` around ${where}` : ''}.`,
-  roadsTitle: "Roads you've ridden",
-  roadsEmpty: 'Rides of three minutes or a kilometre and up land here, with the road you took.',
+  conditionLast: (km: number, when: string) => `Last ride ${km} km · ${when}`,
+  conditionFirst: 'Your first ride starts here',
 };
 
-export const ASK_CHIPS = ["What's around me?", "How's the weather?", 'How far have we gone?', 'A little quiet, please'];
+export const ASK_CHIPS = ["What's around me?", "How's the weather?", 'How far have we gone?', 'Tell me a story', 'A little quiet, please'];
 
 export const TALK_LABELS: Record<'minimal' | 'balanced' | 'stories', string> = {
   minimal: 'Minimal', balanced: 'Balanced', stories: 'Storyteller',

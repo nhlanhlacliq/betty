@@ -14,7 +14,11 @@ export interface ChatContext {
   ask(text: string): void;
   /** Every entry from now on, his and hers. Returns an unsubscribe. */
   listen(fn: (e: ChatEntry) => void): () => void;
+  /** What the chat is talking to (a ride, a desk session, nothing yet), with a button to start or end a desk session. */
+  session?: () => { text: string; action?: { label: string; run: () => void } };
 }
+
+export type ChatPanel = (() => void) & { refresh(): void };
 
 const time = (ms: number) => new Date(ms).toTimeString().slice(0, 8);
 
@@ -29,11 +33,22 @@ export function formatRequest(r: ClaudeRequest): string {
  * His messages go through the real pipeline (and are spoken if "Speak aloud" is on); her unprompted lines appear
  * too, so one timeline shows both. Each of her bubbles can reveal exactly what was sent to Claude.
  */
-export function mountChatPanel(root: HTMLElement, ctx: ChatContext): () => void {
+export function mountChatPanel(root: HTMLElement, ctx: ChatContext): ChatPanel {
   root.innerHTML = '';
   const wrap = el('details', 'panel');
   wrap.open = true;
   wrap.append(el('summary', '', 'CHAT (talk to Betty as the rider)'));
+  const status = el('div', 'chatsession');
+  const refresh = () => {
+    status.innerHTML = '';
+    const s = ctx.session?.();
+    if (!s) { status.hidden = true; return; }
+    status.hidden = false;
+    status.append(el('span', '', s.text));
+    if (s.action) status.append(button(s.action.label, s.action.run, 'ghost small'));
+  };
+  wrap.append(status);
+  refresh();
   const list = el('div', 'chatlist');
   const empty = el('div', 'chatempty', 'Type what you would say on the bike, for example "is it going to rain?" or "how far to empty?". Her unprompted lines show up here too.');
   list.append(empty);
@@ -81,5 +96,5 @@ export function mountChatPanel(root: HTMLElement, ctx: ChatContext): () => void 
 
   wrap.append(list, form, compare.wrap);
   root.append(wrap);
-  return () => { stop(); root.innerHTML = ''; };
+  return Object.assign(() => { stop(); root.innerHTML = ''; }, { refresh });
 }

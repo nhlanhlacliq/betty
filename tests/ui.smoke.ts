@@ -199,8 +199,9 @@ resetConfig();
     const click = (el: Element) => el.dispatchEvent(new page.window.Event('click', { bubbles: true }));
     const shown = () => [...doc.querySelectorAll<HTMLElement>('[data-screen]')].filter((s) => !s.hidden).map((s) => s.dataset.screen);
     assert.deepEqual(shown(), ['home'], 'opens on home, one screen at a time');
-    assert.equal(doc.getElementById('homeheadline')!.textContent, 'Where shall we go, sir?');
-    assert.equal(doc.getElementById('profilename')!.textContent, 'Sir'); assert.equal(doc.getElementById('profileinitial')!.textContent, 'S');
+    assert.equal(doc.getElementById('homeheadline')!.textContent, 'The road is yours.');
+    assert.equal(doc.getElementById('profileinitial')!.textContent, 'S', 'his initial on the avatar');
+    assert.deepEqual([...doc.querySelectorAll('.tab-bar [data-nav]')].map((b) => b.textContent!.trim()), ['Ride', 'Journeys', 'Explore', 'Garage'], 'four tabs');
     assert.ok(!doc.querySelector('i[data-icon]'), 'every icon placeholder became an SVG');
     click(doc.querySelector('[data-nav="journeys"]')!);
     assert.deepEqual(shown(), ['journeys']); assert.ok(doc.querySelector('[data-nav="journeys"]')!.classList.contains('active'));
@@ -212,13 +213,14 @@ resetConfig();
     click(doc.querySelector('[data-screen="workshop"] [data-back]')!);
     assert.deepEqual(shown(), ['settings'], 'back returns to where you came from');
     click(doc.querySelector('[data-nav="home"]')!);
-    assert.match(doc.getElementById('roads')!.textContent!, /Rides of three minutes/, 'no rides to show yet');
+    assert.match(doc.getElementById('homecondition')!.textContent!, /first ride/, 'no rides to show yet');
 
     // ride mode tiles drive the #real checkbox main.ts reads at START
     const real = doc.getElementById('real') as HTMLInputElement;
     const tile = (m: string) => doc.querySelector(`[data-mode="${m}"]`) as HTMLElement;
     assert.equal(real.checked, true); assert.ok(tile('real').classList.contains('active'));
     click(tile('sim')); assert.equal(real.checked, false); assert.ok(tile('sim').classList.contains('active')); assert.ok(!tile('real').classList.contains('active'));
+    assert.equal(doc.getElementById('modetitle')!.textContent, 'Desk test', 'the dock shows the mode chosen in the sheet');
     click(tile('real')); assert.equal(real.checked, true);
 
     // readiness sheet: filled when opened, closes on its button and on the backdrop
@@ -226,7 +228,7 @@ resetConfig();
     click(doc.querySelector('[data-sheet-open="ready"]')!);
     assert.equal(sheet.hidden, false);
     assert.match(doc.getElementById('readyrows')!.textContent!, /GPS.*Voice.*Gemini, Aoede.*Brain.*No key: canned lines only/);
-    assert.match(doc.getElementById('readytitle')!.textContent!, /Worth a look/, 'a missing Claude key is flagged');
+    assert.match(doc.getElementById('readytitle')!.textContent!, /^Check: /, 'a problem (no GPS here, no Claude key) is flagged');
     click(sheet); assert.equal(sheet.hidden, true, 'tap on the backdrop closes it');
 
     // settings: humour and character sliders, talk presets, visual companion
@@ -335,13 +337,14 @@ resetConfig();
     try {
       const startBtn = doc.getElementById('start') as HTMLButtonElement;
       const endBtn = doc.getElementById('end') as HTMLButtonElement;
+      const endText = doc.getElementById('endtext')!;
       const logText = () => doc.getElementById('log')!.textContent!;
       const click = (el: Element) => el.dispatchEvent(new page.window.Event('click', { bubbles: true }));
       const screen = (id: string) => !(doc.querySelector(`[data-screen="${id}"]`) as HTMLElement).hidden;
       const sheetOpen = (id: string) => !(doc.querySelector(`[data-sheet="${id}"]`) as HTMLElement).hidden;
       /** End ride asks first: the button opens a sheet, its End ride button ends it. */
       const endRide = () => { click(endBtn); assert.ok(sheetOpen('end'), 'End ride opens the sheet'); click(doc.getElementById('endconfirm')!); };
-      const riding = () => screen('ride') && endBtn.textContent === 'End ride';
+      const riding = () => screen('ride') && endText.textContent === 'End ride';
       const ended = () => !screen('ride') && doc.getElementById('sim')!.innerHTML === '';
       (doc.getElementById('real') as HTMLInputElement).checked = false;
       CONFIG.feeds.briefingWaitMs = 0; // the briefing would otherwise wait up to 10 s for weather the test does not serve
@@ -388,6 +391,20 @@ resetConfig();
       await tell('balanced');
       await tell('status'); assert.match(doc.getElementById('chat')!.textContent!, /Humour 40 percent\. 25 percent JARVIS, 75 TARS\. Banter 40, tour guide 40, silence 20 percent, a remark every 2 minutes\./);
       assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/);
+      // the ride screen's ask sheet ("I'm listening.") and the conversation view
+      click(doc.querySelector('[data-sheet-open="ask"]')!); assert.ok(sheetOpen('ask'));
+      (doc.getElementById('asksheetinput') as HTMLInputElement).value = 'is it going to rain?';
+      doc.getElementById('asksheetform')!.dispatchEvent(new page.window.Event('submit', { cancelable: true }));
+      await wait(50);
+      assert.ok(!sheetOpen('ask'), 'asking closes the sheet');
+      assert.match(doc.getElementById('chatlist')!.textContent!, /is it going to rain\?/, 'the question is in the conversation');
+      click(doc.querySelector('[data-screen="ride"] [data-go="chat"]') ?? doc.querySelector('[data-sheet="ask"] [data-go="chat"]')!);
+      assert.ok(screen('chat'));
+      (doc.getElementById('askinput') as HTMLInputElement).value = 'how far have we gone?';
+      doc.getElementById('askform')!.dispatchEvent(new page.window.Event('submit', { cancelable: true }));
+      await wait(50);
+      assert.ok(doc.querySelectorAll('#chatlist .bubble.rider').length >= 2, 'typed in the chat screen too');
+      click(doc.getElementById('chatback')!); assert.ok(screen('ride'), 'back to the ride');
       click(doc.getElementById('mute')!); await wait(20);
       assert.match(doc.getElementById('chat')!.textContent!, /Going quiet\./); assert.ok(doc.getElementById('mute')!.classList.contains('on'));
       click(doc.getElementById('mute')!); await wait(20);
@@ -406,7 +423,7 @@ resetConfig();
       aloud.checked = false; aloud.dispatchEvent(new page.window.Event('change')); // silent mode: speech takes real time
       skew += 5 * 60_000;
       endRide(); await wait(400);
-      assert.match(endBtn.textContent!, /^Ending/, 'still ending while she speaks');
+      assert.match(endText.textContent!, /^Ending/, 'still ending while she speaks');
       assert.equal(doc.getElementById('rideheadline')!.textContent, 'Good ride.', 'the ride screen shows the sign-off');
       assert.match(doc.getElementById('ridesub')!.textContent!, /Ride done: 5 minutes/);
       assert.match(logText(), /ride_debrief \(fallback: no API key.*Ride done: 5 minutes and 0 kilometres\. Good one\. \[speaking now\]/);
@@ -425,12 +442,40 @@ resetConfig();
       aloud2.checked = false; aloud2.dispatchEvent(new page.window.Event('change'));
       skew += 5 * 60_000;
       endRide(); await wait(300);
-      assert.match(endBtn.textContent!, /^Ending/);
+      assert.match(endText.textContent!, /^Ending/);
       click(endBtn); await wait(300);
       assert.ok(ended(), 'second tap skips the wait');
-      assert.equal(endBtn.textContent, 'End ride');
+      assert.equal(endText.textContent, 'End ride');
       assert.match(logText(), /Good one\. \[cleared\]/);
     } finally { globalThis.fetch = realFetch; Date.now = realNow; }
+  }
+
+  // ---- the Workshop chat with no ride running: a desk session starts behind it, and is never a ride
+  {
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => { throw new Error('offline'); }) as typeof fetch;
+    try {
+      const shownNow = () => [...doc.querySelectorAll<HTMLElement>('[data-screen]')].filter((x) => !x.hidden).map((x) => x.dataset.screen);
+      const before = shownNow();
+      const ridesBefore = page.window.localStorage.getItem('betty.rides.v1');
+      const startupsBefore = (page.window.localStorage.getItem('betty.log.v1')!.match(/\] startup/g) ?? []).length;
+      assert.match(doc.getElementById('chat')!.textContent!, /No ride running: sending a message starts a desk chat session/);
+      const chatIn = doc.getElementById('chatinput') as HTMLInputElement;
+      chatIn.value = 'what is the weather like?';
+      doc.querySelector('#chat form')!.dispatchEvent(new page.window.Event('submit', { cancelable: true }));
+      await wait(200);
+      assert.match(doc.getElementById('chat')!.textContent!, /Desk chat session running/);
+      assert.match(doc.getElementById('chat')!.textContent!, /what is the weather like\?/);
+      assert.match(doc.getElementById('chat')!.textContent!, /rider_query/, 'she answered through the real pipeline');
+      assert.deepEqual(shownNow(), before, 'no jump to the ride screen');
+      const endDesk = [...doc.querySelectorAll('#chat button')].find((b) => b.textContent === 'End desk chat') as HTMLElement;
+      endDesk.dispatchEvent(new page.window.Event('click', { bubbles: true }));
+      await wait(150);
+      assert.match(doc.getElementById('chat')!.textContent!, /No ride running/);
+      assert.equal((page.window.localStorage.getItem('betty.log.v1')!.match(/\] startup/g) ?? []).length, startupsBefore, 'no briefing for a desk chat');
+      assert.equal(page.window.localStorage.getItem('betty.rides.v1'), ridesBefore, 'a desk chat is not saved as a ride');
+    } finally { globalThis.fetch = realFetch; }
   }
 
   for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
@@ -531,7 +576,8 @@ resetConfig();
   const host = document.createElement('div'); document.body.append(host);
   const asked: string[] = []; let push: (e: any) => void = () => {};
   const unmount = mountChatPanel(host, { ask: (t) => asked.push(t), listen: (fn) => { push = fn; return () => { push = () => {}; }; } });
-  const input = host.querySelector('#chatinput') as HTMLInputElement; const form = host.querySelector('form')!;
+  // (by element, not #chatinput: the real page's Workshop chat is always mounted and has that id too)
+  const input = host.querySelector('form input') as HTMLInputElement; const form = host.querySelector('form')!;
   input.value = '   '; form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
   assert.deepEqual(asked, [], 'blank message not sent');
   input.value = 'is it going to rain?'; form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));

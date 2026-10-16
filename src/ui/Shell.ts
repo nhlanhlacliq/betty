@@ -11,11 +11,11 @@
  */
 import { hydrateIcons } from './icons';
 
-export type ScreenId = 'home' | 'ride' | 'journeys' | 'story' | 'explore' | 'settings' | 'workshop';
+export type ScreenId = 'home' | 'ride' | 'chat' | 'journeys' | 'story' | 'explore' | 'settings' | 'workshop';
 
 /** Which navigation button is lit for each screen. */
 const NAV_OF: Record<ScreenId, ScreenId> = {
-  home: 'home', ride: 'home', journeys: 'journeys', story: 'journeys', explore: 'explore', settings: 'settings', workshop: 'settings',
+  home: 'home', ride: 'home', chat: 'home', journeys: 'journeys', story: 'journeys', explore: 'explore', settings: 'settings', workshop: 'settings',
 };
 
 export interface Shell {
@@ -44,7 +44,7 @@ export function mountShell(doc: Document = document): Shell {
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
   const paint = () => {
-    for (const [id, el] of screens) el.hidden = id !== current;
+    for (const [id, el] of screens) if (!docked(el)) el.hidden = id !== current;
     doc.querySelectorAll<HTMLElement>('[data-nav]').forEach((b) => {
       const on = b.dataset.nav === NAV_OF[current];
       b.classList.toggle('active', on);
@@ -66,6 +66,8 @@ export function mountShell(doc: Document = document): Shell {
     show(target) {
       const id = redirect(target);
       if (!screens.has(id)) return;
+      // In the wide layout the Workshop is always open beside the phone; "showing" it just brings it into view.
+      if (docked(screens.get(id)!)) { screens.get(id)!.scrollIntoView?.({ behavior: 'smooth' }); return; }
       if (id !== current) history.push(current);
       if (history.length > 20) history.shift();
       enter(id);
@@ -105,8 +107,48 @@ export function mountShell(doc: Document = document): Shell {
     else if (el.dataset.sheet && e.target === el) shell.closeSheet(); // a tap on the backdrop, not inside the dialog
   });
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') shell.closeSheet(); });
+
+  // Wide screen: the Workshop section moves out of the phone into the column beside it (and back on a narrow
+  // window). Moving a node keeps its listeners, so the panels inside it carry on working.
+  const workshop = screens.get('workshop');
+  const studio = doc.getElementById('studio');
+  const device = doc.getElementById('device');
+  const mq = doc.defaultView?.matchMedia?.(WIDE);
+  const docked = (el: HTMLElement) => !!studio && el.parentElement === studio;
+  const dock = () => {
+    if (!workshop || !studio || !device) return;
+    if (mq?.matches) {
+      if (current === 'workshop') shell.back();
+      studio.append(workshop);
+      workshop.hidden = false;
+    } else if (docked(workshop)) {
+      device.insertBefore(workshop, device.querySelector('.tab-bar'));
+      workshop.hidden = current !== 'workshop';
+    }
+  };
+  mq?.addEventListener?.('change', dock);
   paint();
+  dock();
+  // The frame's clock on a computer (a phone shows its own status bar).
+  const clock = doc.getElementById('clock');
+  const tick = () => { if (clock) clock.textContent = new Date().toTimeString().slice(0, 5); };
+  tick();
+  if (clock && !/jsdom/.test(doc.defaultView?.navigator.userAgent ?? '')) setInterval(tick, 20_000);
   return shell;
+}
+
+/** Wide enough for the Workshop beside the phone. */
+const WIDE = '(min-width: 1100px)';
+
+/**
+ * Keep a screen's `--dock-h` equal to the height of its bottom dock, so the map ends where the dock begins and the
+ * map buttons sit just above it, whatever the dock holds (a long line from Betty, a short phone).
+ */
+export function followDock(screen: HTMLElement, dock: HTMLElement) {
+  const win = screen.ownerDocument.defaultView as (Window & typeof globalThis) | null;
+  const set = () => { if (dock.offsetHeight) screen.style.setProperty('--dock-h', `${dock.offsetHeight}px`); };
+  if (win && 'ResizeObserver' in win) new win.ResizeObserver(set).observe(dock);
+  set();
 }
 
 /** Copy text to the clipboard, falling back to a hidden textarea where the async clipboard is not available. */

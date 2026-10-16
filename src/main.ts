@@ -31,6 +31,7 @@ import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
 import { WakeLock, WakeStatus } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
 import { ChatEntry, mountChatPanel } from './ui/ChatPanel';
+import { mountChatScreen } from './ui/screens/ChatScreen';
 import { mountVoiceTestPanel } from './ui/VoiceTestPanel';
 import { mountTuningPanel } from './ui/TuningPanel';
 import { mountLockScreen } from './ui/LockScreen';
@@ -68,6 +69,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const shell = mountShell();
 const startBtn = $<HTMLButtonElement>('start');
 const endBtn = $<HTMLButtonElement>('end');
+const endText = $('endtext');
 const realBox = $<HTMLInputElement>('real');
 const statusEl = $('status');
 const logEl = $('log');
@@ -81,7 +83,7 @@ const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | 
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; real: boolean; unmountSim: () => void; unmountChat: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number; paintTimer: number;
+  setObd: (mode: ObdMode) => void; unsub: () => void; real: boolean; /** A desk session for the Workshop chat: not a ride */ desk: boolean; unmountSim: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number; paintTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -398,23 +400,13 @@ window.addEventListener('betty-config', () => {
 });
 nameInput.addEventListener('change', () => paintBrand());
 
-/** Sidebar, top line and footer: his name, where he is, the weather while riding, desk test or live. */
+/** His initial on the avatar, and the footer. */
 const titleCase = (t: string) => t.replace(/^\p{L}/u, (c) => c.toUpperCase());
 function paintBrand() {
   const name = titleCase(cleanRiderName(CONFIG.riderName));
-  $('tagline').textContent = BRAND.tagline;
-  $('connection').textContent = BRAND.connection;
-  $('profilename').textContent = name;
   $('profileinitial').textContent = name.slice(0, 1);
-  $('profilesub').textContent = BRAND.profileSub;
   $('footer').textContent = BRAND.footer.join('  ·  ');
-  const s = rig?.agg.current;
-  $('toplocation').textContent = (s?.area ? [s.area.suburb, s.area.town].filter(Boolean).join(', ') : '') || BRAND.region;
-  const pill = $('modepill');
-  pill.hidden = !rig;
-  pill.textContent = rig?.real ? 'Live ride' : 'Desk test';
-  $('topweather').hidden = !s?.weather;
-  if (s?.weather) { $('toptemp').textContent = `${Math.round(s.weather.tempC)}°`; $('topsummary').textContent = s.weather.summary; }
+  $('stagenote').textContent = rig ? (rig.desk ? 'desk chat running' : rig.real ? 'riding' : 'desk test running') : 'phone layout';
 }
 
 // ---- the rider screens
@@ -434,16 +426,35 @@ const readiness = (): ReadyRow[] => {
   ];
 };
 const home = mountHomeScreen(document, shell, {
-  name: () => cleanRiderName(CONFIG.riderName), hello: () => sayOutsideRide(HOME.hello(cleanRiderName(CONFIG.riderName))), readiness, fuelText,
-  rides: () => RideLog.load(), track: (rideId) => TrackStore.get(rideId), home: () => CONFIG.feeds.fallbackLocation, openRide: (rideId) => journeys.open(rideId),
+  hello: () => sayOutsideRide(HOME.hello(cleanRiderName(CONFIG.riderName))), readiness, fuelText,
+  rides: () => RideLog.load(), track: (rideId) => TrackStore.get(rideId), home: () => CONFIG.feeds.fallbackLocation,
 });
+/** A ride is running (not just a desk chat session). */
+const riding = () => !!rig && !rig.desk;
 // While a ride runs, "Ride" in the navigation goes to the ride, not the start page.
-shell.setRedirect((id) => (id === 'home' && rig ? 'ride' : id));
+shell.setRedirect((id) => (id === 'home' && riding() ? 'ride' : id));
 paintBrand();
 /** Set while a ride runs: what the ride screen's buttons do. */
 let rideHooks: RideActions | null = null;
 const rideScreen = mountRideScreen(document, {
   talk: () => rideHooks?.talk(), repeat: () => rideHooks?.repeat(), toggleQuiet: () => rideHooks?.toggleQuiet(), ask: (t) => rideHooks?.ask(t),
+});
+// Chat: a conversation view during a ride (the chat button in the ride dock), and the developer chat in the
+// Workshop, which also works without a ride by starting a desk session behind it.
+const chatListen = (fn: (e: ChatEntry) => void) => { chatListeners.add(fn); return () => { chatListeners.delete(fn); }; };
+const chatScreen = mountChatScreen(document, shell, { ask: (t) => rideHooks?.ask(t), talk: () => rideHooks?.talk(), listen: chatListen });
+/** Ask from the Workshop chat: through the ride if one runs, otherwise through a desk session started for it. */
+const askFromWorkshop = async (text: string) => {
+  if (!rig) await start({ desk: true });
+  rideHooks?.ask(text);
+};
+const workshopChat = mountChatPanel($('chat'), {
+  ask: (text) => { void askFromWorkshop(text); },
+  listen: chatListen,
+  session: () => rig?.desk
+    ? { text: 'Desk chat session running (simulated, nothing saved as a ride).', action: { label: 'End desk chat', run: () => void stop() } }
+    : rig ? { text: rig.real ? 'Talking to the ride in progress.' : 'Talking to the desk test in progress.' }
+      : { text: 'No ride running: sending a message starts a desk chat session.', action: { label: 'Start desk chat', run: () => void start({ desk: true }) } },
 });
 /** The road ridden so far (for the map, and kept with the ride afterwards). */
 let rideTrack: TrackPoint[] = [];
@@ -476,33 +487,38 @@ function paintRide() {
   const moving = s.speedKmh >= 3 ? 'On the road' : 'Parked';
   const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : r.real ? null : CONFIG.feeds.fallbackLocation;
   const voiceName = libraryVoice(CONFIG.cloudVoiceName)?.name ?? CONFIG.cloudVoiceName;
+  const where = [s.area?.suburb, s.area?.town].filter(Boolean).join(', ');
   rideScreen.paint(view, {
-    status: moving,
-    line: [r.real ? 'Free ride' : 'Desk test, simulated', r.real && !wakeOk ? 'screen may sleep' : '', r.real && !here ? 'waiting for GPS' : ''].filter(Boolean).join(' · '),
+    status: moving, mode: r.real ? 'Live' : 'Desk test',
+    line: [where || (r.real ? 'Free ride' : 'Desk test, simulated'), s.weather ? `${Math.round(s.weather.tempC)}°, ${s.weather.summary}` : '',
+      r.real && !wakeOk ? 'screen may sleep' : '', r.real && !here ? 'waiting for GPS' : '', voiceName].filter(Boolean).join(' · '),
     quiet: quietMin > 0, listening: talkState === 'listening',
-    statusRow: [
-      { icon: 'dot', text: r.real ? (here ? 'Phone GPS' : 'Waiting for GPS') : 'Simulated location' },
-      { icon: 'headset', text: CONFIG.cloudVoice === 'off' ? 'Phone voice' : `${VOICE_MODES[CONFIG.cloudVoice]}, ${voiceName}` },
-      { icon: 'sun', text: s.weather ? `${Math.round(s.weather.tempC)}°, ${s.weather.summary}` : `Weather: ${feed.weather}` },
-    ],
   }, {
     center: here, here, headingDeg: travelDirection(s), track: rideTrack,
     places: s.nearbyPlaces.map((p) => ({ lat: p.lat, lon: p.lon, label: p.name })),
     incidents: s.incidents.map((i) => ({ lat: i.lat, lon: i.lon, label: i.description })),
     marks: markPins,
   });
+  chatScreen.setState(view.state, view.orb, talkState === 'listening');
   paintBrand();
 }
 
 
 let starting = false;
-async function start() {
+async function start(opts: { desk?: boolean } = {}) {
   if (starting) return; // a double tap must not build two rides
   starting = true;
-  try { await beginRide(); } finally { starting = false; }
+  try {
+    if (rig?.desk && !opts.desk) await stop(); // a real ride replaces the Workshop's desk chat session
+    if (!rig) await beginRide(opts.desk ?? false);
+  } finally { starting = false; }
 }
 
-async function beginRide() {
+/**
+ * Build the ride. A desk session (the Workshop chat with no ride running) is the same rig, simulated, without the
+ * briefing, the screen lock or the ride screen, and is never saved as a ride.
+ */
+async function beginRide(desk: boolean) {
   // Must run synchronously inside the tap (iOS speech, sound and motion permission rules).
   WebSpeaker.prime();
   const player = new ElementPlayer();
@@ -511,7 +527,7 @@ async function beginRide() {
   if (CONFIG.cloudVoice === 'stream') pcm.prime(); // streamed answers play through Web Audio, unlocked here too
   const buttons = new HeadsetButtons();
   if (CONFIG.headsetButtons) buttons.prime(); // starting it pauses music from other apps: the rider chose this
-  const real = realBox.checked;
+  const real = !desk && realBox.checked;
   const motionOk = real ? await WebMotionSource.requestPermission() : false;
 
   const agg = new StateAggregator();
@@ -556,7 +572,7 @@ async function beginRide() {
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
   const remember = () => {
     const w = agg.current.weather;
-    const rec = toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null);
+    const rec = desk ? null : toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null);
     if (rec) RideLog.save(rec);
     FuelStore.save(engine.kmSinceFill());
     IncidentMemory.save(engine.announcedIncidents());
@@ -649,7 +665,7 @@ async function beginRide() {
   });
 
   const wake = new WakeLock(showWake);
-  await wake.enable();
+  if (!desk) await wake.enable();
   await agg.start();
   setObd(CONFIG.obdMode);
   // The pre-ride briefing: wait (briefly) for the weather and a GPS fix, so she has something to tell him.
@@ -658,7 +674,7 @@ async function beginRide() {
     const readyToBrief = () => agg.current.weather !== null && (!real || agg.current.lat != null);
     await new Promise((r) => setTimeout(r, 0)); // let the ride finish setting up first
     while (Date.now() < until && !readyToBrief()) await new Promise((r) => setTimeout(r, 250));
-    if (rig?.engine === engine) say(engine.startup(agg.current)); // not if the ride ended while waiting
+    if (rig?.engine === engine && !desk) say(engine.startup(agg.current)); // not if the ride ended while waiting
   })();
   /** Tones go through the headset buttons' own track when it is running, so they do not steal the buttons. */
   const tone = (freq: number) => { if (!buttons.tone(freq)) beep(freq); };
@@ -796,17 +812,15 @@ async function beginRide() {
     newLine('[voice]', ok ? 'headset buttons: play/pause talks to Betty, next track repeats her last line' : 'headset buttons are not available in this browser');
   }
 
-  const unmountChat = mountChatPanel($('chat'), {
-    ask: (text) => { void askBetty(text); },
-    listen: (fn) => { chatListeners.add(fn); return () => { chatListeners.delete(fn); }; },
-  });
-
-  rig = { agg, engine, queue, say, setObd, unsub, real, unmountSim, unmountChat, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer, paintTimer };
-  endBtn.textContent = END_BUTTON.idle;
+  rig = { agg, engine, queue, say, setObd, unsub, real, desk, unmountSim, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer, paintTimer };
+  endText.textContent = END_BUTTON.idle;
+  workshopChat.refresh();
+  paintRide();
+  if (desk) { setStatus('Desk chat session started: simulated, nothing saved as a ride.'); return; }
   realBox.disabled = true;
   home.setRiding(true);
+  chatScreen.setRiding(true);
   shell.show('ride');
-  paintRide();
   if (!statusEl.textContent) setStatus(real ? 'Keep this screen open while riding.' : 'Simulated session: no phone sensors in use.');
 }
 
@@ -824,7 +838,7 @@ async function stop() {
   if (!r || endNow) return;
   let hurry = false;
   endNow = () => { hurry = true; };
-  endBtn.textContent = END_BUTTON.ending;
+  endText.textContent = END_BUTTON.ending;
   shell.closeSheet();
   paintRide();
   window.clearInterval(r.memTimer);
@@ -835,7 +849,7 @@ async function stop() {
   r.unsub(); // no new alerts or banter from here on; the queue and speaker stay alive
 
   // A sign-off for any ride worth remembering.
-  const debrief = toRecord(r.engine.rideSnapshot(), null) ? r.engine.force('ride_debrief', r.agg.current) : null;
+  const debrief = !r.desk && toRecord(r.engine.rideSnapshot(), null) ? r.engine.force('ride_debrief', r.agg.current) : null;
   const item = debrief ? await r.say(debrief) : null;
   const deadline = Date.now() + SIGN_OFF_LIMIT_MS;
   while (item && !SETTLED.includes(item.fate) && !hurry && Date.now() < deadline) {
@@ -846,7 +860,6 @@ async function stop() {
   r.setObd('off');
   r.agg.stop();
   r.unmountSim();
-  r.unmountChat();
   r.buttons.stop();
   r.releaseMic();
   talkNow = null;
@@ -854,15 +867,18 @@ async function stop() {
   speakingNow = null; lastSaid = null; talkState = 'off';
   lockScreen.setTalk(false);
   saveLog();
-  await r.wake.disable();
+  if (!r.desk) await r.wake.disable();
   showWake(null);
   rig = null;
   endNow = null;
-  endBtn.textContent = END_BUTTON.idle;
+  endText.textContent = END_BUTTON.idle;
   realBox.disabled = false;
   home.setRiding(false);
+  chatScreen.setRiding(false);
+  workshopChat.refresh();
+  paintBrand();
   // From the ride screen, straight to the story of the ride just finished (when it was long enough to remember).
-  if (shell.current === 'ride') {
+  if (shell.current === 'ride' || (shell.current === 'chat' && !r.desk)) {
     const rideId = r.engine.rideSnapshot().startedAt;
     if (RideLog.load().some((x) => x.startedAt === rideId)) { journeys.renderStory(rideId); shell.show('story'); } else shell.show('home');
   }
@@ -870,6 +886,6 @@ async function stop() {
 }
 
 // Start riding (or, while a ride runs, go back to it). End ride asks first; during the sign-off it ends at once.
-startBtn.addEventListener('click', () => { if (rig) shell.show('ride'); else if (!starting) void start(); });
-endBtn.addEventListener('click', () => { if (endNow) endNow(); else if (rig) shell.openSheet('end'); });
+startBtn.addEventListener('click', () => { if (riding()) shell.show('ride'); else if (!starting) void start(); });
+endBtn.addEventListener('click', () => { if (endNow) endNow(); else if (riding()) shell.openSheet('end'); });
 $('endconfirm').addEventListener('click', () => { if (endNow) endNow(); else if (rig) void stop(); });
