@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, cleanBikeName, cleanRiderName, libraryVoice } from './config/betty';
+import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyTalkPreset, cleanBikeName, cleanRiderName, libraryVoice, mixSummary, nudgeMix } from './config/betty';
 import { LIBRARY_ACCENTS, LIBRARY_VOICES } from './config/voiceLibrary';
 import { CloudSpeaker, ElementPlayer, SOUND_TEST_LINES, STOCK_LINES } from './adapters/CloudSpeaker';
 import { IdbClipStore } from './adapters/ClipStore';
@@ -672,7 +672,7 @@ async function beginRide() {
   const howLong = (min: number) => min === 60 ? 'an hour' : min === 30 ? 'half an hour' : min % 60 === 0 ? `${min / 60} hours` : `${min} minute${min === 1 ? '' : 's'}`;
   /** Voice stage 3: things he tells her to do rather than asks. */
   const obey = (c: Command) => {
-    newLine('[command]', c.kind === 'humour' || c.kind === 'persona' ? `${c.kind} ${c.set !== undefined ? `set ${c.set}` : `step ${c.step}`}` : c.kind === 'quiet' ? `quiet ${c.minutes === null ? 'until told' : `for ${c.minutes} min`}` : c.kind === 'mark' ? `mark${c.note ? `: ${c.note}` : ''}` : c.kind === 'remember' ? `remember: ${c.fact}` : c.kind);
+    newLine('[command]', c.kind === 'preset' ? `preset ${c.preset}` : c.kind === 'mix' ? `${c.what} ${c.step > 0 ? 'up' : 'down'}` : c.kind === 'humour' || c.kind === 'persona' ? `${c.kind} ${c.set !== undefined ? `set ${c.set}` : `step ${c.step}`}` : c.kind === 'quiet' ? `quiet ${c.minutes === null ? 'until told' : `for ${c.minutes} min`}` : c.kind === 'mark' ? `mark${c.note ? `: ${c.note}` : ''}` : c.kind === 'remember' ? `remember: ${c.fact}` : c.kind);
     switch (c.kind) {
       case 'repeat': reply(lastLine || "I haven't said anything yet.", 'repeat'); return;
       case 'quiet':
@@ -708,14 +708,18 @@ async function beginRide() {
         return;
       }
       case 'settings': {
-        const pz = CONFIG.persona; const a = CONFIG.ambient;
-        const total = a.banterWeight + a.tourGuideWeight + a.silenceWeight || 1;
-        const share = (w: number) => Math.round((w / total) * 100);
-        const gap = Math.round(CONFIG.ambientCooldownMs / 60_000);
+        const pz = CONFIG.persona;
         const quiet = engine.quietLeftMin();
-        reply(`Humour ${pz.humour} percent. ${100 - pz.tars} percent JARVIS, ${pz.tars} TARS. `
-          + `Banter ${share(a.banterWeight)}, tour guide ${share(a.tourGuideWeight)}, silence ${share(a.silenceWeight)} percent, a remark every ${gap <= 1 ? 'minute' : `${gap} minutes`}.`
+        reply(`Humour ${pz.humour} percent. ${100 - pz.tars} percent JARVIS, ${pz.tars} TARS. ${mixSummary()}`
           + (quiet === Infinity ? ' Quiet until you say otherwise.' : quiet > 0 ? ` Quiet for another ${quiet} minutes.` : ''), 'settings');
+        return;
+      }
+      case 'preset': case 'mix': {
+        // The Settings screen's "How often should I talk?" by voice, and nudges to the mix (owner, 2026-10-17).
+        if (c.kind === 'preset') applyTalkPreset(c.preset); else nudgeMix(c.what, c.step);
+        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+        const name = c.kind === 'preset' ? `${c.preset[0].toUpperCase()}${c.preset.slice(1)}. ` : '';
+        reply(`${name}${mixSummary()}`, c.kind);
         return;
       }
       case 'forget': {

@@ -85,13 +85,14 @@ export const DEFAULT_CONFIG: Config = {
   priorities: {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
-    ambient_banter: 3, local_fact: 3, area_story: 3,
+    ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2,
     fuel_range: 2, sunset_soon: 2, ride_debrief: 4,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
     rain_soon: 900_000, traffic_incident: 120_000, ride_milestone: 120_000, rider_query: 0,
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
+    marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
@@ -152,6 +153,25 @@ export const TALK_PRESETS: Record<TalkPreset, { ambient: Pick<Config['ambient'],
   balanced: { ambient: { banterWeight: 40, tourGuideWeight: 40, silenceWeight: 20 }, gapMs: 2 * 60_000 },
   stories: { ambient: { banterWeight: 25, tourGuideWeight: 60, silenceWeight: 15 }, gapMs: 2 * 60_000 },
 };
+/** The mix as he would hear it: "Banter 40, tour guide 40, silence 20 percent, a remark every 2 minutes." */
+export function mixSummary(): string {
+  const a = CONFIG.ambient;
+  const total = a.banterWeight + a.tourGuideWeight + a.silenceWeight || 1;
+  const share = (w: number) => Math.round((w / total) * 100);
+  const gap = Math.round(CONFIG.ambientCooldownMs / 30_000) / 2;
+  return `Banter ${share(a.banterWeight)}, tour guide ${share(a.tourGuideWeight)}, silence ${share(a.silenceWeight)} percent, a remark every ${gap <= 1 ? (gap === 1 ? 'minute' : 'half a minute') : `${gap} minutes`}.`;
+}
+/** "banter up", "fewer stories", "more chatty": steps of 10 in the weights; chattiness also moves the gap by 30 s. */
+export function nudgeMix(what: 'banter' | 'stories' | 'chatty', step: 1 | -1) {
+  const a = CONFIG.ambient;
+  const clamp = (v: number) => Math.min(100, Math.max(0, v));
+  if (what === 'banter') a.banterWeight = clamp(a.banterWeight + 10 * step);
+  else if (what === 'stories') a.tourGuideWeight = clamp(a.tourGuideWeight + 10 * step);
+  else {
+    a.silenceWeight = clamp(a.silenceWeight - 10 * step);
+    CONFIG.ambientCooldownMs = Math.min(10 * 60_000, Math.max(30_000, CONFIG.ambientCooldownMs - 30_000 * step));
+  }
+}
 export const applyTalkPreset = (k: TalkPreset) => {
   Object.assign(CONFIG.ambient, TALK_PRESETS[k].ambient);
   CONFIG.ambientCooldownMs = TALK_PRESETS[k].gapMs;
@@ -272,7 +292,8 @@ Talk to him directly, as "you". Never describe what you are doing, what he asked
 What he asked you to remember and the spots he marked are in the situation when there are any: use them when he asks.
 If he asks what he can tell you to do: "repeat that", "quiet for ten minutes" (or "be quiet", then "talk to me"),
 "mark this spot", "remember that...", "forget that", "humour 60 percent" (or "humour up"), "more TARS", "more JARVIS",
-"status" (you read out your settings). Those work at once, even without signal.
+"status" (you read out your settings), "switch to stories" (or minimal, balanced), "banter up", "more stories", "less chatty".
+Those work at once, even without signal.
 You cannot change your own settings by saying so: only those commands do. If he asks for a change in other words
 ("dial it back", "be less polite"), do not claim it is done; tell him the command to say.
 Stay in character.`,

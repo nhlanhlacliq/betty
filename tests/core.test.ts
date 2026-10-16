@@ -1173,6 +1173,26 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(chooseAmbient({ banterWeight: 0, tourGuideWeight: 10, silenceWeight: 0 }, false, () => 0.5, false), null);
 }
 
+// ---- marked spots: a heads-up when he rides up to one
+{
+  resetConfig(); clock = 20_000_000;
+  const e = new TriggerEngine(now);
+  const pothole = { at: clock - 3 * 86_400_000, lat: -26.1500, lon: 28.1500, note: 'nasty pothole in the left lane', near: 'Greenstone Hill' };
+  e.setMemory({ notes: [], marks: [pothole] });
+  // 300 m south of it, riding north at 50 km/h
+  const s = { ...initialState(), lat: -26.1527, lon: 28.1500, headingDeg: 0, speedKmh: 50 };
+  const fired = e.evaluate(s).filter((x) => x.id === 'marked_spot');
+  assert.equal(fired.length, 1); assert.equal(fired[0].priority, 2);
+  assert.match(fired[0].context, /about 300 metres from a spot he marked 3 days ago near Greenstone Hill, with his note "nasty pothole in the left lane"/);
+  assert.equal(fired[0].fallback, 'Marked spot ahead: nasty pothole in the left lane.');
+  clock += 60_000; assert.ok(!e.evaluate(s).some((x) => x.id === 'marked_spot'), 'not again within 10 minutes');
+  clock += 10 * 60_000; assert.equal(e.evaluate(s).filter((x) => x.id === 'marked_spot').length, 1, 'again after 10 minutes');
+  const e2 = new TriggerEngine(now); e2.setMemory({ notes: [], marks: [pothole] });
+  assert.ok(!e2.evaluate({ ...s, headingDeg: 180 }).some((x) => x.id === 'marked_spot'), 'not when it is behind him');
+  assert.ok(!e2.evaluate({ ...s, speedKmh: 5 }).some((x) => x.id === 'marked_spot'), 'not at walking pace');
+  assert.ok(!e2.evaluate({ ...s, lat: -26.16 }).some((x) => x.id === 'marked_spot'), 'not from a kilometre away');
+}
+
 // ---- cloud voice: server function
 {
   const realFetch = globalThis.fetch; const saved = { ...process.env };
@@ -1424,6 +1444,31 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(c('Status report.'), { kind: 'settings' });
   assert.deepEqual(c('What are your settings?'), { kind: 'settings' });
   assert.equal(c('Is humour a South African word?'), null);
+  assert.deepEqual(c('Switch to stories.'), { kind: 'preset', preset: 'stories' });
+  assert.deepEqual(c('Minimal mode'), { kind: 'preset', preset: 'minimal' });
+  assert.deepEqual(c('Hey Betty, balanced.'), { kind: 'preset', preset: 'balanced' });
+  assert.deepEqual(c('Banter up'), { kind: 'mix', what: 'banter', step: 1 });
+  assert.deepEqual(c('Less banter.'), { kind: 'mix', what: 'banter', step: -1 });
+  assert.deepEqual(c('More stories'), { kind: 'mix', what: 'stories', step: 1 });
+  assert.deepEqual(c('Fewer stories, please.'), { kind: 'mix', what: 'stories', step: -1 });
+  assert.deepEqual(c('Tour guide down'), { kind: 'mix', what: 'stories', step: -1 });
+  assert.deepEqual(c('Less chatty.'), { kind: 'mix', what: 'chatty', step: -1 });
+  assert.deepEqual(c('Talk more'), { kind: 'mix', what: 'chatty', step: 1 });
+  assert.deepEqual(c('Talk to me'), { kind: 'talk' }, 'still the quiet-off command');
+  assert.equal(c('Tell me more stories about Soweto'), null, 'a request for a story is a question');
+  {
+    resetConfig();
+    const { nudgeMix, mixSummary, applyTalkPreset } = await import('../src/config/betty');
+    assert.equal(mixSummary(), 'Banter 40, tour guide 40, silence 20 percent, a remark every 2 minutes.');
+    nudgeMix('banter', 1); assert.equal(CONFIG.ambient.banterWeight, 50);
+    nudgeMix('chatty', -1); assert.equal(CONFIG.ambient.silenceWeight, 30); assert.equal(CONFIG.ambientCooldownMs, 150_000);
+    assert.match(mixSummary(), /a remark every 2\.5 minutes/);
+    for (let i = 0; i < 30; i++) nudgeMix('chatty', 1);
+    assert.equal(CONFIG.ambientCooldownMs, 30_000, 'never more often than every 30 s'); assert.equal(CONFIG.ambient.silenceWeight, 0);
+    assert.match(mixSummary(), /half a minute/);
+    applyTalkPreset('stories'); assert.match(mixSummary(), /^Banter 25, tour guide 60, silence 15 percent/);
+    resetConfig();
+  }
   // questions stay questions
   for (const q of ['Do you remember that ride to Clarens?', 'Is it quiet on the N3?', 'Why is it so quiet today?', 'Can you repeat the weather for tomorrow and the day after in Pretoria please?',
     'What can you tell me about Germiston?', 'Remember?', 'How far to empty?', 'Where did I mark that spot?']) {

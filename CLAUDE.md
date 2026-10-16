@@ -130,6 +130,7 @@ Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `S
 | ambient_banter | P3 | ambient slot rolls banter (see Ambient personality) | 0 (paced by ambient gap) |
 | local_fact | P3 | ambient slot rolls tour guide and an unmentioned place is in range | 0 (paced by ambient gap) |
 | area_story | P3 | the first ambient slot after reaching an area with an untold story (owner, 2026-10-17: "add them to the normal speech"), then when the slot rolls tour guide (half the tour-guide rolls when a place is fresh too); never with tour guide weight 0 | 0 (paced by ambient gap) |
+| marked_spot | P2 | a spot he marked is within 400 m, within 50 deg of his course, he is doing 15 km/h or more; each spot at most once in 10 min | 30 s |
 
 All priorities, cooldowns and thresholds are read live from `CONFIG` at call time and can be edited in the TUNING
 panel (persisted to localStorage). Adding a trigger = add the id to `TriggerId` + `TRIGGER_IDS`, entries in
@@ -524,7 +525,14 @@ wake word last / on the Pi.
     answer's situation (newest first, with distance from here), so "where was that pothole I marked?" works.
     Checked live: pothole spot, chain note, and "what can I tell you to do?" all answered correctly.
   - MEMORY panel (under LOG) lists notes and spots, with a map link and Forget for each.
-  Not built yet: louder/softer, warning when he nears a marked spot (the road-hazard idea), quiet shown on screen.
+  Not built yet: louder/softer.
+  ADDED 2026-10-17: "switch to stories/minimal/balanced" (the Settings presets), "banter up/down", "more/fewer stories"
+  ("tour guide up/down"), "more/less chatty" ("talk more/less": silence weight -/+10 and the gap -/+30 s, 30 s to 10
+  min); she replies with `mixSummary()`. A trailing "please" no longer stops a command matching.
+  MARKED-SPOT WARNING (owner's road-hazard idea): `marked_spot` P2 fires once per spot per 10 min when it is within
+  400 m and ahead (see Triggers). The line says what and how far; she must never tell him how to steer, which part of
+  the lane or what speed (first live try said "keep left of centre" for a pothole in the left lane). Canned fallback
+  "Marked spot ahead: <note>.". UNVERIFIED ON A RIDE.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)
 

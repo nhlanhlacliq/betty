@@ -1,9 +1,9 @@
 import { CONFIG, cleanBikeName } from '../config/betty';
-import { EMPTY_MEMORY, RiderMemory, describeMemory } from './Commands';
+import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
-import { angleDiff, bearingDeg } from './geo';
+import { angleDiff, bearingDeg, haversineKm } from './geo';
 import { initialState } from './StateAggregator';
 import { BikeState, TrafficIncident, TriggerEvent, TriggerId } from './types';
 
@@ -17,7 +17,7 @@ export const isSafeWindow = (s: BikeState) =>
 /** How an alert is remembered later in the ride and in the ride log. */
 const EVENT_LABELS: Partial<Record<TriggerId, string>> = {
   engine_overtemp: 'engine running hot', dtc_detected: 'a fault code', low_fuel: 'low fuel',
-  rain_soon: 'rain', traffic_incident: 'a traffic incident',
+  rain_soon: 'rain', traffic_incident: 'a traffic incident', marked_spot: 'a spot he marked',
   fuel_range: 'fuel range getting low', sunset_soon: 'sunset approaching',
 };
 
@@ -35,6 +35,9 @@ export const incidentKey = (i: TrafficIncident) => (i.roadName ? `${i.descriptio
 const MIN_CLOSURE_M = 150;
 /** How far either side of straight ahead still counts as "on his way". */
 const AHEAD_DEG = 50;
+/** Warn about a marked spot this far ahead (km), and not again for this long. */
+const MARK_WARN_KM = 0.4;
+const WARN_AGAIN_MS = 10 * 60_000;
 
 /**
  * A city has dozens of incidents within a few kilometres at rush hour. Only the ones that matter get a line:
@@ -78,7 +81,7 @@ export class TriggerEngine {
   }
 
   reset() {
-    this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear();
+    this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
@@ -106,6 +109,27 @@ export class TriggerEngine {
   setToldNotes(ids: string[]) { this.toldNotes = new Set(ids); }
   toldNoteIds(): string[] { return [...this.toldNotes]; }
   private freshNote(s: BikeState) { return s.areaNotes.find((n) => !this.toldNotes.has(n.id)) ?? null; }
+  /** Marked spots warned about, by when the spot was saved -> when warned (each at most once in WARN_AGAIN_MS) */
+  private warnedSpots = new Map<number, number>();
+  private spotNow: { spot: MarkedSpot; km: number } | null = null;
+  /**
+   * The nearest marked spot just ahead (owner's road-hazard idea, built 2026-10-17): within MARK_WARN_KM, moving at
+   * 15 km/h or more, inside AHEAD_DEG of his course, and not warned in the last 10 minutes.
+   */
+  private spotAhead(s: BikeState): { spot: MarkedSpot; km: number } | null {
+    if (s.lat == null || s.lon == null || s.headingDeg == null || s.speedKmh < 15) return null;
+    const here = { lat: s.lat, lon: s.lon };
+    let best: { spot: MarkedSpot; km: number } | null = null;
+    for (const m of this.memory.marks) {
+      const km = haversineKm(here, m);
+      if (km > MARK_WARN_KM || km < 0.02) continue;
+      if (Math.abs(angleDiff(s.headingDeg, bearingDeg(here, m))) > AHEAD_DEG) continue;
+      const warned = this.warnedSpots.get(m.at);
+      if (warned !== undefined && this.now() - warned < WARN_AGAIN_MS) continue;
+      if (!best || km < best.km) best = { spot: m, km };
+    }
+    return best;
+  }
   /** Areas she has told a story about this ride: arriving somewhere new gets a story at the next remark. */
   private storiedAreas = new Set<string>();
   /** What he told her to remember and the spots he marked (for her answers). */
@@ -189,6 +213,13 @@ export class TriggerEngine {
       this.announced.add(inc.id);
       this.announcedKeys.push(incidentKey(inc));
       out.push(this.force('traffic_incident', s, inc));
+    }
+
+    const spot = this.spotAhead(s);
+    if (spot && this.ready('marked_spot')) {
+      this.warnedSpots.set(spot.spot.at, this.now());
+      this.spotNow = spot;
+      try { out.push(this.force('marked_spot', s)); } finally { this.spotNow = null; }
     }
 
     const mins = (this.now() - this.rideStart) / 60_000;
@@ -357,6 +388,16 @@ export class TriggerEngine {
         return {
           context: `He is about ${km(p.distanceKm)} from ${p.name}${where ? `, which is ${where}` : ''}. Notes on ${p.name}: ${p.summary}`, fallback: '',
           mark: () => { this.mentioned.add(p.id); this.stats.notePlace(p.name); }, // never the same place twice in a ride
+        };
+      }
+      case 'marked_spot': {
+        const m = this.spotNow;
+        if (!m) return { context: '', fallback: '' };
+        const metres = Math.max(50, Math.round((m.km * 1000) / 50) * 50);
+        const note = m.spot.note ? `, with his note "${m.spot.note}"` : '';
+        return {
+          context: `He is about ${metres} metres from a spot he marked ${whenSaid(m.spot.at, this.now())}${m.spot.near ? ` near ${m.spot.near}` : ''}${note}. It is ahead of him. Give him a short heads-up: what it is and how far. If the note sounds like a hazard (a pothole, gravel, a speed camera), say it plainly as a warning, no joke. Never tell him how to steer, which part of the lane to use or what speed to do: you cannot see the road.`,
+          fallback: `Marked spot ahead${m.spot.note ? `: ${m.spot.note}` : ''}.`,
         };
       }
       case 'area_story': {

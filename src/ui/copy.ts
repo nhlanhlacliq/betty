@@ -30,6 +30,7 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
   ambient_banter: { kicker: 'A passing thought', headline: 'Just saying.' },
   local_fact: { kicker: 'A sense of place', headline: 'Worth knowing.' },
   area_story: { kicker: 'A local story', headline: 'About this place.' },
+  marked_spot: { kicker: 'Heads up', headline: 'Your marked spot.' },
   ride_debrief: { kicker: "That's a wrap", headline: 'Good ride.' },
   voice: { kicker: 'Betty', headline: 'On it.' },
 };

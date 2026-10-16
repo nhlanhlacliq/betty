@@ -19,7 +19,11 @@ export type Command =
   /** JARVIS/TARS blend: set the TARS share, or step it (+ = more TARS) */
   | { kind: 'persona'; set?: number; step?: number }
   /** "status": she reads out her settings */
-  | { kind: 'settings' };
+  | { kind: 'settings' }
+  /** "switch to stories": one of the Settings screen's talk presets */
+  | { kind: 'preset'; preset: 'minimal' | 'balanced' | 'stories' }
+  /** "banter up", "more stories", "less chatty": nudge one part of the mix (+1 more, -1 less) */
+  | { kind: 'mix'; what: 'banter' | 'stories' | 'chatty'; step: 1 | -1 };
 
 const NUMBERS: Record<string, number> = {
   a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -54,7 +58,7 @@ const tail = (t: string) => t.replace(/^[\s,.:;-]+/, '').replace(/^(because|caus
 
 export function parseCommand(said: string): Command | null {
   const t = strip(said);
-  const low = t.toLowerCase().replace(/[.!?]+$/, '');
+  const low = t.toLowerCase().replace(/[.!?]+$/, '').replace(/[,\s]+please$/, '');
   const n = words(low);
 
   // mark before remember: "remember this spot" is a place, not a fact
@@ -92,6 +96,16 @@ export function parseCommand(said: string): Command | null {
     return { kind: 'persona', step: towardTars ? 25 : -25 };
   }
   if (n <= 6 && /^(full|be|all|pure) (tars|jarvis)$/.test(low)) return { kind: 'persona', set: /tars$/.test(low) ? 100 : 0 };
+  // Talk mix by voice: presets as on the Settings screen, and nudges.
+  const preset = low.match(/^(?:switch to |go to |use |set |put on |change to )?(minimal|balanced|stories|story)(?: mode| setting| preset)?$/);
+  if (n <= 6 && preset) return { kind: 'preset', preset: preset[1] === 'story' ? 'stories' : preset[1] as 'minimal' | 'balanced' | 'stories' };
+  if (n <= 6) {
+    const more = /^(more|up)\b|\b(up|more)$/.test(low), less = /^(less|fewer|down)\b|\b(down|less)$/.test(low);
+    const step = more ? 1 : less ? -1 : 0;
+    if (step && /^(?:(?:more|less) banter|banter (?:up|down))$/.test(low)) return { kind: 'mix', what: 'banter', step };
+    if (step && /^(?:(?:more|less|fewer) (?:stories|story|tour guide|history)|(?:stories|tour guide) (?:up|down))$/.test(low)) return { kind: 'mix', what: 'stories', step };
+    if (step && /^(?:(?:be )?(?:more|less) chatty|talk (?:more|less)|chat (?:more|less)|speak (?:more|less)(?: often)?|chatty (?:up|down))$/.test(low)) return { kind: 'mix', what: 'chatty', step };
+  }
   if (n <= 8 && /^(set )?(tars|jarvis)( share| level)?( to)? \d/.test(low) && num !== null) return { kind: 'persona', set: /^(set )?tars/.test(low) ? num : 100 - num };
 
   if (n <= 8 && /^((you can |ok you can |you may )?(talk|speak|chat)( to me)?( again| now)?|unmute|carry on( talking)?|i'm back|back on|you're back|keep talking|talk to me)$/.test(low)) {
@@ -118,6 +132,8 @@ export function forgetLast(m: RiderMemory): { memory: RiderMemory; gone: 'note' 
   return { memory: { ...m, marks: m.marks.slice(0, -1) }, gone: 'mark' };
 }
 
+/** When something was saved, the way she would say it: today, yesterday, 3 days ago, or the date. */
+export const whenSaid = (at: number, now: number) => day(at, now);
 const day = (at: number, now: number) => {
   const d = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86_400_000);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 7 ? `${d} days ago` : new Date(at).toISOString().slice(0, 10);

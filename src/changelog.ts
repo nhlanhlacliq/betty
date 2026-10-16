@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Say "switch to stories" (or minimal, balanced), "banter up", "more stories", "less chatty" to change how she talks while riding.',
+      'Marked spots: when you ride towards a spot you marked ("mark this spot, pothole"), she gives you a heads-up about 400 metres before it.',
       'New design: a calm, light look with Betty as a little yellow companion. Ride shows a sketch map of the road you are riding (with nearby places, traffic and your marked spots), one cue at a glance (rain, fuel range, traffic, the area), what she is saying, and Lock, Quiet and End ride. On a phone the ride view fits exactly on one screen, above the bottom bar.',
       'Ask her by tapping the microphone, a question chip, or typing under the ride view. Tap the orb to hear her last line again. Quiet silences her until you tap it again (alerts still come through).',
       'My journeys keeps each ride with the road you took on a map, what she flagged and every line she said, with Copy and Save as a file. Explore lists your marked spots, notes and the area stories she knows. Garage & settings holds her personality (narration, humour, JARVIS/TARS), voices, names, fuel range and headset buttons; the testing tools are in the Workshop at the bottom.',
