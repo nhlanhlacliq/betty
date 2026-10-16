@@ -1,13 +1,15 @@
 import { CONFIG } from '../config/betty';
 import { Priority } from './types';
 
+/** What a line is, so a speaker can choose how to say it (the cloud voice picks engine and tone from it). */
+export interface SpeakTag { priority: Priority; id?: string }
 export interface Speaker {
-  speak(text: string, onDone: () => void): void;
+  speak(text: string, onDone: () => void, tag?: SpeakTag): void;
   stop(): void;
 }
 const RANK: Record<Priority, number> = { 1: 0, 4: 1, 2: 2, 3: 3 };
 
-export interface QueueItem { text: string; priority: Priority; queuedAt: number; fate: Fate }
+export interface QueueItem { text: string; priority: Priority; queuedAt: number; fate: Fate; /** trigger id */ tag?: string }
 /** What became of a line: waiting its turn, being spoken, finished, or why it was never (fully) heard. */
 export type Fate = 'queued' | 'speaking' | 'spoken' | 'expired' | 'interrupted' | 'cleared';
 
@@ -35,7 +37,7 @@ export class AudioQueue {
   private onFate(item: QueueItem, fate: Fate) { item.fate = fate; this.report(item, fate); }
 
   /** Returns the queued item (to follow its fate), or null when there is nothing to say. */
-  enqueue(text: string, priority: Priority): QueueItem | null {
+  enqueue(text: string, priority: Priority, tag?: string): QueueItem | null {
     if (!text.trim()) return null; // silence is a valid output (ambient flavours)
     if (priority === 1) {
       this.items.filter((i) => i.priority !== 1).forEach((i) => this.onFate(i, 'interrupted'));
@@ -44,7 +46,7 @@ export class AudioQueue {
       this.speaking = null;
       this.gen++;
     }
-    const item: QueueItem = { text, priority, queuedAt: this.now(), fate: 'queued' };
+    const item: QueueItem = { text, priority, queuedAt: this.now(), fate: 'queued', tag };
     this.items.push(item);
     // Order: critical, then his own question or request, then advisories, then ambient. Sorting by the raw number
     // put a rider answer behind waiting banter, contradicting "P4 always speaks next".
@@ -79,7 +81,7 @@ export class AudioQueue {
       this.speaking = null;
       this.onFate(item, 'spoken');
       this.pump();
-    });
+    }, { priority: item.priority, id: item.tag });
   }
 
   clear() {

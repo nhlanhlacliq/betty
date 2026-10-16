@@ -735,6 +735,19 @@ brake or a "mark this" press.
    installing higher-quality variants can make voices vanish from the list. Switching browser does not help: every
    iOS browser (Brave, Chrome, Firefox) runs on the same WebKit engine. No settings workaround was found.
    So in the browser a better voice means cloud TTS (option 2); on-device premium voices need a native app.
+   **CLOUD VOICE BUILT 2026-10-16 (owner chose Google; keys pending, UNVERIFIED live)**: `api/speak.ts` (keys on the
+   server: `GOOGLE_TTS_API_KEY` for Chirp 3 HD via texttospeech v1 `text:synthesize`, en-GB since there is no en-ZA,
+   MP3; `GEMINI_API_KEY` for Gemini TTS via `v1beta/interactions`, model `GEMINI_TTS_MODEL` default
+   `gemini-3.8-flash-tts`, WAV, with a per-line `style`). Both engines share the same 30 voice names, so she is one
+   person. `CONFIG.cloudVoice`: `mixed` (default: P1/P2 alerts on Chirp, fast and steady; everything else on Gemini
+   with `VOICE_STYLES` by trigger id), `chirp`, `gemini`, `off`. `adapters/CloudSpeaker` falls back to the phone voice
+   for any line whose audio is not there in `WAIT_MS` (Chirp 2.5 s, Gemini 5 s), fails, or will not play; a 503 (key
+   not set) stops that engine for the session. Audio is prefetched as soon as a line is written and kept (40 clips),
+   so a queued line and repeated phrases are instant. It plays on the headset buttons' own track while those are
+   Betty's (`HeadsetButtons.play`), otherwise on an element unlocked in the START tap (`ElementPlayer`). Main screen:
+   Cloud voice mode, Cloud voice name (with Google's one-word descriptions) and Test (an alert then a banter line);
+   the phone voice picker is now labelled as the backup. Gemini free tier: Google may use the text to improve its
+   products. Not checked live yet: Gemini latency, Chirp API-key auth, whether the buttons survive the clips.
 2. Cloud TTS for real quality: Claude text -> TTS service -> audio played by the page. ElevenLabs can design or clone
    a voice (needs the speaker's consent); Azure has South African English neural voices. Adds roughly 0.5 to 1 s per
    line, needs signal (fall back to the phone voice), costs per character, and the key must sit behind a server

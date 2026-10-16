@@ -9,6 +9,8 @@ import { SilenceDetector } from '../src/core/SilenceDetector';
 import { POST as phraseApi } from '../api/phrase';
 import { GET as trafficApi } from '../api/traffic';
 import { POST as transcribeApi } from '../api/transcribe';
+import { POST as speakApi } from '../api/speak';
+import { CloudSpeaker, engineFor } from '../src/adapters/CloudSpeaker';
 import { TomTomTrafficProvider } from '../src/adapters/TomTomTraffic';
 import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } from '../src/core/LineLog';
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
@@ -1023,6 +1025,82 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(none.status, 503); assert.match((await none.json()).error, /not set up/);
   } finally { globalThis.fetch = realFetch; process.env = saved; }
 }
+// ---- cloud voice: server function
+{
+  const realFetch = globalThis.fetch; const saved = { ...process.env };
+  const sent: Array<{ url: string; init: any }> = [];
+  const wav = btoa('RIFFfakewav');
+  globalThis.fetch = (async (url: any, init: any) => {
+    sent.push({ url: String(url), init });
+    if (String(url).includes('texttospeech')) return new Response(JSON.stringify({ audioContent: btoa('ID3fakemp3') }));
+    return new Response(JSON.stringify({ steps: [{ type: 'thought' }, { type: 'model_output', content: [{ type: 'audio', data: wav }] }] }));
+  }) as typeof fetch;
+  const req = (body: any, origin = 'https://betty-zeta.vercel.app') => new Request('https://betty-zeta.vercel.app/api/speak', {
+    method: 'POST', body: JSON.stringify(body), headers: { host: 'betty-zeta.vercel.app', origin },
+  });
+  try {
+    delete process.env.GOOGLE_TTS_API_KEY; delete process.env.GEMINI_API_KEY;
+    const no = await speakApi(req({ text: 'hi', engine: 'chirp', voice: 'Aoede' }));
+    assert.equal(no.status, 503); assert.match((await no.json()).error, /not set up/);
+    process.env.GOOGLE_TTS_API_KEY = 'g-tts'; process.env.GEMINI_API_KEY = 'g-gem';
+    assert.equal((await speakApi(req({ text: 'hi', engine: 'chirp', voice: 'Aoede' }, 'https://evil.example'))).status, 403);
+    assert.equal((await speakApi(req({ text: 'hi', engine: 'chirp', voice: 'Nobody' }))).status, 400, 'only the known voices');
+    assert.equal((await speakApi(req({ text: 'x'.repeat(801), engine: 'chirp', voice: 'Aoede' }))).status, 413);
+    assert.equal((await speakApi(req({ text: 'hi', engine: 'other', voice: 'Aoede' }))).status, 400);
+    const c = await speakApi(req({ text: 'Rain soon.', engine: 'chirp', voice: 'Aoede' }));
+    assert.equal(c.headers.get('content-type'), 'audio/mpeg'); assert.equal(new TextDecoder().decode(await c.arrayBuffer()), 'ID3fakemp3');
+    assert.equal(sent.at(-1)!.url, 'https://texttospeech.googleapis.com/v1/text:synthesize'); assert.equal(sent.at(-1)!.init.headers['x-goog-api-key'], 'g-tts');
+    assert.deepEqual(JSON.parse(sent.at(-1)!.init.body).voice, { languageCode: 'en-GB', name: 'en-GB-Chirp3-HD-Aoede' });
+    const g = await speakApi(req({ text: 'Forty minutes in.', engine: 'gemini', voice: 'Kore', style: 'dry' }));
+    assert.equal(g.headers.get('content-type'), 'audio/wav'); assert.equal(new TextDecoder().decode(await g.arrayBuffer()), 'RIFFfakewav');
+    const gb = JSON.parse(sent.at(-1)!.init.body);
+    assert.equal(sent.at(-1)!.url, 'https://generativelanguage.googleapis.com/v1beta/interactions'); assert.equal(sent.at(-1)!.init.headers['x-goog-api-key'], 'g-gem');
+    assert.equal(gb.model, 'gemini-3.8-flash-tts'); assert.deepEqual(gb.generation_config.speech_config, [{ voice: 'Kore' }]);
+    assert.deepEqual(gb.input[0].content[0], { type: 'text', text: 'Forty minutes in.', annotations: [{ type: 'speech_metadata', style: 'dry' }] });
+  } finally { globalThis.fetch = realFetch; process.env = saved; }
+}
+
+// ---- cloud voice: phone-side speaker (engine choice, fallback, prefetch, onDone always once)
+{
+  resetConfig();
+  assert.equal(engineFor('mixed', 1), 'chirp'); assert.equal(engineFor('mixed', 2), 'chirp'); assert.equal(engineFor('mixed', 3), 'gemini');
+  assert.equal(engineFor('mixed', 4), 'gemini'); assert.equal(engineFor('off', 1), null); assert.equal(engineFor('chirp', 4), 'chirp');
+  const phone = new FakeSpeaker();
+  const logs: string[] = [];
+  let calls: any[] = []; let reply: () => Promise<Response> = async () => new Response(new Blob(['mp3']));
+  const fetcher = (async (_u: any, init: any) => { calls.push(JSON.parse(init.body)); return reply(); }) as typeof fetch;
+  let played: string[] = []; let finish: (() => void) | null = null; let fail: ((w: string) => void) | null = null;
+  const player = { play: (url: string, end: () => void, err: (w: string) => void) => { played.push(url); finish = end; fail = err; return () => {}; } };
+  const sp = new CloudSpeaker(phone, () => player, (m) => logs.push(m), fetcher);
+  const flush = () => new Promise((r) => setTimeout(r, 5));
+  let done = 0;
+  sp.speak('Rain soon.', () => done++, { priority: 2, id: 'rain_soon' });
+  await flush();
+  assert.equal(calls[0].engine, 'chirp'); assert.equal(calls[0].style, undefined); assert.equal(played.length, 1); assert.equal(phone.spoken.length, 0);
+  finish!(); finish!(); assert.equal(done, 1, 'onDone exactly once');
+  sp.speak('Lovely road.', () => done++, { priority: 3, id: 'ambient_banter' });
+  await flush();
+  assert.equal(calls[1].engine, 'gemini'); assert.match(calls[1].style, /dry/); assert.equal(calls[1].voice, 'Aoede');
+  fail!('the clip would not play'); assert.deepEqual(phone.spoken, ['Lovely road.'], 'a clip that will not play is said by the phone');
+  phone.done!(); assert.equal(done, 2);
+  // prefetch: fetched once, played from the cache
+  calls = [];
+  sp.prefetch('Hang on, let me check.', { priority: 4, id: 'voice' }); sp.speak('Hang on, let me check.', () => done++, { priority: 4, id: 'voice' });
+  await flush(); assert.equal(calls.length, 1); finish!(); assert.equal(done, 3);
+  // a server error: phone voice; a 503 (not set up): phone voice, and no more tries for that engine
+  reply = async () => new Response(JSON.stringify({ error: 'cloud voice is not set up yet' }), { status: 503 });
+  calls = [];
+  sp.speak('Traffic ahead.', () => done++, { priority: 2 }); await flush();
+  assert.equal(phone.spoken.at(-1), 'Traffic ahead.'); assert.match(logs.at(-1)!, /not set up.*phone voice/); phone.done!();
+  sp.speak('Closure ahead.', () => done++, { priority: 2 }); await flush();
+  assert.equal(calls.length, 1, 'chirp not tried again'); assert.equal(phone.spoken.at(-1), 'Closure ahead.'); phone.done!();
+  assert.equal(done, 5);
+  // off: straight to the phone
+  CONFIG.cloudVoice = 'off'; calls = [];
+  sp.speak('Phone only.', () => done++, { priority: 3 }); assert.equal(calls.length, 0); assert.equal(phone.spoken.at(-1), 'Phone only.');
+  resetConfig();
+}
+
 // ---- voice stage 3: commands
 {
   const c = (t: string) => parseCommand(t);

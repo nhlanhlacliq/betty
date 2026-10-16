@@ -63,16 +63,33 @@ export class HeadsetButtons {
    * VOICE TEST, which has no tones, got five presses in a row; talking to Betty got one). False if not holding.
    */
   tone(freq: number): boolean {
-    const a = this.audio;
-    if (!this.held || !a) return false;
+    if (!this.held || !this.audio) return false;
     let url = this.tones.get(freq);
     if (!url) { url = URL.createObjectURL(toneWav(freq)); this.tones.set(freq, url); }
-    const back = () => { a.removeEventListener('ended', back); a.loop = true; a.src = this.quietUrl; this.resume(); };
-    this.toneUntil = Date.now() + 1500;
-    a.loop = false; a.src = url;
-    a.addEventListener('ended', back);
-    void a.play().catch((e) => { this.log(`tone did not play: ${(e as Error).name}`); back(); });
+    this.play(url, () => {}, (why) => this.log(`tone did not play: ${why}`));
     return true;
+  }
+
+  /**
+   * Plays a clip (a tone, or a line in the cloud voice) on the button track, then goes back to the silent loop. Any
+   * other sound source risks taking the buttons away (see tone). Returns a function that stops it early.
+   */
+  play(url: string, onEnded: () => void, onError: (why: string) => void): () => void {
+    const a = this.audio;
+    if (!this.held || !a) { onError('the button track is not running'); return () => {}; }
+    let over = false;
+    const back = () => {
+      if (over) return; over = true;
+      a.removeEventListener('ended', ended); a.removeEventListener('error', failed);
+      this.toneUntil = Date.now() + 500; a.loop = true; a.src = this.quietUrl; this.resume();
+    };
+    const ended = () => { back(); onEnded(); };
+    const failed = () => { back(); onError('the clip would not play'); };
+    this.toneUntil = Infinity; // swapping the track fires pause/emptied: expected, not news
+    a.loop = false; a.src = url;
+    a.addEventListener('ended', ended); a.addEventListener('error', failed);
+    void a.play().catch((e) => { back(); onError(`could not play: ${(e as Error).name}`); });
+    return back;
   }
 
   /** Make sure the loop is playing, so the next press still reaches Betty. Call it after the mic closes. */

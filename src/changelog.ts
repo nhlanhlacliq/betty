@@ -10,6 +10,7 @@ export const CHANGELOG: ChangeDay[] = [
     items: [
       'The page fits the phone screen: no more zooming out because of wide boxes, and no zooming in when you tap a box.',
       'TUNING: each trigger\'s priority and cooldown sit neatly on one line under its name. Rounded buttons and boxes.',
+      'Cloud voice (Google): Chirp 3 HD for alerts, Gemini for everything else, with her tone matched to the line. Pick the voice and test it on the main screen. The phone voice takes over when there is no signal.',
     ],
   },
   {

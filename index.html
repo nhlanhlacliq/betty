@@ -127,7 +127,19 @@
   <div id="startopts"><label><input type="checkbox" id="real" checked /> Use real phone sensors (GPS, motion). Untick on desktop to run fully simulated.</label>
     <label class="obd">Rider name: <input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="off" /></label>
     <label class="obd">Bike name: <input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></label>
-    <label class="obd">Voice:
+    <label class="obd">Cloud voice:
+      <select id="cloudvoice">
+        <option value="mixed">Google: Chirp for alerts, Gemini for the rest</option>
+        <option value="chirp">Google Chirp 3 HD for everything</option>
+        <option value="gemini">Google Gemini for everything</option>
+        <option value="off">Off: phone voice only</option>
+      </select>
+    </label>
+    <label class="obd">Cloud voice name:
+      <select id="cloudname"></select>
+      <button id="cloudtest" class="ghost" type="button">Test</button>
+    </label>
+    <label class="obd">Phone voice (backup when there is no signal):
       <select id="voice"></select>
       <button id="voicetest" class="ghost" type="button">Test</button>
     </label>

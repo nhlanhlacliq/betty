@@ -1,5 +1,6 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CONFIG, ObdMode, cleanBikeName, cleanRiderName } from './config/betty';
+import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, cleanBikeName, cleanRiderName } from './config/betty';
+import { CloudSpeaker, ElementPlayer } from './adapters/CloudSpeaker';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { placesFromHere, travelDirection } from './core/ambient';
@@ -204,6 +205,30 @@ $('voicetest').addEventListener('click', () => {
   testSpeaker.speak(`Hello ${cleanRiderName(CONFIG.riderName)}, this is how I sound.`, () => {});
 });
 
+// Cloud voice (Google): engine mode, voice name, and a test that plays an alert and a banter line as a ride would.
+const cloudSel = $<HTMLSelectElement>('cloudvoice');
+const cloudName = $<HTMLSelectElement>('cloudname');
+for (const [name, desc] of CLOUD_VOICES) { const o = document.createElement('option'); o.value = name; o.textContent = `${name} (${desc})`; cloudName.append(o); }
+const showCloud = () => { cloudSel.value = CONFIG.cloudVoice; cloudName.value = CONFIG.cloudVoiceName; cloudName.disabled = CONFIG.cloudVoice === 'off'; };
+showCloud();
+cloudSel.addEventListener('change', () => { CONFIG.cloudVoice = cloudSel.value as CloudVoiceMode; saveConfig(); showCloud(); });
+cloudName.addEventListener('change', () => { CONFIG.cloudVoiceName = cloudName.value; saveConfig(); });
+const testPlayer = new ElementPlayer();
+$('cloudtest').addEventListener('click', () => {
+  if (rig) return; // not over the top of a ride in progress
+  testPlayer.prime(); // inside the tap, or iPhone will not play the clip that arrives later
+  testSpeaker.stop();
+  const notes: string[] = [];
+  const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m));
+  const name = cleanRiderName(CONFIG.riderName);
+  setStatus('Testing the cloud voice: an alert, then a bit of banter.');
+  t.speak(`Rain in about twenty minutes, ${name}. Worth finding some cover.`, () => {
+    t.speak(`Forty minutes in and the road is behaving. Can't say the same for the taxis.`, () => {
+      setStatus(notes.length ? `Cloud voice: ${notes.join('; ')}` : 'Cloud voice test done.', notes.length > 0);
+    }, { priority: 3, id: 'ambient_banter' });
+  }, { priority: 2, id: 'rain_soon' });
+});
+
 const wakeEl = $('wake');
 const showWake = (s: WakeStatus | null) => {
   wakeEl.className = s === 'on' ? 'ok' : 'err';
@@ -228,7 +253,7 @@ obdSel.addEventListener('change', () => {
 });
 // TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
 window.addEventListener('betty-config', () => {
-  nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); buttonsBox.checked = CONFIG.headsetButtons; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
+  nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); showCloud(); buttonsBox.checked = CONFIG.headsetButtons; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
 });
 
 let starting = false;
@@ -241,6 +266,8 @@ async function start() {
 async function beginRide() {
   // Must run synchronously inside the tap (iOS speech, sound and motion permission rules).
   WebSpeaker.prime();
+  const player = new ElementPlayer();
+  player.prime(); // the cloud voice's clips arrive later; iPhone only lets them play on an element unlocked in a tap
   const buttons = new HeadsetButtons();
   if (CONFIG.headsetButtons) buttons.prime(); // starting it pauses music from other apps: the rider chose this
   const real = realBox.checked;
@@ -299,7 +326,10 @@ async function beginRide() {
   };
   const sensorTimer = window.setInterval(logSensors, 15 * 60_000);
   const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined);
-  const speaker = new SwitchableSpeaker(new WebSpeaker(speechProblem));
+  // The cloud voice plays on the headset buttons' own track while they are Betty's (another sound source could take
+  // the buttons away), otherwise on its own element. The phone voice is its backup for every line.
+  const cloud = new CloudSpeaker(new WebSpeaker(speechProblem), () => (buttons.holding ? buttons : player), speechProblem);
+  const speaker = new SwitchableSpeaker(cloud);
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
 
   const say = async (ev: TriggerEvent) => {
@@ -309,7 +339,8 @@ async function beginRide() {
     const text = dropped ? '' : p.text;
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
     const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (dropped ? '(dropped: critical alert active)' : '(silent)'));
-    line.item = queue.enqueue(text, ev.priority); // the item carries its fate: waiting, speaking, spoken, or why not
+    if (text && speaker.aloud) cloud.prefetch(text, { priority: ev.priority, id: ev.id }); // fetch the audio while it waits
+    line.item = queue.enqueue(text, ev.priority, ev.id); // the item carries its fate: waiting, speaking, spoken, or why not
     toChat({ from: 'betty', text: line.text, at: Date.now(), ev, phrase: p });
     renderLog();
     if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
@@ -360,7 +391,10 @@ async function beginRide() {
   say(engine.startup());
   /** Tones go through the headset buttons' own track when it is running, so they do not steal the buttons. */
   const tone = (freq: number) => { if (!buttons.tone(freq)) beep(freq); };
-  const sayNow = (text: string) => { newLine('[P4] voice', text).item = queue.enqueue(text, 4); renderLog(); };
+  const sayNow = (text: string) => {
+    if (speaker.aloud) cloud.prefetch(text, { priority: 4, id: 'voice' });
+    newLine('[P4] voice', text).item = queue.enqueue(text, 4, 'voice'); renderLog();
+  };
   /** Her reply to a command: instant, from the phone, no Claude call (so it also works without signal). */
   const reply = (text: string, command: string) => { sayNow(text); toChat({ from: 'betty', text, at: Date.now(), command }); };
   const remembered = (m: ReturnType<typeof RiderMemoryStore.load>) => { RiderMemoryStore.save(m); engine.setMemory(m); window.dispatchEvent(new window.Event('betty-memory')); };

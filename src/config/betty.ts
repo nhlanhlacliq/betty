@@ -1,6 +1,8 @@
 import type { Priority, TriggerId } from '../core/types';
 
 export type ObdMode = 'off' | 'mock';
+/** Google cloud voice: off = phone voice only; mixed = Chirp 3 HD for alerts (P1/P2), Gemini TTS for the rest. */
+export type CloudVoiceMode = 'off' | 'mixed' | 'chirp' | 'gemini';
 
 export interface Config {
   /** useLean off (default): P2/P3 lines are never held back. The phone's lean reading proved too jumpy to gate on. */
@@ -32,6 +34,10 @@ export interface Config {
   bikeName: string;
   /** Chosen speech voice (its voiceURI). Empty = let the phone pick an en-ZA voice. */
   voiceURI: string;
+  /** Cloud voice (api/speak.ts). The phone voice stays the backup: no signal, slow, or not set up. */
+  cloudVoice: CloudVoiceMode;
+  /** One of the 30 Google voice names shared by Chirp 3 HD and Gemini TTS */
+  cloudVoiceName: string;
   /** Headset play/pause = talk to Betty, next track = repeat that. Pauses music from other apps, so it is a choice. */
   headsetButtons: boolean;
   /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
@@ -79,6 +85,8 @@ export const DEFAULT_CONFIG: Config = {
   riderName: 'sir',
   bikeName: 'the bike',
   voiceURI: '',
+  cloudVoice: 'mixed',
+  cloudVoiceName: 'Aoede',
   headsetButtons: false,
   micDeviceId: '',
   micLabel: '',
@@ -177,3 +185,28 @@ Pick the two or three most telling things from the summary; do not list every fi
 Do not recite bike readings. Do not reuse jokes or phrasing from what you already said this ride:
 if an earlier time check used a turn of phrase ("suspects", "the road", "the clock", "the scenery"), find a different one.`,
 };
+
+/**
+ * How Gemini TTS should say a line, by trigger (its "style"). Tone only: accent, age and gender come from the voice.
+ * Alerts go to Chirp in the mixed mode; the alert style is used when Gemini speaks everything.
+ */
+export const VOICE_STYLES: Record<string, string> = {
+  ambient_banter: 'dry and wry, quietly amused, unhurried',
+  local_fact: 'warm and curious, like a local friend sharing a good story',
+  rider_query: 'relaxed and friendly, conversational',
+  ride_milestone: 'dry, lightly amused',
+  ride_debrief: 'warm and pleased, winding down',
+  startup: 'bright and ready',
+  voice: 'relaxed and friendly',
+  alert: 'calm, clear and firm',
+};
+
+/** Google voice names with Google's own one-word description, for the picker. */
+export const CLOUD_VOICES: Array<[string, string]> = [
+  ['Aoede', 'breezy'], ['Kore', 'firm'], ['Leda', 'youthful'], ['Zephyr', 'bright'], ['Autonoe', 'bright'], ['Callirrhoe', 'easy-going'],
+  ['Despina', 'smooth'], ['Erinome', 'clear'], ['Laomedeia', 'upbeat'], ['Achernar', 'soft'], ['Gacrux', 'mature'],
+  ['Pulcherrima', 'forward'], ['Vindemiatrix', 'gentle'], ['Sulafat', 'warm'], ['Achird', 'friendly'], ['Sadachbia', 'lively'],
+  ['Puck', 'upbeat'], ['Charon', 'informative'], ['Fenrir', 'excitable'], ['Orus', 'firm'], ['Enceladus', 'breathy'],
+  ['Iapetus', 'clear'], ['Umbriel', 'easy-going'], ['Algieba', 'smooth'], ['Algenib', 'gravelly'], ['Rasalgethi', 'informative'],
+  ['Alnilam', 'firm'], ['Schedar', 'even'], ['Sadaltager', 'knowledgeable'], ['Zubenelgenubi', 'casual'],
+];
