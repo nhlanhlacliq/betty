@@ -6,6 +6,12 @@ export interface ChangeDay { date: string; items: string[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-17',
+    items: [
+      'The page fits the phone screen: no more zooming out because of wide boxes, and no zooming in when you tap a box.',
+    ],
+  },
+  {
     date: '2026-10-16 (evening)',
     items: [
       'Commands: say "repeat that", "quiet for ten minutes" (or just "be quiet"), "talk to me", "mark this spot", "remember that...", or "forget that". They work at once, even without signal.',

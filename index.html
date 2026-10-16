@@ -86,6 +86,18 @@
     .check { display: block; font-size: 12px; margin: 6px 0; color: var(--text); }
     .row .check { margin: 0; }
     .bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+    /* Nothing may be wider than the screen: a wide select or an unbroken line made the phone zoom the page out. */
+    html, body { overflow-x: hidden; }
+    body { overflow-wrap: anywhere; }
+    select, input, textarea, button, audio, pre, img { max-width: 100%; }
+    .row { flex-wrap: wrap; }
+    .row select { flex: 1 1 140px; min-width: 0; }
+    .row .name { flex: 0 1 150px; min-width: 0; }
+    .presslog { white-space: pre-wrap; }
+    .panel summary { letter-spacing: 2px; }
+    /* iPhone zooms in on any field under 16px when it is tapped, and does not zoom back out. */
+    select, input[type=text], input[type=number], textarea, .chatform input, .row input[type=number], .row select,
+    #startopts select, #startopts input[type=text] { font-size: 16px; }
   </style>
 </head>
 <body>
