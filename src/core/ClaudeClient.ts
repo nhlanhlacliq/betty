@@ -76,7 +76,7 @@ export class ClaudeClient {
     if (!this.apiKey && !this.proxyUrl) return { error: 'no API key' };
     const ctrl = new AbortController();
     // Ambient lines are not urgent, so they get longer than the 3 s alert budget.
-    const timer = setTimeout(() => ctrl.abort(), ev.priority === 3 ? this.ambientTimeoutMs : this.timeoutMs);
+    const timer = setTimeout(() => ctrl.abort(), ev.riderSaid ? Math.max(this.timeoutMs, RIDER_TIMEOUT_MS) : ev.priority === 3 ? this.ambientTimeoutMs : this.timeoutMs);
     try {
       const res = this.apiKey
         ? await fetch('https://api.anthropic.com/v1/messages', {
@@ -105,6 +105,18 @@ export class ClaudeClient {
 }
 
 /** Exactly what is sent to Claude for an event. Pure, so it can be tested and shown in the UI. */
+/**
+ * Claude's own web search, for his questions only: she can look up anything the ride data and place notes do not
+ * cover, places far away included (owner, 2026-10-16). Haiku takes the basic tool version. Each search costs
+ * about $0.01, and adds a few seconds, so she says "hang on" if an answer is slow (main.ts).
+ */
+export const WEB_SEARCH = {
+  type: 'web_search_20250305', name: 'web_search', max_uses: 2,
+  user_location: { type: 'approximate', region: 'Gauteng', country: 'ZA', timezone: 'Africa/Johannesburg' },
+} as const;
+/** An answer may need a search or two; a line she makes up herself never does. */
+export const RIDER_TIMEOUT_MS = 15000;
+
 export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[], talk: Turn[] = []) {
   const flavour = FLAVOUR_PROMPTS[ev.id];
   const base = bettySystemPrompt();
@@ -122,7 +134,9 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
   ]);
   return {
     model: CONFIG.claudeModel,
-    max_tokens: 60 + 60 * Math.max(1, Math.round(CONFIG.maxSpokenSentences)), // room for the configured line length
+    // Room for the configured line length, plus a few words she may say before searching.
+    max_tokens: 60 + 60 * Math.max(1, Math.round(CONFIG.maxSpokenSentences)) + (ev.riderSaid ? 100 : 0),
+    ...(ev.riderSaid ? { tools: [WEB_SEARCH] } : {}),
     // Without this the model thinks first: the thinking block eats max_tokens and blows the timeout.
     thinking: { type: CONFIG.claudeThinkingOff },
     system: flavour ? `${base}\n\n${flavour}` : base,
@@ -179,10 +193,19 @@ export function cleanSpoken(raw: string, o: CleanOptions): { text: string; note:
   return { text, note };
 }
 
-/** First text block of a Messages API response. content[0] is not guaranteed to be text (e.g. a thinking block). */
+/**
+ * What to say from a Messages API response. content[0] is not guaranteed to be text (e.g. a thinking block).
+ * After a web search the answer is the text AFTER the last search result, often split into several blocks around
+ * its citations; anything before it is her saying she will look ("Let me check").
+ */
 export function extractText(json: unknown): string | null {
   const content = (json as { content?: unknown })?.content;
   if (!Array.isArray(content)) return null;
+  const lastSearch = content.map((b: any) => b?.type).lastIndexOf('web_search_tool_result');
+  if (lastSearch >= 0) {
+    const after = content.slice(lastSearch + 1).filter((b: any) => b?.type === 'text' && typeof b.text === 'string').map((b: any) => b.text).join('').trim();
+    if (after) return after;
+  }
   for (const block of content) {
     if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) return block.text.trim();
   }

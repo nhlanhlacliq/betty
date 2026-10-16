@@ -40,6 +40,9 @@ loadConfig();
 const ENV: Record<string, string | undefined> = import.meta.env ?? {};
 /** Deployed: keys live on Betty's server (api/), not in this page. Local development uses VITE_ keys from .env. */
 const SERVER = ENV.VITE_USE_SERVER === '1';
+/** What she says when an answer is slow (usually a web search), and how slow counts. */
+const HANG_ON = 'Hang on, let me check.';
+const HANG_ON_AFTER_MS = 2500;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const toggle = $<HTMLButtonElement>('toggle');
@@ -342,15 +345,17 @@ async function beginRide() {
   await agg.start();
   setObd(CONFIG.obdMode);
   say(engine.startup());
+  const sayNow = (text: string) => { newLine('[P4] voice', text).item = queue.enqueue(text, 4); renderLog(); };
   /** Something he said to her, typed or spoken: one path for both. */
-  const askBetty = (text: string) => {
+  const askBetty = async (text: string) => {
     toChat({ from: 'rider', text, at: Date.now() });
-    return say(engine.ask(text, agg.current));
+    // A web search takes a few seconds: rather than silence, she says she is on it.
+    const slow = window.setTimeout(() => sayNow(HANG_ON), HANG_ON_AFTER_MS);
+    try { return await say(engine.ask(text, agg.current)); } finally { window.clearTimeout(slow); }
   };
 
   // ---- talking to her: headset play/pause (if switched on) or the lock screen's talk button
   const ptt = new PushToTalk(browserPttDeps(), () => ({ id: CONFIG.micDeviceId, label: CONFIG.micLabel }));
-  const sayNow = (text: string) => { newLine('[P4] voice', text).item = queue.enqueue(text, 4); renderLog(); };
   const talk = async () => {
     if (ptt.listening) { ptt.stop(); return; } // second press: done talking
     queue.hold(true); // she must not start a line over him
@@ -363,6 +368,7 @@ async function beginRide() {
       buttons.resume(); // the mic stopped the loop: without it the next press never arrives
       beep(440);
       lockScreen.setTalk(true, false);
+      queue.hold(true, true); // he has finished: his answer (and "hang on") may go, banter still waits
       if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); return; }
       const t0 = Date.now();
       let text: string;

@@ -922,6 +922,28 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(end, true, 'back to just wind counts as a pause');
   assert.equal(windy.peak, 0.4);
 }
+// web search: only his questions get it; the answer is the text after the last search result, joined
+{
+  const e = new TriggerEngine(now); const st = initialState(); e.evaluate(st);
+  const asked = buildClaudeRequest(e.ask('who won the rugby?', st), st, []) as any;
+  assert.equal(asked.tools[0].type, 'web_search_20250305'); assert.equal(asked.tools[0].max_uses, 2);
+  assert.equal((buildClaudeRequest(e.force('ambient_banter', st), st, []) as any).tools, undefined, 'her own lines never search');
+  assert.equal(extractText({ content: [
+    { type: 'text', text: 'Let me check.' }, { type: 'server_tool_use', id: 's', name: 'web_search', input: {} },
+    { type: 'web_search_tool_result', tool_use_id: 's', content: [] },
+    { type: 'text', text: 'The Springboks won ' }, { type: 'text', text: '24 to 18.', citations: [{}] },
+  ] }), 'The Springboks won 24 to 18.');
+  assert.equal(extractText({ content: [{ type: 'text', text: 'No search needed.' }] }), 'No search needed.');
+}
+// his answer may go once he has finished talking; banter still waits
+{
+  const sp = new FakeSpeaker(); const q = new AudioQueue(sp, () => true, now);
+  q.hold(true); q.enqueue('banter', 3); q.enqueue('hang on', 4);
+  assert.deepEqual(sp.spoken, [], 'nothing while he talks');
+  q.hold(true, true); assert.deepEqual(sp.spoken, ['hang on'], 'he is done: P4 goes'); sp.done!();
+  assert.deepEqual(sp.spoken, ['hang on'], 'banter still held');
+  q.hold(false); assert.deepEqual(sp.spoken, ['hang on', 'banter']);
+}
 // the queue holds her lines while he talks; a critical alert still goes
 {
   const sp = new FakeSpeaker();

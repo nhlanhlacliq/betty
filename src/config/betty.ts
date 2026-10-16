@@ -154,6 +154,9 @@ Never mention your notes or what they lack. Only if the notes truly hold no stor
   rider_query: `He is talking to you over the intercom and you are answering him. Answer what he actually asked,
 from the situation and the conversation so far. If the situation does not tell you, say plainly that you do not
 know rather than guess. About a place, the notes given are your only source: tell him the best story in them.
+If the situation and notes do not cover what he asked (a place further away, a fact, the news, a score), use web search,
+once if you can, and tell him the answer in your own words. Before searching, say nothing at all. Never read out web
+addresses, sources or citations. If the search does not settle it, say plainly that you could not find out.
 Stay in character.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,

@@ -23,6 +23,7 @@ export class AudioQueue {
   private speaking: QueueItem | null = null;
   private gen = 0;
   private held = false;
+  private riderThrough = false;
 
   constructor(
     private speaker: Speaker,
@@ -57,7 +58,8 @@ export class AudioQueue {
    * While he is talking to her (push-to-talk), she must not start a line over him. Held lines wait; a critical
    * alert still goes. Releasing lets the waiting lines play in the usual order.
    */
-  hold(on: boolean) { this.held = on; if (!on) this.pump(); }
+  /** Hold her lines while he talks. riderThrough: he has finished, so his answer (P4) may go, nothing else. */
+  hold(on: boolean, riderThrough = false) { this.held = on; this.riderThrough = on && riderThrough; this.pump(); }
   get isHeld() { return this.held; }
 
   /** Call periodically (e.g. each state tick) so deferred items get their safe window. */
@@ -66,7 +68,7 @@ export class AudioQueue {
     const stale = (i: QueueItem) => i.priority === 3 && this.now() - i.queuedAt > CONFIG.ambientMaxAgeMs;
     this.items.filter(stale).forEach((i) => this.onFate(i, 'expired'));
     this.items = this.items.filter((i) => !stale(i));
-    const idx = this.items.findIndex((i) => i.priority <= 1 || (!this.held && (i.priority === 4 || this.isSafe())));
+    const idx = this.items.findIndex((i) => i.priority <= 1 || (i.priority === 4 && this.riderThrough) || (!this.held && (i.priority === 4 || this.isSafe())));
     if (idx === -1) return;
     const [item] = this.items.splice(idx, 1);
     this.speaking = item;

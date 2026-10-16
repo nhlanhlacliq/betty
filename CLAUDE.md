@@ -396,7 +396,19 @@ wake word last / on the Pi.
   `placesToExplain` adds notes (up to 900 characters each, at most 3) for any place whose name he used (any distance),
   the last place she talked about ("tell me more"), then the nearest; the prompt says those notes are her only source
   on a place. Checked live: "Tell me about Greenstone Hill" and "What else is interesting around here?" answered from
-  the notes. A place that is not in `nearbyPlaces` (not within the Wikipedia search) still gets "I don't know".
+  the notes.
+- **Web search for his questions** (owner, 2026-10-16: "she should still be able to go on wikipedia and the net to
+  answer anything, especially if i ask about places not nearby"). `rider_query` requests with `riderSaid` carry
+  Claude's server-side `web_search_20250305` (`WEB_SEARCH` in ClaudeClient; Haiku 5.5 takes the basic version, the
+  `_20260209` one is Opus/Sonnet only), `max_uses: 2`, location Gauteng/ZA. Her own lines never search. The prompt
+  says search only when the situation and notes do not cover it, say nothing before searching, never read out
+  addresses or citations. `extractText` takes the text AFTER the last `web_search_tool_result`, joining the
+  citation-split blocks. Answers get `RIDER_TIMEOUT_MS` (15 s); if one takes over 2.5 s, main.ts queues "Hang on,
+  let me check." `AudioQueue.hold(true, true)` lets P4 through once he has finished talking while banter still
+  waits. `api/phrase.ts` accepts no tool but that one, with `max_uses` <= 2. Cost: about $10 per 1,000 searches
+  plus the result tokens. Checked live: Clarens (Free State) and Edenvale answered from search in about 3.4 s;
+  the Clarens answer muddled two facts in its first sentence (Haiku summarising snippets). If that keeps happening,
+  the owner's option is Sonnet for searched answers (slower, dearer).
   Rides of 2026-10-14 afternoon (VOICE TEST only; stage 2 not used yet):
   - **One press, then nothing**: opening the mic pauses the silent loop on iPhone, and a page that is not playing
     stops getting the buttons, so only the first press worked until the test was restarted. Both `HeadsetButtons`

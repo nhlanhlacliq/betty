@@ -17,6 +17,11 @@ export async function POST(req: Request): Promise<Response> {
   if (!MODELS.has(body?.model) || !Array.isArray(body?.messages) || typeof body?.max_tokens !== 'number' || body.max_tokens > MAX_TOKENS) {
     return json({ error: 'request not allowed' }, 400);
   }
+  // The one tool the page may use: Claude's web search, for his questions, a couple of searches at most.
+  if (body.tools !== undefined && !(Array.isArray(body.tools) && body.tools.length === 1 && body.tools[0]?.type === 'web_search_20250305'
+    && body.tools[0]?.name === 'web_search' && typeof body.tools[0]?.max_uses === 'number' && body.tools[0].max_uses <= 2)) {
+    return json({ error: 'tool not allowed' }, 400);
+  }
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
