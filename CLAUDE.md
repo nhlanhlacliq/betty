@@ -673,6 +673,26 @@ them on the device, use each at most once.
 - **Order**: first measure (the saved LOG tags every line `claude` or `fallback: network error/timeout`, so a few
   real rides show how often it happens), then service worker, alert variants, tour-guide pre-generation, banter last.
 
+## Backlog: settings by voice and personalities (NOT BUILT; owner, 2026-10-16, "like TARS in Interstellar")
+
+Goal: she reports her own settings and he changes them by voice, TARS style ("humour, 75 percent"). Builds on the
+stage 3 command path (`parseCommand` -> carried out on the phone -> instant reply, works offline).
+- **Status report**: "status" / "what are your settings" -> she reads them out: the flavour mix as percentages
+  (banter / tour guide / silence, from `CONFIG.ambient` weights), how often she chats (`ambientCooldownMs`), line
+  length (`maxSpokenSentences`), the active personality, and quiet if on ("Banter 40, tour guide 40, silence 20.
+  Chat every two minutes. Quiet for another 8 minutes.").
+- **Dials by voice**: "banter up/down", "tour guide up/down", "more/less chatty" (silence weight and/or the gap),
+  "shorter/longer answers", "set banter to 70 percent". Steps of 10, the mix renormalised to 100, clamped. Reply
+  states the new value. Saved with `saveConfig` so TUNING shows it.
+- **New dial: humour** (0 to 100, the TARS one): goes into the banter/answer prompts as how dry and how often to joke.
+  P1/P2 lines stay straight regardless (behaviour rules).
+- **Personalities**: named presets of all the dials plus a prompt flavour, e.g. commute (quiet, short, alerts and
+  answers only), weekend (chatty, banter-heavy), tour (tour guide heavy, longer lines), plus his own saved ones.
+  "Switch to weekend mode", "what mode are you in". Also a picker on the main screen. Overlaps the "Moods/personas"
+  idea below; this replaces it.
+- Open questions for the owner before building: which presets and what is in each; whether a voice change lasts
+  only for this ride or until changed back.
+
 ## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
 
 Co-pilot:
