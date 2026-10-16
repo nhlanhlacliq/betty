@@ -375,7 +375,9 @@ wake word last / on the Pi.
   Queue fix found on the way: items were sorted by the raw priority number, so a rider answer (P4) waited behind
   queued banter (P3). Order is now P1, P4, P2, P3.
   Still unverified: transcription quality at speed with wind, and the pause thresholds.
-  Rides of 2026-10-14 afternoon (VOICE TEST only; stage 2 not used yet, GROQ_API_KEY still not set):
+  GROQ_API_KEY set on Vercel 2026-10-16. Checked live: a spoken m4a clip ("Hey Betty, is it going to rain before
+  I get to Edenvale?") came back word-perfect in about 1.5 s round trip from the owner's Mac.
+  Rides of 2026-10-14 afternoon (VOICE TEST only; stage 2 not used yet):
   - **One press, then nothing**: opening the mic pauses the silent loop on iPhone, and a page that is not playing
     stops getting the buttons, so only the first press worked until the test was restarted. Both `HeadsetButtons`
     and the VOICE TEST panel now restart the loop after every recording and whenever it pauses
