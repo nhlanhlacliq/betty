@@ -66,9 +66,9 @@ export interface Clip { audio: Blob; ms: number; heardSpeech: boolean; mic: stri
 /**
  * Records one question: stops after a pause in his speech, on a second press, or at the maximum length.
  *
- * The mic stays open between questions until release() (END RIDE). Closing it after the first question stopped
- * the phone sending Betty any more headset presses (2026-10-16: one question, then nothing). The cost: a helmet
- * mic keeps the headset in call mode for the rest of the ride.
+ * The mic is closed straight after each question. Keeping it open between questions (tried 2026-10-16) left the
+ * iPhone's orange mic dot on and the helmet in call mode, where its button sends call controls instead of
+ * play/pause, so no second press ever reached Betty (owner's observation). release() also runs at END RIDE.
  */
 export class PushToTalk {
   private stopNow: (() => void) | null = null;
@@ -131,7 +131,7 @@ export class PushToTalk {
       try { rec.start(); } catch { stalled = true; finish(); }
     });
     this.stopNow = null;
-    if (stalled) this.release(); // start afresh next time
+    this.release(); // orange dot off, helmet out of call mode: the next press can reach Betty
     return {
       audio: new Blob(chunks, { type: type || chunks[0]?.type || 'audio/mp4' }),
       ms: this.now() - t0,

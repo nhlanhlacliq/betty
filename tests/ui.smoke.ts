@@ -527,7 +527,7 @@ resetConfig();
   const clip = await ptt.record();
   assert.deepEqual(asked, { audio: { deviceId: { exact: 'helmet' } } }, 'listens on the chosen mic');
   assert.equal(clip.heardSpeech, true); assert.equal(clip.mic, 'V6'); assert.equal(clip.audio.size, 3000); assert.equal(clip.audio.type, 'audio/mp4');
-  assert.equal(track.stopped, false, 'mic stays open between questions, or the phone stops sending the buttons');
+  assert.equal(track.stopped, true, 'mic closed straight after: an open mic keeps the helmet in call mode and its button stops reaching Betty');
   assert.equal(ptt.listening, false);
   // a second press ends it early
   levels = Array(1000).fill(0.5);
@@ -538,8 +538,7 @@ resetConfig();
   // nothing said
   levels = Array(100).fill(0.02);
   assert.equal((await ptt.record()).heardSpeech, false);
-  assert.equal(opened, 1, 'one mic for all three questions');
-  ptt.release(); assert.equal(track.stopped, true, 'END RIDE closes it');
+  assert.equal(opened, 3, 'a fresh mic for each question');
 
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (_u: any, init: any) => new Response(JSON.stringify(init.headers['content-type'] === 'audio/mp4' ? { text: ' how far to empty? ' } : {}))) as typeof fetch;

@@ -404,6 +404,11 @@ wake word last / on the Pi.
   Germiston, Bedfordview, Boksburg, Benoni, Midrand, Sandton ("Dremiston", "Jermiston" on this ride).
   UNVERIFIED ON THE PHONE: if presses still stop after the first, the `silent track:` lines say whether the track
   stopped.
+  THEN the owner spotted the real cause (2026-10-16): with the mic kept open the iPhone's mic dot stays orange after
+  he has finished, i.e. the helmet stays in CALL MODE, where its button sends call controls (answer/hang up), not
+  play/pause. The keep-open change is reverted: `PushToTalk` closes the mic after every question (the 6 s/2 s
+  time limits that fixed the tap hang stay). Consequence: a press DURING a recording cannot reach the page either
+  (call mode), so a recording ends on the pause in his speech or the 8 s cap, not on a second press.
 - **Questions about places** (owner, 2026-10-16: "why is she not able to tell me about places i ask about?"): the
   answer digest held place NAMES only, and the answer prompt says "I don't know" rather than guess. Now
   `placesToExplain` adds notes (up to 900 characters each, at most 3) for any place whose name he used (any distance),
