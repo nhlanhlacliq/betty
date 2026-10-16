@@ -409,6 +409,15 @@ wake word last / on the Pi.
   play/pause. The keep-open change is reverted: `PushToTalk` closes the mic after every question (the 6 s/2 s
   time limits that fixed the tap hang stay). Consequence: a press DURING a recording cannot reach the page either
   (call mode), so a recording ends on the pause in his speech or the 8 s cap, not on a second press.
+- **Rides of 2026-10-16 16:52 and 16:57: headset button and web search WORK.** Five presses in a row, mic closed
+  after each; search answered Midrand and a J. Cole tour question, with "Hang on" covering 3 to 6 s. Fixed from
+  them: an answer that narrated her instructions ("Since he asked about it, I'll say so plainly"), a Gautrain
+  question answered from the ride data instead of searched, Whisper names ("Medrand", "Dremiston", "How Train").
+  The answer prompt now says search when in doubt, treat misheard names as the nearest real one, talk to him as
+  "you" and never describe what she is doing; `META` in cleanSpoken drops more such sentences. A first press that
+  peaked at -31 dB counted as nothing and she said nothing: speech now starts at 0.025 (-32 dB), she waits 5 s, and
+  "I didn't hear anything. Try again?" is spoken. Checked live: Medrand -> Midrand, How Train -> Gautrain lines,
+  Dremiston -> Germiston, all from search in about 3 s.
 - **Questions about places** (owner, 2026-10-16: "why is she not able to tell me about places i ask about?"): the
   answer digest held place NAMES only, and the answer prompt says "I don't know" rather than guess. Now
   `placesToExplain` adds notes (up to 900 characters each, at most 3) for any place whose name he used (any distance),

@@ -5,7 +5,7 @@ const MAX_BYTES = 3 * 1024 * 1024;
 /** Open-source Whisper, run by Groq. Free tier at the time of writing: 2,000 requests and 28,800 audio seconds a day. */
 const MODEL = 'whisper-large-v3-turbo';
 /** Words Whisper should expect, which helps with names it would otherwise mishear. */
-const HINT = 'Hey Betty. Hello Betty. Betty, the bike, Gauteng, Edenvale, Germiston, Bedfordview, Boksburg, Benoni, Midrand, Sandton, Modderfontein, Kempton Park, Pretoria, Johannesburg.';
+const HINT = 'Hey Betty. Hello Betty. Betty, the bike, the Gautrain, Gauteng, Edenvale, Germiston, Bedfordview, Boksburg, Benoni, Midrand, Sandton, Modderfontein, Kempton Park, Pretoria, Johannesburg.';
 
 const extension = (type: string) => (type.includes('webm') ? 'webm' : type.includes('wav') ? 'wav' : type.includes('ogg') ? 'ogg' : 'm4a');
 

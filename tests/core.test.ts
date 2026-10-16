@@ -902,8 +902,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   for (let i = 0; i < 12; i++) assert.equal(step(0.02), false); // the first quiet sample starts the clock
   assert.equal(step(0.02), true, 'a 1.2 s pause ends it'); assert.equal(d.heardSpeech, true);
   const shy = new SilenceDetector(); let u = 0; let stopped = false;
-  for (let i = 0; i < 45 && !stopped; i++) stopped = shy.update(0.03, (u += 100));
-  assert.equal(stopped, true, 'nothing said for 4 s: give up'); assert.equal(shy.heardSpeech, false);
+  for (let i = 0; i < 55 && !stopped; i++) stopped = shy.update(0.03, (u += 100));
+  assert.equal(stopped, true, 'nothing said for 5 s: give up'); assert.equal(shy.heardSpeech, false);
 }
 // the thresholds follow the background: a quiet helmet mic (speech at -26 dB) and a windy one both work
 {
@@ -921,6 +921,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   let end = false; for (let i = 0; i < 14 && !end; i++) end = w(0.09);
   assert.equal(end, true, 'back to just wind counts as a pause');
   assert.equal(windy.peak, 0.4);
+}
+// answers that narrate her instructions lose those sentences (2026-10-16 ride and live check)
+{
+  const o = { ambient: false, name: 'sir', recent: [], maxSentences: 3 };
+  assert.equal(cleanSpoken('Search turned up nothing for Medrand. Since he asked about it, I will say so plainly.', o).text, 'Search turned up nothing for Medrand.');
+  assert.equal(cleanSpoken("It is evening, so I'll keep it short. Germiston was founded in 1886.", o).text, 'Germiston was founded in 1886.');
 }
 // web search: only his questions get it; the answer is the text after the last search result, joined
 {

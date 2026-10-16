@@ -5,7 +5,8 @@
  *
  * The thresholds follow the background level heard in the first half second: the helmet mic ("V6") peaked
  * anywhere from -55 to -1 dB on the 2026-10-14 rides, and a fixed speech level of 0.12 (-18 dB) would have
- * missed him talking at -26 dB.
+ * missed him talking at -26 dB. 2026-10-16: a first question peaking at -31 dB counted as nothing, and the helmet
+ * takes a moment to switch to its mic, so speech now starts at -32 dB (0.025) and it waits 5 s before giving up.
  */
 export class SilenceDetector {
   private spokeAt: number | null = null;
@@ -17,12 +18,12 @@ export class SilenceDetector {
 
   constructor(
     /** Lowest level that counts as speech, however quiet the background */
-    private speechMin = 0.04,
+    private speechMin = 0.025,
     /** Highest level that counts as a pause, however quiet the background */
     private quietMin = 0.02,
     private pauseMs = 1200,
     /** Give up if he says nothing at all for this long */
-    private noSpeechMs = 4000,
+    private noSpeechMs = 5000,
     /** How long the background is measured for at the start */
     private floorMs = 500,
   ) {}

@@ -372,7 +372,7 @@ async function beginRide() {
       tone(440);
       lockScreen.setTalk(true, false);
       queue.hold(true, true); // he has finished: his answer (and "hang on") may go, banter still waits
-      if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); return; }
+      if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); sayNow("I didn't hear anything. Try again?"); return; }
       const t0 = Date.now();
       let text: string;
       try {
