@@ -75,6 +75,8 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
   const counts = new Map<string, number>();
   const pressLog = el('div', 'presslog');
   const micOnPress = checkbox('Also try to open the mic when a button is pressed (test 2)', false, () => {});
+  // Android: if no press arrives with the silent track, this tells whether Chrome ignores a track it cannot hear.
+  const audible = checkbox('Play a faint hiss instead of silence (if no button gets through, e.g. on Android)', false, () => {});
   let audio: HTMLAudioElement | null = null;
   let listening = false;
   /** Opening the mic pauses the silent loop on iPhone, and then presses stop arriving: start it again. */
@@ -111,7 +113,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     if (ctx.buttonsBusy?.()) { heard.textContent = 'Betty has the headset buttons during this ride. End the ride, or untick the switch, to test them here.'; return; }
     if (!deps.mediaSession) { heard.textContent = 'This browser cannot receive headset buttons at all (no Media Session).'; say('[voice test] no Media Session support'); return; }
     audio = deps.makeAudio();
-    audio.src = deps.objectUrl(quietWav());
+    audio.src = deps.objectUrl(quietWav(10, 8000, audible.cb.checked ? 300 : 1));
     audio.loop = true;
     audio.addEventListener?.('pause', () => setTimeout(keepPlaying, 300));
     try { await audio.play(); } catch (e) { say(`[voice test] could not start the silent track: ${(e as Error).name}`); }
@@ -127,9 +129,9 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     keepPlaying();
     startBtn.textContent = 'Stop listening';
     showCounts();
-    say(`[voice test] listening for headset buttons (page accepts: ${supported.join(', ')})`);
+    say(`[voice test] listening for headset buttons (page accepts: ${supported.join(', ')}); ${audible.cb.checked ? 'hiss' : 'silent'} track ${audio.paused ? 'NOT playing' : 'playing'}, 10 s loop; ${navigator.userAgent.replace(/^Mozilla\/5\.0 /, '')}`);
   });
-  wrap.append(startBtn, micOnPress.wrap, heard, pressLog);
+  wrap.append(startBtn, micOnPress.wrap, audible.wrap, heard, pressLog);
 
   // ---- 2 and 3. mic recordings
   wrap.append(el('h3', '', '2 and 3. Helmet mic: record and play back'));

@@ -451,7 +451,10 @@ wake word last / on the Pi.
 - **Android (2026-10-16)**: a friend on Android Chrome with a Cardo Packtalk Neo got no button presses in the VOICE
   TEST. Chrome on Android only takes the media session (notification, headset buttons) for media at least 5 s long,
   and the silent loop was 1 s. `quietWav` is now 10 s. UNVERIFIED on Android: check the Betty media notification
-  appears in the pull-down shade while the test listens.
+  appears in the pull-down shade while the test listens. Second try, with another headset: still nothing, and the
+  press OPENED A MUSIC APP, i.e. Android sent it to the last media app because Chrome held no media session. The
+  VOICE TEST now logs whether the track is playing, that it is the 10 s loop, and the browser (user agent), and has
+  a "faint hiss" option (`quietWav` level 300) to test whether Chrome ignores a track it cannot hear.
 - Stage 3 (commands and memory) not started.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)

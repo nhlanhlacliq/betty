@@ -5,7 +5,7 @@
  * session (notification and headset buttons) for media of 5 s and up. The 1 s track worked on iPhone and got no
  * presses at all on Android (a friend's Cardo Packtalk Neo, 2026-10-16).
  */
-export function quietWav(seconds = 10, rate = 8000): Blob {
+export function quietWav(seconds = 10, rate = 8000, /** sample size of the dither; 1 is silent, 300 a faint hiss */ level = 1): Blob {
   const n = seconds * rate;
   const buf = new ArrayBuffer(44 + n * 2);
   const v = new DataView(buf);
@@ -13,7 +13,7 @@ export function quietWav(seconds = 10, rate = 8000): Blob {
   str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
   v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
   v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, i % 2 ? 1 : -1, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, level > 1 ? Math.round((Math.random() * 2 - 1) * level) : i % 2 ? 1 : -1, true);
   return new Blob([buf], { type: 'audio/wav' });
 }
 
