@@ -101,6 +101,11 @@ export class TriggerEngine {
   }
 
   private memory: RiderMemory = EMPTY_MEMORY;
+  /** Area stories already told (kept across rides by the UI layer), so riding through again brings new ones. */
+  private toldNotes = new Set<string>();
+  setToldNotes(ids: string[]) { this.toldNotes = new Set(ids); }
+  toldNoteIds(): string[] { return [...this.toldNotes]; }
+  private freshNote(s: BikeState) { return s.areaNotes.find((n) => !this.toldNotes.has(n.id)) ?? null; }
   /** What he told her to remember and the spots he marked (for her answers). */
   setMemory(m: RiderMemory) { this.memory = m; }
   private quietUntil = 0;
@@ -203,7 +208,7 @@ export class TriggerEngine {
     if (slotDue && !out.length && isSafeWindow(s) && !this.ambientBlocked(s)) {
       this.lastAmbientSlot = this.now();
       const place = freshPlace(placesFromHere(s), this.mentioned, CONFIG.ambient.placeRadiusKm);
-      const pick = chooseAmbient(CONFIG.ambient, place !== null, this.rng);
+      const pick = chooseAmbient(CONFIG.ambient, place !== null, this.rng, this.freshNote(s) !== null);
       if (pick) out.push(this.force(pick, s));
     }
     return out;
@@ -342,6 +347,14 @@ export class TriggerEngine {
         return {
           context: `He is about ${km(p.distanceKm)} from ${p.name}${where ? `, which is ${where}` : ''}. Notes on ${p.name}: ${p.summary}`, fallback: '',
           mark: () => { this.mentioned.add(p.id); this.stats.notePlace(p.name); }, // never the same place twice in a ride
+        };
+      }
+      case 'area_story': {
+        const n = this.freshNote(s);
+        if (!n) return { context: '', fallback: '' };
+        return {
+          context: `He is riding through ${n.area}. A story about ${n.area} (${n.topic}): ${n.text}`, fallback: '',
+          mark: () => { this.toldNotes.add(n.id); this.stats.notePlace(n.area); },
         };
       }
       case 'rider_query': {

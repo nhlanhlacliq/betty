@@ -3,18 +3,18 @@ export type Priority = 1 | 2 | 3 | 4; // P1 critical, P2 advisory, P3 ambient, P
 export type TriggerId =
   | 'startup' | 'engine_overtemp' | 'dtc_detected' | 'low_fuel'
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
-  | 'ambient_banter' | 'local_fact'
+  | 'ambient_banter' | 'local_fact' | 'area_story'
   | 'fuel_range' | 'sunset_soon' | 'ride_debrief';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
-  'ambient_banter', 'local_fact',
+  'ambient_banter', 'local_fact', 'area_story',
   'fuel_range', 'sunset_soon', 'ride_debrief',
 ];
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */
-export const AMBIENT_IDS: TriggerId[] = ['ambient_banter', 'local_fact'];
+export const AMBIENT_IDS: TriggerId[] = ['ambient_banter', 'local_fact', 'area_story'];
 /** Lines she makes up on her own (no alert, no question): they get no clock or bike readings, and may be silent. */
 export const UNPROMPTED_IDS: TriggerId[] = [...AMBIENT_IDS, 'ride_milestone'];
 
@@ -86,6 +86,9 @@ export interface BikeState {
   weather: WeatherState | null;
   incidents: TrafficIncident[];
   nearbyPlaces: NearbyPlace[];
+  /** The suburb and town he is in (OpenStreetMap), and researched history/culture notes about them (api/story) */
+  area: AreaInfo | null;
+  areaNotes: AreaNote[];
 }
 
 export interface TriggerEvent {
@@ -99,6 +102,10 @@ export interface TriggerEvent {
   riderSaid?: string;
   createdAt: number;
 }
+
+export interface AreaInfo { suburb: string | null; town: string | null; region: string | null }
+/** One researched story about an area: history or culture, from web search, kept on the phone. */
+export interface AreaNote { id: string; area: string; topic: string; text: string }
 
 export interface DataSource {
   start(onUpdate: (partial: Partial<BikeState>) => void): void | Promise<void>;

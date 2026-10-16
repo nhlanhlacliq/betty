@@ -83,13 +83,13 @@ export const DEFAULT_CONFIG: Config = {
   priorities: {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
-    ambient_banter: 3, local_fact: 3,
+    ambient_banter: 3, local_fact: 3, area_story: 3,
     fuel_range: 2, sunset_soon: 2, ride_debrief: 4,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
     rain_soon: 900_000, traffic_incident: 120_000, ride_milestone: 120_000, rider_query: 0,
-    ambient_banter: 0, local_fact: 0, // paced by ambientCooldownMs, not per-trigger
+    ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
@@ -235,6 +235,8 @@ Never mention your notes or what they lack. Only if the notes truly hold no stor
   rider_query: `He is talking to you over the intercom and you are answering him. Answer what he actually asked,
 from the situation and the conversation so far. If the situation does not tell you, say plainly that you do not
 know rather than guess. About a place, the notes given are your only source: tell him the best story in them.
+"Notes on the area he is in" are researched history and culture of his suburb and town: for any question about the
+area, its history or its people, answer from them straight away, picking one he has not heard yet if you can.
 Anything about the wider world that the situation does not state outright (a place further away, a fact, the news,
 a score, a train route): use web search, once if you can, and tell him the answer in your own words. When in doubt,
 search. Before searching, say nothing at all. Never read out web addresses, sources or citations.
@@ -254,6 +256,10 @@ Stay in character.`,
 rides, all from the situation: the weather and the chance of rain, any traffic on his way, fuel range, sunset if it is
 close, something from your record together (rides, distance, last ride) or a note he asked you to keep. Choose what
 matters most; do not recite everything. End ready to go.`,
+  area_story: `This is a history-and-culture remark, not an alert: you are the local friend who knows the story of the
+area he is riding through. Tell him the story in the note, in your own words, tied to where he is ("you're riding
+through Germiston, which..."). The note is your only source: add no facts to it, no dates or names it does not give.
+Never mention notes, research, sources or websites. If the note truly has no story in it, reply with exactly ${SILENT_TOKEN}.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
   ride_milestone: `This is an ambient time check, not an alert. Note how long he has been out, with a dry touch, and nothing else.
@@ -268,6 +274,7 @@ if an earlier time check used a turn of phrase ("suspects", "the road", "the clo
 export const VOICE_STYLES: Record<string, string> = {
   ambient_banter: 'dry and wry, quietly amused',
   local_fact: 'warm and curious, like a local friend sharing a good story',
+  area_story: 'warm and curious, like a local friend sharing a good story',
   rider_query: 'relaxed and friendly, conversational',
   ride_milestone: 'dry, lightly amused',
   ride_debrief: 'warm and pleased, winding down',

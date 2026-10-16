@@ -196,7 +196,7 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
 {
   const w = { banterWeight: 50, tourGuideWeight: 30, silenceWeight: 20 };
   const rng = seeded(42);
-  const n = { ambient_banter: 0, local_fact: 0, none: 0 };
+  const n = { ambient_banter: 0, local_fact: 0, area_story: 0, none: 0 };
   for (let i = 0; i < 10_000; i++) n[chooseAmbient(w, true, rng) ?? 'none']++;
   assert.ok(Math.abs(n.ambient_banter / 10_000 - 0.5) < 0.03, 'banter share');
   assert.ok(Math.abs(n.local_fact / 10_000 - 0.3) < 0.03, 'tour guide share');
@@ -1084,6 +1084,71 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   CONFIG.chirpStandIn = 'Laomedeia'; assert.deepEqual(chirpVoice(), { name: 'Laomedeia', locale: 'en-US' }, 'his pick for alerts');
   CONFIG.chirpStandIn = 'Nobody'; assert.equal(chirpVoice().name, 'Aoede', 'an unknown pick falls back to automatic');
   resetConfig();
+}
+
+// ---- history and culture of the area: lookup, research, kept on the phone, told once
+{
+  resetConfig();
+  const { GET: areaApi } = await import('../api/area');
+  const { POST: storyApi, parseNotes, storyPrompt } = await import('../api/story');
+  const { AreaSource, areasOf } = await import('../src/adapters/AreaSource');
+  const realFetch = globalThis.fetch; const saved = { ...process.env };
+  const h = { host: 'betty-zeta.vercel.app', origin: 'https://betty-zeta.vercel.app' };
+  const sent: string[] = [];
+  globalThis.fetch = (async (url: any, init: any) => {
+    sent.push(String(url));
+    if (String(url).includes('nominatim')) return new Response(JSON.stringify({ address: { suburb: 'Ekurhuleni Ward 19', county: 'City of Ekurhuleni Metropolitan Municipality', state: 'Gauteng', country: 'South Africa' } }));
+    return new Response(JSON.stringify({ content: [{ type: 'text', text: 'Let me look.' }, { type: 'web_search_tool_result' },
+      { type: 'text', text: '{"notes":[{"topic":"Name origin","text":"John Jack named Germiston after the farm near Glasgow where he was born in 1849.","source":"sa-venues"},' },
+      { type: 'text', text: '{"topic":"x","text":"too short"}]}' }] }));
+  }) as typeof fetch;
+  try {
+    const a = await (await areaApi(new Request('https://betty-zeta.vercel.app/api/area?lat=-26.1412&lon=28.1534', { headers: h }))).json();
+    assert.deepEqual(a, { suburb: null, town: 'Ekurhuleni', region: 'Gauteng', country: 'South Africa' }, 'wards dropped, the metro named instead');
+    assert.match(sent.at(-1)!, /zoom=16&lat=-26\.14&lon=28\.15$/, 'position rounded before it leaves');
+    process.env.ANTHROPIC_API_KEY = 'sk-test';
+    const st = await (await storyApi(new Request('https://betty-zeta.vercel.app/api/story', { method: 'POST', headers: h, body: JSON.stringify({ area: 'Germiston', region: 'Gauteng, South Africa' }) }))).json();
+    assert.equal(st.notes.length, 1, 'short notes dropped'); assert.match(st.notes[0].text, /^John Jack named Germiston/);
+    assert.equal((await storyApi(new Request('https://betty-zeta.vercel.app/api/story', { method: 'POST', headers: h, body: JSON.stringify({ area: '' }) }))).status, 400);
+  } finally { globalThis.fetch = realFetch; process.env = saved; }
+  assert.deepEqual(parseNotes({ content: [{ type: 'text', text: 'no json here' }] }), []);
+  assert.match(storyPrompt('Germiston', 'Gauteng', ['Name origin']), /Already covered, find different stories: Name origin/);
+  assert.deepEqual(areasOf({ suburb: 'Germiston South', town: 'Germiston', region: 'Gauteng' }).map((x) => x.name), ['Germiston'], 'a suburb named after the town adds nothing');
+  assert.deepEqual(areasOf({ suburb: 'Senaoane', town: 'Soweto', region: 'Gauteng' }).map((x) => x.name), ['Soweto', 'Senaoane']);
+
+  // the source: researched once, then from the phone; when every story is told, new ones once a ride
+  const mem = new Map<string, string>();
+  (globalThis as any).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); } };
+  let stories = 0; const excludes: string[][] = [];
+  const fake = (async (url: any, init: any) => {
+    if (String(url).startsWith('/api/area')) return new Response(JSON.stringify({ suburb: null, town: 'Germiston', region: 'Gauteng' }));
+    stories++; excludes.push(JSON.parse(init.body).exclude);
+    return new Response(JSON.stringify({ notes: [{ topic: `t${stories}`, text: `Story number ${stories} about Germiston, long enough.` }] }));
+  }) as typeof fetch;
+  let told = new Set<string>(); let pushed: any = null;
+  const src = new AreaSource(() => ({ lat: -26.22, lon: 28.17 }), () => told, () => {}, fake);
+  src.start((p) => { pushed = p; }); src.stop();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(stories, 1); assert.equal(pushed.areaNotes.length, 1); assert.equal(pushed.areaNotes[0].area, 'Germiston');
+  const again = new AreaSource(() => ({ lat: -26.22, lon: 28.17 }), () => told, () => {}, fake);
+  await again.tick(true);
+  assert.equal(stories, 1, 'the next ride: from the phone, no research');
+  told = new Set(pushed.areaNotes.map((n: any) => n.id));
+  await again.tick(true); assert.equal(stories, 2, 'all told: new stories'); assert.deepEqual(excludes[1], ['t1']);
+  told = new Set([...told, ...((JSON.parse(mem.get('betty.areas.v1')!)['Germiston|Gauteng, South Africa'].notes) as any[]).map((n) => n.id)]);
+  await again.tick(true); assert.equal(stories, 2, 'only once a ride');
+  delete (globalThis as any).localStorage;
+
+  // the engine tells a fresh area story, once, and it reaches answers too
+  const e = new TriggerEngine(now, () => 0.6); // a roll inside the tour-guide share, then the area story
+  const notes = [{ id: 'g1', area: 'Germiston', topic: 'Rand Refinery', text: 'The Rand Refinery opened in Germiston in 1921.' }];
+  const s = { ...initialState(), areaNotes: notes };
+  const ev = e.force('area_story', s);
+  assert.match(ev.context, /riding through Germiston\. A story about Germiston \(Rand Refinery\): The Rand Refinery opened/);
+  assert.deepEqual(e.toldNoteIds(), ['g1']); assert.equal(e.force('area_story', s).context, '', 'never the same story twice');
+  assert.match(e.ask('what is the history of this place?', s).context, /Notes on the area he is in: Germiston, Rand Refinery/);
+  assert.equal(chooseAmbient({ banterWeight: 0, tourGuideWeight: 10, silenceWeight: 0 }, false, () => 0.5, true), 'area_story');
+  assert.equal(chooseAmbient({ banterWeight: 0, tourGuideWeight: 10, silenceWeight: 0 }, false, () => 0.5, false), null);
 }
 
 // ---- cloud voice: server function

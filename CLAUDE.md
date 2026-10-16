@@ -119,6 +119,7 @@ Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `S
 | ride_debrief | P4 | END RIDE, for a ride of 3 min or 1 km and up | 0 |
 | ambient_banter | P3 | ambient slot rolls banter (see Ambient personality) | 0 (paced by ambient gap) |
 | local_fact | P3 | ambient slot rolls tour guide and an unmentioned place is in range | 0 (paced by ambient gap) |
+| area_story | P3 | ambient slot rolls tour guide and an untold area story exists (half the tour-guide rolls when both exist) | 0 (paced by ambient gap) |
 
 All priorities, cooldowns and thresholds are read live from `CONFIG` at call time and can be edited in the TUNING
 panel (persisted to localStorage). Adding a trigger = add the id to `TriggerId` + `TRIGGER_IDS`, entries in
@@ -797,6 +798,22 @@ brake or a "mark this" press.
    (`adapters/ClipStore`, IndexedDB `betty-voice`, keyed by voice+model+style+text, cleared past 80) so Gemini makes
    each once per voice: owner saw Gemini cost 25c in a day of testing while Chirp was free. Every non-alert Gemini style ends with `PACE` ("at a natural pace, a touch brisker than relaxed"): the
    owner found the composed style slow and asked for "a tiny bit" quicker. Checked live: she uses both tags unprompted.
+
+## History and culture of the area (BUILT 2026-10-16; UNVERIFIED ON A RIDE)
+
+Owner: "not just Wikipedia but web search as well". `adapters/AreaSource` (only with the server): every 2 km moved,
+`api/area` names the suburb and town (OpenStreetMap Nominatim reverse, zoom 16; zoom 14 gave only "Ekurhuleni Ward
+19"; ward names are dropped and the metro used instead, so Edenvale reads as Ekurhuleni; cached at the edge a day,
+identifying User-Agent, coordinates rounded to 2 decimals). For each area (`areasOf`: the town, plus the suburb when
+it is not just "<town> South") the notes come from the phone (`betty.areas.v1`) or, the first time, from `api/story`:
+Claude Haiku with web search (max 3 searches) writes up to 6 notes (name origin, founding, events, people,
+landmarks, culture), only facts its results state, as JSON. Checked live: Germiston in about 5 s, six good notes
+(John Jack and the Glasgow farm, the 1886 gold strike, the 1921 Rand Refinery, the railway junction, Germiston Lake,
+Brenner and Els). Cost: a few searches plus reading, roughly 5 cents per new area, once. `area_story` (P3) tells one
+untold note (`toldNotes`, kept across rides in `betty.told.v1`); when every note of an area has been told, the area
+is researched again with the old topics excluded, at most once a ride. Notes also reach his answers ("Notes on the
+area he is in"; the answer prompt says to answer area questions from them straight away; before that she offered to
+search instead). Feed status shows "Area stories".
 
 ## Pre-ride briefing (2026-10-16, owner liked her answer to "tell me about yourself")
 

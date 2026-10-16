@@ -4,21 +4,22 @@ import { RideSnapshot } from './RideStats';
 import { bearingDeg, compassPoint, haversineKm, relativeDirection } from './geo';
 import { BikeState, NearbyPlace, TrafficIncident } from './types';
 
-export type AmbientChoice = 'ambient_banter' | 'local_fact' | null;
+export type AmbientChoice = 'ambient_banter' | 'local_fact' | 'area_story' | null;
 export interface AmbientWeights { banterWeight: number; tourGuideWeight: number; silenceWeight: number }
 
 /**
  * Picks the flavour for one ambient slot. A tour-guide roll with no fresh place becomes silence
  * rather than extra banter, so the banter rate stays what the weights say.
  */
-export function chooseAmbient(w: AmbientWeights, hasFreshPlace: boolean, rng: () => number = Math.random): AmbientChoice {
+export function chooseAmbient(w: AmbientWeights, hasFreshPlace: boolean, rng: () => number = Math.random, hasFreshStory = false): AmbientChoice {
   const banter = Math.max(0, w.banterWeight);
   const guide = Math.max(0, w.tourGuideWeight);
   const total = banter + guide + Math.max(0, w.silenceWeight);
   if (total <= 0) return null;
   const roll = rng() * total;
   if (roll < banter) return 'ambient_banter';
-  if (roll < banter + guide) return hasFreshPlace ? 'local_fact' : null;
+  // Tour guide: a nearby place (Wikipedia) or the history and culture of the area itself (researched), half each.
+  if (roll < banter + guide) return hasFreshPlace && hasFreshStory ? (rng() < 0.5 ? 'area_story' : 'local_fact') : hasFreshPlace ? 'local_fact' : hasFreshStory ? 'area_story' : null;
   return null;
 }
 
@@ -222,6 +223,9 @@ export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncid
   } else lines.push('No engine data is connected: engine temperature, revs, fuel level and faults are unknown.');
   const near = placesFromHere(i.s).filter((p) => p.distanceKm <= i.placeRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 4);
   if (near.length) lines.push(`Places nearby: ${near.map((p) => `${p.name} (${p.distanceKm} km)`).join(', ')}.`);
+  if (i.riderSaid !== undefined && i.s.areaNotes.length) {
+    lines.push(`Notes on the area he is in: ${i.s.areaNotes.slice(0, 8).map((n) => `${n.area}, ${n.topic}: ${n.text}`).join(' | ')}`);
+  }
   if (i.riderSaid !== undefined) {
     for (const p of placesToExplain(i.s, i.riderSaid, i.ride.places, i.placeRadiusKm)) {
       const where = whereIs(i.s, p);

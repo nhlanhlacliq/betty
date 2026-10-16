@@ -22,6 +22,7 @@ import { SwitchableSpeaker } from './adapters/SwitchableSpeaker';
 import { WeatherSource } from './adapters/WeatherSource';
 import { TrafficSource } from './adapters/TrafficSource';
 import { PlaceSource } from './adapters/PlaceSource';
+import { AreaSource, ToldStore } from './adapters/AreaSource';
 import { RideLog } from './adapters/RideLog';
 import { toRecord } from './core/RideMemory';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
@@ -59,8 +60,8 @@ const statusEl = $('status');
 const logEl = $('log');
 const setStatus = (msg: string, err = false) => { statusEl.textContent = msg; statusEl.className = err ? 'err' : ''; };
 
-const feed = { weather: 'idle', traffic: 'idle', places: 'idle' };
-const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places}`;
+const feed = { weather: 'idle', traffic: 'idle', places: 'idle', areas: 'idle' };
+const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places} | Area stories: ${feed.areas}`;
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
@@ -396,6 +397,9 @@ async function beginRide() {
   currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
   engine.setFuelKm(FuelStore.load());
   engine.setMemory(RiderMemoryStore.load());
+  engine.setToldNotes(ToldStore.load());
+  // History and culture of the area (researched on Betty's server, so only when deployed with it).
+  if (SERVER) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { feed.areas = m; }));
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
   const remember = () => {
     const w = agg.current.weather;
@@ -403,6 +407,7 @@ async function beginRide() {
     if (rec) RideLog.save(rec);
     FuelStore.save(engine.kmSinceFill());
     IncidentMemory.save(engine.announcedIncidents());
+    ToldStore.save(engine.toldNoteIds());
   };
   const memTimer = window.setInterval(remember, 60_000);
   // What the sensors actually delivered, written into the log now and then and at END RIDE.
