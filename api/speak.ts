@@ -71,7 +71,9 @@ export async function POST(req: Request): Promise<Response> {
   if (!CHIRP_LOCALES.includes(locale)) return json({ error: 'unknown accent' }, 400);
   if (!text) return json({ error: 'no text' }, 400);
   if (text.length > MAX_TEXT) return json({ error: 'text too long' }, 413);
-  if (!VOICES.includes(voice)) return json({ error: 'unknown voice' }, 400);
+  // Chirp: the 30 standard voices. Gemini also takes its accent library ids (en-us-veda, en-gb-advisor-8, ...).
+  const libraryId = /^[a-z]{2}-[a-z]{2}-[a-z0-9-]{1,40}$/.test(voice);
+  if (!VOICES.includes(voice) && !(engine === 'gemini' && libraryId)) return json({ error: 'unknown voice' }, 400);
 
   if (engine === 'chirp') {
     const key = env('GOOGLE_TTS_API_KEY');

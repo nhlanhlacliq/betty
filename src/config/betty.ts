@@ -1,4 +1,5 @@
 import type { Priority, TriggerId } from '../core/types';
+import { LIBRARY_VOICES } from './voiceLibrary';
 
 export type ObdMode = 'off' | 'mock';
 /** Google cloud voice: off = phone voice only; mixed = Chirp 3 HD for alerts (P1/P2), Gemini TTS for the rest. */
@@ -323,3 +324,16 @@ export const CLOUD_VOICES: Array<[string, string, 'female' | 'male']> = [
   ['Sadaltager', 'knowledgeable', 'male'],
   ['Zubenelgenubi', 'casual', 'male'],
 ];
+
+/** A voice from Gemini's accent library (not one of the 30 standard ones), or undefined. */
+export const libraryVoice = (id: string) => LIBRARY_VOICES.find((v) => v.id === id);
+/**
+ * The voice Chirp uses. Chirp only has the 30 standard voices, so with a library voice (an accent) the alert comes
+ * from a standard voice of the same gender, in the nearest accent Chirp has.
+ */
+export function chirpVoice(): { name: string; locale: Config['chirpLocale'] } {
+  const lib = libraryVoice(CONFIG.cloudVoiceName);
+  if (!lib) return { name: CONFIG.cloudVoiceName, locale: CONFIG.chirpLocale };
+  const locale = /British|Irish|South African/.test(lib.accent) ? 'en-GB' : /Australian|New Zealand/.test(lib.accent) ? 'en-AU' : 'en-US';
+  return { name: lib.gender === 'male' ? 'Iapetus' : 'Aoede', locale };
+}

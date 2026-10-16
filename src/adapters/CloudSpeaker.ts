@@ -1,4 +1,4 @@
-import { CONFIG, CloudVoiceMode, voiceStyle } from '../config/betty';
+import { CONFIG, CloudVoiceMode, chirpVoice, voiceStyle } from '../config/betty';
 import { SpeakTag, Speaker } from '../core/AudioQueue';
 import { quietWav } from './audio';
 import { PcmClip, PcmPlayer } from './PcmPlayer';
@@ -125,9 +125,10 @@ export class CloudSpeaker implements Speaker {
     const gemini = engine === 'gemini';
     const stream = gemini && streams(CONFIG.cloudVoice, priority) && !!this.pcmPlayer?.ready && !KEPT.has(text);
     // <laugh>/<sigh> are performed by Gemini only; Chirp would read them out.
+    const chirp = chirpVoice();
     const body = {
-      text: voiceTags(text, gemini), engine, voice: CONFIG.cloudVoiceName,
-      ...(gemini ? { style: voiceStyle(tag?.id, priority), model: CONFIG.geminiModel } : { locale: CONFIG.chirpLocale }),
+      text: voiceTags(text, gemini), engine, voice: gemini ? CONFIG.cloudVoiceName : chirp.name,
+      ...(gemini ? { style: voiceStyle(tag?.id, priority), model: CONFIG.geminiModel } : { locale: chirp.locale }),
       ...(stream ? { stream: true } : {}),
     };
     return { engine, stream, kept: gemini && KEPT.has(text), key: JSON.stringify(body), body };

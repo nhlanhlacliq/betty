@@ -1,5 +1,6 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, cleanBikeName, cleanRiderName } from './config/betty';
+import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, cleanBikeName, cleanRiderName, libraryVoice } from './config/betty';
+import { LIBRARY_ACCENTS, LIBRARY_VOICES } from './config/voiceLibrary';
 import { CloudSpeaker, ElementPlayer, SOUND_TEST_LINES, STOCK_LINES } from './adapters/CloudSpeaker';
 import { IdbClipStore } from './adapters/ClipStore';
 import { PcmPlayer } from './adapters/PcmPlayer';
@@ -210,19 +211,35 @@ $('voicetest').addEventListener('click', () => {
 // Cloud voice (Google): engine mode, voice name, and a test that plays an alert and a banter line as a ride would.
 const cloudSel = $<HTMLSelectElement>('cloudvoice');
 const cloudName = $<HTMLSelectElement>('cloudname');
-for (const [label, gender] of [['Female voices', 'female'], ['Male voices', 'male']] as const) {
-  const group = document.createElement('optgroup'); group.label = label;
-  for (const [name, desc, g] of CLOUD_VOICES) {
-    if (g !== gender) continue;
-    const o = document.createElement('option'); o.value = name; o.textContent = `${name} (${g}, ${desc})`; group.append(o);
-  }
-  cloudName.append(group);
+// Accent: the 30 standard voices (Chirp has them too), or a group from Gemini's accent library (Gemini only).
+const cloudAccent = $<HTMLSelectElement>('cloudaccent');
+const STANDARD = 'standard';
+for (const [value, label] of [[STANDARD, 'Standard American (Chirp has these too)'], ...LIBRARY_ACCENTS.map((a) => [a, `${a} (Gemini only)`])]) {
+  const o = document.createElement('option'); o.value = value; o.textContent = label; cloudAccent.append(o);
 }
+const fillNames = (accent: string) => {
+  cloudName.innerHTML = '';
+  for (const [label, gender] of [['Female voices', 'female'], ['Male voices', 'male'], ['Neutral voices', 'neutral']] as const) {
+    const group = document.createElement('optgroup'); group.label = label;
+    const add = (value: string, text: string) => { const o = document.createElement('option'); o.value = value; o.textContent = text; group.append(o); };
+    if (accent === STANDARD) { for (const [name, desc, g] of CLOUD_VOICES) if (g === gender) add(name, `${name} (${g}, ${desc})`); }
+    else for (const v of LIBRARY_VOICES) if (v.accent === accent && v.gender === gender) add(v.id, `${v.name} (${v.about})`);
+    if (group.children.length) cloudName.append(group);
+  }
+};
+cloudAccent.addEventListener('change', () => {
+  fillNames(cloudAccent.value);
+  CONFIG.cloudVoiceName = cloudName.value; saveConfig(); // the first voice of that accent until he picks one
+});
 const geminiSel = $<HTMLSelectElement>('geminimodel');
 const chirpSel = $<HTMLSelectElement>('chirplocale');
 const showCloud = () => {
+  const accent = libraryVoice(CONFIG.cloudVoiceName)?.accent ?? STANDARD;
+  cloudAccent.value = accent; fillNames(accent);
   cloudSel.value = CONFIG.cloudVoice; cloudName.value = CONFIG.cloudVoiceName; geminiSel.value = CONFIG.geminiModel; chirpSel.value = CONFIG.chirpLocale;
-  cloudName.disabled = geminiSel.disabled = chirpSel.disabled = CONFIG.cloudVoice === 'off';
+  cloudName.disabled = cloudAccent.disabled = geminiSel.disabled = chirpSel.disabled = CONFIG.cloudVoice === 'off';
+  // Chirp's accent only matters for the standard voices; with a library voice it follows the accent.
+  chirpSel.disabled ||= accent !== STANDARD;
 };
 geminiSel.addEventListener('change', () => { CONFIG.geminiModel = geminiSel.value as typeof CONFIG.geminiModel; saveConfig(); });
 chirpSel.addEventListener('change', () => { CONFIG.chirpLocale = chirpSel.value as typeof CONFIG.chirpLocale; saveConfig(); });

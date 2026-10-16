@@ -1071,6 +1071,19 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(new TriggerEngine(now).startup().fallback, 'Systems online.', 'nothing known yet: the old line');
 }
 
+// ---- accent library voices: Gemini only; Chirp alerts get a standard voice of the same gender
+{
+  resetConfig();
+  const { chirpVoice, libraryVoice } = await import('../src/config/betty');
+  const { LIBRARY_VOICES, LIBRARY_ACCENTS } = await import('../src/config/voiceLibrary');
+  assert.ok(LIBRARY_VOICES.length > 300); assert.ok(LIBRARY_ACCENTS.includes('Southern US') && LIBRARY_ACCENTS.includes('South African'));
+  assert.equal(libraryVoice('en-us-veda')?.accent, 'Southern US'); assert.equal(libraryVoice('Aoede'), undefined);
+  assert.deepEqual(chirpVoice(), { name: 'Aoede', locale: 'en-US' });
+  CONFIG.cloudVoiceName = 'en-gb-advisor-8'; assert.deepEqual(chirpVoice(), { name: 'Iapetus', locale: 'en-GB' });
+  CONFIG.cloudVoiceName = 'en-us-veda'; assert.deepEqual(chirpVoice(), { name: 'Aoede', locale: 'en-US' });
+  resetConfig();
+}
+
 // ---- cloud voice: server function
 {
   const realFetch = globalThis.fetch; const saved = { ...process.env };
@@ -1101,6 +1114,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(JSON.parse(sent.at(-1)!.init.body).voice.name, 'en-GB-Chirp3-HD-Aoede');
     assert.equal((await speakApi(req({ text: 'hi', engine: 'chirp', voice: 'Aoede', locale: 'en-ZA' }))).status, 400, 'only the accents Chirp has');
     assert.equal((await speakApi(req({ text: 'hi', engine: 'gemini', voice: 'Aoede', model: 'other' }))).status, 400, 'only the two Gemini models');
+    assert.equal((await speakApi(req({ text: 'hi', engine: 'chirp', voice: 'en-us-veda' }))).status, 400, 'Chirp has no library voices');
+    assert.equal((await speakApi(req({ text: 'hi', engine: 'gemini', voice: 'en-us-veda; drop' }))).status, 400);
     const g = await speakApi(req({ text: 'Forty minutes in.', engine: 'gemini', voice: 'Kore', style: 'dry' }));
     assert.equal(g.headers.get('content-type'), 'audio/wav'); assert.equal(new TextDecoder().decode(await g.arrayBuffer()), 'RIFFfakewav');
     const gb = JSON.parse(sent.at(-1)!.init.body);
