@@ -271,6 +271,7 @@ resetConfig();
       const logText = () => doc.getElementById('log')!.textContent!;
       const click = (el: Element) => el.dispatchEvent(new page.window.Event('click', { bubbles: true }));
       (doc.getElementById('real') as HTMLInputElement).checked = false;
+      CONFIG.feeds.briefingWaitMs = 0; // the briefing would otherwise wait up to 10 s for weather the test does not serve
 
       const talkBtn = doc.querySelector('.locktalk') as HTMLElement;
       assert.equal(talkBtn.hidden, true, 'no talk button without a ride');

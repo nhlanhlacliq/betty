@@ -777,7 +777,22 @@ brake or a "mark this" press.
    choice and may be why the owner disliked Chirp) are on the main screen; the Test button plays alert (Chirp), answer
    (streamed) and banter. RISK, UNVERIFIED: Web Audio is a second sound source next to the headset-button track and
    might take the buttons away on iPhone. TO REVERT: pick "Gemini for her own remarks only" (the old `mixed`) on the
-   main screen, or `git checkout before-gemini-stream` for the code (tag pushed). `adapters/CloudSpeaker` falls back to the phone voice
+   main screen, or `git checkout before-gemini-stream` for the code (tag pushed).
+   **Voice tags and pace (2026-10-16)**: when a Gemini mode is on, the system prompt lets her write `<laugh>` or
+   `<sigh>` (now and then, at most once a line, never in alerts). `voiceTags(text, keep)` keeps the tags Gemini knows
+   (`VOICE_TAGS`) for Gemini and strips every tag for Chirp, the phone voice and the lock screen; the chat and the log
+   show them. Every non-alert Gemini style ends with `PACE` ("at a natural pace, a touch brisker than relaxed"): the
+   owner found the composed style slow and asked for "a tiny bit" quicker. Checked live: she uses both tags unprompted.
+
+## Pre-ride briefing (2026-10-16, owner liked her answer to "tell me about yourself")
+
+`startup` is now a briefing: who she is in character (with her settings), then what matters before setting off from a
+full `situationDigest` (weather, rain chance, traffic on his way, fuel range, sunset, last ride and totals, kept
+notes), skipping topics that only make sense mid-ride. Up to `BRIEFING_SENTENCES` (4) whatever TUNING says, an 8 s
+Claude budget (it timed out at 2.5 s on 2026-10-16 and said "Systems online."), and main.ts waits up to
+`feeds.briefingWaitMs` (10 s) for the weather and a GPS fix before asking. Canned fallback: "Systems online." plus the
+weather and range when known. Also from that log: she claimed "Humour at 60 percent, bluntness up" when his words
+were not a command; the answer prompt now says only the commands change settings, and to tell him the command. `adapters/CloudSpeaker` falls back to the phone voice
    for any line whose audio is not there in `WAIT_MS` (Chirp 3.5 s: about 2 s round trip from SA through Vercel; Gemini 5 s), fails, or will not play; a 503 (key
    not set) stops that engine for the session. Audio is prefetched as soon as a line is written and kept (40 clips),
    so a queued line and repeated phrases are instant. It plays on the headset buttons' own track while those are

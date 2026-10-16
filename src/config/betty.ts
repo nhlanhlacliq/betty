@@ -66,6 +66,8 @@ export interface Config {
   persona: { tars: number; humour: number };
   feeds: {
     pollWeatherMs: number; pollTrafficMs: number; refetchDistanceKm: number; placeRefetchKm: number;
+    /** The pre-ride briefing waits up to this long for the weather (and a GPS fix) so it has something to say */
+    briefingWaitMs: number;
     fallbackLocation: { lat: number; lon: number; label: string };
   };
 }
@@ -112,6 +114,7 @@ export const DEFAULT_CONFIG: Config = {
     pollTrafficMs: 2 * 60 * 1000,
     refetchDistanceKm: 5,
     placeRefetchKm: 1.5,
+    briefingWaitMs: 10_000,
     // Used only when the phone has no GPS fix (desktop / simulated sessions)
     fallbackLocation: { lat: -26.14, lon: 28.15, label: 'Edenvale (fallback)' },
   },
@@ -174,15 +177,26 @@ You are their blend in your own voice: never quote or imitate lines from either 
 Humour setting: ${h} percent: ${level}. Safety alerts ignore this setting.`;
 };
 
+/** The pre-ride briefing may run longer than an ordinary line. */
+export const BRIEFING_SENTENCES = 4;
+/** How many sentences a line may have: the TUNING setting, or more for the briefing. */
+export const sentencesFor = (id: TriggerId) => Math.max(1, Math.round(id === 'startup' ? Math.max(BRIEFING_SENTENCES, CONFIG.maxSpokenSentences) : CONFIG.maxSpokenSentences));
+
+/** Sounds Gemini TTS performs when written into the text (Google's docs, 2026-10-16). Other voices drop them. */
+export const VOICE_TAGS = ['laugh', 'sigh', 'short pause'];
+/** True when her lines may be said by Gemini, so laughs and sighs are worth writing. */
+export const voiceTagsOn = () => CONFIG.cloudVoice === 'stream' || CONFIG.cloudVoice === 'mixed' || CONFIG.cloudVoice === 'gemini';
+
 /** Built at call time so a name change on screen applies to the very next line. */
-export const bettySystemPrompt = () => {
+export const bettySystemPrompt = (maxSentences = CONFIG.maxSpokenSentences) => {
   const name = cleanRiderName(CONFIG.riderName);
   const bike = cleanBikeName(CONFIG.bikeName);
-  const max = Math.max(1, Math.round(CONFIG.maxSpokenSentences));
+  const max = Math.max(1, Math.round(maxSentences));
   return `You are Betty, the riding co-pilot on a 2018 BMW G 310 GS. You call the rider ${name}${name.length === 1 ? ', just the letter' : ''}.
 You call the motorcycle ${bike}: use that whenever you mention it, not its model name or any nickname of your own.
 ${personaPrompt()}
-Co-pilot, not alert system. Use his name in about one line in five, never as the first word, and never any other name for him.
+Co-pilot, not alert system.${voiceTagsOn() ? `
+Your voice can laugh and sigh: write <laugh> or <sigh> exactly where it happens (a laugh at your own joke, a sigh at the traffic). Now and then, not in every line, at most once in a line, never in safety alerts. No other tags, no stage directions in words.` : ''} Use his name in about one line in five, never as the first word, and never any other name for him.
 Hard rules: reply in at most ${max} short sentence${max === 1 ? '' : 's'}. Plain spoken English, no markdown, no emojis, no lists. Aim for under ${10 + max * 10} words in total.
 Never repeat something already said this ride. Use only the supplied situation and bike state; never invent numbers, places or road names.
 Safety alerts (engine temperature, fault codes, fuel, traffic, rain) are said straight: no jokes, no teasing.
@@ -228,7 +242,14 @@ What he asked you to remember and the spots he marked are in the situation when 
 If he asks what he can tell you to do: "repeat that", "quiet for ten minutes" (or "be quiet", then "talk to me"),
 "mark this spot", "remember that...", "forget that", "humour 60 percent" (or "humour up"), "more TARS", "more JARVIS",
 "status" (you read out your settings). Those work at once, even without signal.
+You cannot change your own settings by saying so: only those commands do. If he asks for a change in other words
+("dial it back", "be less polite"), do not claim it is done; tell him the command to say.
 Stay in character.`,
+  startup: `This is your pre-ride briefing as he gets ready to set off. Open with who you are, in character, in a line
+(his co-pilot; your settings may get a mention if it is in character). Then the few things worth knowing before he
+rides, all from the situation: the weather and the chance of rain, any traffic on his way, fuel range, sunset if it is
+close, something from your record together (rides, distance, last ride) or a note he asked you to keep. Choose what
+matters most; do not recite everything. End ready to go.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
   ride_milestone: `This is an ambient time check, not an alert. Note how long he has been out, with a dry touch, and nothing else.
@@ -241,7 +262,7 @@ if an earlier time check used a turn of phrase ("suspects", "the road", "the clo
  * Alerts go to Chirp in the mixed mode; the alert style is used when Gemini speaks everything.
  */
 export const VOICE_STYLES: Record<string, string> = {
-  ambient_banter: 'dry and wry, quietly amused, unhurried',
+  ambient_banter: 'dry and wry, quietly amused',
   local_fact: 'warm and curious, like a local friend sharing a good story',
   rider_query: 'relaxed and friendly, conversational',
   ride_milestone: 'dry, lightly amused',
@@ -252,8 +273,14 @@ export const VOICE_STYLES: Record<string, string> = {
 };
 
 /** The Gemini style for a line: her own remarks follow the JARVIS/TARS blend. */
+/** Added to every style but alerts: the composed styles read too slowly (owner, 2026-10-16: "a tiny bit" quicker). */
+export const PACE = 'at a natural pace, a touch brisker than relaxed';
+
 export function voiceStyle(id: string | undefined, priority: number): string {
   if (priority <= 2) return VOICE_STYLES.alert;
+  return `${baseStyle(id)}, ${PACE}`;
+}
+function baseStyle(id: string | undefined): string {
   if (id === 'ambient_banter' || id === 'ride_milestone') {
     const t = CONFIG.persona.tars;
     return t >= 65 ? 'deadpan, flat and laconic, perfectly straight-faced'

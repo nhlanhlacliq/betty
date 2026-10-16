@@ -9,7 +9,7 @@ import { Command, addMark, addNote, forgetLast, parseCommand } from './core/Comm
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
-import { ClaudeClient } from './core/ClaudeClient';
+import { ClaudeClient, voiceTags } from './core/ClaudeClient';
 import { LatLon } from './core/geo';
 import { AMBIENT_IDS, TriggerEvent } from './core/types';
 import { MockObdSource } from './adapters/MockObdSource';
@@ -141,7 +141,7 @@ let talkNow: (() => void) | null = null;
 const lockScreen = mountLockScreen($('lockroot'), 1000, () => talkNow?.());
 $('lock').addEventListener('click', () => lockScreen.lock());
 let lastLine = '';
-const showLocked = (speed: number) => lockScreen.setInfo(String(speed), lastLine);
+const showLocked = (speed: number) => lockScreen.setInfo(String(speed), voiceTags(lastLine, false));
 
 // What Betty calls the rider. Applies from the next line she speaks.
 const nameInput = $<HTMLInputElement>('ridername');
@@ -235,8 +235,8 @@ $('cloudtest').addEventListener('click', () => {
   const t0 = Date.now();
   t.speak(`Rain in about twenty minutes, ${name}. Worth finding some cover.`, () => {
     const t1 = Date.now();
-    t.speak(`Thirty-five kilometres so far, and no traffic on your way.`, () => {
-      t.speak(`Forty minutes in and the road is behaving. Can't say the same for the taxis.`, () => {
+    t.speak(`Thirty-five kilometres so far, and no traffic on your way. <laugh> Enjoy it while it lasts.`, () => {
+      t.speak(`Forty minutes in and the road is behaving. <sigh> Can't say the same for the taxis.`, () => {
         setStatus(`${notes.length ? `Cloud voice: ${notes.join('; ')}. ` : ''}Test done (alert took ${Math.round((t1 - t0) / 100) / 10} s overall).`, notes.length > 0);
       }, { priority: 3, id: 'ambient_banter' });
     }, { priority: 4, id: 'rider_query' });
@@ -411,7 +411,14 @@ async function beginRide() {
   await wake.enable();
   await agg.start();
   setObd(CONFIG.obdMode);
-  say(engine.startup());
+  // The pre-ride briefing: wait (briefly) for the weather and a GPS fix, so she has something to tell him.
+  void (async () => {
+    const until = Date.now() + CONFIG.feeds.briefingWaitMs;
+    const readyToBrief = () => agg.current.weather !== null && (!real || agg.current.lat != null);
+    await new Promise((r) => setTimeout(r, 0)); // let the ride finish setting up first
+    while (Date.now() < until && !readyToBrief()) await new Promise((r) => setTimeout(r, 250));
+    if (rig?.engine === engine) say(engine.startup(agg.current)); // not if the ride ended while waiting
+  })();
   /** Tones go through the headset buttons' own track when it is running, so they do not steal the buttons. */
   const tone = (freq: number) => { if (!buttons.tone(freq)) beep(freq); };
   const sayNow = (text: string) => {

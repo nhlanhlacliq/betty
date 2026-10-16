@@ -129,7 +129,8 @@ export class TriggerEngine {
     return active.some((id) => CONFIG.priorities[id] === 1);
   }
 
-  startup(): TriggerEvent { return this.force('startup', initialState()); }
+  /** The pre-ride briefing. Give it the state once the feeds are in (main.ts waits up to 10 s for weather). */
+  startup(s: BikeState = initialState()): TriggerEvent { return this.force('startup', s); }
 
   private riderText: string | null = null;
 
@@ -225,7 +226,23 @@ export class TriggerEngine {
         const greet = hello
           ? `If you greet him, the only greeting that fits this hour is "${hello}".`
           : 'These are the small hours, so open without any greeting: go straight to saying you are ready.'; // naming the words to avoid made her say them
-        return { context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet}`, fallback: 'Systems online.' };
+        // Owner liked the self-introduction she gave when asked "tell me about yourself" (2026-10-16): a briefing.
+        const left = this.fuelKmLeft();
+        const digest = situationDigest({
+          s, ride: this.stats.snapshot(), history: this.history, at, placeRadiusKm: CONFIG.ambient.placeRadiusKm,
+          fuelKmLeft: left, incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
+          skip: ['time', 'duration', 'distance', 'standing', 'speed_now', 'stops'], // nothing has happened yet; the clock is given above
+        });
+        const kept = describeMemory(this.memory, s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null, this.now(), 3);
+        const pz = CONFIG.persona;
+        const w = s.weather;
+        const canned = ['Systems online.',
+          w ? ` ${cap(w.summary)}, ${Math.round(w.tempC)} degrees, ${w.rainChanceNextHourPct} percent chance of rain in the next hour.` : '',
+          left === null ? '' : ` About ${left} kilometres of fuel range by my count.`].join('');
+        return {
+          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}`,
+          fallback: canned,
+        };
       }
       case 'engine_overtemp':
         return {

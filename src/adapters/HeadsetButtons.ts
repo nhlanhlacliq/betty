@@ -95,7 +95,8 @@ export class HeadsetButtons {
   /** Make sure the loop is playing, so the next press still reaches Betty. Call it after the mic closes. */
   resume() {
     if (!this.held || !this.audio) return;
-    if (this.audio.paused) void this.audio.play().catch((e) => this.log(`could not restart the silent track: ${(e as Error).name}`));
+    // AbortError = a voice clip or tone swapped in before the restart finished: expected, not a fault (2026-10-16 log).
+    if (this.audio.paused) void this.audio.play().catch((e) => { if ((e as Error).name !== 'AbortError') this.log(`could not restart the silent track: ${(e as Error).name}`); });
     try { navigator.mediaSession.playbackState = 'playing'; } catch { /* older browsers */ }
   }
 

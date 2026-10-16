@@ -1039,6 +1039,33 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- voice tags, pace, the pre-ride briefing
+{
+  resetConfig();
+  const { voiceTags } = await import('../src/core/ClaudeClient');
+  const { bettySystemPrompt, sentencesFor, voiceStyle } = await import('../src/config/betty');
+  assert.equal(voiceTags('Fair enough. <laugh> Carry on.', true), 'Fair enough. <laugh> Carry on.');
+  assert.equal(voiceTags('Fair enough. <laugh> Carry on.', false), 'Fair enough. Carry on.');
+  assert.equal(voiceTags('Three incidents <sigh>.', false), 'Three incidents.');
+  assert.equal(voiceTags('Well <chuckle> then.', true), 'Well then.', 'tags Gemini does not know are never read out');
+  assert.equal(voiceTags('A <Short Pause> beat.', true), 'A <short pause> beat.');
+  assert.match(bettySystemPrompt(), /write <laugh> or <sigh>/);
+  CONFIG.cloudVoice = 'chirp'; assert.ok(!/<laugh>/.test(bettySystemPrompt()), 'no tags when no voice can perform them'); resetConfig();
+  const { FLAVOUR_PROMPTS } = await import('../src/config/betty');
+  assert.match(FLAVOUR_PROMPTS.rider_query!, /do not claim it is done; tell him the command/);
+  assert.match(voiceStyle('ambient_banter', 3), /a touch brisker/); assert.match(voiceStyle('rider_query', 4), /a touch brisker/);
+  assert.equal(voiceStyle('rain_soon', 2), 'calm, clear and firm', 'alerts keep their own pace');
+  assert.equal(sentencesFor('startup'), 4); assert.equal(sentencesFor('ambient_banter'), 2);
+  const e = new TriggerEngine(now);
+  e.setFuelKm(190);
+  const w: WeatherState = { tempC: 22, windKmh: 4, rainNowMm: 0, rainChanceNextHourPct: 10, summary: 'partly cloudy', fetchedAt: 0, sunriseAt: null, sunsetAt: null };
+  const b = e.startup({ ...initialState(), weather: w, lat: -26.15, lon: 28.15 });
+  assert.match(b.context, /Your settings: humour 75 percent, 50 percent JARVIS, 50 percent TARS/); assert.match(b.context, /10 percent chance in the next hour/);
+  assert.match(b.context, /roughly 90 km of range left/);
+  assert.equal(b.fallback, 'Systems online. Partly cloudy, 22 degrees, 10 percent chance of rain in the next hour. About 90 kilometres of fuel range by my count.');
+  assert.equal(new TriggerEngine(now).startup().fallback, 'Systems online.', 'nothing known yet: the old line');
+}
+
 // ---- cloud voice: server function
 {
   const realFetch = globalThis.fetch; const saved = { ...process.env };

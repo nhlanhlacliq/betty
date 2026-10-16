@@ -172,7 +172,7 @@ export const BANTER_MODES: BanterMode[] = [
   { id: 'observation', text: 'a wry observation rather than a joke' },
   { id: 'thought', text: 'a passing thought the topic prompts, the kind you would share with a friend mid-ride' },
   { id: 'question', text: 'one light question for him to chew on while he rides. He cannot answer you yet, so it must need no reply' },
-  { id: 'callback', text: 'tie the topic back to something you said or flagged earlier this ride, if there is anything; otherwise a quip' },
+  { id: 'callback', text: 'tie the topic back to something you said or flagged earlier this ride; if there is nothing earlier, simply make it a quip and never say there was nothing to tie it to' },
 ];
 
 /** A different delivery from last time, so consecutive remarks do not share a shape. */
@@ -209,8 +209,8 @@ export function placesToExplain(s: BikeState, said: string, talkedAbout: string[
   return out;
 }
 
-export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncident[]; riderSaid?: string }): string {
-  const lines = banterTopics(i).filter((t) => t.id !== 'open').map((t) => t.text);
+export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncident[]; riderSaid?: string; skip?: string[] }): string {
+  const lines = banterTopics(i).filter((t) => t.id !== 'open' && !i.skip?.includes(t.id)).map((t) => t.text);
   const w = i.s.weather;
   if (w) lines.push(`Rain: ${w.rainNowMm >= 0.1 ? 'raining now' : 'not raining now'}, ${w.rainChanceNextHourPct} percent chance in the next hour.`);
   const ahead = i.incidentsAhead ?? [];

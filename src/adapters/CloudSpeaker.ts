@@ -2,6 +2,7 @@ import { CONFIG, CloudVoiceMode, voiceStyle } from '../config/betty';
 import { SpeakTag, Speaker } from '../core/AudioQueue';
 import { quietWav } from './audio';
 import { PcmClip, PcmPlayer } from './PcmPlayer';
+import { voiceTags } from '../core/ClaudeClient';
 
 export type Engine = 'chirp' | 'gemini';
 
@@ -100,8 +101,9 @@ export class CloudSpeaker implements Speaker {
     const priority = tag?.priority ?? 4;
     const gemini = engine === 'gemini';
     const stream = gemini && streams(CONFIG.cloudVoice, priority) && !!this.pcmPlayer?.ready;
+    // <laugh>/<sigh> are performed by Gemini only; Chirp would read them out.
     const body = {
-      text, engine, voice: CONFIG.cloudVoiceName,
+      text: voiceTags(text, gemini), engine, voice: CONFIG.cloudVoiceName,
       ...(gemini ? { style: voiceStyle(tag?.id, priority), model: CONFIG.geminiModel } : { locale: CONFIG.chirpLocale }),
       ...(stream ? { stream: true } : {}),
     };
@@ -194,7 +196,7 @@ export class CloudSpeaker implements Speaker {
     const r = this.request(text, tag, force);
     if (!r || this.failed.has(r.key)) {
       if (r?.engine === 'gemini' && !force) { this.say(text, onDone, tag, 'chirp'); return; }
-      this.fallback.speak(text, onDone, tag); return;
+      this.fallback.speak(voiceTags(text, false), onDone, tag); return;
     }
     const my = ++this.token;
     let finished = false;
@@ -210,7 +212,7 @@ export class CloudSpeaker implements Speaker {
         return;
       }
       this.log(`cloud voice (${r.engine}): ${why}; said with the phone voice`);
-      this.fallback.speak(text, done, tag);
+      this.fallback.speak(voiceTags(text, false), done, tag);
     };
     // A clip that never reports its end must not hold up every later line.
     const armDeadline = () => {

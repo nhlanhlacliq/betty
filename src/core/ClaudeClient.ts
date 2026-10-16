@@ -1,4 +1,4 @@
-import { CONFIG, bettySystemPrompt, cleanRiderName, FLAVOUR_PROMPTS, SILENT_TOKEN } from '../config/betty';
+import { CONFIG, bettySystemPrompt, cleanRiderName, FLAVOUR_PROMPTS, SILENT_TOKEN, VOICE_TAGS, sentencesFor } from '../config/betty';
 import { clockNote } from './ambient';
 import { BikeState, TriggerEvent, UNPROMPTED_IDS } from './types';
 
@@ -47,7 +47,7 @@ export class ClaudeClient {
     if ('text' in r) {
       const c = cleanSpoken(r.text, {
         ambient: UNPROMPTED_IDS.includes(ev.id),
-        name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences: CONFIG.maxSpokenSentences,
+        name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences: sentencesFor(ev.id),
       });
       // An alert whose reply turned out unusable still has to be said: use the canned line.
       out = c.text || !ev.fallback
@@ -76,7 +76,9 @@ export class ClaudeClient {
     if (!this.apiKey && !this.proxyUrl) return { error: 'no API key' };
     const ctrl = new AbortController();
     // Ambient lines are not urgent, so they get longer than the 3 s alert budget.
-    const timer = setTimeout(() => ctrl.abort(), ev.riderSaid ? Math.max(this.timeoutMs, RIDER_TIMEOUT_MS) : ev.priority === 3 ? this.ambientTimeoutMs : this.timeoutMs);
+    // The briefing and sign-off are longer and nobody is in a hurry: on 2026-10-16 the briefing timed out at 2.5 s.
+    const slow = ev.id === 'startup' || ev.id === 'ride_debrief';
+    const timer = setTimeout(() => ctrl.abort(), ev.riderSaid ? Math.max(this.timeoutMs, RIDER_TIMEOUT_MS) : slow ? BRIEFING_TIMEOUT_MS : ev.priority === 3 ? this.ambientTimeoutMs : this.timeoutMs);
     try {
       const res = this.apiKey
         ? await fetch('https://api.anthropic.com/v1/messages', {
@@ -116,10 +118,20 @@ export const WEB_SEARCH = {
 } as const;
 /** An answer may need a search or two; a line she makes up herself never does. */
 export const RIDER_TIMEOUT_MS = 15000;
+export const BRIEFING_TIMEOUT_MS = 8000;
+
+/**
+ * Voice tags (<laugh>, <sigh>): kept for Gemini, which performs them; removed for any other voice and on screen.
+ * keep=true still removes tags Gemini does not know, so a made-up <chuckle> is never read out.
+ */
+export function voiceTags(text: string, keep: boolean): string {
+  const out = text.replace(/\s*<\s*([a-z ]+?)\s*>\s*/gi, (m, tag: string) => (keep && VOICE_TAGS.includes(tag.toLowerCase()) ? ` <${tag.toLowerCase()}> ` : ' '));
+  return out.replace(/\s+([.,!?;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+}
 
 export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[], talk: Turn[] = []) {
   const flavour = FLAVOUR_PROMPTS[ev.id];
-  const base = bettySystemPrompt();
+  const base = bettySystemPrompt(sentencesFor(ev.id));
   const readings = s.obd
     ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, fuelPct: s.fuelPct }
     : { speedKmh: s.speedKmh, engineData: 'not connected: do not mention engine temperature, revs, fuel or faults' };
@@ -135,7 +147,7 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
   return {
     model: CONFIG.claudeModel,
     // Room for the configured line length, plus a few words she may say before searching.
-    max_tokens: 60 + 60 * Math.max(1, Math.round(CONFIG.maxSpokenSentences)) + (ev.riderSaid ? 100 : 0),
+    max_tokens: 60 + 60 * sentencesFor(ev.id) + (ev.riderSaid ? 100 : 0),
     ...(ev.riderSaid ? { tools: [WEB_SEARCH] } : {}),
     // Without this the model thinks first: the thinking block eats max_tokens and blows the timeout.
     thinking: { type: CONFIG.claudeThinkingOff },
@@ -159,7 +171,7 @@ export interface CleanOptions {
 }
 
 /** Talk about the prompt instead of to the rider: "the notes only say...", "that breaks the word limit". */
-const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b|\bsince he asked\b|\bhe (asked|wants|is asking)\b|\bi'?ll say so plainly\b|\bmake up a story\b|\bthe best story\b|\bso i'?ll keep it (short|brief)\b|\balready said this ride\b|\bto tie (it )?back to\b|\bnothing to call back\b|\bhaving already\b|\bnot repeating it\b|\bi shall say nothing (further|more)\b|\bi have not forgotten\b/i;
+const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b|\bsince he asked\b|\bhe (asked|wants|is asking)\b|\bi'?ll say so plainly\b|\bmake up a story\b|\bthe best story\b|\bso i'?ll keep it (short|brief)\b|\balready said this ride\b|\bto tie (it )?back to\b|\bnothing to call back\b|\bhaving already\b|\bnot repeating it\b|\bi shall say nothing (further|more)\b|\bi have not forgotten\b|\bnot mention the (hour|time)\b|\bthe only thing i can tie\b|\bno earlier (warnings|alerts)\b/i;
 /** The start of a second thought: everything from here on is the model talking to itself. */
 const SECOND_THOUGHT = /\n\s*\n|\n?\s*(Wait,|Correction:|Corrected:|Revised:|Actually, let me|Let me rephrase)/;
 
