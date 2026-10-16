@@ -2,7 +2,9 @@ import type { Priority, TriggerId } from '../core/types';
 
 export type ObdMode = 'off' | 'mock';
 /** Google cloud voice: off = phone voice only; mixed = Chirp 3 HD for alerts (P1/P2), Gemini TTS for the rest. */
-export type CloudVoiceMode = 'off' | 'mixed' | 'chirp' | 'gemini';
+export type CloudVoiceMode = 'off' | 'stream' | 'mixed' | 'chirp' | 'gemini';
+/** Gemini TTS model: full sounds best; lite starts about 0.8 s sooner when streamed. */
+export type GeminiModel = 'full' | 'lite';
 
 export interface Config {
   /** useLean off (default): P2/P3 lines are never held back. The phone's lean reading proved too jumpy to gate on. */
@@ -38,6 +40,9 @@ export interface Config {
   cloudVoice: CloudVoiceMode;
   /** One of the 30 Google voice names shared by Chirp 3 HD and Gemini TTS */
   cloudVoiceName: string;
+  geminiModel: GeminiModel;
+  /** Chirp's accent. Gemini picks its own (it sounded best to the owner), so en-US by default to match it. */
+  chirpLocale: 'en-US' | 'en-GB' | 'en-AU' | 'en-IN';
   /** Headset play/pause = talk to Betty, next track = repeat that. Pauses music from other apps, so it is a choice. */
   headsetButtons: boolean;
   /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
@@ -90,8 +95,10 @@ export const DEFAULT_CONFIG: Config = {
   riderName: 'sir',
   bikeName: 'the bike',
   voiceURI: '',
-  cloudVoice: 'mixed',
+  cloudVoice: 'stream',
   cloudVoiceName: 'Aoede',
+  geminiModel: 'full',
+  chirpLocale: 'en-US',
   headsetButtons: false,
   micDeviceId: '',
   micLabel: '',

@@ -341,12 +341,12 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; Date.now = realNow; }
   }
 
-  for (const id of ['toggle', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['toggle', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered
   const cv = doc.getElementById('cloudvoice') as HTMLSelectElement; const cn = doc.getElementById('cloudname') as HTMLSelectElement;
-  assert.equal(cv.value, 'mixed'); assert.ok(cn.options.length >= 30); assert.equal(cn.value, 'Aoede');
+  assert.equal(cv.value, 'stream'); assert.ok(cn.options.length >= 30); assert.equal(cn.value, 'Aoede');
   cn.value = 'Sulafat'; cn.dispatchEvent(new page.window.Event('change'));
   cv.value = 'off'; cv.dispatchEvent(new page.window.Event('change'));
   assert.equal(CONFIG.cloudVoiceName, 'Sulafat'); assert.equal(CONFIG.cloudVoice, 'off'); assert.equal(cn.disabled, true);

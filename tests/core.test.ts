@@ -10,7 +10,8 @@ import { POST as phraseApi } from '../api/phrase';
 import { GET as trafficApi } from '../api/traffic';
 import { POST as transcribeApi } from '../api/transcribe';
 import { POST as speakApi } from '../api/speak';
-import { CloudSpeaker, engineFor } from '../src/adapters/CloudSpeaker';
+import { CloudSpeaker, engineFor, streams } from '../src/adapters/CloudSpeaker';
+import { PcmClip, pcmToFloat } from '../src/adapters/PcmPlayer';
 import { TomTomTrafficProvider } from '../src/adapters/TomTomTraffic';
 import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } from '../src/core/LineLog';
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
@@ -1063,21 +1064,52 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     const c = await speakApi(req({ text: 'Rain soon.', engine: 'chirp', voice: 'Aoede' }));
     assert.equal(c.headers.get('content-type'), 'audio/mpeg'); assert.equal(new TextDecoder().decode(await c.arrayBuffer()), 'ID3fakemp3');
     assert.equal(sent.at(-1)!.url, 'https://texttospeech.googleapis.com/v1/text:synthesize'); assert.equal(sent.at(-1)!.init.headers['x-goog-api-key'], 'g-tts');
-    assert.deepEqual(JSON.parse(sent.at(-1)!.init.body).voice, { languageCode: 'en-GB', name: 'en-GB-Chirp3-HD-Aoede' });
+    assert.deepEqual(JSON.parse(sent.at(-1)!.init.body).voice, { languageCode: 'en-US', name: 'en-US-Chirp3-HD-Aoede' }, 'American by default, like Gemini');
+    await speakApi(req({ text: 'Rain soon.', engine: 'chirp', voice: 'Aoede', locale: 'en-GB' }));
+    assert.equal(JSON.parse(sent.at(-1)!.init.body).voice.name, 'en-GB-Chirp3-HD-Aoede');
+    assert.equal((await speakApi(req({ text: 'hi', engine: 'chirp', voice: 'Aoede', locale: 'en-ZA' }))).status, 400, 'only the accents Chirp has');
+    assert.equal((await speakApi(req({ text: 'hi', engine: 'gemini', voice: 'Aoede', model: 'other' }))).status, 400, 'only the two Gemini models');
     const g = await speakApi(req({ text: 'Forty minutes in.', engine: 'gemini', voice: 'Kore', style: 'dry' }));
     assert.equal(g.headers.get('content-type'), 'audio/wav'); assert.equal(new TextDecoder().decode(await g.arrayBuffer()), 'RIFFfakewav');
     const gb = JSON.parse(sent.at(-1)!.init.body);
     assert.equal(sent.at(-1)!.url, 'https://generativelanguage.googleapis.com/v1beta/interactions'); assert.equal(sent.at(-1)!.init.headers['x-goog-api-key'], 'g-gem');
     assert.equal(gb.model, 'gemini-3.8-flash-tts'); assert.deepEqual(gb.generation_config.speech_config, [{ voice: 'Kore' }]);
     assert.deepEqual(gb.input[0].content[0], { type: 'text', text: 'Forty minutes in.', annotations: [{ type: 'speech_metadata', style: 'dry' }] });
+    // streamed: Gemini's server-sent events become one plain stream of PCM bytes
+    const pcmA = btoa(String.fromCharCode(1, 0, 2, 0)), pcmB = btoa(String.fromCharCode(3, 0));
+    const sse = [
+      'event: interaction.created\ndata: {"event_type":"interaction.created"}\n\n',
+      `event: step.delta\ndata: {"index":0,"delta":{"mime_type":"audio/l16","data":"${pcmA}","type":"audio"},"event_type":"step.delta"}\n\nevent: step.de`,
+      `lta\ndata: {"index":0,"delta":{"mime_type":"audio/l16","data":"${pcmB}","type":"audio"},"event_type":"step.delta"}\n\n`,
+      'event: interaction.completed\ndata: {"event_type":"interaction.completed"}\n\n',
+    ];
+    globalThis.fetch = (async (url: any, init: any) => {
+      sent.push({ url: String(url), init });
+      return new Response(new ReadableStream({ start(c) { for (const p of sse) c.enqueue(new TextEncoder().encode(p)); c.close(); } }), { headers: { 'content-type': 'text/event-stream' } });
+    }) as typeof fetch;
+    const st = await speakApi(req({ text: 'Thirty-five kilometres so far.', engine: 'gemini', voice: 'Aoede', model: 'lite', stream: true }));
+    assert.match(st.headers.get('content-type')!, /audio\/l16/);
+    assert.deepEqual([...new Uint8Array(await st.arrayBuffer())], [1, 0, 2, 0, 3, 0], 'audio from every delta, even split across reads');
+    const sb = JSON.parse(sent.at(-1)!.init.body); assert.equal(sb.stream, true); assert.equal(sb.model, 'gemini-3.8-flash-lite-tts');
   } finally { globalThis.fetch = realFetch; process.env = saved; }
+}
+
+// ---- streamed audio: PCM decoding and the clip a line's bytes collect in
+{
+  const { samples, rest } = pcmToFloat(new Uint8Array([0, 0x40, 0, 0xc0, 7]));
+  assert.deepEqual([...samples], [0.5, -0.5]); assert.deepEqual([...rest], [7], 'an odd byte waits for the next chunk');
+  const c = new PcmClip(); let n = 0; c.on(() => n++);
+  c.push(new Uint8Array([1, 2])); c.push(new Uint8Array(0)); c.finish();
+  assert.equal(c.bytes, 2); assert.equal(c.done, true); assert.equal(n, 2);
 }
 
 // ---- cloud voice: phone-side speaker (engine choice, fallback, prefetch, onDone always once)
 {
   resetConfig();
   assert.equal(engineFor('mixed', 1), 'chirp'); assert.equal(engineFor('mixed', 2), 'chirp'); assert.equal(engineFor('mixed', 3), 'gemini');
-  assert.equal(engineFor('mixed', 4), 'chirp', 'answers to him cannot wait 5 to 7 s for Gemini'); assert.equal(engineFor('off', 1), null); assert.equal(engineFor('chirp', 4), 'chirp');
+  assert.equal(engineFor('mixed', 4), 'chirp', 'answers to him cannot wait 5 to 7 s for Gemini');
+  assert.equal(engineFor('stream', 2), 'chirp', 'alerts stay fast'); assert.equal(engineFor('stream', 4), 'gemini'); assert.equal(engineFor('stream', 3), 'gemini');
+  assert.equal(streams('stream', 4), true); assert.equal(streams('stream', 3), false, 'her own remarks are fetched whole, ahead'); assert.equal(streams('mixed', 4), false); assert.equal(engineFor('off', 1), null); assert.equal(engineFor('chirp', 4), 'chirp');
   const phone = new FakeSpeaker();
   const logs: string[] = [];
   let calls: any[] = []; let reply: () => Promise<Response> = async () => new Response(new Blob(['mp3']));
@@ -1094,7 +1126,9 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   sp.speak('Lovely road.', () => done++, { priority: 3, id: 'ambient_banter' });
   await flush();
   assert.equal(calls[1].engine, 'gemini'); assert.match(calls[1].style, /dry/); assert.equal(calls[1].voice, 'Aoede');
-  fail!('the clip would not play'); assert.deepEqual(phone.spoken, ['Lovely road.'], 'a clip that will not play is said by the phone');
+  fail!('the clip would not play'); await flush();
+  assert.equal(calls[2].engine, 'chirp', 'a Gemini clip that will not play is said by Chirp');
+  fail!('the clip would not play'); assert.deepEqual(phone.spoken, ['Lovely road.'], 'and if Chirp will not play either, by the phone');
   phone.done!(); assert.equal(done, 2);
   // prefetch: fetched once, played from the cache
   calls = [];
@@ -1128,6 +1162,31 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   await sp2.ready('Still quiet.', { priority: 3, id: 'ambient_banter' });
   assert.deepEqual(calls.slice(2).map((c) => c.engine), ['chirp'], 'Gemini not asked again this ride');
   assert.equal(done, 7);
+  // stream mode: an answer is streamed and played as it arrives; no audio in time -> Chirp says it
+  {
+    const clips: PcmClip[] = []; let endClip: (() => void) | null = null; let errClip: ((w: string) => void) | null = null;
+    const fakePcm: any = { ready: true, play: (clip: PcmClip, end: () => void, err: (w: string) => void) => { clips.push(clip); endClip = end; errClip = err; return () => {}; } };
+    const bodies: any[] = [];
+    const sp3 = new CloudSpeaker(phone, () => player, (m) => logs.push(m), (async (_u: any, init: any) => {
+      const b = JSON.parse(init.body); bodies.push(b);
+      return b.stream ? new Response(new ReadableStream({ start(c) { c.enqueue(new Uint8Array([1, 0, 2, 0])); c.close(); } })) : new Response(new Blob(['mp3']));
+    }) as typeof fetch, undefined, undefined, fakePcm);
+    CONFIG.cloudVoice = 'stream';
+    let d3 = 0;
+    sp3.prefetch('About forty k left.', { priority: 4, id: 'rider_query' });
+    sp3.speak('About forty k left.', () => d3++, { priority: 4, id: 'rider_query' });
+    await flush();
+    assert.equal(bodies.length, 1, 'the prefetched stream is the one played'); assert.equal(bodies[0].stream, true); assert.equal(bodies[0].model, 'full');
+    assert.equal(clips[0].bytes, 4); assert.equal(clips[0].done, true);
+    endClip!(); assert.equal(d3, 1);
+    // a stream that fails before any audio: Chirp says it (same voice), not the phone
+    played = [];
+    sp3.speak('Say that in Chirp.', () => d3++, { priority: 4, id: 'rider_query' });
+    await flush(); errClip!('the stream had no audio'); await flush();
+    assert.equal(bodies.at(-1).engine, 'chirp'); assert.equal(bodies.at(-1).locale, 'en-US'); assert.equal(played.length, 1); assert.match(logs.at(-1)!, /said with Chirp/);
+    finish!(); assert.equal(d3, 2);
+    resetConfig();
+  }
   // off: straight to the phone
   CONFIG.cloudVoice = 'off'; calls = [];
   sp.speak('Phone only.', () => done++, { priority: 3 }); assert.equal(calls.length, 0); assert.equal(phone.spoken.at(-1), 'Phone only.');

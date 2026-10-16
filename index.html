@@ -129,7 +129,8 @@
     <label class="obd">Bike name: <input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></label>
     <label class="obd">Cloud voice:
       <select id="cloudvoice">
-        <option value="mixed">Google: Chirp for alerts, Gemini for the rest</option>
+        <option value="stream">Gemini for everything but alerts (answers streamed)</option>
+        <option value="mixed">Gemini for her own remarks only, Chirp for alerts and answers</option>
         <option value="chirp">Google Chirp 3 HD for everything</option>
         <option value="gemini">Google Gemini for everything</option>
         <option value="off">Off: phone voice only</option>
@@ -138,6 +139,20 @@
     <label class="obd">Cloud voice name:
       <select id="cloudname"></select>
       <button id="cloudtest" class="ghost" type="button">Test</button>
+    </label>
+    <label class="obd">Gemini model:
+      <select id="geminimodel">
+        <option value="full">Full (best sound)</option>
+        <option value="lite">Lite (starts about a second sooner)</option>
+      </select>
+    </label>
+    <label class="obd">Chirp accent (alerts):
+      <select id="chirplocale">
+        <option value="en-US">American</option>
+        <option value="en-GB">British</option>
+        <option value="en-AU">Australian</option>
+        <option value="en-IN">Indian</option>
+      </select>
     </label>
     <label class="obd">Phone voice (backup when there is no signal):
       <select id="voice"></select>

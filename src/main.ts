@@ -1,6 +1,7 @@
 import { loadConfig, saveConfig } from './config/persist';
 import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, cleanBikeName, cleanRiderName } from './config/betty';
-import { CloudSpeaker, ElementPlayer } from './adapters/CloudSpeaker';
+import { CloudSpeaker, ElementPlayer, STOCK_LINES } from './adapters/CloudSpeaker';
+import { PcmPlayer } from './adapters/PcmPlayer';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { placesFromHere, travelDirection } from './core/ambient';
@@ -209,23 +210,36 @@ $('voicetest').addEventListener('click', () => {
 const cloudSel = $<HTMLSelectElement>('cloudvoice');
 const cloudName = $<HTMLSelectElement>('cloudname');
 for (const [name, desc] of CLOUD_VOICES) { const o = document.createElement('option'); o.value = name; o.textContent = `${name} (${desc})`; cloudName.append(o); }
-const showCloud = () => { cloudSel.value = CONFIG.cloudVoice; cloudName.value = CONFIG.cloudVoiceName; cloudName.disabled = CONFIG.cloudVoice === 'off'; };
+const geminiSel = $<HTMLSelectElement>('geminimodel');
+const chirpSel = $<HTMLSelectElement>('chirplocale');
+const showCloud = () => {
+  cloudSel.value = CONFIG.cloudVoice; cloudName.value = CONFIG.cloudVoiceName; geminiSel.value = CONFIG.geminiModel; chirpSel.value = CONFIG.chirpLocale;
+  cloudName.disabled = geminiSel.disabled = chirpSel.disabled = CONFIG.cloudVoice === 'off';
+};
+geminiSel.addEventListener('change', () => { CONFIG.geminiModel = geminiSel.value as typeof CONFIG.geminiModel; saveConfig(); });
+chirpSel.addEventListener('change', () => { CONFIG.chirpLocale = chirpSel.value as typeof CONFIG.chirpLocale; saveConfig(); });
 showCloud();
 cloudSel.addEventListener('change', () => { CONFIG.cloudVoice = cloudSel.value as CloudVoiceMode; saveConfig(); showCloud(); });
 cloudName.addEventListener('change', () => { CONFIG.cloudVoiceName = cloudName.value; saveConfig(); });
 const testPlayer = new ElementPlayer();
+const testPcm = new PcmPlayer();
 $('cloudtest').addEventListener('click', () => {
   if (rig) return; // not over the top of a ride in progress
-  testPlayer.prime(); // inside the tap, or iPhone will not play the clip that arrives later
+  testPlayer.prime(); testPcm.prime(); // inside the tap, or iPhone will not play the audio that arrives later
   testSpeaker.stop();
   const notes: string[] = [];
-  const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m));
+  const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m), undefined, undefined, undefined, testPcm);
   const name = cleanRiderName(CONFIG.riderName);
-  setStatus('Testing the cloud voice: an alert, then a bit of banter.');
+  // The same three kinds of line a ride has, each with the engine it would get: alert, answer, banter.
+  setStatus('Testing the cloud voice: an alert, an answer, then a bit of banter.');
+  const t0 = Date.now();
   t.speak(`Rain in about twenty minutes, ${name}. Worth finding some cover.`, () => {
-    t.speak(`Forty minutes in and the road is behaving. Can't say the same for the taxis.`, () => {
-      setStatus(notes.length ? `Cloud voice: ${notes.join('; ')}` : 'Cloud voice test done.', notes.length > 0);
-    }, { priority: 3, id: 'ambient_banter' });
+    const t1 = Date.now();
+    t.speak(`Thirty-five kilometres so far, and no traffic on your way.`, () => {
+      t.speak(`Forty minutes in and the road is behaving. Can't say the same for the taxis.`, () => {
+        setStatus(`${notes.length ? `Cloud voice: ${notes.join('; ')}. ` : ''}Test done (alert took ${Math.round((t1 - t0) / 100) / 10} s overall).`, notes.length > 0);
+      }, { priority: 3, id: 'ambient_banter' });
+    }, { priority: 4, id: 'rider_query' });
   }, { priority: 2, id: 'rain_soon' });
 });
 
@@ -268,6 +282,8 @@ async function beginRide() {
   WebSpeaker.prime();
   const player = new ElementPlayer();
   player.prime(); // the cloud voice's clips arrive later; iPhone only lets them play on an element unlocked in a tap
+  const pcm = new PcmPlayer();
+  if (CONFIG.cloudVoice === 'stream') pcm.prime(); // streamed answers play through Web Audio, unlocked here too
   const buttons = new HeadsetButtons();
   if (CONFIG.headsetButtons) buttons.prime(); // starting it pauses music from other apps: the rider chose this
   const real = realBox.checked;
@@ -328,7 +344,9 @@ async function beginRide() {
   const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined);
   // The cloud voice plays on the headset buttons' own track while they are Betty's (another sound source could take
   // the buttons away), otherwise on its own element. The phone voice is its backup for every line.
-  const cloud = new CloudSpeaker(new WebSpeaker(speechProblem), () => (buttons.holding ? buttons : player), speechProblem);
+  const cloud = new CloudSpeaker(new WebSpeaker(speechProblem), () => (buttons.holding ? buttons : player), speechProblem, undefined, undefined, undefined, pcm);
+  // Her stock phrases in her Gemini voice, ready before they are needed.
+  if (CONFIG.cloudVoice === 'stream') for (const l of STOCK_LINES) cloud.prefetch(l, { priority: 4, id: 'voice' });
   const speaker = new SwitchableSpeaker(cloud);
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
 

@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-16 (night)',
     items: [
+      'Gemini voice for everything except alerts: answers are streamed so she starts talking after 2 to 3 seconds. Choose Full or Lite (a second sooner), and Chirp\'s accent for alerts (American by default, closer to Gemini). To go back, pick "Gemini for her own remarks only" under Cloud voice.',
       'Personality: Betty is now a blend of JARVIS (Iron Man) and TARS (Interstellar), with a humour dial. Set both in TUNING or by voice: "humour 60 percent", "humour up", "more TARS", "more JARVIS". Say "status" and she reads out her settings.',
       'Betty\'s server now runs in Cape Town: answers, voice and transcription are quicker.',
       'The page fits the phone screen: no more zooming out because of wide boxes, and no zooming in when you tap a box.',

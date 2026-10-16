@@ -764,7 +764,20 @@ brake or a "mark this" press.
    GEMINI FREE TIER = 10 REQUESTS A DAY for `gemini-3.8-flash-tts` (429 on the 11th, 2026-10-16): useless for a ride.
    A Gemini line that fails is asked of Chirp instead (same voice), and a 429 or 503 stops that engine for the rest of
    the ride (`unavailable`, logged once as `[audio]`). Real Gemini use needs billing on the AI Studio project (paid
-   tier; text is then not used for training). Owner's call. `adapters/CloudSpeaker` falls back to the phone voice
+   tier; text is then not used for training). Owner added billing with a $5 cap the same evening; Gemini works again.
+   **STREAM MODE (2026-10-16, owner: loves Gemini, not Chirp; now the DEFAULT `cloudVoice: 'stream'`)**: Gemini for
+   everything except alerts (P1/P2 stay Chirp, speed matters). Lines he waits for (P4) are STREAMED: api/speak with
+   `stream: true` reads Gemini's server-sent events and returns plain PCM (16-bit LE, 24 kHz, mono, `audio/l16`);
+   `PcmClip` collects the bytes (prefetch starts it the moment the line is written), `PcmPlayer` plays them through
+   Web Audio as they arrive (0.3 s lead, 0.15 s buffers). First audio measured 2.8 to 3.2 s (full) / 2.2 to 2.8 s
+   (lite) versus 5 to 6 s whole. Her own P3 lines are still fetched whole and queued when ready. Stock phrases
+   (`STOCK_LINES`: "Hang on, let me check." etc.) are made at ride start so they play at once. No audio after
+   `STREAM_WAIT_MS` (4.5 s), a failed stream or a Gemini clip that will not play -> Chirp says it (same voice), then
+   the phone. `geminiModel` full/lite and `chirpLocale` (en-US default to match Gemini's accent; en-GB was the first
+   choice and may be why the owner disliked Chirp) are on the main screen; the Test button plays alert (Chirp), answer
+   (streamed) and banter. RISK, UNVERIFIED: Web Audio is a second sound source next to the headset-button track and
+   might take the buttons away on iPhone. TO REVERT: pick "Gemini for her own remarks only" (the old `mixed`) on the
+   main screen, or `git checkout before-gemini-stream` for the code (tag pushed). `adapters/CloudSpeaker` falls back to the phone voice
    for any line whose audio is not there in `WAIT_MS` (Chirp 3.5 s: about 2 s round trip from SA through Vercel; Gemini 5 s), fails, or will not play; a 503 (key
    not set) stops that engine for the session. Audio is prefetched as soon as a line is written and kept (40 clips),
    so a queued line and repeated phrases are instant. It plays on the headset buttons' own track while those are
