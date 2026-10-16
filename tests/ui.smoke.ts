@@ -475,7 +475,7 @@ resetConfig();
   (globalThis as any).setTimeout = (f: any) => realTimeout(f, 0); // recordings take no real time in the test
   try {
     handlers.get('pause')(); await new Promise((r) => realTimeout(r, 20));
-    assert.match(logs.at(-1)!, /recording: .* · 62 km\/h · Cardo Packtalk · loudest not measured · opened by the pause button, 2 KB/);
+    assert.match(logs.at(-1)!, /recording: .* · 62 km\/h · Cardo Packtalk · loudest not measured · opened by the pause button · audio\/mp4, 2 KB/);
     // test 3: recording from the screen, at a standstill without a ride, then a refusal
     speed = null;
     btn(/Record 5 seconds/).click(); await new Promise((r) => realTimeout(r, 20));

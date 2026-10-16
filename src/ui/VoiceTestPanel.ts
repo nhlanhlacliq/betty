@@ -157,6 +157,10 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
   micRow.append(el('span', 'name', 'Record from'), micSel, findMics);
   wrap.append(el('p', 'hint', 'Connect the helmet first. If the recording says "iPhone Microphone", tap Find mics and pick the headset, then record again. The mic picked here is also the one Betty listens on when you talk to her.'), micRow);
   void fillMics();
+  // Android + Cardo (2026-10-16): every recording came back empty, even from the phone's own mic. Recording without
+  // the call processing (echo cancelling etc.) may keep Android from switching the headset into call mode.
+  const raw = checkbox('Record without call processing (try this if recordings come back 0 KB)', false, () => {});
+  wrap.append(raw.wrap);
   const status = el('div', 'info', '');
   const meter = el('div', 'meter'); const bar = el('div', 'meterbar'); meter.append(bar);
   const recs = el('div', 'recs');
@@ -170,14 +174,27 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     busy = true;
     let stream: MediaStream;
     try {
-      stream = await deps.getUserMedia({ audio: micSel.value ? { deviceId: { exact: micSel.value } } : true });
+      const pick = micSel.value ? { deviceId: { exact: micSel.value } } : {};
+      const plain = raw.cb.checked ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : {};
+      const audio = { ...pick, ...plain };
+      stream = await deps.getUserMedia({ audio: Object.keys(audio).length ? audio : true });
     } catch (e) {
       busy = false;
       const msg = `mic did not open (${why}): ${(e as Error).name}`;
       status.textContent = msg; say(`[voice test] ${msg}`);
       return;
     }
-    const mic = stream.getAudioTracks()[0]?.label || 'unknown mic';
+    const track = stream.getAudioTracks()[0];
+    const mic = track?.label || 'unknown mic';
+    // What happened to the mic while recording: a headset can end it the moment it opens.
+    const t0 = Date.now();
+    const events: string[] = [];
+    const note = (what: string) => events.push(`${what} at ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    if (track?.muted) note('mic muted');
+    let endEarly = () => {};
+    track?.addEventListener?.('ended', () => { note('mic ended'); endEarly(); });
+    track?.addEventListener?.('mute', () => note('mic muted'));
+    track?.addEventListener?.('unmute', () => note('mic unmuted'));
     const speed = ctx.speed();
     status.textContent = `Recording ${seconds} s from "${mic}"...`;
     let peak = 0;
@@ -202,10 +219,11 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
     const done = new Promise<void>((res) => { rec.onstop = () => res(); });
+    rec.onerror = (e: any) => note(`recorder error ${e?.error?.name ?? ''}`.trim());
     rec.start();
-    await new Promise((r) => setTimeout(r, seconds * 1000));
-    rec.stop();
-    await done;
+    await new Promise<void>((r) => { const t = setTimeout(r, seconds * 1000); endEarly = () => { clearTimeout(t); r(); }; });
+    if ((rec as any).state !== 'inactive') rec.stop();
+    await Promise.race([done, new Promise((r) => setTimeout(r, 2000))]);
     if (poll) clearInterval(poll);
     void ac?.close().catch(() => {});
     stream.getTracks().forEach((t) => t.stop()); // releases the mic so the headset leaves call mode
@@ -215,7 +233,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
 
     const blob = new Blob(chunks, { type: type || chunks[0]?.type || 'audio/mp4' });
     const db = toDb(peak);
-    const label = `${new Date().toTimeString().slice(0, 5)} · ${speed == null ? 'no ride running' : `${Math.round(speed)} km/h`} · ${mic} · loudest ${Number.isFinite(db) ? db + ' dB' : 'not measured'} · ${why}`;
+    const label = `${new Date().toTimeString().slice(0, 5)} · ${speed == null ? 'no ride running' : `${Math.round(speed)} km/h`} · ${mic} · loudest ${Number.isFinite(db) ? db + ' dB' : 'not measured'} · ${why}${raw.cb.checked ? ' · no call processing' : ''} · ${type || 'default format'}${events.length ? ` · ${events.join(', ')}` : ''}`;
     const url = deps.objectUrl(blob);
     const row = el('div', 'rec');
     const player = el('audio'); player.controls = true; player.src = url;

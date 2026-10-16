@@ -455,6 +455,12 @@ wake word last / on the Pi.
   press OPENED A MUSIC APP, i.e. Android sent it to the last media app because Chrome held no media session. The
   VOICE TEST now logs whether the track is playing, that it is the 10 s loop, and the browser (user agent), and has
   a "faint hiss" option (`quietWav` level 300) to test whether Chrome ignores a track it cannot hear.
+  After a proper reload buttons got through. Then RECORDING failed with the Cardo connected: every clip 0 KB and no
+  level, from every mic offered (Default, Speakerphone, Headset earpiece, Bluetooth headset), "cancels as soon as it
+  starts". His other (cheap Chinese) headset recorded fine on the same phone. Likely the Cardo refuses or drops the
+  call-mode (SCO) link Android opens for the mic, and Android routes every mic through it while it is connected.
+  The VOICE TEST now logs mic ended/muted/unmuted with times, recorder errors and the format, stops waiting when the
+  mic ends, and has "Record without call processing" (echoCancellation/noiseSuppression/autoGainControl off).
 - Stage 3 (commands and memory) not started.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)
