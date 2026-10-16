@@ -1136,7 +1136,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(engineFor('mixed', 1), 'chirp'); assert.equal(engineFor('mixed', 2), 'chirp'); assert.equal(engineFor('mixed', 3), 'gemini');
   assert.equal(engineFor('mixed', 4), 'chirp', 'answers to him cannot wait 5 to 7 s for Gemini');
   assert.equal(engineFor('stream', 2), 'chirp', 'alerts stay fast'); assert.equal(engineFor('stream', 4), 'gemini'); assert.equal(engineFor('stream', 3), 'gemini');
-  assert.equal(streams('stream', 4), true); assert.equal(streams('stream', 3), false, 'her own remarks are fetched whole, ahead'); assert.equal(streams('mixed', 4), false); assert.equal(engineFor('off', 1), null); assert.equal(engineFor('chirp', 4), 'chirp');
+  assert.equal(streams('stream', 4), true); assert.equal(streams('stream', 3), false, 'her own remarks are fetched whole, ahead'); assert.equal(streams('mixed', 4), false);
+  assert.equal(streams('gemini', 2), true, 'Gemini for everything streams alerts too'); assert.equal(streams('gemini', 3), false); assert.equal(engineFor('off', 1), null); assert.equal(engineFor('chirp', 4), 'chirp');
   const phone = new FakeSpeaker();
   const logs: string[] = [];
   let calls: any[] = []; let reply: () => Promise<Response> = async () => new Response(new Blob(['mp3']));

@@ -228,19 +228,31 @@ $('cloudtest').addEventListener('click', () => {
   testPlayer.prime(); testPcm.prime(); // inside the tap, or iPhone will not play the audio that arrives later
   testSpeaker.stop();
   const notes: string[] = [];
-  const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m), undefined, undefined, undefined, testPcm);
+  const waits: string[] = [];
+  const sec = (ms: number) => `${Math.round(ms / 100) / 10} s`;
+  const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m), undefined, undefined, undefined, testPcm,
+    (engine, streamed, ms) => waits.push(`${engine === 'chirp' ? 'Chirp' : 'Gemini'}${streamed ? ' streamed' : ''} ${sec(ms)}`));
   const name = cleanRiderName(CONFIG.riderName);
-  // The same three kinds of line a ride has, each with the engine it would get: alert, answer, banter.
+  // The three kinds of line a ride has, fetched the way a ride fetches them: alert, answer, and banter (which a ride
+  // fetches whole, ahead, and only queues once it is ready). The status shows how long each waited for its audio.
+  const alert = { priority: 2 as const, id: 'rain_soon' }, answer = { priority: 4 as const, id: 'rider_query' }, banter = { priority: 3 as const, id: 'ambient_banter' };
+  const lines = [`Rain in about twenty minutes, ${name}. Worth finding some cover.`,
+    'Thirty-five kilometres so far, and no traffic on your way. <laugh> Enjoy it while it lasts.',
+    "Forty minutes in and the road is behaving. <sigh> Can't say the same for the taxis."];
   setStatus('Testing the cloud voice: an alert, an answer, then a bit of banter.');
-  const t0 = Date.now();
-  t.speak(`Rain in about twenty minutes, ${name}. Worth finding some cover.`, () => {
-    const t1 = Date.now();
-    t.speak(`Thirty-five kilometres so far, and no traffic on your way. <laugh> Enjoy it while it lasts.`, () => {
-      t.speak(`Forty minutes in and the road is behaving. <sigh> Can't say the same for the taxis.`, () => {
-        setStatus(`${notes.length ? `Cloud voice: ${notes.join('; ')}. ` : ''}Test done (alert took ${Math.round((t1 - t0) / 100) / 10} s overall).`, notes.length > 0);
-      }, { priority: 3, id: 'ambient_banter' });
-    }, { priority: 4, id: 'rider_query' });
-  }, { priority: 2, id: 'rain_soon' });
+  const bReady = t.ready(lines[2], banter);
+  t.speak(lines[0], () => {
+    t.speak(lines[1], () => {
+      const tb = Date.now();
+      void bReady.then(() => {
+        const held = Date.now() - tb;
+        t.speak(lines[2], () => {
+          setStatus(`Waited for audio: alert ${waits[0] ?? '?'}, answer ${waits[1] ?? '?'}, banter ${waits[2] ?? '?'} (fetched ahead${held > 100 ? `, held back ${sec(held)} more` : ''}).`
+            + (notes.length ? ` ${notes.join('; ')}.` : ''), notes.length > 0);
+        }, banter);
+      });
+    }, answer);
+  }, alert);
 });
 
 const wakeEl = $('wake');

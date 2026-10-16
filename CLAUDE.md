@@ -775,7 +775,9 @@ brake or a "mark this" press.
    `STREAM_WAIT_MS` (4.5 s), a failed stream or a Gemini clip that will not play -> Chirp says it (same voice), then
    the phone. `geminiModel` full/lite and `chirpLocale` (en-US default to match Gemini's accent; en-GB was the first
    choice and may be why the owner disliked Chirp) are on the main screen; the Test button plays alert (Chirp), answer
-   (streamed) and banter. RISK, UNVERIFIED: Web Audio is a second sound source next to the headset-button track and
+   (streamed) and banter, fetched as a ride fetches them (banter whole and ahead), and shows how long each waited for
+   its audio (`onAudio`); the first version spoke banter cold and reported the whole alert's playing time, which looked
+   like a 5 s failure. "Gemini for everything" now streams alerts and answers too. RISK, UNVERIFIED: Web Audio is a second sound source next to the headset-button track and
    might take the buttons away on iPhone. TO REVERT: pick "Gemini for her own remarks only" (the old `mixed`) on the
    main screen, or `git checkout before-gemini-stream` for the code (tag pushed).
    **Voice tags and pace (2026-10-16)**: when a Gemini mode is on, the system prompt lets her write `<laugh>` or

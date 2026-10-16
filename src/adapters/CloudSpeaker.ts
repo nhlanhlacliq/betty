@@ -17,8 +17,11 @@ export function engineFor(mode: CloudVoiceMode, priority: number): Engine | null
   if (mode === 'stream') return priority <= 2 ? 'chirp' : 'gemini'; // alerts stay on fast Chirp
   return mode;
 }
-/** In the stream mode, lines he is waiting for (P4) are streamed; her own remarks (P3) are fetched whole, ahead. */
-export const streams = (mode: CloudVoiceMode, priority: number) => mode === 'stream' && priority === 4;
+/**
+ * Lines someone is waiting for are streamed: answers (P4) in the stream mode, and alerts too when Gemini says
+ * everything. Her own remarks (P3) are fetched whole, ahead of time, and queued when ready.
+ */
+export const streams = (mode: CloudVoiceMode, priority: number) => (mode === 'stream' && priority === 4) || (mode === 'gemini' && priority !== 3);
 
 /** How long speak() waits for the audio before saying the line with the phone voice instead. */
 export const WAIT_MS: Record<Engine, number> = { chirp: 3500, gemini: 5000 }; // live from SA: Chirp about 2 s round trip
@@ -95,6 +98,8 @@ export class CloudSpeaker implements Speaker {
     private keep = 40,
     /** Plays streamed audio; without one, nothing is streamed */
     private pcmPlayer: PcmPlayer | null = null,
+    /** Told when a line's audio starts: which engine, streamed or not, and how long after speak() (for the Test button) */
+    private onAudio: (engine: Engine, streamed: boolean, ms: number) => void = () => {},
   ) {}
 
   private build(engine: Engine, text: string, tag?: SpeakTag): Req {
@@ -199,6 +204,7 @@ export class CloudSpeaker implements Speaker {
       this.fallback.speak(voiceTags(text, false), onDone, tag); return;
     }
     const my = ++this.token;
+    const t0 = Date.now();
     let finished = false;
     let deadline: ReturnType<typeof setTimeout> | undefined;
     let noAudio: ReturnType<typeof setTimeout> | undefined;
@@ -223,7 +229,8 @@ export class CloudSpeaker implements Speaker {
       const clip = this.getStream(r);
       if (!clip.chunks.length) {
         noAudio = setTimeout(() => { if (!clip.chunks.length) { this.failed.add(r.key); giveUp(`no audio after ${STREAM_WAIT_MS / 1000} s`); } }, STREAM_WAIT_MS);
-      }
+        const off = clip.on(() => { if (clip.chunks.length) { off(); if (my === this.token && !finished) this.onAudio('gemini', true, Date.now() - t0); } });
+      } else this.onAudio('gemini', true, 0);
       armDeadline();
       this.stopPlay = this.pcmPlayer.play(clip, done, giveUp);
       return;
@@ -231,6 +238,7 @@ export class CloudSpeaker implements Speaker {
 
     within(this.get(r), WAIT_MS[r.engine]).then((blob) => {
       if (my !== this.token || finished) return;
+      this.onAudio(r.engine, false, Date.now() - t0);
       const url = URL.createObjectURL(blob);
       armDeadline();
       this.stopPlay = this.player().play(url, () => { URL.revokeObjectURL(url); done(); }, (why) => { URL.revokeObjectURL(url); giveUp(why); });
