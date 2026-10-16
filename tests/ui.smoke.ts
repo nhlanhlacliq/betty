@@ -194,6 +194,66 @@ resetConfig();
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(ls.locked, false, 'holding the button unlocks');
 
+  // ---- app shell: navigation, home ride mode, readiness, settings dials, explore
+  {
+    const click = (el: Element) => el.dispatchEvent(new page.window.Event('click', { bubbles: true }));
+    const shown = () => [...doc.querySelectorAll<HTMLElement>('[data-screen]')].filter((s) => !s.hidden).map((s) => s.dataset.screen);
+    assert.deepEqual(shown(), ['home'], 'opens on home, one screen at a time');
+    assert.match(doc.getElementById('homeheadline')!.innerHTML, /Go on\.<br>Take the<br><em>long way\.<\/em>/);
+    assert.ok(!doc.querySelector('i[data-icon]'), 'every icon placeholder became an SVG');
+    click(doc.querySelector('[data-nav="journeys"]')!);
+    assert.deepEqual(shown(), ['journeys']); assert.ok(doc.querySelector('[data-screen="journeys"] [data-nav="journeys"]')!.classList.contains('active'));
+    assert.match(doc.getElementById('journeylist')!.textContent!, /quietly organised by journey/, 'no rides yet');
+    click(doc.querySelector('[data-screen="journeys"] [data-go="settings"]')!);
+    assert.deepEqual(shown(), ['settings']);
+    click(doc.querySelector('[data-screen="settings"] [data-back]')!);
+    assert.deepEqual(shown(), ['journeys'], 'back returns to where you came from');
+    click(doc.querySelector('[data-screen="journeys"] [data-nav="home"]')!);
+
+    // ride mode tiles drive the #real checkbox main.ts reads at START
+    const real = doc.getElementById('real') as HTMLInputElement;
+    const tile = (m: string) => doc.querySelector(`[data-mode="${m}"]`) as HTMLElement;
+    assert.equal(real.checked, true); assert.ok(tile('real').classList.contains('active'));
+    click(tile('sim')); assert.equal(real.checked, false); assert.ok(tile('sim').classList.contains('active')); assert.ok(!tile('real').classList.contains('active'));
+    click(tile('real')); assert.equal(real.checked, true);
+
+    // readiness sheet: filled when opened, closes on its button and on the backdrop
+    const sheet = doc.querySelector('[data-sheet="ready"]') as HTMLElement;
+    click(doc.querySelector('[data-sheet-open="ready"]')!);
+    assert.equal(sheet.hidden, false);
+    assert.match(doc.getElementById('readyrows')!.textContent!, /GPS.*Voice.*Gemini, Aoede.*Brain.*No key: canned lines only/);
+    assert.match(doc.getElementById('readytitle')!.textContent!, /Worth a look/, 'a missing Claude key is flagged');
+    click(sheet); assert.equal(sheet.hidden, true, 'tap on the backdrop closes it');
+
+    // settings: humour and character sliders, talk presets, visual companion
+    const humour = doc.getElementById('humour') as HTMLInputElement;
+    assert.equal(humour.value, '75'); assert.equal(doc.getElementById('humourval')!.textContent, '75%');
+    humour.value = '30'; ev(humour, 'change');
+    assert.equal(CONFIG.persona.humour, 30); assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"humour":30/);
+    const blend = doc.getElementById('blend') as HTMLInputElement;
+    blend.value = '80'; ev(blend, 'change'); assert.equal(CONFIG.persona.tars, 80); assert.equal(doc.getElementById('blendval')!.textContent, '80% TARS');
+    const talk = (k: string) => doc.querySelector(`[data-talk="${k}"]`) as HTMLElement;
+    assert.ok(talk('balanced').classList.contains('active'), 'defaults are Balanced');
+    click(talk('minimal'));
+    assert.equal(CONFIG.ambient.silenceWeight, 60); assert.equal(CONFIG.ambientCooldownMs, 240_000); assert.ok(talk('minimal').classList.contains('active'));
+    CONFIG.ambient.banterWeight = 33; page.window.dispatchEvent(new page.window.Event('betty-config'));
+    assert.ok(!doc.querySelector('[data-talk].active'), 'a tuned mix is custom'); assert.match(doc.getElementById('talkhint')!.textContent!, /Custom/);
+    click(talk('balanced'));
+    const gs = doc.getElementById('glanceswitch')!;
+    assert.ok(gs.classList.contains('on')); click(gs); assert.equal(CONFIG.showGlance, false); assert.ok(!gs.classList.contains('on')); click(gs);
+    CONFIG.persona.humour = 75; CONFIG.persona.tars = 50;
+
+    // explore: notes and marked spots, with Forget
+    const { RiderMemoryStore } = await import('../src/adapters/RiderMemoryStore');
+    RiderMemoryStore.save({ notes: [{ at: 1, text: 'tyres at 2.2 bar' }], marks: [{ at: 2, lat: -26.1, lon: 28.1, note: 'pothole', near: 'Edenvale' }] });
+    page.window.dispatchEvent(new page.window.Event('betty-memory'));
+    const ex = doc.getElementById('explorelist')!;
+    assert.match(ex.textContent!, /pothole.*near Edenvale.*Open map.*tyres at 2\.2 bar/s, 'newest first');
+    click(ex.querySelector('[data-forget^="note"]')!);
+    assert.ok(!/tyres/.test(ex.textContent!)); assert.equal(RiderMemoryStore.load().notes.length, 0);
+    RiderMemoryStore.save({ notes: [], marks: [] }); page.window.dispatchEvent(new page.window.Event('betty-memory'));
+  }
+
   // voice picker: lists English voices (en-ZA first), remembers the choice, survives the list arriving late
   {
     const vsel = doc.getElementById('voice') as HTMLSelectElement;
@@ -267,17 +327,28 @@ resetConfig();
     globalThis.fetch = (async () => { throw new Error('offline'); }) as typeof fetch; // no network in tests
     Date.now = () => realNow() + skew; // lets the test make the ride "long enough" to earn a sign-off
     try {
-      const toggle = doc.getElementById('toggle') as HTMLButtonElement;
+      const startBtn = doc.getElementById('start') as HTMLButtonElement;
+      const endBtn = doc.getElementById('end') as HTMLButtonElement;
       const logText = () => doc.getElementById('log')!.textContent!;
       const click = (el: Element) => el.dispatchEvent(new page.window.Event('click', { bubbles: true }));
+      const screen = (id: string) => !(doc.querySelector(`[data-screen="${id}"]`) as HTMLElement).hidden;
+      const sheetOpen = (id: string) => !(doc.querySelector(`[data-sheet="${id}"]`) as HTMLElement).hidden;
+      /** End ride asks first: the button opens a sheet, its End ride button ends it. */
+      const endRide = () => { click(endBtn); assert.ok(sheetOpen('end'), 'End ride opens the sheet'); click(doc.getElementById('endconfirm')!); };
+      const riding = () => screen('ride') && endBtn.textContent === 'End ride';
+      const ended = () => !screen('ride') && doc.getElementById('sim')!.innerHTML === '';
       (doc.getElementById('real') as HTMLInputElement).checked = false;
       CONFIG.feeds.briefingWaitMs = 0; // the briefing would otherwise wait up to 10 s for weather the test does not serve
 
       const talkBtn = doc.querySelector('.locktalk') as HTMLElement;
       assert.equal(talkBtn.hidden, true, 'no talk button without a ride');
-      click(toggle); click(toggle); // the second tap lands while it is still starting and must be ignored
+      click(startBtn); click(startBtn); // the second tap lands while it is still starting and must be ignored
       await wait(150);
-      assert.equal(toggle.textContent, 'END RIDE');
+      assert.ok(riding(), 'the ride screen shows');
+      assert.equal(doc.getElementById('starttext')!.textContent, 'Back to the ride');
+      assert.match(doc.getElementById('ridestatus')!.textContent!, /desk test/);
+      assert.ok(doc.getElementById('ridekicker')!.textContent, 'the ride screen says what Betty is doing');
+      assert.match(doc.getElementById('glancetitle')!.textContent!, /\S/, 'one glanceable cue');
       assert.equal(talkBtn.hidden, false, 'the lock screen offers TAP TO TALK during a ride');
       // chat: a typed question goes through the real pipeline and both sides appear on the timeline
       const chatIn = doc.getElementById('chatinput') as HTMLInputElement;
@@ -306,43 +377,52 @@ resetConfig();
       await tell('more TARS'); assert.equal(CONFIG.persona.tars, 75);
       await tell('status'); assert.match(doc.getElementById('chat')!.textContent!, /Humour 40 percent\. 25 percent JARVIS, 75 TARS\. Banter 40, tour guide 40, silence 20 percent, a remark every 2 minutes\./);
       assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/);
+      click(doc.getElementById('mute')!); await wait(20);
+      assert.match(doc.getElementById('chat')!.textContent!, /Going quiet\./); assert.ok(doc.getElementById('mute')!.classList.contains('on'));
+      click(doc.getElementById('mute')!); await wait(20);
+      assert.match(doc.getElementById('chat')!.textContent!, /I'm back\./); assert.ok(!doc.getElementById('mute')!.classList.contains('on'));
 
       // a 2-minute ride earns no sign-off: END shuts down straight away
       skew += 2 * 60_000;
-      click(toggle); await wait(100);
-      assert.equal(toggle.textContent, 'START RIDE'); assert.equal(doc.getElementById('sim')!.innerHTML, '');
+      endRide(); await wait(100);
+      assert.ok(ended()); assert.ok(screen('home'), 'a ride too short to remember goes back home');
       assert.ok(!/ride_debrief/.test(logText()));
       assert.equal(talkBtn.hidden, true, 'talk button goes with the ride');
 
       // a 5-minute ride: she signs off, and the ride is not torn down until she has finished speaking
-      click(toggle); await wait(150);
+      click(startBtn); await wait(150);
       const aloud = [...doc.querySelectorAll('#sim input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Speak aloud')) as HTMLInputElement;
       aloud.checked = false; aloud.dispatchEvent(new page.window.Event('change')); // silent mode: speech takes real time
       skew += 5 * 60_000;
-      click(toggle); await wait(400);
-      assert.match(toggle.textContent!, /^ENDING RIDE/, 'still ending while she speaks');
+      endRide(); await wait(400);
+      assert.match(endBtn.textContent!, /^Ending/, 'still ending while she speaks');
+      assert.equal(doc.getElementById('rideheadline')!.textContent, 'Good ride.', 'the ride screen shows the sign-off');
+      assert.match(doc.getElementById('ridesub')!.textContent!, /Ride done: 5 minutes/);
       assert.match(logText(), /ride_debrief \(fallback: no API key.*Ride done: 5 minutes and 0 kilometres\. Good one\. \[speaking now\]/);
       assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/, 'nothing torn down yet');
       await wait(3300); // silent mode simulates about 3 s for this nine-word line
-      assert.equal(toggle.textContent, 'START RIDE'); assert.equal(doc.getElementById('sim')!.innerHTML, '');
+      assert.ok(ended());
+      assert.ok(screen('story'), 'a remembered ride opens its story');
+      assert.match(doc.getElementById('story')!.textContent!, /5 min/); assert.match(doc.getElementById('story')!.textContent!, /Ride done: 5 minutes/);
       assert.match(logText(), /Good one\. \[spoken\]/, 'she finished before the ride was torn down');
       assert.match(page.window.localStorage.getItem('betty.log.v1')!, /ride_debrief/, 'the sign-off is in the saved log');
       assert.match(page.window.localStorage.getItem('betty.log.v1')!, /\[sensors\].*simulated session; GPS altitude none.*ride so far: deepest lean 0 deg, 0 stops/, 'a sensor summary is logged at END RIDE');
 
       // a second tap during the sign-off ends the ride at once
-      click(toggle); await wait(150);
+      click(startBtn); await wait(150);
       const aloud2 = [...doc.querySelectorAll('#sim input[type=checkbox]')].find((c) => c.parentElement?.textContent?.includes('Speak aloud')) as HTMLInputElement;
       aloud2.checked = false; aloud2.dispatchEvent(new page.window.Event('change'));
       skew += 5 * 60_000;
-      click(toggle); await wait(300);
-      assert.match(toggle.textContent!, /^ENDING RIDE/);
-      click(toggle); await wait(300);
-      assert.equal(toggle.textContent, 'START RIDE', 'second tap skips the wait');
+      endRide(); await wait(300);
+      assert.match(endBtn.textContent!, /^Ending/);
+      click(endBtn); await wait(300);
+      assert.ok(ended(), 'second tap skips the wait');
+      assert.equal(endBtn.textContent, 'End ride');
       assert.match(logText(), /Good one\. \[cleared\]/);
     } finally { globalThis.fetch = realFetch; Date.now = realNow; }
   }
 
-  for (const id of ['toggle', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered

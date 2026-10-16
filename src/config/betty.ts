@@ -48,6 +48,8 @@ export interface Config {
   chirpStandIn: string;
   /** Headset play/pause = talk to Betty, next track = repeat that. Pauses music from other apps, so it is a choice. */
   headsetButtons: boolean;
+  /** Ride screen: show the one glanceable cue (rain, range, traffic, the area) under Betty. Off = voice and orb only. */
+  showGlance: boolean;
   /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
   micDeviceId: string;
   /** That mic's name, to find it again if the phone gives it a new id */
@@ -106,6 +108,7 @@ export const DEFAULT_CONFIG: Config = {
   chirpLocale: 'en-US',
   chirpStandIn: '',
   headsetButtons: false,
+  showGlance: true,
   micDeviceId: '',
   micLabel: '',
   micRaw: false,
@@ -138,6 +141,27 @@ function deepAssign(target: any, src: any) {
 }
 export const applyConfig = (p: DeepPartial<Config>) => deepAssign(CONFIG, p);
 export const resetConfig = () => deepAssign(CONFIG, structuredClone(DEFAULT_CONFIG));
+
+/**
+ * "How often should I talk?" on the Settings screen: each preset sets the ambient mix and the gap between remarks.
+ * A config that matches none of them (tuned in TUNING or by voice) shows as custom.
+ */
+export type TalkPreset = 'minimal' | 'balanced' | 'stories';
+export const TALK_PRESETS: Record<TalkPreset, { ambient: Pick<Config['ambient'], 'banterWeight' | 'tourGuideWeight' | 'silenceWeight'>; gapMs: number }> = {
+  minimal: { ambient: { banterWeight: 20, tourGuideWeight: 20, silenceWeight: 60 }, gapMs: 4 * 60_000 },
+  balanced: { ambient: { banterWeight: 40, tourGuideWeight: 40, silenceWeight: 20 }, gapMs: 2 * 60_000 },
+  stories: { ambient: { banterWeight: 25, tourGuideWeight: 60, silenceWeight: 15 }, gapMs: 2 * 60_000 },
+};
+export const applyTalkPreset = (k: TalkPreset) => {
+  Object.assign(CONFIG.ambient, TALK_PRESETS[k].ambient);
+  CONFIG.ambientCooldownMs = TALK_PRESETS[k].gapMs;
+};
+export const currentTalkPreset = (): TalkPreset | null =>
+  (Object.keys(TALK_PRESETS) as TalkPreset[]).find((k) => {
+    const p = TALK_PRESETS[k];
+    return p.gapMs === CONFIG.ambientCooldownMs && p.ambient.banterWeight === CONFIG.ambient.banterWeight
+      && p.ambient.tourGuideWeight === CONFIG.ambient.tourGuideWeight && p.ambient.silenceWeight === CONFIG.ambient.silenceWeight;
+  }) ?? null;
 
 const MAX_NAME_CHARS = 20;
 /** Tidy what was typed into a name box: one line, letters and simple punctuation, never empty. */

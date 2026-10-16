@@ -1,0 +1,75 @@
+/*
+ * Workshop: the developer panels (simulator, tuning, chat, log, voice test...). Their markup comes from the
+ * src/ui/*Panel.ts modules; every rule here is scoped to .devtools so it never leaks into the rider screens.
+ */
+.devtools {
+  --bg: #0d100f; --surface: #181d1b; --border: #2a312d; --accent: var(--orange); --green: #8fc48f; --red: var(--bad);
+  --text: #c8d0c6; --dim: #6f7a72; --bright: #f1f2ea;
+  background: var(--night); color: var(--text); font-size: 14px;
+}
+.devtools.docked { width: 100%; height: 100%; border-radius: 28px; border: 1px solid #262a28; box-shadow: 0 27px 60px -30px #24282073; }
+.devtools .workshop-body { padding: 0 20px 40px; }
+.devtools h3 { color: var(--dim); font: 600 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 18px 0 8px; }
+.devtools .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.devtools .stat { background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 12px; }
+.devtools .stat .l { color: var(--dim); font: 600 10px var(--mono); letter-spacing: .1em; }
+.devtools .stat .v { color: var(--bright); font: 700 32px var(--display); font-variant-numeric: tabular-nums; }
+.devtools .stat .u { color: var(--dim); font-size: 11px; }
+.devtools button { border: 0; border-radius: 10px; font-weight: 800; font-size: 12px; background: var(--orange); color: var(--ink); padding: 10px 12px; }
+.devtools button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); font-weight: 600; }
+.devtools .head-action { background: transparent; color: var(--on-dark); padding: 9px; border: 0; }
+.devtools .eyebrow { color: var(--on-dark-muted); }
+.devtools #status { color: var(--dim); font-size: 12px; margin-top: 12px; min-height: 16px; }
+.devtools #status.err { color: var(--red); }
+.devtools #wake { font-size: 12px; margin-top: 6px; }
+.devtools #wake.ok { color: var(--green); }
+.devtools #wake.err { color: var(--red); font-weight: 700; }
+.devtools #feeds { color: var(--dim); font-size: 12px; margin-top: 6px; }
+.devtools #log { margin-top: 16px; display: grid; gap: 6px; font-size: 13px; }
+.devtools #log .fate { color: var(--dim); font-size: 11px; }
+.devtools .panel { margin-top: 16px; border: 1px solid var(--border); padding: 12px 14px; background: var(--surface); border-radius: 14px; }
+.devtools .panel summary { cursor: pointer; color: var(--accent); font: 600 11px var(--mono); letter-spacing: .12em; }
+.devtools .logview { margin-top: 10px; max-height: 340px; overflow: auto; font-size: 11px; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
+.devtools .chatlist { margin-top: 10px; display: grid; gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.devtools .chatempty { color: var(--dim); font-size: 12px; }
+.devtools .bubble { padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; max-width: 88%; min-width: 0; }
+.devtools .bubble.rider { justify-self: end; background: var(--bg); }
+.devtools .bubble.betty { justify-self: start; border-color: var(--accent); }
+.devtools .bubble .said { font-size: 14px; color: var(--bright); }
+.devtools .bubble .meta { font-size: 11px; color: var(--dim); margin-top: 4px; }
+.devtools .bubble .fallback { display: none; font-size: 12px; color: var(--dim); margin-top: 4px; font-style: italic; }
+.devtools .chatlist.compare .bubble .fallback { display: block; }
+.devtools .bubble button.small { padding: 2px 8px; font-size: 11px; margin-top: 6px; }
+.devtools .bubble .prompt { white-space: pre-wrap; word-break: break-word; font-size: 11px; background: var(--bg); padding: 8px; margin: 6px 0 0; max-height: 300px; overflow: auto; }
+.devtools .chatform { display: flex; gap: 8px; margin-top: 10px; }
+.devtools .chatform input { flex: 1; min-width: 0; }
+.devtools .chatform button { padding: 8px 16px; }
+.devtools .hint { color: var(--dim); font-size: 12px; margin: 4px 0 8px; }
+.devtools .presslog { font-size: 12px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; }
+.devtools .meter { height: 6px; background: var(--border); margin: 8px 0; border-radius: 3px; }
+.devtools .meterbar { height: 100%; width: 0%; background: var(--accent); transition: width .1s linear; }
+.devtools .recs { display: grid; gap: 10px; margin-top: 8px; }
+.devtools .rec { display: grid; gap: 4px; }
+.devtools .rec .meta, .devtools .memrow .meta { font-size: 11px; color: var(--dim); }
+.devtools .rec audio { width: 100%; }
+.devtools .rec a, .devtools .memrow a { font-size: 12px; color: var(--accent); }
+.devtools .memrow { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid #ffffff14; }
+.devtools .changes { margin: 4px 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+.devtools .info { margin-top: 10px; font-size: 12px; color: var(--green); }
+.devtools .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+.devtools .row .name { flex: 0 1 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.devtools .row input[type=range] { flex: 1; min-width: 0; accent-color: var(--orange); }
+.devtools .row input[type=number] { width: 72px; }
+.devtools .row select { flex: 1 1 140px; min-width: 0; }
+.devtools .row .val { flex: 0 0 64px; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+.devtools .check { display: block; font-size: 12px; margin: 6px 0; }
+.devtools .row .check { margin: 0; }
+.devtools .bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.devtools .row.trig { display: grid; grid-template-columns: minmax(0, 1fr) 84px 14px; gap: 4px 8px; margin: 10px 0; }
+.devtools .row.trig .name { grid-column: 1 / -1; color: var(--dim); }
+.devtools .row.trig select, .devtools .row.trig input[type=number] { width: 100%; }
+.devtools .row.trig .val { text-align: left; }
+/* iPhone zooms in on any field under 16px when it is tapped, and does not zoom back out. */
+.devtools select, .devtools input[type=text], .devtools input[type=number], .devtools textarea, .devtools .chatform input {
+  font-size: 16px; background: var(--bg); color: var(--bright); border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px; }
+.devtools.docked .screen-head .head-action { visibility: hidden; }

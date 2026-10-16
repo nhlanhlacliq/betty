@@ -1,0 +1,45 @@
+/*
+ * Design tokens (brand study: ink, chalk, signal orange, sage). Change the look here first;
+ * app.css and devtools.css only use these names.
+ */
+:root {
+  /* palette */
+  --ink: #171918;
+  --night: #121614;
+  --night-2: #222824;
+  --night-line: #41494188;
+  --cream: #f6f3ec;
+  --paper: #ebe8e0;
+  --card: #e8e5da;
+  --card-2: #f8f6f0;
+  --line: #dddcd4;
+  --muted: #83847c;
+  --text-soft: #6a6b65;
+  --orange: #f36a3d;
+  --orange-deep: #d95730;
+  --orange-soft: #fff2e9;
+  --warm: #a16c50;
+  --sage: #b8d1a9;
+  --ok: #76a776;
+  --bad: #e05555;
+  --white: #fffef8;
+  --on-dark: #e0e1d9;
+  --on-dark-soft: #b7c0b5;
+  --on-dark-muted: #9da89f;
+  --kicker-dark: #c68d78;
+
+  /* type */
+  --font: 'DM Sans', system-ui, sans-serif;
+  --display: 'Barlow Condensed', 'Arial Narrow', 'PT Sans Narrow', Impact, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* shape */
+  --radius-s: 12px;
+  --radius-m: 16px;
+  --radius-l: 19px;
+  --gutter: 25px;
+
+  /* phone frame on desktop */
+  --phone-w: 402px;
+  --phone-h: min(828px, calc(100dvh - 56px));
+}

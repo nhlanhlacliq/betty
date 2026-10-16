@@ -59,7 +59,7 @@ Speaker outputs audio.
 
 ```
 src/
-  main.ts                  Wiring only. Builds the rig on START RIDE, mounts panels. No business logic.
+  main.ts                  Wiring only. Builds the rig on Start riding, mounts screens and panels. No business logic.
   config/betty.ts          CONFIG (live, mutable), DEFAULT_CONFIG, applyConfig/resetConfig, Betty system prompt
   config/persist.ts        localStorage save/load of the tunable subset of CONFIG (UI-only, never imported by core)
   core/                    Pure logic. NO browser/hardware imports. Must stay unit-testable in Node.
@@ -88,6 +88,12 @@ src/
     RideLog.ts             localStorage store for past rides (Betty's cross-ride memory)
     LineLogStore.ts        localStorage store for everything she has said (`betty.log.v1`)
   ui/
+    Shell.ts               Screens/sheets/toast; data-go, data-back, data-nav, data-sheet-open hooks; docks the Workshop on desktop
+    copy.ts                Every word the app shell shows (ride-screen kickers/headlines per trigger, home, glance labels)
+    rideView.ts            Pure: ride state -> what the ride screen shows (orb mode, caption, glance cue). Tested in core tests
+    icons.ts               SVG icon paths; <i data-icon="name"> placeholders are hydrated by the shell
+    styles/                tokens.css (palette, type), app.css (screens), devtools.css (Workshop panels, scoped .devtools)
+    screens/               HomeScreen, RideScreen, JourneysScreen (+ ride story), ExploreScreen, SettingsScreen
     SimPanel.ts            SIMULATOR panel (mounted per ride)
     TuningPanel.ts         TUNING panel (always mounted)
     LogPanel.ts            LOG panel: view saved lines per ride, copy, share, save as a file, clear
@@ -241,6 +247,30 @@ Phase 4 slots in: add a mode value and start the real adapter in `setObd` in `ma
 - GPS speed, lean, weather, traffic, places, ride stats and memory work the same in both modes.
 - The switch works mid-ride. Anything new that reads rpm, engineTempC, throttlePct, fuelPct or dtcs must check
   `s.obd` first.
+
+## App shell (UI redesign, BUILT 2026-10-17 from the owner's design prototype `betty-prototype 2/`)
+
+The design will keep changing, so it is split by what changes: wording in `ui/copy.ts`, colours/type in
+`ui/styles/tokens.css`, layout in `ui/styles/app.css`, what the ride screen decides to show in `ui/rideView.ts` (pure,
+tested), markup in `index.html`. Screens and sheets are STATIC sections in index.html (`data-screen`, `data-sheet`),
+shown and hidden by `ui/Shell.ts`, so every control exists at load and main.ts binds ids as before. Do not switch to
+re-rendering screens with innerHTML: it would drop main.ts's listeners. Add a screen = a `<section data-screen>`, its id
+in `ScreenId`, and a `ui/screens/*` module if it has dynamic content (plus a smoke test).
+- Home: ride mode tiles (Free ride / Desk test) drive the hidden `#real` checkbox; readiness sheet ("Details") lists
+  GPS, voice, brain, engine data, screen lock and fuel range, with FILLED UP. `#start` starts (or returns to) the ride.
+- Ride (dark): orb (speaking / listening / quiet / rest, tap = repeat last line), kicker + headline per trigger id from
+  `MOMENTS`, the spoken line as the sub (voice tags stripped, lingers `LINE_LINGER_MS`), one glance cue chosen by
+  `pickGlance` (fuel range > rain > traffic > sunset > area > nearby place > speed; off with `CONFIG.showGlance`).
+  Buttons: Ask Betty = push-to-talk (same `talk()` as the headset), lock, quiet (runs the quiet/talk commands, so she
+  answers out loud). `#end` opens a sheet; `#endconfirm` ends; during the sign-off `#end` ends at once.
+  Ending a remembered ride opens its story.
+- Journeys: RideLog records newest first; a ride's story shows stats, places, flags and every spoken line from the
+  saved log, with Copy the ride log. Explore: marked spots and notes (same store as MEMORY).
+- Settings: humour and JARVIS/TARS sliders, `TALK_PRESETS` (Minimal/Balanced/Stories set the ambient weights and gap;
+  anything else shows as custom), visual companion, names, every voice control, headset buttons, OBD mode.
+- Workshop: all the dev panels below plus the old instrument grid, `#status`, `#wake`, `#feeds`, `#log`. A screen
+  on a phone (wrench on the ride screen, card at the bottom of Settings); docked beside the phone at 1100 px and up.
+- Status messages also show as a toast. The prototype folder is reference only; nothing imports it.
 
 ## Simulator and tuning (dev tools, ship with the app)
 

@@ -41,7 +41,15 @@ import { HeadsetButtons } from './adapters/HeadsetButtons';
 import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushToTalk';
 import { beep } from './adapters/audio';
 import { IncidentMemory } from './adapters/IncidentMemory';
-import { LogEntry } from './core/LineLog';
+import { LogEntry, formatLog } from './core/LineLog';
+import { copyText, mountShell } from './ui/Shell';
+import { ReadyRow, mountHomeScreen } from './ui/screens/HomeScreen';
+import { RideActions, mountRideScreen } from './ui/screens/RideScreen';
+import { mountJourneysScreen } from './ui/screens/JourneysScreen';
+import { mountExploreScreen } from './ui/screens/ExploreScreen';
+import { mountSettingsScreen } from './ui/screens/SettingsScreen';
+import { SaidLine, rideView } from './ui/rideView';
+import { END_BUTTON, HOME, sampleLine } from './ui/copy';
 
 loadConfig();
 
@@ -54,18 +62,24 @@ const HANG_ON = 'Hang on, let me check.';
 const HANG_ON_AFTER_MS = 2500;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const toggle = $<HTMLButtonElement>('toggle');
+// The app shell: screens, sheets and the toast (markup in index.html, see ui/Shell.ts).
+const shell = mountShell();
+const startBtn = $<HTMLButtonElement>('start');
+const endBtn = $<HTMLButtonElement>('end');
 const realBox = $<HTMLInputElement>('real');
 const statusEl = $('status');
 const logEl = $('log');
-const setStatus = (msg: string, err = false) => { statusEl.textContent = msg; statusEl.className = err ? 'err' : ''; };
+const setStatus = (msg: string, err = false) => {
+  statusEl.textContent = msg; statusEl.className = err ? 'err' : '';
+  if (msg) shell.toast(msg, err);
+};
 
 const feed = { weather: 'idle', traffic: 'idle', places: 'idle', areas: 'idle' };
 const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places} | Area stories: ${feed.areas}`;
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; unmountChat: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
+  setObd: (mode: ObdMode) => void; unsub: () => void; real: boolean; unmountSim: () => void; unmountChat: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number; paintTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -132,9 +146,17 @@ mountLogPanel($('logpanel'), {
   rides: () => RideLog.load(),
   clear: () => { unsaved = []; LineLogStore.clear(); },
 });
-mountMemoryPanel($('memorypanel'), {
+const memoryCtx = {
   load: () => RiderMemoryStore.load(),
-  save: (m) => { RiderMemoryStore.save(m); rig?.engine.setMemory(m); },
+  save: (m: ReturnType<typeof RiderMemoryStore.load>) => { RiderMemoryStore.save(m); rig?.engine.setMemory(m); },
+};
+mountMemoryPanel($('memorypanel'), memoryCtx);
+mountExploreScreen(document, shell, memoryCtx);
+const journeys = mountJourneysScreen(document, shell, {
+  rides: () => RideLog.load(),
+  entries: () => { saveLog(); return LineLogStore.load(); },
+  copyRide: (rideId) => { saveLog(); return copyText(formatLog(LineLogStore.load(), RideLog.load(), rideId)); },
+  toast: (msg) => shell.toast(msg),
 });
 mountChangelogPanel($('changelogpanel'));
 
@@ -143,6 +165,7 @@ mountChangelogPanel($('changelogpanel'));
 let talkNow: (() => void) | null = null;
 const lockScreen = mountLockScreen($('lockroot'), 1000, () => talkNow?.());
 $('lock').addEventListener('click', () => lockScreen.lock());
+document.querySelectorAll('[data-lock]').forEach((b) => b.addEventListener('click', () => { shell.closeSheet(); lockScreen.lock(); }));
 let lastLine = '';
 const showLocked = (speed: number) => lockScreen.setInfo(String(speed), voiceTags(lastLine, false));
 
@@ -161,12 +184,18 @@ const showRange = (kmSinceFill: number | null) => {
   $('rangesrc').textContent = kmSinceFill === null ? 'tap FILLED UP' : `km left, ${Math.round(kmSinceFill)} since fill`;
 };
 showRange(FuelStore.load());
-$('filled').addEventListener('click', () => {
+const fuelText = () => {
+  const since = rig ? rig.engine.kmSinceFill() : FuelStore.load();
+  return since === null ? 'Tap Filled up to start counting' : `${Math.max(0, Math.round(CONFIG.fuel.rangeKm - since))} km left, ${Math.round(since)} since the fill`;
+};
+document.querySelectorAll('[data-filled]').forEach((b) => b.addEventListener('click', () => {
   rig?.engine.filledUp();
   FuelStore.save(0);
   showRange(0);
+  const out = document.getElementById('readyfuel');
+  if (out) out.textContent = fuelText();
   setStatus(`Fill-up noted. Range reset to ${CONFIG.fuel.rangeKm} km.`);
-});
+}));
 
 const bikeInput = $<HTMLInputElement>('bikename');
 bikeInput.value = CONFIG.bikeName;
@@ -317,8 +346,23 @@ $('cloudsounds').addEventListener('click', () => {
   })();
 });
 
+/** A line from Betty outside a ride (the home orb, the settings sample), in her cloud voice when it is on. */
+const helloOrb = $('helloorb');
+const sayOutsideRide = (text: string) => {
+  if (rig) return;
+  testPlayer.prime(); testPcm.prime(); // inside the tap
+  testSpeaker.stop();
+  const t = new CloudSpeaker(testSpeaker, () => testPlayer, () => {}, undefined, undefined, undefined, testPcm, undefined, clipStore);
+  helloOrb.className = 'sound-orb speaking';
+  t.speak(text, () => { helloOrb.className = 'sound-orb rest'; }, { priority: 4, id: 'voice' });
+};
+mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)) });
+
+let wakeOk = true;
 const wakeEl = $('wake');
 const showWake = (s: WakeStatus | null) => {
+  wakeOk = s === null || s === 'on';
+  paintRide();
   wakeEl.className = s === 'on' ? 'ok' : 'err';
   wakeEl.textContent = s === null ? ''
     : s === 'on' ? 'Screen will stay awake while this page is open and in front.'
@@ -342,7 +386,57 @@ obdSel.addEventListener('change', () => {
 // TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
 window.addEventListener('betty-config', () => {
   nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); showCloud(); buttonsBox.checked = CONFIG.headsetButtons; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
+  paintRide();
 });
+
+// ---- the rider screens
+const VOICE_MODES: Record<CloudVoiceMode, string> = { stream: 'Gemini', mixed: 'Gemini + Chirp', chirp: 'Chirp', gemini: 'Gemini', off: 'Phone voice' };
+const readiness = (): ReadyRow[] => {
+  const real = realBox.checked;
+  const nav = window.navigator;
+  const voiceName = libraryVoice(CONFIG.cloudVoiceName)?.name ?? CONFIG.cloudVoiceName;
+  const brain = SERVER ? 'Claude, keys on the server' : ENV.VITE_ANTHROPIC_API_KEY ? 'Claude, local key' : 'No key: canned lines only';
+  return [
+    { icon: 'pin', label: 'GPS', value: real ? (nav && 'geolocation' in nav ? 'Phone GPS and motion' : 'Not available here') : 'Simulated (desk test)', ok: !real || (!!nav && 'geolocation' in nav) },
+    { icon: 'volume', label: 'Voice', value: CONFIG.cloudVoice === 'off' ? 'Phone voice' : `${VOICE_MODES[CONFIG.cloudVoice]}, ${voiceName}`, ok: true },
+    { icon: 'headset', label: 'Talking to her', value: CONFIG.headsetButtons ? 'Headset buttons and Ask Betty' : 'Ask Betty button', ok: true },
+    { icon: 'spark', label: 'Brain', value: brain, ok: SERVER || !!ENV.VITE_ANTHROPIC_API_KEY },
+    { icon: 'gauge', label: 'Engine data', value: CONFIG.obdMode === 'mock' ? 'Simulated (mock)' : 'Off: GPS only', ok: true },
+    { icon: 'lock', label: 'Screen', value: nav && 'wakeLock' in nav ? 'Kept awake while riding' : 'Set Auto-Lock to Never', ok: !!nav && 'wakeLock' in nav },
+  ];
+};
+const home = mountHomeScreen(document, shell, { hello: () => sayOutsideRide(HOME.hello(cleanRiderName(CONFIG.riderName))), readiness, fuelText });
+/** Set while a ride runs: what the ride screen's buttons do. */
+let rideHooks: RideActions | null = null;
+const rideScreen = mountRideScreen(document, {
+  talk: () => rideHooks?.talk(), repeat: () => rideHooks?.repeat(), toggleQuiet: () => rideHooks?.toggleQuiet(),
+});
+/** What she is saying now, and the last line she finished (for the ride screen). */
+let speakingNow: SaidLine | null = null;
+let lastSaid: SaidLine | null = null;
+let talkState: 'off' | 'listening' | 'thinking' = 'off';
+const onFate = (item: QueueItem, fate: Fate) => {
+  const said: SaidLine = { text: item.text, tag: item.tag, priority: item.priority, at: Date.now() };
+  if (fate === 'speaking') speakingNow = said;
+  else if (speakingNow && speakingNow.text === item.text) { speakingNow = null; if (fate === 'spoken') lastSaid = said; }
+  paintRide();
+};
+function paintRide() {
+  const r = rig;
+  if (!r) return;
+  const s = r.agg.current;
+  const told = new Set(r.engine.toldNoteIds());
+  const quietMin = r.engine.quietLeftMin();
+  const view = rideView({
+    now: Date.now(), state: s, speaking: speakingNow, lastSaid, talk: talkState, quietMin, ending: endNow !== null,
+    distanceKm: r.engine.rideSnapshot().distanceKm, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
+    rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
+    untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
+  });
+  const moving = s.speedKmh >= 3 ? 'On the road' : 'Parked';
+  rideScreen.paint(view, { status: r.real ? moving : `${moving} · desk test`, wakeOk: wakeOk || !r.real, quiet: quietMin > 0, listening: talkState === 'listening' });
+}
+
 
 let starting = false;
 async function start() {
@@ -420,6 +514,7 @@ async function beginRide() {
     renderLog();
   };
   const sensorTimer = window.setInterval(logSensors, 15 * 60_000);
+  const paintTimer = window.setInterval(paintRide, 5000); // lets a finished line settle back to idle
   const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined);
   // The cloud voice plays on the headset buttons' own track while they are Betty's (another sound source could take
   // the buttons away), otherwise on its own element. The phone voice is its backup for every line.
@@ -427,7 +522,7 @@ async function beginRide() {
   // Her stock phrases in her Gemini voice, ready before they are needed (from the phone after the first ride).
   if (CONFIG.cloudVoice !== 'off' && CONFIG.cloudVoice !== 'chirp') for (const l of STOCK_LINES) cloud.prefetch(l, { priority: 4, id: 'voice' });
   const speaker = new SwitchableSpeaker(cloud);
-  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
+  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => { onFate(item, fate); renderLog(); saveLogSoon(); });
 
   const say = async (ev: TriggerEvent) => {
     const p = await claude.phrase(ev, agg.current);
@@ -474,6 +569,7 @@ async function beginRide() {
       : feedStatus();
     engine.evaluate(s).forEach(say);
     queue.pump();
+    paintRide();
   });
 
   const unmountSim = mountSimPanel($('sim'), {
@@ -585,6 +681,7 @@ async function beginRide() {
     if (ptt.listening) { ptt.stop(); return; } // second press: done talking
     queue.hold(true); // she must not start a line over him
     lockScreen.setTalk(true, true);
+    talkState = 'listening'; paintRide();
     tone(880);
     newLine('[voice]', 'listening'); renderLog();
     try {
@@ -593,6 +690,7 @@ async function beginRide() {
       buttons.resume(); // the mic stopped the loop: without it the next press never arrives
       tone(440);
       lockScreen.setTalk(true, false);
+      talkState = 'thinking'; paintRide();
       queue.hold(true, true); // he has finished: his answer (and "hang on") may go, banter still waits
       if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); sayNow("I didn't hear anything. Try again?"); return; }
       const t0 = Date.now();
@@ -615,12 +713,18 @@ async function beginRide() {
       buttons.resume();
       lockScreen.setTalk(true, false);
       queue.hold(false);
+      talkState = 'off'; paintRide();
       renderLog();
     }
   };
   /** Next track: say the last line again, as it was. */
   const repeat = () => { if (lastLine) sayNow(lastLine); };
   talkNow = () => void talk();
+  rideHooks = {
+    talk: () => void talk(),
+    repeat: () => { if (lastLine) sayNow(lastLine); else shell.toast("She hasn't said anything yet."); },
+    toggleQuiet: () => { obey(engine.quietLeftMin() > 0 ? { kind: 'talk' } : { kind: 'quiet', minutes: null }); renderLog(); paintRide(); },
+  };
   lockScreen.setTalk(true);
   if (CONFIG.headsetButtons) {
     const ok = buttons.start({ talk: () => void talk(), repeat }, (msg) => { newLine('[voice]', msg); renderLog(); });
@@ -632,10 +736,12 @@ async function beginRide() {
     listen: (fn) => { chatListeners.add(fn); return () => { chatListeners.delete(fn); }; },
   });
 
-  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, unmountChat, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer };
-  toggle.textContent = 'END RIDE';
-  toggle.classList.add('stop');
+  rig = { agg, engine, queue, say, setObd, unsub, real, unmountSim, unmountChat, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer, paintTimer };
+  endBtn.textContent = END_BUTTON.idle;
   realBox.disabled = true;
+  home.setRiding(true);
+  shell.show('ride');
+  paintRide();
   if (!statusEl.textContent) setStatus(real ? 'Keep this screen open while riding.' : 'Simulated session: no phone sensors in use.');
 }
 
@@ -653,9 +759,12 @@ async function stop() {
   if (!r || endNow) return;
   let hurry = false;
   endNow = () => { hurry = true; };
-  toggle.textContent = 'ENDING RIDE... (tap to stop now)';
+  endBtn.textContent = END_BUTTON.ending;
+  shell.closeSheet();
+  paintRide();
   window.clearInterval(r.memTimer);
   window.clearInterval(r.sensorTimer);
+  window.clearInterval(r.paintTimer);
   r.remember();
   r.logSensors();
   r.unsub(); // no new alerts or banter from here on; the queue and speaker stay alive
@@ -676,18 +785,26 @@ async function stop() {
   r.buttons.stop();
   r.releaseMic();
   talkNow = null;
+  rideHooks = null;
+  speakingNow = null; lastSaid = null; talkState = 'off';
   lockScreen.setTalk(false);
   saveLog();
   await r.wake.disable();
   showWake(null);
   rig = null;
   endNow = null;
-  toggle.textContent = 'START RIDE';
-  toggle.classList.remove('stop');
+  endBtn.textContent = END_BUTTON.idle;
   realBox.disabled = false;
+  home.setRiding(false);
+  // From the ride screen, straight to the story of the ride just finished (when it was long enough to remember).
+  if (shell.current === 'ride') {
+    const rideId = r.engine.rideSnapshot().startedAt;
+    if (RideLog.load().some((x) => x.startedAt === rideId)) { journeys.renderStory(rideId); shell.show('story'); } else shell.show('home');
+  }
   setStatus('');
 }
 
-toggle.addEventListener('click', () => {
-  if (endNow) endNow(); else if (rig) void stop(); else if (!starting) void start();
-});
+// Start riding (or, while a ride runs, go back to it). End ride asks first; during the sign-off it ends at once.
+startBtn.addEventListener('click', () => { if (rig) shell.show('ride'); else if (!starting) void start(); });
+endBtn.addEventListener('click', () => { if (endNow) endNow(); else if (rig) shell.openSheet('end'); });
+$('endconfirm').addEventListener('click', () => { if (endNow) endNow(); else if (rig) void stop(); });

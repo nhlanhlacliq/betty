@@ -3,192 +3,311 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0a0c0f" />
+  <meta name="theme-color" content="#121614" />
   <title>Betty</title>
-  <style>
-    :root { --bg:#0a0c0f; --surface:#151b22; --border:#1e2832; --accent:#e8a020; --green:#3dd68c; --red:#e05555; --text:#c8d4e0; --dim:#5a6a7a; --bright:#eef3f8; }
-    * { box-sizing: border-box; margin: 0; }
-    body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; padding: max(20px, env(safe-area-inset-top)) 20px 40px; max-width: 560px; margin: 0 auto; }
-    h1 { color: var(--accent); font-size: 34px; font-weight: 900; letter-spacing: 4px; margin-bottom: 16px; }
-    h3 { color: var(--dim); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin: 18px 0 8px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .stat { background: var(--surface); border: 1px solid var(--border); padding: 14px; }
-    .stat .l { color: var(--dim); font-size: 11px; letter-spacing: 2px; }
-    .stat .v { color: var(--bright); font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .stat .u { color: var(--dim); font-size: 11px; }
-    button { border: 0; font-weight: 800; letter-spacing: 1px; font-size: 12px; background: var(--green); color: var(--bg); padding: 10px 12px; cursor: pointer; }
-    #toggle { width: 100%; padding: 18px; margin-top: 12px; font-size: 14px; letter-spacing: 2px; }
-    #toggle.stop { background: var(--red); color: #fff; }
-    button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); font-weight: 600; letter-spacing: 0; }
-    #startopts { margin-top: 12px; font-size: 13px; color: var(--dim); }
-    #startopts .obd { display: block; margin-top: 8px; }
-    #startopts #voice { max-width: 60%; }
-    #voicetest { padding: 4px 10px; margin-left: 6px; }
-    #startopts select, #startopts input[type=text] { background: var(--bg); color: var(--bright); border: 1px solid var(--border); padding: 4px; }
-    #status { color: var(--dim); font-size: 12px; margin-top: 12px; min-height: 16px; }
-    #status.err { color: var(--red); }
-    #filled { width: 100%; padding: 12px; margin-top: 8px; }
-    #lock { width: 100%; padding: 14px; margin-top: 8px; letter-spacing: 2px; }
-    .lockcover { position: fixed; inset: 0; z-index: 1000; background: #000; color: #9aa; touch-action: none; user-select: none;
-      -webkit-user-select: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; text-align: center; }
-    .lockcover[hidden] { display: none; }
-    .locktitle { font-size: 11px; letter-spacing: 4px; color: #556; }
-    .lockspeed { font-size: 96px; font-weight: 800; color: #dde; font-variant-numeric: tabular-nums; line-height: 1; }
-    .lockunit { font-size: 12px; color: #556; }
-    .lockline { font-size: 14px; color: #889; min-height: 60px; max-width: 480px; margin-top: 16px; }
-    .lockbtn { margin-top: 24px; width: 220px; padding: 22px 0; font-size: 13px; letter-spacing: 2px; background: #111; color: #9aa;
-      border: 1px solid #334; background-image: linear-gradient(#2a3a2a, #2a3a2a); background-repeat: no-repeat; background-size: 0% 100%; touch-action: none; }
-    .locktalk { margin-top: 20px; width: 260px; padding: 34px 0; font-size: 16px; letter-spacing: 3px; background: #1d2a1d; color: #cfe; border: 1px solid #3a5a3a; touch-action: manipulation; }
-    .lockbtn.holding { background-size: 100% 100%; transition: background-size var(--hold, 1000ms) linear; }
-    #wake { font-size: 12px; margin-top: 6px; }
-    #wake.ok { color: var(--green); }
-    #wake.err { color: var(--red); font-weight: 700; }
-    #feeds { color: var(--dim); font-size: 12px; margin-top: 6px; }
-    #log { margin-top: 16px; display: grid; gap: 6px; font-size: 13px; }
-    .logview { margin-top: 10px; max-height: 340px; overflow: auto; font-size: 11px; white-space: pre-wrap; word-break: break-word; color: var(--text); user-select: text; -webkit-user-select: text; }
-    .chatlist { margin-top: 10px; display: grid; gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
-    .chatempty { color: var(--dim); font-size: 12px; }
-    .bubble { padding: 8px 10px; border: 1px solid var(--border); max-width: 88%; min-width: 0; }
-    .bubble.rider { justify-self: end; background: var(--surface); }
-    .bubble.betty { justify-self: start; border-color: var(--accent); }
-    .bubble .said { font-size: 14px; color: var(--bright); }
-    .bubble .meta { font-size: 11px; color: var(--dim); margin-top: 4px; }
-    .bubble .fallback { display: none; font-size: 12px; color: var(--dim); margin-top: 4px; font-style: italic; }
-    .chatlist.compare .bubble .fallback { display: block; }
-    .bubble button.small { padding: 2px 8px; font-size: 11px; margin-top: 6px; }
-    .bubble .prompt { white-space: pre-wrap; word-break: break-word; font-size: 11px; color: var(--text); background: var(--bg); padding: 8px; margin: 6px 0 0; max-height: 300px; overflow: auto; }
-    .chatform { display: flex; gap: 8px; margin-top: 10px; }
-    .chatform input { flex: 1; min-width: 0; background: var(--bg); color: var(--bright); border: 1px solid var(--border); padding: 8px; font-size: 14px; }
-    .chatform button { width: auto; padding: 8px 16px; margin: 0; }
-    .hint { color: var(--dim); font-size: 12px; margin: 4px 0 8px; }
-    .presslog { font-size: 12px; color: var(--text); max-height: 120px; overflow-y: auto; white-space: pre; }
-    .meter { height: 6px; background: var(--border); margin: 8px 0; }
-    .meterbar { height: 100%; width: 0%; background: var(--accent); transition: width 0.1s linear; }
-    .recs { display: grid; gap: 10px; margin-top: 8px; }
-    .rec { display: grid; gap: 4px; }
-    .rec .meta { font-size: 11px; color: var(--dim); }
-    .rec audio { width: 100%; }
-    .rec a { font-size: 12px; color: var(--accent); }
-    #log .fate { color: var(--dim); font-size: 11px; }
-    .panel { margin-top: 20px; border: 1px solid var(--border); padding: 12px 14px; background: var(--surface); }
-    .panel summary { cursor: pointer; color: var(--accent); font-weight: 800; letter-spacing: 3px; font-size: 12px; }
-    .memrow { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.08); }
-    .memrow .meta { font-size: 11px; color: var(--dim); }
-    .memrow a { font-size: 12px; color: var(--accent); }
-    .changes { margin: 4px 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.45; }
-    .info { margin-top: 10px; font-size: 12px; color: var(--green); }
-    .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
-    .row .name { flex: 0 0 150px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
-    .row input[type=range] { flex: 1; min-width: 0; }
-    .row input[type=number] { width: 72px; background: var(--bg); color: var(--bright); border: 1px solid var(--border); padding: 4px; }
-    .row select { background: var(--bg); color: var(--bright); border: 1px solid var(--border); padding: 4px; }
-    .row .val { flex: 0 0 64px; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
-    .check { display: block; font-size: 12px; margin: 6px 0; color: var(--text); }
-    .row .check { margin: 0; }
-    .bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
-    /* Nothing may be wider than the screen: a wide select or an unbroken line made the phone zoom the page out. */
-    html, body { overflow-x: hidden; }
-    body { overflow-wrap: anywhere; }
-    select, input, textarea, button, audio, pre, img { max-width: 100%; }
-    .row { flex-wrap: wrap; }
-    .row select { flex: 1 1 140px; min-width: 0; }
-    .row .name { flex: 0 1 150px; min-width: 0; }
-    .presslog { white-space: pre-wrap; }
-    /* TUNING trigger rows: the name on its own line, then priority, cooldown and "s" side by side */
-    .row.trig { display: grid; grid-template-columns: minmax(0, 1fr) 84px 14px; gap: 4px 8px; margin: 10px 0; }
-    .row.trig .name { grid-column: 1 / -1; color: var(--dim); }
-    .row.trig select, .row.trig input[type=number] { width: 100%; }
-    .row.trig .val { text-align: left; }
-    /* Rounded corners */
-    button { border-radius: 10px; }
-    select, input[type=text], input[type=number], textarea { border-radius: 8px; }
-    .panel, .stat { border-radius: 12px; }
-    .bubble { border-radius: 12px; }
-    .panel summary { letter-spacing: 2px; }
-    /* iPhone zooms in on any field under 16px when it is tapped, and does not zoom back out. */
-    select, input[type=text], input[type=number], textarea, .chatform input, .row input[type=number], .row select,
-    #startopts select, #startopts input[type=text] { font-size: 16px; }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="/src/ui/styles/tokens.css" />
+  <link rel="stylesheet" href="/src/ui/styles/app.css" />
+  <link rel="stylesheet" href="/src/ui/styles/devtools.css" />
 </head>
 <body>
-  <h1>BETTY</h1>
-  <div class="grid">
-    <div class="stat"><div class="l">SPEED</div><div class="v" id="speed">0</div><div class="u">km/h</div></div>
-    <div class="stat"><div class="l">LEAN</div><div class="v" id="lean">0</div><div class="u">° GPS estimate</div></div>
-    <div class="stat"><div class="l">RPM</div><div class="v" id="rpm">0</div><div class="u">mock</div></div>
-    <div class="stat"><div class="l">TEMP</div><div class="v" id="temp">0</div><div class="u">°C mock</div></div>
-    <div class="stat"><div class="l">FUEL</div><div class="v" id="fuel">0</div><div class="u">% mock</div></div>
-    <div class="stat"><div class="l">RAIN</div><div class="v" id="rain">-</div><div class="u">% next hour</div></div>
-    <div class="stat"><div class="l">ALTITUDE</div><div class="v" id="alt">-</div><div class="u">m</div></div>
-    <div class="stat"><div class="l">HEADING</div><div class="v" id="dir">-</div><div class="u" id="dirsrc">&nbsp;</div></div>
-    <div class="stat"><div class="l">FUEL RANGE</div><div class="v" id="range">-</div><div class="u" id="rangesrc">tap FILLED UP</div></div>
-    <div class="stat"><div class="l">JOLTS</div><div class="v" id="jolts">0</div><div class="u">this ride</div></div>
-  </div>
-  <div id="startopts"><label><input type="checkbox" id="real" checked /> Use real phone sensors (GPS, motion). Untick on desktop to run fully simulated.</label>
-    <label class="obd">Rider name: <input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="off" /></label>
-    <label class="obd">Bike name: <input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></label>
-    <label class="obd">Cloud voice:
-      <select id="cloudvoice">
-        <option value="stream">Gemini for everything but alerts (answers streamed)</option>
-        <option value="mixed">Gemini for her own remarks only, Chirp for alerts and answers</option>
-        <option value="chirp">Google Chirp 3 HD for everything</option>
-        <option value="gemini">Google Gemini for everything</option>
-        <option value="off">Off: phone voice only</option>
-      </select>
-    </label>
-    <label class="obd">Accent:
-      <select id="cloudaccent"></select>
-    </label>
-    <label class="obd">Cloud voice name:
-      <select id="cloudname"></select>
-      <button id="cloudtest" class="ghost" type="button">Test</button>
-      <button id="cloudsounds" class="ghost" type="button">Test sounds</button>
-    </label>
-    <label class="obd">Gemini model:
-      <select id="geminimodel">
-        <option value="full">Full (best sound)</option>
-        <option value="lite">Lite (starts about a second sooner)</option>
-      </select>
-    </label>
-    <label class="obd">Chirp voice for alerts (with an accent voice):
-      <select id="chirpstandin"></select>
-    </label>
-    <label class="obd">Chirp accent (alerts):
-      <select id="chirplocale">
-        <option value="en-US">American</option>
-        <option value="en-GB">British</option>
-        <option value="en-AU">Australian</option>
-        <option value="en-IN">Indian</option>
-      </select>
-    </label>
-    <label class="obd">Phone voice (backup when there is no signal):
-      <select id="voice"></select>
-      <button id="voicetest" class="ghost" type="button">Test</button>
-    </label>
-    <label class="obd"><input type="checkbox" id="buttons" /> Headset buttons talk to Betty: play/pause to talk, next track to repeat (pauses your music)</label>
-    <label class="obd">Engine data (OBD2):
-      <select id="obdmode">
-        <option value="off">Off: GPS only</option>
-        <option value="mock">Simulated (mock)</option>
-        <option value="real" disabled>Real OBD2 (needs the hardware)</option>
-      </select>
-    </label>
-  </div>
-  <button id="toggle">START RIDE</button>
-  <button id="lock" class="ghost">LOCK SCREEN</button>
-  <button id="filled" class="ghost">FILLED UP (reset fuel range)</button>
-  <div id="status"></div>
-  <div id="wake"></div>
-  <div id="feeds"></div>
-  <div id="log"></div>
-  <div id="chat"></div>
-  <div id="sim"></div>
-  <div id="tuning"></div>
-  <div id="voicetestpanel"></div>
-  <div id="logpanel"></div>
-  <div id="memorypanel"></div>
-  <div id="changelogpanel"></div>
-  <div id="lockroot"></div>
-  <script type="module" src="/src/main.ts"></script>
+<div class="app">
+  <!-- Desktop only: brand column -->
+  <aside class="editorial" aria-hidden="true">
+    <div class="brand-badge"><svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M6 4v18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="15" cy="15" r="7" stroke="currentColor" stroke-width="3"/><circle cx="15" cy="15" r="2" fill="#F36A3D"/></svg></div>
+    <div class="mini-label">Betty / riding companion</div>
+    <h1 class="huge">Less<br />screen.<br />More<br /><em>road.</em></h1>
+    <p>Not another dashboard. A little company on the journey, and the good sense to know when to be quiet.</p>
+    <div class="smallrule"></div>
+    <div class="editorial-foot"><span class="colour-dot"></span>Voice first · screen second</div>
+  </aside>
+
+  <main class="phone-wrap">
+    <div id="phone" class="phone">
+
+      <!-- ============ HOME ============ -->
+      <section class="screen" data-screen="home" data-theme="light">
+        <header class="screen-head">
+          <div class="wordmark"><span class="brandmark"><b>b</b></span>BETTY<span class="dot">.</span></div>
+          <button class="head-action" type="button" data-go="settings" aria-label="Settings"><i data-icon="settings"></i></button>
+        </header>
+        <div class="welcome">
+          <span class="eyebrow warm" id="homeeyebrow"></span>
+          <h1 id="homeheadline"></h1>
+          <p id="homelead"></p>
+        </div>
+        <div class="home-voice-area">
+          <button class="sound-orb rest" id="helloorb" type="button" aria-label="Hear Betty's voice"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
+          <div class="home-orb-caption" id="orbcaption"></div>
+        </div>
+        <div class="home-bottom">
+          <div class="eyebrow muted">How are we riding?</div>
+          <div class="route-choices" role="radiogroup" aria-label="Ride mode">
+            <button class="route-tile" type="button" role="radio" data-mode="real"><i data-icon="compass"></i><span class="tile-label"></span><small></small></button>
+            <button class="route-tile" type="button" role="radio" data-mode="sim"><i data-icon="wrench"></i><span class="tile-label"></span><small></small></button>
+            <input type="checkbox" id="real" checked hidden />
+          </div>
+          <button class="ready-line" type="button" data-sheet-open="ready">
+            <span><i class="tiny-dot" id="readydot"></i><b id="readytitle">Ready to roll</b> <span class="soft" id="readysub"></span></span>
+            <span>Details <i data-icon="chev" class="inline"></i></span>
+          </button>
+          <button class="cta" id="start" type="button"><span id="starttext">Start riding</span><i data-icon="arrow"></i></button>
+        </div>
+        <nav class="bottom-nav" aria-label="Main navigation">
+          <button class="nav-button" type="button" data-go="home" data-nav="home"><i data-icon="home"></i><span>Ride</span></button>
+          <button class="nav-button" type="button" data-go="journeys" data-nav="journeys"><i data-icon="book"></i><span>Journeys</span></button>
+          <button class="nav-button" type="button" data-go="explore" data-nav="explore"><i data-icon="compass"></i><span>Explore</span></button>
+        </nav>
+      </section>
+
+      <!-- ============ RIDE ============ -->
+      <section class="screen screen-dark" data-screen="ride" data-theme="dark" hidden>
+        <header class="ride-head">
+          <div class="ride-status"><i class="riding-dot"></i><span id="ridestatus">ON THE ROAD</span></div>
+          <div class="ride-head-actions">
+            <button class="ride-icon" type="button" data-go="workshop" aria-label="Workshop"><i data-icon="wrench"></i></button>
+            <button class="ride-stop" id="end" type="button">End ride</button>
+          </div>
+        </header>
+        <div class="ride-meta">
+          <span><i data-icon="route" class="inline"></i> <span id="rideplace">FREE RIDE</span></span>
+          <span><span id="ridedist">0 km</span><span class="sep">/</span><span id="ridetemp">–</span></span>
+        </div>
+        <div class="wake-warn" id="wakewarn" hidden>Screen may sleep: Betty pauses if it does</div>
+        <div class="ride-core">
+          <button class="sound-orb rest" id="rideorb" type="button" aria-label="Repeat Betty's last line"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
+          <div class="ride-caption" id="ridekicker"></div>
+          <h2 id="rideheadline"></h2>
+          <p id="ridesub" aria-live="polite"></p>
+        </div>
+        <div class="ride-essential">
+          <div class="glance" id="glance">
+            <div class="glance-icon" id="glanceicon"></div>
+            <div class="glance-text"><span id="glancelabel"></span><strong id="glancetitle"></strong></div>
+            <span class="glance-value" id="glancevalue"></span>
+          </div>
+        </div>
+        <div class="ride-actions">
+          <button class="ask-button" id="ask" type="button"><i data-icon="mic"></i><span id="asktext">Ask Betty</span></button>
+          <button class="round-button" id="lock" type="button" aria-label="Lock screen" title="Lock screen"><i data-icon="lock"></i></button>
+          <button class="round-button" id="mute" type="button" aria-label="Ask Betty to be quiet" title="Quiet"><span id="muteicon"></span></button>
+        </div>
+      </section>
+
+      <!-- ============ JOURNEYS ============ -->
+      <section class="screen" data-screen="journeys" data-theme="light" hidden>
+        <header class="screen-head">
+          <div class="wordmark"><span class="brandmark"><b>b</b></span>BETTY<span class="dot">.</span></div>
+          <button class="head-action" type="button" data-go="settings" aria-label="Settings"><i data-icon="settings"></i></button>
+        </header>
+        <div class="page-content scroll">
+          <div class="eyebrow warm">Your collection</div>
+          <h1>The good<br /><em>roads.</em></h1>
+          <p class="page-lead">Every ride Betty remembers, newest first.</p>
+          <div id="journeytotals"></div>
+          <div id="journeylist"></div>
+        </div>
+        <nav class="bottom-nav" aria-label="Main navigation">
+          <button class="nav-button" type="button" data-go="home" data-nav="home"><i data-icon="home"></i><span>Ride</span></button>
+          <button class="nav-button" type="button" data-go="journeys" data-nav="journeys"><i data-icon="book"></i><span>Journeys</span></button>
+          <button class="nav-button" type="button" data-go="explore" data-nav="explore"><i data-icon="compass"></i><span>Explore</span></button>
+        </nav>
+      </section>
+
+      <!-- ============ RIDE STORY ============ -->
+      <section class="screen" data-screen="story" data-theme="light" hidden>
+        <header class="screen-head">
+          <button class="head-action" type="button" data-back aria-label="Back"><i data-icon="back"></i></button>
+          <span class="eyebrow">Journeys / ride</span>
+          <span class="head-spacer"></span>
+        </header>
+        <div class="page-content scroll" id="story"></div>
+        <nav class="bottom-nav" aria-label="Main navigation">
+          <button class="nav-button" type="button" data-go="home" data-nav="home"><i data-icon="home"></i><span>Ride</span></button>
+          <button class="nav-button" type="button" data-go="journeys" data-nav="journeys"><i data-icon="book"></i><span>Journeys</span></button>
+          <button class="nav-button" type="button" data-go="explore" data-nav="explore"><i data-icon="compass"></i><span>Explore</span></button>
+        </nav>
+      </section>
+
+      <!-- ============ EXPLORE ============ -->
+      <section class="screen" data-screen="explore" data-theme="light" hidden>
+        <header class="screen-head">
+          <div class="wordmark"><span class="brandmark"><b>b</b></span>BETTY<span class="dot">.</span></div>
+          <button class="head-action" type="button" data-go="settings" aria-label="Settings"><i data-icon="settings"></i></button>
+        </header>
+        <div class="page-content scroll">
+          <div class="eyebrow warm">Somewhere new</div>
+          <h1>Follow<br />your<br /><em>curiosity.</em></h1>
+          <p class="page-lead">Spots you marked and things you asked her to remember.</p>
+          <div id="explorelist"></div>
+          <div class="info-note">Say "mark this spot" or "remember that..." to Betty on a ride. She uses these when you ask her later.</div>
+        </div>
+        <nav class="bottom-nav" aria-label="Main navigation">
+          <button class="nav-button" type="button" data-go="home" data-nav="home"><i data-icon="home"></i><span>Ride</span></button>
+          <button class="nav-button" type="button" data-go="journeys" data-nav="journeys"><i data-icon="book"></i><span>Journeys</span></button>
+          <button class="nav-button" type="button" data-go="explore" data-nav="explore"><i data-icon="compass"></i><span>Explore</span></button>
+        </nav>
+      </section>
+
+      <!-- ============ SETTINGS ============ -->
+      <section class="screen" data-screen="settings" data-theme="light" hidden>
+        <header class="screen-head">
+          <button class="head-action" type="button" data-back aria-label="Back"><i data-icon="back"></i></button>
+          <span class="eyebrow">Betty / settings</span>
+          <span class="head-spacer"></span>
+        </header>
+        <div class="page-content scroll">
+          <div class="eyebrow warm">Make me your kind of company</div>
+          <h1>Good<br /><em>chemistry.</em></h1>
+          <p class="page-lead">A little more chatty. Or happy to take the hint.</p>
+
+          <div class="settings-group">
+            <div class="settings-row"><div><b>Sense of humour</b><small>Dry wit. Right place, right time.</small></div><b class="mono" id="humourval"></b></div>
+            <input class="slider" id="humour" type="range" min="0" max="100" step="5" aria-label="Sense of humour" />
+            <div class="settings-row ends"><small>Facts only</small><small>Playful</small></div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-row"><div><b>Character</b><small>Polished butler, or blunt machine.</small></div><b class="mono" id="blendval"></b></div>
+            <input class="slider" id="blend" type="range" min="0" max="100" step="10" aria-label="Character blend" />
+            <div class="settings-row ends"><small>JARVIS</small><small>TARS</small></div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-row"><div><b>How often should I talk?</b><small id="talkhint">Only when there's something worth saying.</small></div></div>
+            <div class="seg" id="talkseg" role="group" aria-label="How often Betty talks"></div>
+          </div>
+          <div class="settings-group settings-row">
+            <div><b>Visual companion</b><small>One glanceable cue under Betty while you ride.</small></div>
+            <button class="switch" id="glanceswitch" type="button" role="switch" aria-label="Visual companion"></button>
+          </div>
+          <button class="outline-button" id="sample" type="button"><i data-icon="volume"></i> Hear a sample</button>
+
+          <h2 class="section-title">You and the bike</h2>
+          <label class="field">What she calls you<input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="off" /></label>
+          <label class="field">What she calls the bike<input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></label>
+
+          <h2 class="section-title">Her voice</h2>
+          <label class="field">Cloud voice
+            <select id="cloudvoice">
+              <option value="stream">Gemini for everything but alerts (answers streamed)</option>
+              <option value="mixed">Gemini for her own remarks only, Chirp for alerts and answers</option>
+              <option value="chirp">Google Chirp 3 HD for everything</option>
+              <option value="gemini">Google Gemini for everything</option>
+              <option value="off">Off: phone voice only</option>
+            </select>
+          </label>
+          <label class="field">Accent<select id="cloudaccent"></select></label>
+          <label class="field">Voice<select id="cloudname"></select></label>
+          <div class="field-buttons">
+            <button id="cloudtest" class="outline-button small" type="button">Test</button>
+            <button id="cloudsounds" class="outline-button small" type="button">Test sounds</button>
+          </div>
+          <label class="field">Gemini model
+            <select id="geminimodel">
+              <option value="full">Full (best sound)</option>
+              <option value="lite">Lite (starts about a second sooner)</option>
+            </select>
+          </label>
+          <label class="field">Chirp voice for alerts (with an accent voice)<select id="chirpstandin"></select></label>
+          <label class="field">Chirp accent (alerts)
+            <select id="chirplocale">
+              <option value="en-US">American</option>
+              <option value="en-GB">British</option>
+              <option value="en-AU">Australian</option>
+              <option value="en-IN">Indian</option>
+            </select>
+          </label>
+          <label class="field">Phone voice (backup when there is no signal)<select id="voice"></select></label>
+          <div class="field-buttons"><button id="voicetest" class="outline-button small" type="button">Test phone voice</button></div>
+
+          <h2 class="section-title">Ride setup</h2>
+          <div class="settings-group settings-row">
+            <div><b>Headset buttons</b><small>Play/pause talks to Betty, next track repeats her. Pauses your music.</small></div>
+            <input type="checkbox" id="buttons" class="switch-input" aria-label="Headset buttons talk to Betty" />
+          </div>
+          <label class="field">Engine data (OBD2)
+            <select id="obdmode">
+              <option value="off">Off: GPS only</option>
+              <option value="mock">Simulated (mock)</option>
+              <option value="real" disabled>Real OBD2 (needs the hardware)</option>
+            </select>
+          </label>
+
+          <button class="discover-card" type="button" data-go="workshop">
+            <div><b>Workshop</b><small>Simulator, tuning, log, voice test, chat and what's new.</small></div>
+            <div class="discover-icon"><i data-icon="wrench"></i></div>
+          </button>
+          <div class="info-note">Safety alerts always take priority over personality.</div>
+        </div>
+      </section>
+
+      <!-- ============ WORKSHOP (dev tools; docked beside the phone on a wide screen) ============ -->
+      <section class="screen devtools" data-screen="workshop" data-theme="dark" hidden>
+        <header class="screen-head">
+          <button class="head-action" type="button" data-back aria-label="Back"><i data-icon="back"></i></button>
+          <span class="eyebrow">Workshop</span>
+          <span class="head-spacer"></span>
+        </header>
+        <div class="scroll workshop-body">
+          <h3>Instruments</h3>
+          <div class="grid">
+            <div class="stat"><div class="l">SPEED</div><div class="v" id="speed">0</div><div class="u">km/h</div></div>
+            <div class="stat"><div class="l">LEAN</div><div class="v" id="lean">0</div><div class="u">° GPS estimate</div></div>
+            <div class="stat"><div class="l">RPM</div><div class="v" id="rpm">0</div><div class="u">mock</div></div>
+            <div class="stat"><div class="l">TEMP</div><div class="v" id="temp">0</div><div class="u">°C mock</div></div>
+            <div class="stat"><div class="l">FUEL</div><div class="v" id="fuel">0</div><div class="u">% mock</div></div>
+            <div class="stat"><div class="l">RAIN</div><div class="v" id="rain">-</div><div class="u">% next hour</div></div>
+            <div class="stat"><div class="l">ALTITUDE</div><div class="v" id="alt">-</div><div class="u">m</div></div>
+            <div class="stat"><div class="l">HEADING</div><div class="v" id="dir">-</div><div class="u" id="dirsrc">&nbsp;</div></div>
+            <div class="stat"><div class="l">FUEL RANGE</div><div class="v" id="range">-</div><div class="u" id="rangesrc">tap FILLED UP</div></div>
+            <div class="stat"><div class="l">JOLTS</div><div class="v" id="jolts">0</div><div class="u">this ride</div></div>
+          </div>
+          <div id="status"></div>
+          <div id="wake"></div>
+          <div id="feeds"></div>
+          <div id="log"></div>
+          <div id="chat"></div>
+          <div id="sim"></div>
+          <div id="tuning"></div>
+          <div id="voicetestpanel"></div>
+          <div id="logpanel"></div>
+          <div id="memorypanel"></div>
+          <div id="changelogpanel"></div>
+        </div>
+      </section>
+
+      <!-- ============ SHEETS ============ -->
+      <div class="sheet-backdrop" data-sheet="ready" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Readiness">
+          <div class="sheet-handle"></div>
+          <h2>Everything in place.</h2>
+          <p>A quick look before you go. Nothing to fight through.</p>
+          <div id="readyrows"></div>
+          <div class="sheet-row"><b><i data-icon="fuel" class="inline"></i>Fuel range</b><span id="readyfuel">-</span></div>
+          <button class="outline-button" id="filled" type="button" data-filled><i data-icon="fuel"></i> Filled up (reset range)</button>
+          <button class="cta sheet-cta" type="button" data-sheet-close>All good <i data-icon="check"></i></button>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="end" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="End ride">
+          <div class="sheet-handle"></div>
+          <h2>Rest a moment.</h2>
+          <p>Finish the ride and Betty signs off, or carry on.</p>
+          <button class="outline-button" type="button" data-filled><i data-icon="fuel"></i> Filled up (reset range)</button>
+          <button class="outline-button" type="button" data-sheet-close><i data-icon="play"></i> Keep riding</button>
+          <button class="cta sheet-cta" id="endconfirm" type="button">End ride <i data-icon="arrow"></i></button>
+        </section>
+      </div>
+
+      <div class="toast" id="toast" role="status" hidden></div>
+    </div>
+  </main>
+
+  <!-- Desktop only: the Workshop is moved here by the shell -->
+  <aside class="studio" id="studio" aria-label="Workshop"></aside>
+</div>
+<div id="lockroot"></div>
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>

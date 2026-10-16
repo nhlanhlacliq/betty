@@ -1463,4 +1463,53 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   q.enqueue('banter', 3); q.enqueue('rain', 2); q.dropAmbient();
   assert.equal(q.pending, 1);
 }
+
+// ---- ride screen view (pure): what the rider sees at a glance
+{
+  const { rideView, pickGlance } = await import('../src/ui/rideView');
+  const { applyTalkPreset, currentTalkPreset } = await import('../src/config/betty');
+  const now = 1_000_000;
+  const wx = (o: Partial<WeatherState> = {}): WeatherState => ({ tempC: 21.4, windKmh: 10, rainNowMm: 0, rainChanceNextHourPct: 10, summary: 'clear', fetchedAt: 0, sunriseAt: null, sunsetAt: null, ...o });
+  const base = {
+    now, state: { speedKmh: 60, weather: wx(), incidents: [], area: null, areaNotes: [], nearbyPlaces: [] },
+    speaking: null, lastSaid: null, talk: 'off' as const, quietMin: 0, ending: false, distanceKm: 12.34, fuelKmLeft: null,
+    fuelWarnKm: 60, rainChancePct: 60, trafficRadiusKm: 5, untoldStories: 0, showGlance: true,
+  };
+  const idle = rideView(base);
+  assert.equal(idle.orb, 'rest'); assert.equal(idle.headline, 'The road has the floor.');
+  assert.equal(idle.distance, '12 km'); assert.equal(idle.temp, '21°'); assert.equal(idle.place, 'FREE RIDE');
+  assert.equal(rideView({ ...base, state: { ...base.state, speedKmh: 0 } }).headline, 'Taking a breather.', 'standing still');
+  const said = { text: 'Rain in twenty minutes. <sigh> Typical.', tag: 'rain_soon', priority: 2 as const, at: now };
+  const sp = rideView({ ...base, speaking: said });
+  assert.equal(sp.orb, 'speaking'); assert.equal(sp.kicker, 'Heads up'); assert.equal(sp.sub, 'Rain in twenty minutes. Typical.', 'voice tags never reach the screen');
+  assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 10_000 } }).headline, 'Rain about.', 'a finished line lingers');
+  assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 60_000 } }).headline, 'The road has the floor.', 'then settles');
+  assert.equal(rideView({ ...base, speaking: { ...said, tag: 'not_a_trigger' } }).kicker, 'Betty', 'unknown tags fall back');
+  assert.equal(rideView({ ...base, talk: 'listening', speaking: said }).orb, 'listening', 'listening beats speaking');
+  const q = rideView({ ...base, quietMin: 7 });
+  assert.equal(q.orb, 'quiet'); assert.match(q.sub, /Back in 7 minutes/);
+  assert.match(rideView({ ...base, quietMin: Infinity }).sub, /Tap the speaker/);
+  assert.equal(rideView({ ...base, showGlance: false }).glance, null);
+  // glance: most pressing first
+  assert.equal(pickGlance(base).label, 'Free ride');
+  assert.equal(pickGlance({ ...base, state: { ...base.state, nearbyPlaces: [{ id: 'p', name: 'Gillooly’s Farm', distanceKm: 2.34, summary: '', lat: 0, lon: 0, interest: 1 }] } }).value, '2.3 km');
+  const inArea = { ...base, untoldStories: 2, state: { ...base.state, area: { suburb: 'Greenstone', town: 'Edenvale', region: null } } };
+  assert.deepEqual([pickGlance(inArea).title, pickGlance(inArea).value], ['Greenstone', '2 stories']);
+  assert.equal(rideView(inArea).place, 'GREENSTONE');
+  const sunset = { ...inArea, state: { ...inArea.state, weather: wx({ sunsetAt: now + 30 * 60_000 }) } };
+  assert.equal(pickGlance(sunset).label, 'Daylight');
+  const jam: TrafficIncident = { id: 'j', description: 'Queuing traffic', roadName: 'N3', severity: 3, distanceKm: 3, lat: 0, lon: 0 };
+  assert.equal(pickGlance({ ...sunset, state: { ...sunset.state, incidents: [jam] } }).title, 'N3');
+  assert.equal(pickGlance({ ...sunset, state: { ...sunset.state, incidents: [{ ...jam, distanceKm: 9 }] } }).label, 'Daylight', 'outside the radius');
+  const rain = { ...sunset, state: { ...sunset.state, weather: wx({ rainChanceNextHourPct: 70 }) } };
+  assert.deepEqual([pickGlance(rain).title, pickGlance(rain).value], ['Rain likely', '70%']);
+  assert.equal(pickGlance({ ...rain, fuelKmLeft: 40 }).title, '40 km left', 'fuel beats everything');
+  assert.equal(pickGlance({ ...rain, fuelKmLeft: 200 }).label, 'On the road ahead', 'a full tank stays out of the way');
+  // talk presets: applying one makes it current; a tuned mix is custom
+  resetConfig();
+  assert.equal(currentTalkPreset(), 'balanced', 'the defaults are Balanced');
+  applyTalkPreset('stories'); assert.equal(currentTalkPreset(), 'stories'); assert.equal(CONFIG.ambient.tourGuideWeight, 60);
+  CONFIG.ambient.banterWeight = 26; assert.equal(currentTalkPreset(), null);
+  resetConfig();
+}
 console.log('all core tests passed');
