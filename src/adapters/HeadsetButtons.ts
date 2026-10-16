@@ -9,6 +9,7 @@ import { quietWav } from './audio';
 export class HeadsetButtons {
   private audio: HTMLAudioElement | null = null;
   private held = false;
+  private log: (msg: string) => void = () => {};
 
   /** Must run inside the START RIDE tap: the phone only lets a page start sound from a tap. */
   prime() {
@@ -20,7 +21,8 @@ export class HeadsetButtons {
   }
 
   /** Route play/pause to talk() and next track to repeat(). Returns false if this browser cannot do it. */
-  start(on: { talk(): void; repeat(): void }): boolean {
+  start(on: { talk(): void; repeat(): void }, log: (msg: string) => void = () => {}): boolean {
+    this.log = log;
     const ms = 'mediaSession' in navigator ? navigator.mediaSession : undefined;
     if (!ms || !this.audio) return false;
     const keepPlaying = () => this.resume();
@@ -33,9 +35,9 @@ export class HeadsetButtons {
     } catch { /* cosmetic */ }
     const set = (a: MediaSessionAction, f: (() => void) | null) => { try { ms.setActionHandler(a, f); } catch { /* unsupported */ } };
     // A press shows up as play or pause depending on what the phone thinks is happening: both mean "talk".
-    set('play', () => { keepPlaying(); on.talk(); });
-    set('pause', () => { keepPlaying(); on.talk(); });
-    set('nexttrack', () => { keepPlaying(); on.repeat(); });
+    set('play', () => { this.log('button: play'); keepPlaying(); on.talk(); });
+    set('pause', () => { this.log('button: pause'); keepPlaying(); on.talk(); });
+    set('nexttrack', () => { this.log('button: next track'); keepPlaying(); on.repeat(); });
     this.held = true;
     try { ms.playbackState = 'playing'; } catch { /* older browsers */ }
     return true;
@@ -44,7 +46,7 @@ export class HeadsetButtons {
   /** Make sure the loop is playing, so the next press still reaches Betty. Call it after the mic closes. */
   resume() {
     if (!this.held || !this.audio) return;
-    if (this.audio.paused) void this.audio.play().catch(() => {});
+    if (this.audio.paused) void this.audio.play().catch((e) => this.log(`could not restart the silent track: ${(e as Error).name}`));
     try { navigator.mediaSession.playbackState = 'playing'; } catch { /* older browsers */ }
   }
 

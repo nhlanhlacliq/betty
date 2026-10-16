@@ -45,7 +45,7 @@ export interface VoiceTestContext {
   log(msg: string): void;
   /** The mic chosen for talking to Betty, and where to save a new choice */
   mic?(): string;
-  setMic?(id: string): void;
+  setMic?(id: string, label: string): void;
 }
 
 const BUTTONS: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'stop'];
@@ -139,7 +139,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     try { inputs = await deps.listInputs(); } catch { /* not supported */ }
     const keep = micSel.value || ctx.mic?.() || '';
     micSel.innerHTML = '';
-    const auto = el('option', '', "Phone's choice"); auto.value = ''; micSel.append(auto);
+    const auto = el('option', '', 'Automatic (helmet if connected)'); auto.value = ''; micSel.append(auto);
     inputs.forEach((d, i) => { const o = el('option', '', d.label || `Microphone ${i + 1} (name shows after the first recording)`); o.value = d.deviceId; micSel.append(o); });
     micSel.value = [...micSel.options].some((o) => o.value === keep) ? keep : '';
     return inputs;
@@ -148,7 +148,7 @@ export function mountVoiceTestPanel(root: HTMLElement, ctx: VoiceTestContext, de
     const inputs = await fillMics();
     say(`[voice test] microphones offered: ${inputs.map((d) => d.label || 'unnamed').join(', ') || 'none listed'}`);
   });
-  micSel.onchange = () => { ctx.setMic?.(micSel.value); say(`[voice test] mic for talking to Betty: ${micSel.selectedOptions[0]?.textContent ?? "phone's choice"}`); };
+  micSel.onchange = () => { ctx.setMic?.(micSel.value, micSel.value ? micSel.selectedOptions[0]?.textContent ?? '' : ''); say(`[voice test] mic for talking to Betty: ${micSel.selectedOptions[0]?.textContent ?? "phone's choice"}`); };
   micRow.append(el('span', 'name', 'Record from'), micSel, findMics);
   wrap.append(el('p', 'hint', 'Connect the helmet first. If the recording says "iPhone Microphone", tap Find mics and pick the headset, then record again. The mic picked here is also the one Betty listens on when you talk to her.'), micRow);
   void fillMics();

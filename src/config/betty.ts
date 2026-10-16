@@ -36,6 +36,8 @@ export interface Config {
   headsetButtons: boolean;
   /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
   micDeviceId: string;
+  /** That mic's name, to find it again if the phone gives it a new id */
+  micLabel: string;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -74,6 +76,7 @@ export const DEFAULT_CONFIG: Config = {
   voiceURI: '',
   headsetButtons: false,
   micDeviceId: '',
+  micLabel: '',
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,

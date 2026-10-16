@@ -53,7 +53,7 @@ const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | 
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; unmountChat: () => void; buttons: HeadsetButtons; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
+  setObd: (mode: ObdMode) => void; unsub: () => void; unmountSim: () => void; unmountChat: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -106,7 +106,7 @@ mountTuningPanel($('tuning'));
 mountVoiceTestPanel($('voicetestpanel'), {
   speed: () => (rig ? rig.agg.current.speedKmh : null),
   mic: () => CONFIG.micDeviceId,
-  setMic: (id) => { CONFIG.micDeviceId = id; saveConfig(); },
+  setMic: (id, label) => { CONFIG.micDeviceId = id; CONFIG.micLabel = label; saveConfig(); },
   log: (msg) => { newLine('[voice-test]', msg); renderLog(); },
 });
 /** Everyone following the chat timeline (the CHAT panel while a ride runs). */
@@ -349,7 +349,7 @@ async function beginRide() {
   };
 
   // ---- talking to her: headset play/pause (if switched on) or the lock screen's talk button
-  const ptt = new PushToTalk(browserPttDeps(), () => CONFIG.micDeviceId);
+  const ptt = new PushToTalk(browserPttDeps(), () => ({ id: CONFIG.micDeviceId, label: CONFIG.micLabel }));
   const sayNow = (text: string) => { newLine('[P4] voice', text).item = queue.enqueue(text, 4); renderLog(); };
   const talk = async () => {
     if (ptt.listening) { ptt.stop(); return; } // second press: done talking
@@ -390,7 +390,7 @@ async function beginRide() {
   talkNow = () => void talk();
   lockScreen.setTalk(true);
   if (CONFIG.headsetButtons) {
-    const ok = buttons.start({ talk: () => void talk(), repeat });
+    const ok = buttons.start({ talk: () => void talk(), repeat }, (msg) => { newLine('[voice]', msg); renderLog(); });
     newLine('[voice]', ok ? 'headset buttons: play/pause talks to Betty, next track repeats her last line' : 'headset buttons are not available in this browser');
   }
 
@@ -399,7 +399,7 @@ async function beginRide() {
     listen: (fn) => { chatListeners.add(fn); return () => { chatListeners.delete(fn); }; },
   });
 
-  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, unmountChat, buttons, wake, remember, memTimer, logSensors, sensorTimer };
+  rig = { agg, engine, queue, say, setObd, unsub, unmountSim, unmountChat, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer };
   toggle.textContent = 'END RIDE';
   toggle.classList.add('stop');
   realBox.disabled = true;
@@ -441,6 +441,7 @@ async function stop() {
   r.unmountSim();
   r.unmountChat();
   r.buttons.stop();
+  r.releaseMic();
   talkNow = null;
   lockScreen.setTalk(false);
   saveLog();

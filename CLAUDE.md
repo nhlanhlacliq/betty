@@ -377,6 +377,14 @@ wake word last / on the Pi.
   Still unverified: transcription quality at speed with wind, and the pause thresholds.
   GROQ_API_KEY set on Vercel 2026-10-16. Checked live: a spoken m4a clip ("Hey Betty, is it going to rain before
   I get to Edenvale?") came back word-perfect in about 1.5 s round trip from the owner's Mac.
+  First stage 2 ride (2026-10-16): the first press worked end to end ("Hello, Pitty" -> answer in about 3.3 s from
+  the end of speech), then NO further press reached the page, even with `resume()`. Changes: `PushToTalk` now keeps
+  the mic open between questions until END RIDE (`release()`): closing it is the likely moment iPhone stopped
+  sending the buttons. Cost: a helmet mic keeps the headset in call mode for the rest of the ride. Every press and
+  any failed restart of the silent track is logged as `[voice]`. The clip came from "iPhone Microphone" with the
+  helmet connected ("phone's choice"), so `chooseMic` now picks the saved mic by id, then by name (`micLabel`, ids
+  can change), then any connected non-built-in mic; the picker's empty option is "Automatic (helmet if connected)".
+  Whisper hint now includes "Hey Betty". UNVERIFIED ON THE PHONE.
   Rides of 2026-10-14 afternoon (VOICE TEST only; stage 2 not used yet):
   - **One press, then nothing**: opening the mic pauses the silent loop on iPhone, and a page that is not playing
     stops getting the buttons, so only the first press worked until the test was restarted. Both `HeadsetButtons`

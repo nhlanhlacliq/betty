@@ -484,7 +484,7 @@ resetConfig();
     // pick the helmet mic explicitly
     // (by tag: jsdom's id lookup misses it here because the real page in this test also has a #micpick)
     const pick = host.querySelector('select') as HTMLSelectElement;
-    assert.deepEqual([...pick.options].map((o) => o.textContent), ["Phone's choice", 'iPhone Microphone', 'Cardo Packtalk']);
+    assert.deepEqual([...pick.options].map((o) => o.textContent), ['Automatic (helmet if connected)', 'iPhone Microphone', 'Cardo Packtalk']);
     assert.equal(constraints.at(-1).audio, true, "phone's choice by default");
     pick.value = 'helmet';
     btn(/Record 5 seconds/).click(); await new Promise((r) => realTimeout(r, 20));
@@ -506,22 +506,28 @@ resetConfig();
 
 // ---- push-to-talk recording, with stand-ins for the mic
 {
-  const { PushToTalk, transcribe } = await import('../src/adapters/PushToTalk');
+  const { PushToTalk, transcribe, chooseMic } = await import('../src/adapters/PushToTalk');
+  const mics = [{ deviceId: 'phone', label: 'iPhone Microphone' }, { deviceId: 'helmet', label: 'V6' }];
+  assert.equal(chooseMic(mics, '', ''), 'helmet', 'automatic: the helmet when one is connected');
+  assert.equal(chooseMic(mics, 'phone', ''), 'phone', 'his pick wins');
+  assert.equal(chooseMic(mics, 'old-id', 'V6'), 'helmet', 'found again by name when the id changed');
+  assert.equal(chooseMic([mics[0]], '', ''), '', 'no headset: the phone decides');
   const track = { label: 'V6', stopped: false, stop() { this.stopped = true; } };
-  let levels: number[] = []; let asked: any = null;
+  let levels: number[] = []; let asked: any = null; let opened = 0;
   const deps = {
-    getUserMedia: async (c: any) => { asked = c; return { getAudioTracks: () => [track], getTracks: () => [track] } as any; },
+    getUserMedia: async (c: any) => { asked = c; opened++; return { getAudioTracks: () => [track], getTracks: () => [track] } as any; },
     makeRecorder: () => { const r: any = { start() {}, stop() { r.ondataavailable({ data: new Blob(['a'.repeat(3000)]) }); r.onstop(); } }; return r; },
     recorderType: () => 'audio/mp4',
     meter: (_s: any, on: (l: number) => void) => { const t = setInterval(() => on(levels.shift() ?? 0.01), 1); return () => clearInterval(t); },
+    listInputs: async () => mics,
   };
   let clock = 0; const now = () => (clock += 100);
-  const ptt = new PushToTalk(deps, () => 'helmet', 8000, now);
+  const ptt = new PushToTalk(deps, () => ({ id: '', label: '' }), 8000, now);
   levels = [0.3, 0.4, 0.5, 0.3, ...Array(20).fill(0.01)];
   const clip = await ptt.record();
   assert.deepEqual(asked, { audio: { deviceId: { exact: 'helmet' } } }, 'listens on the chosen mic');
   assert.equal(clip.heardSpeech, true); assert.equal(clip.mic, 'V6'); assert.equal(clip.audio.size, 3000); assert.equal(clip.audio.type, 'audio/mp4');
-  assert.equal(track.stopped, true, 'mic closed straight after, so the headset leaves call mode');
+  assert.equal(track.stopped, false, 'mic stays open between questions, or the phone stops sending the buttons');
   assert.equal(ptt.listening, false);
   // a second press ends it early
   levels = Array(1000).fill(0.5);
@@ -532,6 +538,8 @@ resetConfig();
   // nothing said
   levels = Array(100).fill(0.02);
   assert.equal((await ptt.record()).heardSpeech, false);
+  assert.equal(opened, 1, 'one mic for all three questions');
+  ptt.release(); assert.equal(track.stopped, true, 'END RIDE closes it');
 
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (_u: any, init: any) => new Response(JSON.stringify(init.headers['content-type'] === 'audio/mp4' ? { text: ' how far to empty? ' } : {}))) as typeof fetch;
