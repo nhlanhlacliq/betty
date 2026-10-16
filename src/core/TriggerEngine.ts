@@ -239,10 +239,14 @@ export class TriggerEngine {
           : 'These are the small hours, so open without any greeting: go straight to saying you are ready.'; // naming the words to avoid made her say them
         // Owner liked the self-introduction she gave when asked "tell me about yourself" (2026-10-16): a briefing.
         const left = this.fuelKmLeft();
+        const ahead = s.incidents.filter((i) => worthMentioning(i, s) && !this.known.has(incidentKey(i)) && !this.announced.has(i.id)).sort(byDistance);
+        for (const i of ahead.slice(0, 3)) { this.announced.add(i.id); this.announcedKeys.push(incidentKey(i)); }
         const digest = situationDigest({
           s, ride: this.stats.snapshot(), history: this.history, at, placeRadiusKm: CONFIG.ambient.placeRadiusKm,
-          fuelKmLeft: left, incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
-          skip: ['time', 'duration', 'distance', 'standing', 'speed_now', 'stops'], // nothing has happened yet; the clock is given above
+          // Only incidents not announced in the last week: the briefing named the same Hendrik Potgieter closure ride
+          // after ride (2026-10-17). Any it does name count as announced, so no alert repeats them a minute later.
+          fuelKmLeft: left, incidentsAhead: ahead,
+          skip: ['time', 'duration', 'distance', 'standing', 'speed_now', 'stops', 'traffic'], // nothing has happened yet; the clock is given above
         });
         const kept = describeMemory(this.memory, s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null, this.now(), 3);
         const pz = CONFIG.persona;
@@ -294,7 +298,7 @@ export class TriggerEngine {
       }
       case 'ride_milestone': {
         const mins = Math.round((this.now() - this.rideStart) / 60_000);
-        return { context: `The rider has been out for ${mins} minutes.`, fallback: `You've been out ${mins} minutes. Good ride so far.` };
+        return { context: `The rider has been out for ${mins} minutes.`, fallback: `You've been out ${mins} minute${mins === 1 ? '' : 's'}. Good ride so far.` };
       }
       case 'fuel_range': {
         const left = this.fuelKmLeft();

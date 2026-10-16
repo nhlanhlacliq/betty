@@ -766,7 +766,11 @@ brake or a "mark this" press.
    remarks) got 429 and Betty then dropped Gemini for the whole ride. Now `CloudSpeaker` keeps to `GEMINI_PER_MIN` (8):
    lines past it go to Chirp, stock-phrase fetches leave 4 of the 8 free (and are fetched on demand otherwise), a
    per-minute 429 pauses Gemini for the "retry in N s" Google gives (logged once), and only a per-day 429 or a 503
-   ends Gemini for the ride. "Test sounds" now waits for room between lines.
+   ends Gemini for the ride. "Test sounds" now waits for room between lines. Each Gemini model also has its own
+   DAILY limit (Lite: 100 a day on Tier 1, hit on 2026-10-17 after a day of tests): a per-day 429 switches to the
+   other model for the ride (`modelsOut`), and only when both are out does Gemini stop. Same log: the briefing named a
+   closure already announced that week; it now leaves out `known`/announced incidents (and the `traffic` count topic),
+   and any it does name count as announced so no alert repeats them.
    GEMINI FREE TIER = 10 REQUESTS A DAY for `gemini-3.8-flash-tts` (429 on the 11th, 2026-10-16): useless for a ride.
    A Gemini line that fails is asked of Chirp instead (same voice), and a 429 or 503 stops that engine for the rest of
    the ride (`unavailable`, logged once as `[audio]`). Real Gemini use needs billing on the AI Studio project (paid

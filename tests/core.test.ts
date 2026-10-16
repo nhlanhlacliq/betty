@@ -1069,6 +1069,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.match(b.context, /roughly 90 km of range left/);
   assert.equal(b.fallback, 'Systems online. Partly cloudy, 22 degrees, 10 percent chance of rain in the next hour. About 90 kilometres of fuel range by my count.');
   assert.equal(new TriggerEngine(now).startup().fallback, 'Systems online.', 'nothing known yet: the old line');
+  const closure: TrafficIncident = { id: 'tt1', description: 'a road closure', roadName: 'Hendrik Potgieter Street', distanceKm: 0.3, severity: 4, delaySec: 600, lengthM: 400, lat: -26.15, lon: 28.15 } as any;
+  const known = new TriggerEngine(now); known.setKnownIncidents([incidentKey(closure)]);
+  assert.ok(!/Hendrik/.test(known.startup({ ...initialState(), incidents: [closure] }).context), 'a closure announced on an earlier ride is not in the briefing');
+  const fresh = new TriggerEngine(now);
+  assert.match(fresh.startup({ ...initialState(), incidents: [closure] }).context, /Hendrik Potgieter/);
+  assert.deepEqual(fresh.announcedIncidents(), [incidentKey(closure)], 'named in the briefing = announced, no alert for it a minute later');
 }
 
 // ---- accent library voices: Gemini only; Chirp alerts get a standard voice of the same gender
@@ -1287,11 +1293,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   }) as typeof fetch);
   calls = []; played = [];
   await sp2.ready('Quiet road.', { priority: 3, id: 'ambient_banter' });
-  assert.deepEqual(calls.map((c) => c.engine), ['gemini', 'chirp']); assert.match(logs.at(-1)!, /gemini\) unavailable for this ride.*429/);
+  assert.deepEqual(calls.map((c) => `${c.engine}${c.model ? ' ' + c.model : ''}`), ['gemini full', 'gemini lite', 'chirp'], 'each Gemini model has its own daily limit: the other is tried first');
+  assert.ok(logs.some((l) => /gemini full\): out for the day.*switching to lite/.test(l))); assert.match(logs.at(-1)!, /gemini\) unavailable for this ride.*429/);
   sp2.speak('Quiet road.', () => done++, { priority: 3, id: 'ambient_banter' }); await flush();
-  assert.equal(calls.length, 2, 'played from the Chirp clip already fetched'); assert.equal(played.length, 1); finish!();
+  assert.equal(calls.length, 3, 'played from the Chirp clip already fetched'); assert.equal(played.length, 1); finish!();
   await sp2.ready('Still quiet.', { priority: 3, id: 'ambient_banter' });
-  assert.deepEqual(calls.slice(2).map((c) => c.engine), ['chirp'], 'Gemini not asked again this ride');
+  assert.deepEqual(calls.slice(3).map((c) => c.engine), ['chirp'], 'Gemini not asked again this ride');
   assert.equal(done, 7);
   // stream mode: an answer is streamed and played as it arrives; no audio in time -> Chirp says it
   {

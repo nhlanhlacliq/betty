@@ -116,6 +116,13 @@ export class CloudSpeaker implements Speaker {
   /** When each Gemini request of the last minute went out, and until when Google asked us to wait */
   private geminiAt: number[] = [];
   private geminiPausedUntil = 0;
+  /** Gemini models out for the day (each has its own daily limit: Lite 100 a day on Tier 1, 2026-10-17) */
+  private modelsOut = new Set<string>();
+  /** The Gemini model to ask: the chosen one, or the other one when the chosen one is out for the day. */
+  private geminiModel(): string {
+    const other = CONFIG.geminiModel === 'full' ? 'lite' : 'full';
+    return this.modelsOut.has(CONFIG.geminiModel) ? other : CONFIG.geminiModel;
+  }
 
   constructor(
     private fallback: Speaker,
@@ -140,7 +147,7 @@ export class CloudSpeaker implements Speaker {
     const chirp = chirpVoice();
     const body = {
       text: voiceTags(text, gemini), engine, voice: gemini ? CONFIG.cloudVoiceName : chirp.name,
-      ...(gemini ? { style: voiceStyle(tag?.id, priority), model: CONFIG.geminiModel } : { locale: chirp.locale }),
+      ...(gemini ? { style: voiceStyle(tag?.id, priority), model: this.geminiModel() } : { locale: chirp.locale }),
       ...(stream ? { stream: true } : {}),
     };
     return { engine, stream, kept: gemini && KEPT.has(text), key: JSON.stringify(body), body };
@@ -189,6 +196,10 @@ export class CloudSpeaker implements Speaker {
         const secs = Number(detail.match(/retry in (\d+)/i)?.[1] ?? 60);
         if (Date.now() >= this.geminiPausedUntil) this.log(`cloud voice (gemini): at its limit (${detail.match(/limit: [^)]+/)?.[0] ?? 'per minute'}); Chirp for the next ${secs} s`);
         this.geminiPausedUntil = Date.now() + secs * 1000;
+      } else if (limited && r.engine === 'gemini' && r.body.model && !this.modelsOut.has(r.body.model) && this.modelsOut.size === 0) {
+        // One model's daily limit: switch to the other Gemini model for the rest of the ride (it has its own).
+        this.modelsOut.add(r.body.model);
+        this.log(`cloud voice (gemini ${r.body.model}): out for the day (${detail.match(/limit: [^)]+/)?.[0] ?? 'per day'}); switching to ${this.geminiModel()}`);
       } else if (res.status === 503 || limited) {
         // Not set up, or out of quota for the day: say it once, then stop asking that engine this ride.
         if (!this.unavailable.has(r.engine)) this.log(`cloud voice (${r.engine}) unavailable for this ride: ${why?.error ?? res.status}${detail ? ` (${detail.slice(0, 120)})` : ''}`);

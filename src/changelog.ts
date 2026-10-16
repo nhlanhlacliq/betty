@@ -9,6 +9,8 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     items: [
       'Area stories come up on their own: when you reach a new town or suburb, her next remark is a story about it, then they mix in with the tour guide.',
+      'If one Gemini model hits its daily limit, Betty switches to the other (Full or Lite) before falling back to Chirp.',
+      'The briefing no longer repeats a road closure she already told you about this week.',
       'Gemini no longer drops out for the whole ride: your paid tier allows 10 Gemini lines a minute, so Betty spaces them out and uses Chirp for the odd line in between.',
     ],
   },
