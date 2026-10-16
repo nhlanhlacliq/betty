@@ -3,6 +3,7 @@ import { SpeakTag, Speaker } from '../core/AudioQueue';
 import { quietWav } from './audio';
 import { PcmClip, PcmPlayer } from './PcmPlayer';
 import { voiceTags } from '../core/ClaudeClient';
+import { ClipStore } from './ClipStore';
 
 export type Engine = 'chirp' | 'gemini';
 
@@ -34,6 +35,21 @@ export const STOCK_LINES = [
   'Hang on, let me check.', "I didn't hear anything. Try again?", "Sorry, I couldn't make that out. Try again?",
   "Sorry, I didn't catch that.", "I'm back.", "Noted. I'll remember that.", 'Forgotten.',
 ];
+/** One line per voice sound, for the "Test sounds" button: [tag, line]. Kept on the phone like the stock lines. */
+export const SOUND_TEST_LINES: Array<[string, string]> = [
+  ['laugh', 'You took that corner like it owed you money. <laugh> Fair enough.'],
+  ['chuckle', 'Forty kilometres and not one wrong turn. <chuckle> I am almost impressed.'],
+  ['snicker', 'The taxi indicated. <snicker> I will believe it when I see it.'],
+  ['sigh', 'Three incidents on the N3. <sigh> Of course there are.'],
+  ['phew', '<phew> That rain cloud has gone the other way.'],
+  ['pff', '<pff> Twelve kilometres an hour of wind. Hardly worth mentioning.'],
+  ['tsk', '<tsk> Someone has parked across the yellow line again.'],
+  ['yawn', 'Sixty-two on a dead straight road for twenty minutes. <yawn> Wake me at the next bend.'],
+  ['throat-clearing', '<throat-clearing> Fuel range is down to forty kilometres.'],
+  ['short pause', 'I have good news and bad news. <short pause> The bad news is that there is no good news.'],
+];
+/** Lines fetched whole (not streamed) and kept on the phone across rides. */
+const KEPT = new Set([...STOCK_LINES, ...SOUND_TEST_LINES.map(([, l]) => l)]);
 
 /** Plays one clip. Returns a function that stops it. */
 export interface CloudPlayer { play(url: string, onEnded: () => void, onError: (why: string) => void): () => void }
@@ -68,7 +84,7 @@ const within = <T>(p: Promise<T>, ms: number) => new Promise<T>((res, rej) => {
 });
 
 interface Req {
-  engine: Engine; stream: boolean; key: string;
+  engine: Engine; stream: boolean; key: string; /** kept on the phone across rides */ kept: boolean;
   body: { text: string; engine: Engine; voice: string; style?: string; model?: string; stream?: boolean; locale?: string };
 }
 
@@ -100,19 +116,21 @@ export class CloudSpeaker implements Speaker {
     private pcmPlayer: PcmPlayer | null = null,
     /** Told when a line's audio starts: which engine, streamed or not, and how long after speak() (for the Test button) */
     private onAudio: (engine: Engine, streamed: boolean, ms: number) => void = () => {},
+    /** Keeps stock-line clips across rides */
+    private store: ClipStore | null = null,
   ) {}
 
   private build(engine: Engine, text: string, tag?: SpeakTag): Req {
     const priority = tag?.priority ?? 4;
     const gemini = engine === 'gemini';
-    const stream = gemini && streams(CONFIG.cloudVoice, priority) && !!this.pcmPlayer?.ready;
+    const stream = gemini && streams(CONFIG.cloudVoice, priority) && !!this.pcmPlayer?.ready && !KEPT.has(text);
     // <laugh>/<sigh> are performed by Gemini only; Chirp would read them out.
     const body = {
       text: voiceTags(text, gemini), engine, voice: CONFIG.cloudVoiceName,
       ...(gemini ? { style: voiceStyle(tag?.id, priority), model: CONFIG.geminiModel } : { locale: CONFIG.chirpLocale }),
       ...(stream ? { stream: true } : {}),
     };
-    return { engine, stream, key: JSON.stringify(body), body };
+    return { engine, stream, kept: gemini && KEPT.has(text), key: JSON.stringify(body), body };
   }
 
   /**
@@ -145,7 +163,13 @@ export class CloudSpeaker implements Speaker {
   private get(r: Req): Promise<Blob> {
     let p = this.cache.get(r.key);
     if (!p) {
-      p = this.post(r).then((res) => res.blob());
+      const kept = r.kept;
+      p = (async () => {
+        if (kept) { const hit = await this.store?.get(r.key).catch(() => null); if (hit) return hit; }
+        const blob = await this.post(r).then((res) => res.blob());
+        if (kept) void this.store?.put(r.key, blob).catch(() => {});
+        return blob;
+      })();
       p.catch(() => { this.cache.delete(r.key); this.failed.add(r.key); }); // not kept: next ride may have signal
       this.cache.set(r.key, p);
       while (this.cache.size > this.keep) this.cache.delete(this.cache.keys().next().value!);

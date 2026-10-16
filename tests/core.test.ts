@@ -12,6 +12,8 @@ import { POST as transcribeApi } from '../api/transcribe';
 import { POST as speakApi } from '../api/speak';
 import { CloudSpeaker, engineFor, streams } from '../src/adapters/CloudSpeaker';
 import { PcmClip, pcmToFloat } from '../src/adapters/PcmPlayer';
+import { MemoryClipStore } from '../src/adapters/ClipStore';
+import { SOUND_TEST_LINES, STOCK_LINES } from '../src/adapters/CloudSpeaker';
 import { TomTomTrafficProvider } from '../src/adapters/TomTomTraffic';
 import { LogEntry, MAX_LOG_ENTRIES, formatLog, mergeLog, ridesInLog, stamp } from '../src/core/LineLog';
 import { CONFIG, cleanBikeName, cleanRiderName, resetConfig } from '../src/config/betty';
@@ -1047,10 +1049,13 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(voiceTags('Fair enough. <laugh> Carry on.', true), 'Fair enough. <laugh> Carry on.');
   assert.equal(voiceTags('Fair enough. <laugh> Carry on.', false), 'Fair enough. Carry on.');
   assert.equal(voiceTags('Three incidents <sigh>.', false), 'Three incidents.');
-  assert.equal(voiceTags('Well <chuckle> then.', true), 'Well then.', 'tags Gemini does not know are never read out');
+  assert.equal(voiceTags('Well <guffaw> then.', true), 'Well then.', 'tags Gemini does not know are never read out');
   assert.equal(voiceTags('A <Short Pause> beat.', true), 'A <short pause> beat.');
-  assert.match(bettySystemPrompt(), /write <laugh> or <sigh>/);
-  CONFIG.cloudVoice = 'chirp'; assert.ok(!/<laugh>/.test(bettySystemPrompt()), 'no tags when no voice can perform them'); resetConfig();
+  assert.equal(voiceTags('<throat-clearing> Fuel is low.', true), '<throat-clearing> Fuel is low.');
+  assert.equal(voiceTags('<throat-clearing> Fuel is low.', false), 'Fuel is low.');
+  for (const [, line] of SOUND_TEST_LINES) assert.equal(voiceTags(line, true), line, `test line kept as written: ${line}`);
+  assert.match(bettySystemPrompt(), /Your voice can make sounds: write one of <laugh> <chuckle> <snicker> <sigh> <phew> <pff> <tsk> <yawn> <throat-clearing> <short pause>/);
+  CONFIG.cloudVoice = 'chirp'; assert.ok(!/<chuckle>/.test(bettySystemPrompt()), 'no tags when no voice can perform them'); resetConfig();
   const { FLAVOUR_PROMPTS } = await import('../src/config/betty');
   assert.match(FLAVOUR_PROMPTS.rider_query!, /do not claim it is done; tell him the command/);
   assert.match(voiceStyle('ambient_banter', 3), /a touch brisker/); assert.match(voiceStyle('rider_query', 4), /a touch brisker/);
@@ -1213,6 +1218,24 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     await flush(); errClip!('the stream had no audio'); await flush();
     assert.equal(bodies.at(-1).engine, 'chirp'); assert.equal(bodies.at(-1).locale, 'en-US'); assert.equal(played.length, 1); assert.match(logs.at(-1)!, /said with Chirp/);
     finish!(); assert.equal(d3, 2);
+    resetConfig();
+  }
+  // stock phrases are made once and kept on the phone: a later ride (a new speaker) plays them without asking Gemini
+  {
+    const store = new MemoryClipStore(); const asked: any[] = [];
+    const f = (async (_u: any, init: any) => { asked.push(JSON.parse(init.body)); return new Response(new Blob(['wav'])); }) as typeof fetch;
+    const fakePcm: any = { ready: true, play: () => () => {} };
+    CONFIG.cloudVoice = 'stream';
+    const first = new CloudSpeaker(phone, () => player, () => {}, f, undefined, undefined, fakePcm, undefined, store);
+    await first.ready(STOCK_LINES[0], { priority: 4, id: 'voice' });
+    assert.equal(asked.length, 1); assert.equal(asked[0].stream, undefined, 'kept lines are fetched whole, not streamed'); await flush();
+    assert.equal(store.clips.size, 1);
+    const later = new CloudSpeaker(phone, () => player, () => {}, f, undefined, undefined, fakePcm, undefined, store);
+    await later.ready(STOCK_LINES[0], { priority: 4, id: 'voice' });
+    assert.equal(asked.length, 1, 'second ride: from the phone, no Gemini call');
+    CONFIG.cloudVoiceName = 'Kore';
+    await later.ready(STOCK_LINES[0], { priority: 4, id: 'voice' });
+    assert.equal(asked.length, 2, 'a new voice makes it again');
     resetConfig();
   }
   // off: straight to the phone

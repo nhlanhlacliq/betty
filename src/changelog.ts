@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-16 (night)',
     items: [
+      'More voice sounds: chuckle, snicker, phew, pff, tsk, yawn, throat-clearing and a short pause, alongside laugh and sigh. Hear them all with "Test sounds" on the main screen.',
+      'Her stock phrases ("Hang on, let me check" and the like) are kept on the phone, so Gemini makes them once per voice instead of every ride.',
       'Pre-ride briefing: at the start of a ride she introduces herself and tells you the weather, rain chance, traffic, fuel range and how your rides together are going.',
       'Her Gemini voice can laugh and sigh now and then, and talks a touch quicker.',
       'Gemini voice for everything except alerts: answers are streamed so she starts talking after 2 to 3 seconds. Choose Full or Lite (a second sooner), and Chirp\'s accent for alerts (American by default, closer to Gemini). To go back, pick "Gemini for her own remarks only" under Cloud voice.',

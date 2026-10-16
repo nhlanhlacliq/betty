@@ -183,7 +183,7 @@ export const BRIEFING_SENTENCES = 4;
 export const sentencesFor = (id: TriggerId) => Math.max(1, Math.round(id === 'startup' ? Math.max(BRIEFING_SENTENCES, CONFIG.maxSpokenSentences) : CONFIG.maxSpokenSentences));
 
 /** Sounds Gemini TTS performs when written into the text (Google's docs, 2026-10-16). Other voices drop them. */
-export const VOICE_TAGS = ['laugh', 'sigh', 'short pause'];
+export const VOICE_TAGS = ['laugh', 'chuckle', 'snicker', 'sigh', 'phew', 'pff', 'tsk', 'yawn', 'throat-clearing', 'short pause'];
 /** True when her lines may be said by Gemini, so laughs and sighs are worth writing. */
 export const voiceTagsOn = () => CONFIG.cloudVoice === 'stream' || CONFIG.cloudVoice === 'mixed' || CONFIG.cloudVoice === 'gemini';
 
@@ -196,7 +196,7 @@ export const bettySystemPrompt = (maxSentences = CONFIG.maxSpokenSentences) => {
 You call the motorcycle ${bike}: use that whenever you mention it, not its model name or any nickname of your own.
 ${personaPrompt()}
 Co-pilot, not alert system.${voiceTagsOn() ? `
-Your voice can laugh and sigh: write <laugh> or <sigh> exactly where it happens (a laugh at your own joke, a sigh at the traffic). Now and then, not in every line, at most once in a line, never in safety alerts. No other tags, no stage directions in words.` : ''} Use his name in about one line in five, never as the first word, and never any other name for him.
+Your voice can make sounds: write one of ${VOICE_TAGS.map((t) => `<${t}>`).join(' ')} exactly where it happens (a chuckle at your own joke, a tsk at a bad driver, a sigh at the traffic, a short pause before a punchline). Now and then, not in every line, at most one sound in a line, never in safety alerts. No other tags, no stage directions in words.` : ''} Use his name in about one line in five, never as the first word, and never any other name for him.
 Hard rules: reply in at most ${max} short sentence${max === 1 ? '' : 's'}. Plain spoken English, no markdown, no emojis, no lists. Aim for under ${10 + max * 10} words in total.
 Never repeat something already said this ride. Use only the supplied situation and bike state; never invent numbers, places or road names.
 Safety alerts (engine temperature, fault codes, fuel, traffic, rain) are said straight: no jokes, no teasing.

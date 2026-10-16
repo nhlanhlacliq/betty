@@ -1,6 +1,7 @@
 import { loadConfig, saveConfig } from './config/persist';
 import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, cleanBikeName, cleanRiderName } from './config/betty';
-import { CloudSpeaker, ElementPlayer, STOCK_LINES } from './adapters/CloudSpeaker';
+import { CloudSpeaker, ElementPlayer, SOUND_TEST_LINES, STOCK_LINES } from './adapters/CloudSpeaker';
+import { IdbClipStore } from './adapters/ClipStore';
 import { PcmPlayer } from './adapters/PcmPlayer';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
@@ -221,6 +222,8 @@ chirpSel.addEventListener('change', () => { CONFIG.chirpLocale = chirpSel.value 
 showCloud();
 cloudSel.addEventListener('change', () => { CONFIG.cloudVoice = cloudSel.value as CloudVoiceMode; saveConfig(); showCloud(); });
 cloudName.addEventListener('change', () => { CONFIG.cloudVoiceName = cloudName.value; saveConfig(); });
+/** Stock phrases and sound-test clips, kept on the phone so Gemini makes each one only once per voice. */
+const clipStore = new IdbClipStore();
 const testPlayer = new ElementPlayer();
 const testPcm = new PcmPlayer();
 $('cloudtest').addEventListener('click', () => {
@@ -231,7 +234,7 @@ $('cloudtest').addEventListener('click', () => {
   const waits: string[] = [];
   const sec = (ms: number) => `${Math.round(ms / 100) / 10} s`;
   const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m), undefined, undefined, undefined, testPcm,
-    (engine, streamed, ms) => waits.push(`${engine === 'chirp' ? 'Chirp' : 'Gemini'}${streamed ? ' streamed' : ''} ${sec(ms)}`));
+    (engine, streamed, ms) => waits.push(`${engine === 'chirp' ? 'Chirp' : 'Gemini'}${streamed ? ' streamed' : ''} ${sec(ms)}`), clipStore);
   const name = cleanRiderName(CONFIG.riderName);
   // The three kinds of line a ride has, fetched the way a ride fetches them: alert, answer, and banter (which a ride
   // fetches whole, ahead, and only queues once it is ready). The status shows how long each waited for its audio.
@@ -253,6 +256,32 @@ $('cloudtest').addEventListener('click', () => {
       });
     }, answer);
   }, alert);
+});
+
+// Every voice sound she may use, one line each, in Gemini: to hear and judge them. Kept on the phone after the first
+// play, so pressing it again costs nothing (until the voice, model or style changes).
+let soundsBusy = false;
+$('cloudsounds').addEventListener('click', () => {
+  if (rig || soundsBusy) return;
+  if (CONFIG.cloudVoice === 'off' || CONFIG.cloudVoice === 'chirp') { setStatus('The sounds are Gemini only: pick a Gemini option under Cloud voice first.', true); return; }
+  testPlayer.prime(); testPcm.prime();
+  testSpeaker.stop();
+  soundsBusy = true;
+  const notes: string[] = [];
+  const t = new CloudSpeaker(testSpeaker, () => testPlayer, (m) => notes.push(m), undefined, undefined, undefined, testPcm, undefined, clipStore);
+  const tag = { priority: 3 as const, id: 'voice' }; // P3 is Gemini in every Gemini mode
+  const ready = SOUND_TEST_LINES.map(([, line]) => t.ready(line, tag)); // all fetched at once
+  void (async () => {
+    for (let i = 0; i < SOUND_TEST_LINES.length; i++) {
+      const [sound, line] = SOUND_TEST_LINES[i];
+      setStatus(`Sound ${i + 1} of ${SOUND_TEST_LINES.length}: <${sound}>, "${voiceTags(line, false)}"`);
+      await ready[i];
+      await new Promise<void>((done) => t.speak(line, done, tag));
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    soundsBusy = false;
+    setStatus(`Sound test done.${notes.length ? ` ${notes.join('; ')}.` : ' Kept on the phone: the next test is instant and free.'}`, notes.length > 0);
+  })();
 });
 
 const wakeEl = $('wake');
@@ -356,9 +385,9 @@ async function beginRide() {
   const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined);
   // The cloud voice plays on the headset buttons' own track while they are Betty's (another sound source could take
   // the buttons away), otherwise on its own element. The phone voice is its backup for every line.
-  const cloud = new CloudSpeaker(new WebSpeaker(speechProblem), () => (buttons.holding ? buttons : player), speechProblem, undefined, undefined, undefined, pcm);
-  // Her stock phrases in her Gemini voice, ready before they are needed.
-  if (CONFIG.cloudVoice === 'stream') for (const l of STOCK_LINES) cloud.prefetch(l, { priority: 4, id: 'voice' });
+  const cloud = new CloudSpeaker(new WebSpeaker(speechProblem), () => (buttons.holding ? buttons : player), speechProblem, undefined, undefined, undefined, pcm, undefined, clipStore);
+  // Her stock phrases in her Gemini voice, ready before they are needed (from the phone after the first ride).
+  if (CONFIG.cloudVoice !== 'off' && CONFIG.cloudVoice !== 'chirp') for (const l of STOCK_LINES) cloud.prefetch(l, { priority: 4, id: 'voice' });
   const speaker = new SwitchableSpeaker(cloud);
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, () => { renderLog(); saveLogSoon(); });
 

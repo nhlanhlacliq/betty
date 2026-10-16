@@ -783,7 +783,12 @@ brake or a "mark this" press.
    **Voice tags and pace (2026-10-16)**: when a Gemini mode is on, the system prompt lets her write `<laugh>` or
    `<sigh>` (now and then, at most once a line, never in alerts). `voiceTags(text, keep)` keeps the tags Gemini knows
    (`VOICE_TAGS`) for Gemini and strips every tag for Chirp, the phone voice and the lock screen; the chat and the log
-   show them. Every non-alert Gemini style ends with `PACE` ("at a natural pace, a touch brisker than relaxed"): the
+   show them. Owner's set (same night): laugh, chuckle, snicker, sigh, phew, pff, tsk, yawn, throat-clearing, short
+   pause ("pgg" and "yarn" in his message read as pff and yawn); Chirp has no such tags (only pause markup, rate,
+   pronunciations, SSML). "Test sounds" on the main screen plays `SOUND_TEST_LINES`, one per tag; all ten checked
+   against Gemini (HTTP 200). Stock phrases and sound-test lines are fetched whole and KEPT ON THE PHONE
+   (`adapters/ClipStore`, IndexedDB `betty-voice`, keyed by voice+model+style+text, cleared past 80) so Gemini makes
+   each once per voice: owner saw Gemini cost 25c in a day of testing while Chirp was free. Every non-alert Gemini style ends with `PACE` ("at a natural pace, a touch brisker than relaxed"): the
    owner found the composed style slow and asked for "a tiny bit" quicker. Checked live: she uses both tags unprompted.
 
 ## Pre-ride briefing (2026-10-16, owner liked her answer to "tell me about yourself")

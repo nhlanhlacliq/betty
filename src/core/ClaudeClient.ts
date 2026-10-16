@@ -125,7 +125,7 @@ export const BRIEFING_TIMEOUT_MS = 8000;
  * keep=true still removes tags Gemini does not know, so a made-up <chuckle> is never read out.
  */
 export function voiceTags(text: string, keep: boolean): string {
-  const out = text.replace(/\s*<\s*([a-z ]+?)\s*>\s*/gi, (m, tag: string) => (keep && VOICE_TAGS.includes(tag.toLowerCase()) ? ` <${tag.toLowerCase()}> ` : ' '));
+  const out = text.replace(/\s*<\s*([a-z -]+?)\s*>\s*/gi, (m, tag: string) => (keep && VOICE_TAGS.includes(tag.toLowerCase()) ? ` <${tag.toLowerCase()}> ` : ' '));
   return out.replace(/\s+([.,!?;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
 }
 
