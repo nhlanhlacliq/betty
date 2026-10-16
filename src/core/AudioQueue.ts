@@ -90,6 +90,12 @@ export class AudioQueue {
     this.speaking = null;
   }
 
+  /** He asked for quiet: drop waiting ambient lines (alerts and answers stay). */
+  dropAmbient() {
+    this.items.filter((i) => i.priority === 3).forEach((i) => this.onFate(i, 'cleared'));
+    this.items = this.items.filter((i) => i.priority !== 3);
+  }
+
   get pending() { return this.items.length; }
   get speakingPriority(): Priority | null { return this.speaking?.priority ?? null; }
 }

@@ -19,6 +19,7 @@ import { RideStats } from '../src/core/RideStats';
 import { RideRecord, describeRide, describeTotals, toRecord, upsertRide } from '../src/core/RideMemory';
 import { parseCandidates, pickCandidates, toPlace } from '../src/adapters/PlaceSource';
 import { nextTime } from '../src/adapters/WeatherSource';
+import { EMPTY_MEMORY, addMark, addNote, describeMemory, forgetLast, minutesIn, parseCommand } from '../src/core/Commands';
 
 /** Most tests want engine data present; OBD-off behaviour has its own block. */
 const obdState = (): BikeState => ({ ...initialState(), obd: true });
@@ -1021,5 +1022,63 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     const none = await transcribeApi(req('/api/transcribe', { method: 'POST', body: audio }));
     assert.equal(none.status, 503); assert.match((await none.json()).error, /not set up/);
   } finally { globalThis.fetch = realFetch; process.env = saved; }
+}
+// ---- voice stage 3: commands
+{
+  const c = (t: string) => parseCommand(t);
+  assert.deepEqual(c('Repeat that.'), { kind: 'repeat' });
+  assert.deepEqual(c('Hey Betty, say that again?'), { kind: 'repeat' });
+  assert.deepEqual(c('What did you say?'), { kind: 'repeat' });
+  assert.deepEqual(c('Be quiet for ten minutes.'), { kind: 'quiet', minutes: 10 });
+  assert.deepEqual(c('Betty, quiet for 20 minutes please'), { kind: 'quiet', minutes: 20 });
+  assert.deepEqual(c('Shut up for half an hour'), { kind: 'quiet', minutes: 30 });
+  assert.deepEqual(c('Give me some peace for an hour.'), { kind: 'quiet', minutes: 60 });
+  assert.deepEqual(c('Be quiet.'), { kind: 'quiet', minutes: null });
+  assert.deepEqual(c('You can talk again.'), { kind: 'talk' });
+  assert.deepEqual(c('Talk to me'), { kind: 'talk' });
+  assert.deepEqual(c('Mark this spot.'), { kind: 'mark', note: '' });
+  assert.deepEqual(c('Mark this spot, great view of the city.'), { kind: 'mark', note: 'great view of the city' });
+  assert.deepEqual(c('Remember this place because the potholes are bad'), { kind: 'mark', note: 'the potholes are bad' });
+  assert.deepEqual(c('Remember that the chain needs lube on Saturday.'), { kind: 'remember', fact: 'the chain needs lube on Saturday' });
+  assert.deepEqual(c('Make a note: tyre pressure 2.2 front'), { kind: 'remember', fact: 'tyre pressure 2.2 front' });
+  assert.deepEqual(c('Forget that.'), { kind: 'forget' });
+  // questions stay questions
+  for (const q of ['Do you remember that ride to Clarens?', 'Is it quiet on the N3?', 'Why is it so quiet today?', 'Can you repeat the weather for tomorrow and the day after in Pretoria please?',
+    'What can you tell me about Germiston?', 'Remember?', 'How far to empty?', 'Where did I mark that spot?']) {
+    assert.equal(c(q), null, q);
+  }
+  assert.equal(minutesIn('for two hours'), 120); assert.equal(minutesIn('for 5 mins'), 5); assert.equal(minutesIn('for a while'), null);
+
+  let m = addNote(EMPTY_MEMORY, 'chain lube Saturday', 1000);
+  m = addMark(m, { at: 2000, lat: -26.15, lon: 28.15, note: 'potholes', near: 'Greenstone Hill' });
+  const text = describeMemory(m, { lat: -26.15, lon: 28.16 }, 3000);
+  assert.match(text, /remember: "chain lube Saturday" \(today\)/); assert.match(text, /near Greenstone Hill \(today, 1 km from here\): "potholes"/);
+  const f1 = forgetLast(m); assert.equal(f1.gone, 'mark'); assert.equal(f1.memory.marks.length, 0);
+  const f2 = forgetLast(f1.memory); assert.equal(f2.gone, 'note');
+  assert.equal(forgetLast(EMPTY_MEMORY).gone, null);
+  assert.equal(describeMemory(EMPTY_MEMORY, null, 0), '');
+
+  // quiet: no time checks or ambient while it lasts; alerts still fire; nothing piles up for when it ends
+  resetConfig();
+  clock = 5_000_000;
+  const e = new TriggerEngine(now, () => 0); // rng 0 = banter whenever a slot comes up
+  e.setQuiet(clock + 30 * 60_000);
+  assert.equal(e.quietLeftMin(), 30);
+  const s = { ...initialState(), weather: { tempC: 20, rainNowMm: 2, rainChanceNextHourPct: 90, windKmh: 5, summary: 'rain', fetchedAt: 0, sunriseAt: null, sunsetAt: null } as WeatherState };
+  const during: string[] = [];
+  for (let i = 0; i < 29; i++) { clock += 60_000; during.push(...e.evaluate(s).map((x) => x.id)); }
+  assert.ok(during.includes('rain_soon'), 'alerts still come through');
+  assert.ok(!during.some((id) => ['ambient_banter', 'local_fact', 'ride_milestone'].includes(id)), during.join());
+  clock += 2 * 60_000;
+  assert.equal(e.quietLeftMin(), 0);
+  assert.ok(!e.evaluate(s).some((x) => x.id === 'ride_milestone'), 'missed time checks are not all said at once');
+  e.setQuiet(Infinity); assert.equal(e.quietLeftMin(), Infinity);
+  // what he asked her to keep reaches her answers
+  e.setMemory(m);
+  assert.match(e.ask('what did I tell you about the chain?', s).context, /chain lube Saturday/);
+
+  const q = new AudioQueue(new FakeSpeaker(), () => false, now);
+  q.enqueue('banter', 3); q.enqueue('rain', 2); q.dropAmbient();
+  assert.equal(q.pending, 1);
 }
 console.log('all core tests passed');

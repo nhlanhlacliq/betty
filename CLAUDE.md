@@ -91,6 +91,8 @@ src/
     SimPanel.ts            SIMULATOR panel (mounted per ride)
     TuningPanel.ts         TUNING panel (always mounted)
     LogPanel.ts            LOG panel: view saved lines per ride, copy, share, save as a file, clear
+    MemoryPanel.ts         MEMORY panel: notes and marked spots he asked her to keep (map link, Forget)
+    ChangelogPanel.ts      WHAT'S NEW panel: src/changelog.ts plus the build time (Vite define __BUILD_TIME__)
     LockScreen.ts          Full-screen touch cover for riding; hold the unlock button for 1 s to get out
     dom.ts                 el/button/checkbox helpers
 tests/core.test.ts         Pure logic tests
@@ -465,7 +467,23 @@ wake word last / on the Pi.
   (default off; iPhone + V6 are fine without it), and `PushToTalk` opens the mic the same way when it is on. Cost:
   no noise suppression, so more wind in the clip for Whisper. CONFIRMED by the owner the same evening: talking to
   Betty works on the friend's Android with the Cardo. Transcription at speed with it on is still unverified.
-- Stage 3 (commands and memory) not started.
+- **Stage 3, commands and memory (BUILT 2026-10-16, owner's request; UNVERIFIED ON A RIDE)**. `core/Commands.ts`
+  `parseCommand` runs on his words (spoken or typed, in `askBetty`) BEFORE Claude: a match is carried out on the phone
+  with a canned reply (instant, works offline, logged as `[command]`, shown in the chat as "on the phone, no AI call").
+  A command only counts at the START of the sentence (after "hey Betty", "please", "can you"...), and the short ones
+  only in short sentences, so "do you remember that ride" or "is it quiet on the N3" stay questions (tests list them).
+  - "repeat that" / "say that again" / "what did you say": her last line again (as next track does).
+  - "quiet for ten minutes" / "be quiet" / "shut up for half an hour" / "give me some peace for an hour":
+    `TriggerEngine.setQuiet` stops banter, tour guide and time checks (missed slots and milestones are skipped, not
+    saved up); alerts and answers still go; queued ambient lines are dropped (`AudioQueue.dropAmbient`). No length =
+    until "talk to me" / "you can talk again" or END RIDE.
+  - "mark this spot[, note]" / "remember this place because...": saves GPS position, the nearest place within 3 km and
+    the note. "remember that X" / "make a note: X": saves a note. "forget that": removes the newest note or spot.
+    Kept across rides (`adapters/RiderMemoryStore`, `betty.memory.v1`, 100 of each). `describeMemory` adds them to every
+    answer's situation (newest first, with distance from here), so "where was that pothole I marked?" works.
+    Checked live: pothole spot, chain note, and "what can I tell you to do?" all answered correctly.
+  - MEMORY panel (under LOG) lists notes and spots, with a map link and Forget for each.
+  Not built yet: louder/softer, warning when he nears a marked spot (the road-hazard idea), quiet shown on screen.
 
 ## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)
 
@@ -738,6 +756,8 @@ brake or a "mark this" press.
 ## Conventions
 
 - TypeScript strict. Keep `core/` pure and covered by tests; adapters and ui stay thin.
+- Every change the owner would notice gets a plain-words line in `src/changelog.ts` (shown in the app as WHAT'S NEW,
+  under LOG, with the build time so he can tell a reload picked up the new version). Owner's request, 2026-10-16.
 - Config values (thresholds, cooldowns, priorities, prompt) live in `config/betty.ts`, never inline.
 - Betty's system prompt lives in `config/betty.ts`. Her output must be plain spoken English: no markdown, no emojis.
 - Keep dependencies minimal (all dev: vite, typescript, tsx, @types/node, jsdom, @types/jsdom).

@@ -5,7 +5,9 @@ import { button, checkbox, el } from './dom';
 /** One thing on the chat timeline: something he typed, or something she said (asked or unprompted). */
 export type ChatEntry =
   | { from: 'rider'; text: string; at: number }
-  | { from: 'betty'; text: string; at: number; ev: TriggerEvent; phrase: Phrase };
+  | { from: 'betty'; text: string; at: number; ev: TriggerEvent; phrase: Phrase }
+  /** Her reply to a command ("quiet for ten minutes"): carried out on the phone, no Claude call */
+  | { from: 'betty'; text: string; at: number; command: string };
 
 export interface ChatContext {
   /** Send what he typed through the same path voice input will use: rider_query -> Claude -> queue -> speaker. */
@@ -55,7 +57,9 @@ export function mountChatPanel(root: HTMLElement, ctx: ChatContext): () => void 
     empty.remove();
     const b = el('div', `bubble ${e.from}`);
     b.append(el('div', 'said', e.text || '(said nothing)'));
-    if (e.from === 'betty') {
+    if (e.from === 'betty' && 'command' in e) {
+      b.append(el('div', 'meta', `command: ${e.command} · on the phone, no AI call · ${time(e.at)}`));
+    } else if (e.from === 'betty') {
       const p = e.phrase;
       const meta = `${p.source}${p.detail ? ': ' + p.detail : ''} · ${p.latencyMs} ms · P${e.ev.priority} · ${e.ev.id} · ${time(e.at)}`;
       b.append(el('div', 'meta', meta));

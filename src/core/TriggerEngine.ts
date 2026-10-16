@@ -1,4 +1,5 @@
 import { CONFIG, cleanBikeName } from '../config/betty';
+import { EMPTY_MEMORY, RiderMemory, describeMemory } from './Commands';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
@@ -79,7 +80,7 @@ export class TriggerEngine {
   reset() {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
-    this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now();
+    this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
     this.fuelBaseKm = carried; this.fuelOffsetKm = 0;
@@ -98,6 +99,15 @@ export class TriggerEngine {
     const used = this.kmSinceFill();
     return used === null ? null : Math.max(0, Math.round(CONFIG.fuel.rangeKm - used));
   }
+
+  private memory: RiderMemory = EMPTY_MEMORY;
+  /** What he told her to remember and the spots he marked (for her answers). */
+  setMemory(m: RiderMemory) { this.memory = m; }
+  private quietUntil = 0;
+  /** "Quiet for ten minutes": no banter, tour guide or time checks until then (Infinity = until he says so). */
+  setQuiet(until: number) { this.quietUntil = until; }
+  /** Minutes of quiet left, Infinity until he says so, or 0 when she may chat. */
+  quietLeftMin(): number { const left = this.quietUntil - this.now(); return left <= 0 ? 0 : left === Infinity ? Infinity : Math.ceil(left / 60_000); }
 
   /** Past rides Betty remembers (loaded by the UI layer from wherever they are stored). */
   setHistory(history: RideRecord[]) { this.history = history; }
@@ -175,6 +185,12 @@ export class TriggerEngine {
 
     const mins = (this.now() - this.rideStart) / 60_000;
     const due = Math.floor(mins / CONFIG.milestoneEveryMin);
+    // He asked for quiet: time checks and ambient slots pass unused (so they do not all arrive the moment it ends).
+    if (this.now() < this.quietUntil) {
+      this.milestonesHit = Math.max(this.milestonesHit, due);
+      this.lastAmbientSlot = this.now();
+      return out;
+    }
     if (due > this.milestonesHit && this.ready('ride_milestone')) {
       this.milestonesHit = due;
       this.lastAmbientSlot = this.now();
@@ -319,8 +335,10 @@ export class TriggerEngine {
             fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
             riderSaid: this.riderText,
           });
+          const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
+          const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }

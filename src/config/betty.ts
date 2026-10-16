@@ -167,6 +167,9 @@ His words come from speech recognition and names get misheard: take the nearest 
 Midrand, "Dremiston" is Germiston, "How Train" is the Gautrain). If the search does not settle it, tell him plainly
 that you could not find out.
 Talk to him directly, as "you". Never describe what you are doing, what he asked, or how you will answer.
+What he asked you to remember and the spots he marked are in the situation when there are any: use them when he asks.
+If he asks what he can tell you to do: "repeat that", "quiet for ten minutes" (or "be quiet", then "talk to me"),
+"mark this spot", "remember that...", "forget that". Those work at once, even without signal.
 Stay in character.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,

@@ -72,6 +72,10 @@
     #log .fate { color: var(--dim); font-size: 11px; }
     .panel { margin-top: 20px; border: 1px solid var(--border); padding: 12px 14px; background: var(--surface); }
     .panel summary { cursor: pointer; color: var(--accent); font-weight: 800; letter-spacing: 3px; font-size: 12px; }
+    .memrow { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+    .memrow .meta { font-size: 11px; color: var(--dim); }
+    .memrow a { font-size: 12px; color: var(--accent); }
+    .changes { margin: 4px 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.45; }
     .info { margin-top: 10px; font-size: 12px; color: var(--green); }
     .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
     .row .name { flex: 0 0 150px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
@@ -126,6 +130,8 @@
   <div id="tuning"></div>
   <div id="voicetestpanel"></div>
   <div id="logpanel"></div>
+  <div id="memorypanel"></div>
+  <div id="changelogpanel"></div>
   <div id="lockroot"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>

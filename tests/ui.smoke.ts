@@ -289,6 +289,18 @@ resetConfig();
       assert.match(logText(), /rider_query \(fallback: no API key/);
       assert.match(logText(), /startup \(fallback: no API key/); assert.match(logText(), /Systems online\./);
       assert.equal((logText().match(/startup/g) ?? []).length, 1, 'one ride, not two');
+      // commands are carried out on the phone, with no Claude call
+      const tell = async (t: string) => { chatIn.value = t; doc.querySelector('#chat form')!.dispatchEvent(new page.window.Event('submit', { cancelable: true })); await wait(20); };
+      await tell('Be quiet for ten minutes');
+      assert.match(doc.getElementById('chat')!.textContent!, /Quiet for 10 minutes\. Alerts still come through\.command: quiet · on the phone/);
+      assert.match(logText(), /\[command\]: quiet for 10 min/);
+      await tell('talk to me'); assert.match(doc.getElementById('chat')!.textContent!, /I'm back\./);
+      await tell('mark this spot'); assert.match(doc.getElementById('chat')!.textContent!, /no GPS fix/);
+      await tell('remember that the chain needs lube');
+      assert.match(doc.getElementById('memorypanel')!.textContent!, /MEMORY \(1 notes, 0 spots\)/);
+      assert.match(doc.getElementById('memorypanel')!.textContent!, /the chain needs lube/);
+      await tell('forget that'); assert.match(doc.getElementById('memorypanel')!.textContent!, /MEMORY \(0 notes/);
+      await tell('repeat that'); assert.match(doc.getElementById('chat')!.textContent!, /command: repeat/);
       assert.match(doc.getElementById('sim')!.textContent!, /SIMULATOR/);
 
       // a 2-minute ride earns no sign-off: END shuts down straight away
@@ -326,9 +338,11 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; Date.now = realNow; }
   }
 
-  for (const id of ['toggle', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'filled', 'range', 'rangesrc', 'logpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['toggle', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
+  assert.match(doc.getElementById('changelogpanel')!.textContent!, /WHAT'S NEW \(this version: dev build\)/);
+  assert.match(doc.getElementById('changelogpanel')!.textContent!, /mark this spot/);
   resetConfig();
 }
 

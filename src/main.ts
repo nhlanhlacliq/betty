@@ -2,7 +2,9 @@ import { loadConfig, saveConfig } from './config/persist';
 import { CONFIG, ObdMode, cleanBikeName, cleanRiderName } from './config/betty';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
-import { travelDirection } from './core/ambient';
+import { placesFromHere, travelDirection } from './core/ambient';
+import { Command, addMark, addNote, forgetLast, parseCommand } from './core/Commands';
+import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
 import { ClaudeClient } from './core/ClaudeClient';
@@ -26,6 +28,8 @@ import { mountVoiceTestPanel } from './ui/VoiceTestPanel';
 import { mountTuningPanel } from './ui/TuningPanel';
 import { mountLockScreen } from './ui/LockScreen';
 import { mountLogPanel } from './ui/LogPanel';
+import { mountMemoryPanel } from './ui/MemoryPanel';
+import { mountChangelogPanel } from './ui/ChangelogPanel';
 import { LineLogStore } from './adapters/LineLogStore';
 import { FuelStore } from './adapters/FuelStore';
 import { HeadsetButtons } from './adapters/HeadsetButtons';
@@ -123,6 +127,11 @@ mountLogPanel($('logpanel'), {
   rides: () => RideLog.load(),
   clear: () => { unsaved = []; LineLogStore.clear(); },
 });
+mountMemoryPanel($('memorypanel'), {
+  load: () => RiderMemoryStore.load(),
+  save: (m) => { RiderMemoryStore.save(m); rig?.engine.setMemory(m); },
+});
+mountChangelogPanel($('changelogpanel'));
 
 // Lock screen: covers everything so nothing can be pressed by accident; hold its button to get back.
 /** Set while a ride runs: start or finish talking to Betty. */
@@ -270,6 +279,7 @@ async function beginRide() {
   engine.setKnownIncidents(IncidentMemory.load());
   currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
   engine.setFuelKm(FuelStore.load());
+  engine.setMemory(RiderMemoryStore.load());
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
   const remember = () => {
     const w = agg.current.weather;
@@ -351,9 +361,49 @@ async function beginRide() {
   /** Tones go through the headset buttons' own track when it is running, so they do not steal the buttons. */
   const tone = (freq: number) => { if (!buttons.tone(freq)) beep(freq); };
   const sayNow = (text: string) => { newLine('[P4] voice', text).item = queue.enqueue(text, 4); renderLog(); };
+  /** Her reply to a command: instant, from the phone, no Claude call (so it also works without signal). */
+  const reply = (text: string, command: string) => { sayNow(text); toChat({ from: 'betty', text, at: Date.now(), command }); };
+  const remembered = (m: ReturnType<typeof RiderMemoryStore.load>) => { RiderMemoryStore.save(m); engine.setMemory(m); window.dispatchEvent(new window.Event('betty-memory')); };
+  const howLong = (min: number) => min === 60 ? 'an hour' : min === 30 ? 'half an hour' : min % 60 === 0 ? `${min / 60} hours` : `${min} minute${min === 1 ? '' : 's'}`;
+  /** Voice stage 3: things he tells her to do rather than asks. */
+  const obey = (c: Command) => {
+    newLine('[command]', c.kind === 'quiet' ? `quiet ${c.minutes === null ? 'until told' : `for ${c.minutes} min`}` : c.kind === 'mark' ? `mark${c.note ? `: ${c.note}` : ''}` : c.kind === 'remember' ? `remember: ${c.fact}` : c.kind);
+    switch (c.kind) {
+      case 'repeat': reply(lastLine || "I haven't said anything yet.", 'repeat'); return;
+      case 'quiet':
+        engine.setQuiet(c.minutes === null ? Infinity : Date.now() + c.minutes * 60_000);
+        queue.dropAmbient();
+        reply(c.minutes === null
+          ? "Going quiet. Say talk to me when you want me back. Alerts still come through."
+          : `Quiet for ${howLong(c.minutes)}. Alerts still come through.`, 'quiet');
+        return;
+      case 'talk':
+        if (engine.quietLeftMin() > 0) { engine.setQuiet(0); reply("I'm back.", 'talk again'); } else reply('I never left.', 'talk again');
+        return;
+      case 'mark': {
+        const s = agg.current;
+        if (s.lat == null || s.lon == null) { reply("I've got no GPS fix, so I can't mark this spot.", 'mark'); return; }
+        const near = placesFromHere(s).filter((p) => p.distanceKm <= 3).sort((a, b) => a.distanceKm - b.distanceKm)[0]?.name ?? null;
+        remembered(addMark(RiderMemoryStore.load(), { at: Date.now(), lat: s.lat, lon: s.lon, note: c.note, near }));
+        reply(`Marked${near ? `, near ${near}` : ''}.`, 'mark');
+        return;
+      }
+      case 'remember':
+        remembered(addNote(RiderMemoryStore.load(), c.fact, Date.now()));
+        reply("Noted. I'll remember that.", 'remember');
+        return;
+      case 'forget': {
+        const { memory, gone } = forgetLast(RiderMemoryStore.load());
+        if (gone) remembered(memory);
+        reply(gone === 'note' ? 'Forgotten.' : gone === 'mark' ? "That spot's unmarked." : "There's nothing to forget.", 'forget');
+      }
+    }
+  };
   /** Something he said to her, typed or spoken: one path for both. */
   const askBetty = async (text: string) => {
     toChat({ from: 'rider', text, at: Date.now() });
+    const command = parseCommand(text);
+    if (command) { obey(command); renderLog(); return null; }
     // A web search takes a few seconds: rather than silence, she says she is on it.
     const slow = window.setTimeout(() => sayNow(HANG_ON), HANG_ON_AFTER_MS);
     try { return await say(engine.ask(text, agg.current)); } finally { window.clearTimeout(slow); }
