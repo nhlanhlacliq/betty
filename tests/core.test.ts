@@ -1299,6 +1299,22 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(calls.length, 3, 'played from the Chirp clip already fetched'); assert.equal(played.length, 1); finish!();
   await sp2.ready('Still quiet.', { priority: 3, id: 'ambient_banter' });
   assert.deepEqual(calls.slice(3).map((c) => c.engine), ['chirp'], 'Gemini not asked again this ride');
+  // two requests to the same model in flight when it runs out: the second refusal must not end Gemini (00:34 log)
+  {
+    const asked: any[] = []; const lg: string[] = [];
+    let release: (() => void) | null = null; const gate = new Promise<void>((r) => { release = r; });
+    const sp6 = new CloudSpeaker(phone, () => player, (m) => lg.push(m), (async (_u: any, init: any) => {
+      const b = JSON.parse(init.body); asked.push(b);
+      if (b.engine === 'gemini' && b.model === 'lite') { await gate; return new Response(JSON.stringify({ error: 'Gemini voice said HTTP 429', detail: 'limit: 100 requests per day on Tier 1' }), { status: 502 }); }
+      return new Response(new Blob(['a']));
+    }) as typeof fetch);
+    CONFIG.cloudVoice = 'mixed';
+    const a1 = sp6.ready('One.', { priority: 3, id: 'ambient_banter' }); const a2 = sp6.ready('Two.', { priority: 3, id: 'ambient_banter' });
+    await flush(); release!(); await a1; await a2;
+    assert.ok(!lg.some((l) => /unavailable for this ride/.test(l)), lg.join(' | '));
+    assert.ok(asked.some((b) => b.model === 'full'), 'Full is tried after Lite runs out');
+    resetConfig();
+  }
   assert.equal(done, 7);
   // stream mode: an answer is streamed and played as it arrives; no audio in time -> Chirp says it
   {

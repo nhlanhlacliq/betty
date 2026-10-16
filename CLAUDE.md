@@ -769,7 +769,10 @@ brake or a "mark this" press.
    ends Gemini for the ride. "Test sounds" now waits for room between lines. Each Gemini model also has its own
    DAILY limit (Lite: 100 a day on Tier 1, hit on 2026-10-17 after a day of tests): a per-day 429 switches to the
    other model for the ride (`modelsOut`), and only when both are out does Gemini stop. Default model is now Lite
-   (owner), so Full is the overflow. Same log: the briefing named a
+   (owner), so Full is the overflow. FULL IS ALSO 100 A DAY on Tier 1 (00:34 log): 200 Gemini lines a day in all,
+   reset time unconfirmed. Bug fixed from that log: a second refusal for a model already out (a request in flight)
+   ended Gemini without trying the other model. Chirp's wait now grows with the line (2 s + 15 ms a character, at least
+   3.5 s): the four-sentence briefing missed 3.5 s and went to the phone voice. Same log: the briefing named a
    closure already announced that week; it now leaves out `known`/announced incidents (and the `traffic` count topic),
    and any it does name count as announced so no alert repeats them.
    GEMINI FREE TIER = 10 REQUESTS A DAY for `gemini-3.8-flash-tts` (429 on the 11th, 2026-10-16): useless for a ride.

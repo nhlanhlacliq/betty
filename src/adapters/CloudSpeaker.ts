@@ -196,7 +196,9 @@ export class CloudSpeaker implements Speaker {
         const secs = Number(detail.match(/retry in (\d+)/i)?.[1] ?? 60);
         if (Date.now() >= this.geminiPausedUntil) this.log(`cloud voice (gemini): at its limit (${detail.match(/limit: [^)]+/)?.[0] ?? 'per minute'}); Chirp for the next ${secs} s`);
         this.geminiPausedUntil = Date.now() + secs * 1000;
-      } else if (limited && r.engine === 'gemini' && r.body.model && !this.modelsOut.has(r.body.model) && this.modelsOut.size === 0) {
+      } else if (limited && r.engine === 'gemini' && r.body.model && this.modelsOut.has(r.body.model)) {
+        // Another request to a model already out (it was on its way when the first refusal came): nothing new.
+      } else if (limited && r.engine === 'gemini' && r.body.model && this.modelsOut.size === 0) {
         // One model's daily limit: switch to the other Gemini model for the rest of the ride (it has its own).
         this.modelsOut.add(r.body.model);
         this.log(`cloud voice (gemini ${r.body.model}): out for the day (${detail.match(/limit: [^)]+/)?.[0] ?? 'per day'}); switching to ${this.geminiModel()}`);
@@ -312,7 +314,9 @@ export class CloudSpeaker implements Speaker {
       return;
     }
 
-    within(this.get(r), WAIT_MS[r.engine]).then((blob) => {
+    // A long line (the briefing) takes Chirp longer to make: about 3.5 s was not enough for four sentences.
+    const wait = r.engine === 'chirp' ? Math.max(WAIT_MS.chirp, 2000 + text.length * 15) : WAIT_MS[r.engine];
+    within(this.get(r), wait).then((blob) => {
       if (my !== this.token || finished) return;
       this.onAudio(r.engine, false, Date.now() - t0);
       const url = URL.createObjectURL(blob);
