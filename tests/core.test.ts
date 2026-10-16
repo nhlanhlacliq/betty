@@ -1148,6 +1148,22 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(e.toldNoteIds(), ['g1']); assert.equal(e.force('area_story', s).context, '', 'never the same story twice');
   assert.match(e.ask('what is the history of this place?', s).context, /Notes on the area he is in: Germiston, Rand Refinery/);
   assert.equal(chooseAmbient({ banterWeight: 0, tourGuideWeight: 10, silenceWeight: 0 }, false, () => 0.5, true), 'area_story');
+  // arriving in a new area: the next remark is a story about it, whatever the roll; then the normal mix
+  {
+    resetConfig(); clock = 9_000_000;
+    const e2 = new TriggerEngine(now, () => 0); // rng 0 = banter on every normal roll
+    const two = [{ id: 'g1', area: 'Germiston', topic: 'a', text: 'Story one.' }, { id: 'g2', area: 'Germiston', topic: 'b', text: 'Story two.' }];
+    const st = { ...initialState(), areaNotes: two };
+    const slots: string[] = [];
+    for (let i = 0; i < 4; i++) { clock += CONFIG.ambientCooldownMs + 1000; slots.push(...e2.evaluate(st).filter((x) => x.priority === 3 && x.id !== 'ride_milestone').map((x) => x.id)); }
+    assert.equal(slots[0], 'area_story', 'first remark in a new area is its story'); assert.ok(slots.slice(1).every((x) => x === 'ambient_banter'), slots.join());
+    const el = { ...st, areaNotes: [...two, { id: 'e1', area: 'Elmapark', topic: 'c', text: 'Story three.' }] };
+    e2.setToldNotes(['g1', 'g2']); clock += CONFIG.ambientCooldownMs + 1000;
+    assert.equal(e2.evaluate(el).find((x) => x.priority === 3)?.id, 'area_story', 'and again on reaching the next area');
+    CONFIG.ambient.tourGuideWeight = 0; e2.setToldNotes([]); e2.reset(); clock += CONFIG.ambientCooldownMs * 2;
+    assert.ok(!e2.evaluate(el).some((x) => x.id === 'area_story'), 'not with the tour guide switched off');
+    resetConfig();
+  }
   assert.equal(chooseAmbient({ banterWeight: 0, tourGuideWeight: 10, silenceWeight: 0 }, false, () => 0.5, false), null);
 }
 

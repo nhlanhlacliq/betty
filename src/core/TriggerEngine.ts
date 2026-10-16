@@ -78,7 +78,7 @@ export class TriggerEngine {
   }
 
   reset() {
-    this.lastFired.clear(); this.announced.clear(); this.mentioned.clear();
+    this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
@@ -106,6 +106,8 @@ export class TriggerEngine {
   setToldNotes(ids: string[]) { this.toldNotes = new Set(ids); }
   toldNoteIds(): string[] { return [...this.toldNotes]; }
   private freshNote(s: BikeState) { return s.areaNotes.find((n) => !this.toldNotes.has(n.id)) ?? null; }
+  /** Areas she has told a story about this ride: arriving somewhere new gets a story at the next remark. */
+  private storiedAreas = new Set<string>();
   /** What he told her to remember and the spots he marked (for her answers). */
   setMemory(m: RiderMemory) { this.memory = m; }
   private quietUntil = 0;
@@ -208,7 +210,11 @@ export class TriggerEngine {
     if (slotDue && !out.length && isSafeWindow(s) && !this.ambientBlocked(s)) {
       this.lastAmbientSlot = this.now();
       const place = freshPlace(placesFromHere(s), this.mentioned, CONFIG.ambient.placeRadiusKm);
-      const pick = chooseAmbient(CONFIG.ambient, place !== null, this.rng, this.freshNote(s) !== null);
+      const note = this.freshNote(s);
+      // Owner, 2026-10-17: area stories should come up on their own. On arriving in a new area the next remark is a
+      // story about it (unless the tour guide is switched off); after that they come up in the normal mix.
+      const arriving = note !== null && CONFIG.ambient.tourGuideWeight > 0 && !this.storiedAreas.has(note.area);
+      const pick = arriving ? 'area_story' : chooseAmbient(CONFIG.ambient, place !== null, this.rng, note !== null);
       if (pick) out.push(this.force(pick, s));
     }
     return out;
@@ -354,7 +360,7 @@ export class TriggerEngine {
         if (!n) return { context: '', fallback: '' };
         return {
           context: `He is riding through ${n.area}. A story about ${n.area} (${n.topic}): ${n.text}`, fallback: '',
-          mark: () => { this.toldNotes.add(n.id); this.stats.notePlace(n.area); },
+          mark: () => { this.toldNotes.add(n.id); this.storiedAreas.add(n.area); this.stats.notePlace(n.area); },
         };
       }
       case 'rider_query': {

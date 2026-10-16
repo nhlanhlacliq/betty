@@ -119,7 +119,7 @@ Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `S
 | ride_debrief | P4 | END RIDE, for a ride of 3 min or 1 km and up | 0 |
 | ambient_banter | P3 | ambient slot rolls banter (see Ambient personality) | 0 (paced by ambient gap) |
 | local_fact | P3 | ambient slot rolls tour guide and an unmentioned place is in range | 0 (paced by ambient gap) |
-| area_story | P3 | ambient slot rolls tour guide and an untold area story exists (half the tour-guide rolls when both exist) | 0 (paced by ambient gap) |
+| area_story | P3 | the first ambient slot after reaching an area with an untold story (owner, 2026-10-17: "add them to the normal speech"), then when the slot rolls tour guide (half the tour-guide rolls when a place is fresh too); never with tour guide weight 0 | 0 (paced by ambient gap) |
 
 All priorities, cooldowns and thresholds are read live from `CONFIG` at call time and can be edited in the TUNING
 panel (persisted to localStorage). Adding a trigger = add the id to `TriggerId` + `TRIGGER_IDS`, entries in
