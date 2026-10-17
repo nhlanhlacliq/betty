@@ -108,7 +108,7 @@ export const DEFAULT_CONFIG: Config = {
   cloudVoiceName: 'Aoede',
   geminiModel: 'lite', // owner, 2026-10-17: Lite first (faster), Full once Lite's daily limit is reached
   chirpLocale: 'en-US',
-  chirpStandIn: '',
+  chirpStandIn: 'Zephyr', // owner, 2026-10-17: Chirp's default voice
   headsetButtons: false,
   showGlance: true,
   micDeviceId: '',
@@ -393,5 +393,5 @@ export function chirpVoice(): { name: string; locale: Config['chirpLocale'] } {
   if (!lib) return { name: CONFIG.cloudVoiceName, locale: CONFIG.chirpLocale };
   const locale = /British|Irish|South African/.test(lib.accent) ? 'en-GB' : /Australian|New Zealand/.test(lib.accent) ? 'en-AU' : 'en-US';
   const picked = CLOUD_VOICES.some(([n]) => n === CONFIG.chirpStandIn) ? CONFIG.chirpStandIn : '';
-  return { name: picked || (lib.gender === 'male' ? 'Iapetus' : 'Aoede'), locale };
+  return { name: picked || (lib.gender === 'male' ? 'Iapetus' : 'Zephyr'), locale };
 }

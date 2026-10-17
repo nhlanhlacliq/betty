@@ -1085,10 +1085,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(LIBRARY_VOICES.length > 300); assert.ok(LIBRARY_ACCENTS.includes('Southern US') && LIBRARY_ACCENTS.includes('South African'));
   assert.equal(libraryVoice('en-us-veda')?.accent, 'Southern US'); assert.equal(libraryVoice('Aoede'), undefined);
   assert.deepEqual(chirpVoice(), { name: 'Aoede', locale: 'en-US' });
-  CONFIG.cloudVoiceName = 'en-gb-advisor-8'; assert.deepEqual(chirpVoice(), { name: 'Iapetus', locale: 'en-GB' });
-  CONFIG.cloudVoiceName = 'en-us-veda'; assert.deepEqual(chirpVoice(), { name: 'Aoede', locale: 'en-US' });
+  CONFIG.cloudVoiceName = 'en-gb-advisor-8'; CONFIG.chirpStandIn = ''; assert.deepEqual(chirpVoice(), { name: 'Iapetus', locale: 'en-GB' });
+  CONFIG.chirpStandIn = 'Zephyr';
+  CONFIG.cloudVoiceName = 'en-us-veda'; assert.deepEqual(chirpVoice(), { name: 'Zephyr', locale: 'en-US' }, 'Zephyr by default (owner)');
+  CONFIG.chirpStandIn = ''; assert.equal(chirpVoice().name, 'Zephyr', 'automatic for a female voice is Zephyr too');
   CONFIG.chirpStandIn = 'Laomedeia'; assert.deepEqual(chirpVoice(), { name: 'Laomedeia', locale: 'en-US' }, 'his pick for alerts');
-  CONFIG.chirpStandIn = 'Nobody'; assert.equal(chirpVoice().name, 'Aoede', 'an unknown pick falls back to automatic');
+  CONFIG.chirpStandIn = 'Nobody'; assert.equal(chirpVoice().name, 'Zephyr', 'an unknown pick falls back to automatic');
   resetConfig();
 }
 

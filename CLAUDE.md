@@ -1002,7 +1002,8 @@ brake or a "mark this" press.
    name filtered and grouped by gender. Library voices work with both Gemini models (checked) but NOT with Chirp, so
    in a Chirp mode an alert uses `chirpVoice()`: a standard voice of the same gender (Aoede / Iapetus) in the nearest
    Chirp accent, or the one he picks under "Chirp voice for alerts" (`chirpStandIn`; for Tavi the closest are Laomedeia,
-   Zephyr, Achernar or Leda by pitch and tone). api/speak accepts library ids (`en-us-veda`) for Gemini only. Owner's set (same night): laugh, chuckle, snicker, sigh, phew, pff, tsk, yawn, throat-clearing, short
+   Zephyr, Achernar or Leda by pitch and tone). Default `chirpStandIn` is Zephyr (owner, 2026-10-17), and the automatic pick for a
+   female voice is Zephyr too (male: Iapetus). api/speak accepts library ids (`en-us-veda`) for Gemini only. Owner's set (same night): laugh, chuckle, snicker, sigh, phew, pff, tsk, yawn, throat-clearing, short
    pause ("pgg" and "yarn" in his message read as pff and yawn); Chirp has no such tags (only pause markup, rate,
    pronunciations, SSML). "Test sounds" on the main screen plays `SOUND_TEST_LINES`, one per tag; all ten checked
    against Gemini (HTTP 200). Stock phrases and sound-test lines are fetched whole and KEPT ON THE PHONE
