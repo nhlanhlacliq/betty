@@ -247,6 +247,8 @@ resetConfig();
     talk.value = 'balanced'; ev(talk, 'change'); assert.equal(CONFIG.ambient.banterWeight, 40);
     const gs = doc.getElementById('glanceswitch') as HTMLInputElement;
     assert.equal(gs.checked, true); gs.checked = false; ev(gs, 'change'); assert.equal(CONFIG.showGlance, false); gs.checked = true; ev(gs, 'change');
+    const lv = doc.getElementById('listenvoice') as HTMLSelectElement;
+    assert.equal(lv.value, 'chirp', 'stories at home in Chirp by default'); lv.value = 'phone'; ev(lv, 'change'); assert.equal(CONFIG.listenVoice, 'phone'); lv.value = 'chirp'; ev(lv, 'change');
     for (const [id, key] of [['cardplaces', 'cardPlaces'], ['cardmetro', 'cardMetro']] as const) {
       const box = doc.getElementById(id) as HTMLInputElement;
       assert.equal(box.checked, true, `${id} on by default`); box.checked = false; ev(box, 'change'); assert.equal(CONFIG[key], false); box.checked = true; ev(box, 'change');
@@ -883,6 +885,50 @@ resetConfig();
   const short = { ...ride, startedAt: 2, places: ['A'], events: [] };
   const v2 = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => [short], entries: () => [], track: () => [], copyRide: async () => true, saveRide() {}, toast() {}, shareRide: async () => {} });
   v2.open(2); assert.equal(d.querySelectorAll('[data-fold]').length, 0, 'short lists are not folded');
+}
+// ---- Explore: area cards, open/close, search, not heard yet, Listen (marks told when heard to the end)
+{
+  const { mountExploreScreen } = await import('../src/ui/screens/ExploreScreen');
+  const j = new JSDOM(`<!doctype html><input id="exploresearch" /><div id="exploretabs"></div><div id="explorelist"></div>`);
+  const d = j.window.document; const ev = (el: Element, type = 'click') => el.dispatchEvent(new j.window.Event(type, { bubbles: true }));
+  const notes = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}`, area: 'Randburg', topic: `Topic ${i}`, text: i === 6 ? 'named after the rand currency' : `story ${i}` }));
+  const told = new Set<string>(['r0']);
+  const listens: Array<{ id: string; end: (h: boolean) => void; stopped: boolean }> = [];
+  mountExploreScreen(d, { show() {}, onShow() {} } as any, {
+    load: () => ({ notes: [{ at: 5, text: 'chain lube at 600 km' }], marks: [] }), save() {},
+    stories: () => [{ key: 'Randburg|G', at: 2, notes }, { key: 'Soweto|G', at: 1, notes: [{ id: 'so1', area: 'Soweto', topic: 'Name', text: 'South Western Townships' }] }],
+    told: () => told,
+    listen: (note, end) => { const l = { id: note.id, end, stopped: false }; listens.push(l); return () => { l.stopped = true; end(false); }; },
+  });
+  const list = d.getElementById('explorelist')!;
+  const cards = () => [...list.querySelectorAll<HTMLElement>('.area-card')];
+  assert.deepEqual(cards().map((c) => c.dataset.area), ['Randburg', 'Soweto'], 'one card per area, newest first');
+  assert.match(cards()[0].textContent!, /8 stories · 7 not heard yet/); assert.ok(!list.querySelector('.stories'), 'cards start closed');
+  assert.match(list.textContent!, /chain lube/, 'notes still listed');
+  ev(list.querySelector('[data-areaopen="Randburg"]')!);
+  const lis = () => [...list.querySelectorAll('.stories li')];
+  assert.equal(lis().filter((l) => !l.classList.contains('more')).length, 3, 'three stories, then Show all');
+  assert.equal(lis()[7].classList.contains('heard'), true, 'heard ones last');
+  ev(list.querySelector('[data-fold]')!);
+  assert.equal(list.querySelector('[data-fold] span')!.textContent, 'Show less');
+  ev(list.querySelector('[data-listen="r1"]')!);
+  assert.equal(listens[0].id, 'r1'); assert.ok(list.querySelector('[data-listen="r1"]')!.classList.contains('on'), 'playing shows Stop');
+  assert.ok(!list.querySelector('.stories')!.classList.contains('folded'), 'the opened list stays open while it plays');
+  ev(list.querySelector('[data-listen="r2"]')!);
+  assert.ok(listens[0].stopped, 'another story stops the first'); assert.equal(listens[1].id, 'r2');
+  told.add('r2'); listens[1].end(true);
+  assert.ok(!list.querySelector('.listen.on')); assert.match(cards()[0].textContent!, /6 not heard yet/, 'heard to the end counts');
+  ev(list.querySelector('[data-listen="r3"]')!); ev(list.querySelector('[data-listen="r3"]')!);
+  assert.ok(listens[2].stopped, 'tapping it again stops it');
+  const search = d.getElementById('exploresearch') as HTMLInputElement;
+  search.value = 'rand currency'; ev(search, 'input');
+  assert.deepEqual(cards().map((c) => c.dataset.area), ['Randburg']); assert.equal(lis().length, 1, 'only the matching story, card opened');
+  assert.ok(!/chain lube/.test(list.textContent!));
+  search.value = 'clarens'; ev(search, 'input'); assert.match(list.textContent!, /Nothing matches/);
+  search.value = ''; ev(search, 'input');
+  ev(d.querySelector('[data-tab="unheard"]')!);
+  assert.ok(!/chain lube/.test(list.textContent!), 'not heard yet: stories only');
+  assert.ok(!lis().some((l) => l.classList.contains('heard')), 'and none already heard');
 }
 // ---- Where to? plans through Betty's server, keeps the route, clears it
 {

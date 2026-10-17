@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Explore is tidier: one card per area with a ring showing how many of its stories you have heard. Tap a card to open its stories (3 first, Show all for the rest). Search areas, stories, spots and notes from the box at the top, or pick Not heard yet.',
+      'Listen at home: every story in Explore has a play button, and Betty reads it to you in the Chirp voice (change it in Garage > Stories at home). A story you hear to the end counts as told, so she will not repeat it on a ride. Each one is made once, then kept on the phone.',
       'A ride\'s page in My journeys is shorter: The road you took shows 4 moments and The moments in between shows 5 of the things Betty said, with Show all underneath to open the rest (and Show less to fold it again).',
       'A ride\'s story in My journeys now shows the towns along the road and the metro line on its map too (they fill in a few seconds after you open it, the first time), so sharing the card is quick. While the card is being made, the Share button says what it is doing and can\'t be tapped twice.',
       'Ride cards show the towns you rode through along the road, and the real boundary between metros as a dashed line. Both can be switched off in Garage > The map. Where you start and finish stays off while that is hidden. The names load when you open a ride (a few seconds the first time), then they are kept. Area names no longer end in "Local Municipality".',

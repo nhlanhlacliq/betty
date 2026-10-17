@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyTalkPreset, cleanBikeName, cleanRiderName, libraryVoice, mixSummary, nudgeMix } from './config/betty';
+import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyTalkPreset, cleanBikeName, cleanRiderName, chirpVoice, libraryVoice, mixSummary, nudgeMix, voiceStyle } from './config/betty';
 import { LIBRARY_ACCENTS, LIBRARY_VOICES } from './config/voiceLibrary';
 import { CloudSpeaker, ElementPlayer, SOUND_TEST_LINES, STOCK_LINES } from './adapters/CloudSpeaker';
 import { IdbClipStore } from './adapters/ClipStore';
@@ -13,7 +13,7 @@ import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
 import { ClaudeClient, voiceTags } from './core/ClaudeClient';
 import { LatLon } from './core/geo';
-import { AMBIENT_IDS, TriggerEvent } from './core/types';
+import { AMBIENT_IDS, AreaNote, TriggerEvent } from './core/types';
 import { MockObdSource } from './adapters/MockObdSource';
 import { WebGeoSource } from './adapters/WebGeoSource';
 import { WebMotionSource } from './adapters/WebMotionSource';
@@ -167,10 +167,56 @@ const memoryCtx = {
   save: (m: ReturnType<typeof RiderMemoryStore.load>) => { RiderMemoryStore.save(m); rig?.engine.setMemory(m); },
 };
 mountMemoryPanel($('memorypanel'), memoryCtx);
+// Explore's Listen: a story read out at home, in Chirp by default (Garage > Stories at home). Each clip is made once
+// and kept on the phone (its own store, so ride clips do not push stories out); a story heard to the end counts as told.
+const storyClips = new IdbClipStore('betty-stories', 400);
+const listenStory = (note: AreaNote, onEnd: (heard: boolean) => void) => {
+  let stopped = false, stopPlay = () => {};
+  testPlayer.prime(); testSpeaker.stop(); // inside the tap (iPhone)
+  const text = voiceTags(note.text, false);
+  const finish = (heard: boolean) => {
+    if (stopped) return;
+    stopped = true;
+    if (heard) ToldStore.save([...new Set([...ToldStore.load(), note.id])]);
+    onEnd(heard);
+  };
+  const phone = () => { if (!stopped) { testSpeaker.speak(text, () => finish(true)); stopPlay = () => testSpeaker.stop(); } };
+  const body = (engine: 'chirp' | 'gemini') => {
+    const chirp = chirpVoice();
+    return engine === 'gemini'
+      ? { text: voiceTags(note.text, true), engine, voice: CONFIG.cloudVoiceName, style: voiceStyle('area_story', 3), model: CONFIG.geminiModel }
+      : { text, engine, voice: chirp.name, locale: chirp.locale };
+  };
+  const clip = async (engine: 'chirp' | 'gemini') => {
+    const b = body(engine), key = JSON.stringify(b);
+    const kept = await storyClips.get(key);
+    if (kept) return kept;
+    const res = await fetch('/api/speak', { method: 'POST', headers: { 'content-type': 'application/json' }, body: key });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const got = await res.blob();
+    void storyClips.put(key, got);
+    return got;
+  };
+  if (!SERVER || CONFIG.listenVoice === 'phone') phone();
+  else {
+    void (async () => {
+      let audio: Blob | null = null;
+      for (const engine of CONFIG.listenVoice === 'gemini' ? ['gemini', 'chirp'] as const : ['chirp'] as const) {
+        try { audio = await clip(engine); break; } catch { /* the next voice, then the phone */ }
+      }
+      if (stopped) return;
+      if (!audio) { phone(); return; }
+      const url = URL.createObjectURL(audio);
+      stopPlay = testPlayer.play(url, () => { URL.revokeObjectURL(url); finish(true); }, () => { URL.revokeObjectURL(url); phone(); });
+    })();
+  }
+  return () => { if (!stopped) { stopPlay(); finish(false); } };
+};
 mountExploreScreen(document, shell, {
   ...memoryCtx,
-  stories: () => Object.fromEntries(Object.entries(AreaStore.all()).map(([area, kept]) => [area, kept.notes ?? []])),
+  stories: () => Object.entries(AreaStore.all()).map(([key, kept]) => ({ key, notes: kept.notes ?? [], at: kept.at ?? 0, lat: kept.lat, lon: kept.lon })),
   told: () => new Set(rig ? rig.engine.toldNoteIds() : ToldStore.load()),
+  listen: listenStory,
 });
 // The ride card's place names and metro line: fetched when a ride's story opens (slow the first time), kept per ride.
 const cardExtras = new CardExtrasSource();

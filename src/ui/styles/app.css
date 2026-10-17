@@ -254,6 +254,34 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .fold-toggle[aria-expanded="true"] .ico { transform: rotate(-90deg); }
 .moments .said { display: block; font-size: 12px; color: #55605a; margin-top: 5px; line-height: 1.55; }
 .keep-grid { display: grid; gap: 12px; }
+/* Explore (2026-10-17): search, one card per area with a heard ring, stories with Listen */
+.explore-search { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 0 14px; min-height: 44px; border: 1px solid var(--card-line); border-radius: 22px; background: var(--card); color: var(--muted); }
+.explore-search input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 14px; color: var(--ink); outline: none; padding: 10px 0; }
+.area-card { padding: 0; }
+.area-head { display: flex; align-items: center; gap: 13px; width: 100%; padding: 14px 18px; text-align: left; min-height: 64px; }
+.area-head > span { flex: 1; min-width: 0; }
+.area-head b { display: block; font-size: 15px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.area-head small { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+.area-head > .ico { color: var(--muted); transition: transform .2s ease; }
+.area-card.open .area-head > .ico { transform: rotate(90deg); }
+.ring { width: 36px; height: 36px; flex-shrink: 0; }
+.ring circle { fill: none; stroke-width: 3.5; }
+.ring .ring-bg { stroke: var(--sage-soft); }
+.ring .ring-fg { stroke: var(--sage); stroke-linecap: round; }
+.ring text { font-size: 11px; font-weight: 700; fill: var(--sage-text); }
+.area-body { padding: 0 18px 6px; }
+.stories { list-style: none; padding: 0; margin: 0; }
+.stories.folded .more { display: none; }
+.stories li { display: flex; gap: 12px; align-items: flex-start; padding: 13px 0; border-top: 1px solid var(--line-soft); }
+.stories li > div { flex: 1; min-width: 0; }
+.stories .topic { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.stories .topic small { font-weight: 400; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-left: 8px; }
+.stories li p { font-size: 12px; line-height: 1.55; color: #5f6a62; }
+.stories li.heard p { color: var(--muted); }
+.listen { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: var(--sage-soft); color: var(--sage-text); display: grid; place-items: center; }
+.listen.on { background: var(--ink); color: #fff; }
+.listen .stop { width: 11px; height: 11px; border-radius: 2px; background: currentColor; }
+.area-body .fold-toggle { margin-bottom: 4px; }
 .keep-card { background: var(--card); border: 1px solid var(--card-line); border-radius: 20px; padding: 18px 20px; min-width: 0; }
 .keep-card .eyebrow { margin-bottom: 8px; }
 .keep-card h3 { font-size: 15px; margin-bottom: 4px; }

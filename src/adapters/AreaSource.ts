@@ -7,7 +7,8 @@ const REFETCH_KM = 2;
 /** Round to about 1 km before the position leaves the phone. */
 const cell = (n: number) => Math.round(n * 100) / 100;
 
-interface Kept { notes: AreaNote[]; at: number }
+/** `lat`/`lon`: where he was when the area was found (Explore's map); older entries have none until looked up. */
+interface Kept { notes: AreaNote[]; at: number; lat?: number; lon?: number }
 
 /** Researched notes per area, kept on the phone: an area is researched once, then free every ride after. */
 const TOLD_KEY = 'betty.told.v1';
@@ -20,8 +21,16 @@ export const ToldStore = {
 export const AreaStore = {
   all(): Record<string, Kept> { try { return JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { return {}; } },
   get(area: string): AreaNote[] | null { return this.all()[area]?.notes ?? null; },
-  put(area: string, notes: AreaNote[]) {
-    try { const a = this.all(); a[area] = { notes, at: Date.now() }; localStorage.setItem(KEY, JSON.stringify(a)); } catch { /* storage blocked */ }
+  put(area: string, notes: AreaNote[], pos?: LatLon) {
+    try {
+      const a = this.all(); const old = a[area];
+      a[area] = { notes, at: old?.at ?? Date.now(), ...(pos ? { lat: pos.lat, lon: pos.lon } : old?.lat != null ? { lat: old.lat, lon: old.lon } : {}) };
+      localStorage.setItem(KEY, JSON.stringify(a));
+    } catch { /* storage blocked */ }
+  },
+  /** Where an area is, for one found before positions were kept. */
+  place(area: string, pos: LatLon) {
+    try { const a = this.all(); if (a[area]) { a[area] = { ...a[area], lat: pos.lat, lon: pos.lon }; localStorage.setItem(KEY, JSON.stringify(a)); } } catch { /* storage blocked */ }
   },
 };
 
@@ -92,13 +101,14 @@ export class AreaSource implements DataSource {
         if (!kept) {
           this.onStatus(`researching ${a.name}`);
           kept = await this.research(a.name, a.key, []);
-          AreaStore.put(a.key, kept);
+          AreaStore.put(a.key, kept, pos);
         } else if (kept.every((n) => told.has(n.id)) && !this.moreAsked.has(a.key)) {
           this.moreAsked.add(a.key); // every story told already: look for new ones, once a ride
           this.onStatus(`finding new stories about ${a.name}`);
           kept = [...kept, ...await this.research(a.name, a.key, kept.map((n) => n.topic))];
-          AreaStore.put(a.key, kept);
+          AreaStore.put(a.key, kept, pos);
         }
+        if (AreaStore.all()[a.key]?.lat == null) AreaStore.place(a.key, pos); // found before positions were kept
         notes.push(...kept);
       } catch (e) { failed.push(`${a.name}: ${(e as Error).message}`); } // one area failing must not lose the other
       this.push?.({ area: info, areaNotes: notes });

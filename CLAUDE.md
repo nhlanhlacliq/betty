@@ -399,6 +399,20 @@ has dynamic content, and a smoke test.
 - Story lists fold (2026-10-17, owner: "can be quite long"): `foldList` shows the first 4 moments / 5 lines, the rest
   `li.more` hidden by `.moments.folded`; a full-width `.text-button` "Show all N ..." / "Show less" (chevron turns)
   toggles the class. Lists only one item over the limit are shown whole.
+## Explore (2026-10-17, owner: "gets very long once you've started traveling"; plan: 1+2, then 4+5, then 3+6)
+
+- 1 Area cards: `core/Explore` `areaCards` groups `AreaStore` entries by plain name (`plainArea` merges "Westonaria
+  Local Municipality" into "Westonaria", same story text kept once), unheard first, newest area first; `filterCard`
+  for the search box (`#exploresearch`, every word must match; an area-name match keeps all its stories, otherwise
+  only matching stories and the card opens) and the "Not heard yet" tab. Card: ring (heard of total, unheard count in
+  the middle), tap to open, stories folded to 3 (`ui/fold.ts`, shared with the ride page; `unfolded` keeps an opened
+  list open across re-renders). Spots and notes are still listed first (newest first) and searchable.
+- 2 Listen: `ctx.listen` in main.ts (`listenStory`): `CONFIG.listenVoice` chirp (DEFAULT, owner) / gemini / phone,
+  Garage > Stories at home. Clips made once and kept in their own IndexedDB store (`betty-stories`, 400), Gemini falls
+  back to Chirp, any failure to the phone voice. Heard to the END = told (`ToldStore`), so she will not tell it on a
+  ride; stopping early does not count. Leaving the screen stops it.
+- `AreaStore` now keeps where each area was found (`lat`/`lon`, his rounded position; `at` = first researched). Older
+  areas get theirs the next time he rides through, or are looked up for the map (step 4).
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

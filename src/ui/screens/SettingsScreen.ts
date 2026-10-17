@@ -38,6 +38,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     glance.checked = CONFIG.showGlance;
     $<HTMLInputElement>('mapborders').checked = CONFIG.mapBorders;
     $<HTMLInputElement>('cardplaces').checked = CONFIG.cardPlaces;
+    $<HTMLSelectElement>('listenvoice').value = CONFIG.listenVoice;
     $<HTMLInputElement>('cardmetro').checked = CONFIG.cardMetro;
     for (const [id, key] of ISLAND) { const b = $<HTMLInputElement>(id); b.checked = CONFIG.island[key]; b.disabled = !CONFIG.showGlance; }
     $('garagefuel').textContent = ctx.fuelText();
@@ -50,6 +51,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   preset.addEventListener('change', () => { if (preset.value !== CUSTOM) { applyTalkPreset(preset.value as TalkPreset); changed(); } });
   glance.addEventListener('change', () => { CONFIG.showGlance = glance.checked; changed(); });
   $<HTMLInputElement>('mapborders').addEventListener('change', (e) => { CONFIG.mapBorders = (e.target as HTMLInputElement).checked; changed(); });
+  $<HTMLSelectElement>('listenvoice').addEventListener('change', (e) => { CONFIG.listenVoice = (e.target as HTMLSelectElement).value as typeof CONFIG.listenVoice; changed(); });
   $<HTMLInputElement>('cardplaces').addEventListener('change', (e) => { CONFIG.cardPlaces = (e.target as HTMLInputElement).checked; changed(); });
   $<HTMLInputElement>('cardmetro').addEventListener('change', (e) => { CONFIG.cardMetro = (e.target as HTMLInputElement).checked; changed(); });
   for (const [id, key] of ISLAND) $<HTMLInputElement>(id).addEventListener('change', (e) => { CONFIG.island[key] = (e.target as HTMLInputElement).checked; changed(); });

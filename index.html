@@ -146,7 +146,8 @@
 
       <!-- ============ EXPLORE ============ -->
       <section class="screen page" data-screen="explore" hidden>
-        <div class="intro"><div><p class="eyebrow">Follow your curiosity</p><h1>Good roads. New stories.</h1><p class="sub">Spots you marked, things you asked her to remember, and the stories she knows.</p></div></div>
+        <div class="intro"><div><p class="eyebrow">Follow your curiosity</p><h1>Good roads. New stories.</h1><p class="sub">The stories she knows about the places you ride, spots you marked and things you asked her to remember.</p></div></div>
+        <label class="explore-search"><i data-icon="compass" class="sm"></i><input type="search" id="exploresearch" placeholder="Search areas, stories, spots" aria-label="Search Explore" autocomplete="off" /></label>
         <div class="tabs" id="exploretabs"></div>
         <div id="explorelist"></div>
         <div class="detail-section">
@@ -169,6 +170,7 @@
             <div class="setting buttons"><label class="secondary file-button">Choose a picture or GIF<input type="file" id="avatarfile" accept="image/*" /></label><button id="avatarreset" class="secondary" type="button" hidden>Use the default</button></div>
             <div class="setting"><div><p>Let Betty know me</p><small id="knowsub"></small></div><input type="checkbox" id="knowme" aria-label="Let Betty know me" /></div>
             <button class="text-button" type="button" data-sheet-open="knowme">What she knows about you <i data-icon="arrow" class="sm"></i></button>
+            <div class="setting"><div><p>Stories at home</p><small>The voice for Listen in Explore. Chirp is free; Gemini counts towards its daily lines. Each story is made once, then kept on the phone.</small></div><select id="listenvoice" aria-label="Voice for stories at home"><option value="chirp">Chirp</option><option value="gemini">Gemini</option><option value="phone">Phone voice</option></select></div>
             <button class="text-button" id="sample" type="button">Hear Betty's voice <i data-icon="arrow" class="sm"></i></button>
           </section>
 

@@ -1876,4 +1876,29 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const n = asked.length; await src.prepare(1, line); assert.equal(asked.length, n, 'kept: no more requests');
 }
 
+// Explore: one card per area, unheard first, renamed areas merged, search
+{
+  const { areaCards, filterCard, matchesText, plainArea } = await import('../src/core/Explore');
+  const n = (id: string, area: string, topic: string, text: string) => ({ id, area, topic, text });
+  const kept = [
+    { key: 'Sandton|Gauteng', at: 100, notes: [n('s1', 'Sandton', 'Name', 'Sandown and Bryanston'), n('s2', 'Sandton', 'Horses', '15,000 horses in 1969')] },
+    { key: 'Westonaria Local Municipality|Gauteng', at: 50, lat: -26.3, lon: 27.6, notes: [n('w1', 'Westonaria Local Municipality', 'Gold', 'Venterspost mine')] },
+    { key: 'Westonaria|Gauteng', at: 300, notes: [n('w2', 'Westonaria', 'Name', 'western area'), n('w9', 'Westonaria', 'Gold', 'Venterspost mine')] },
+    { key: 'Empty|x', at: 999, notes: [] },
+  ];
+  const cards = areaCards(kept, new Set(['s1', 'w2']));
+  assert.deepEqual(cards.map((c) => c.name), ['Westonaria', 'Sandton'], 'newest first, municipality wording merged away, empty areas left out');
+  assert.deepEqual(cards[0].notes.map((x) => x.id), ['w1', 'w2'], 'unheard first; the same story twice is kept once');
+  assert.equal(cards[0].heard, 1); assert.deepEqual(cards[0].keys.length, 2); assert.equal(cards[0].lat, -26.3, 'a position from either key');
+  assert.deepEqual(cards[1].notes.map((x) => x.id), ['s2', 's1']);
+  assert.equal(plainArea('City of Johannesburg Metropolitan Municipality'), 'Johannesburg');
+  assert.ok(matchesText('horses 1969', 'Horses', '15,000 horses in 1969') && !matchesText('horses 1970', 'Horses in 1969'), 'every word must match');
+  const told = new Set(['s1', 'w2']);
+  assert.deepEqual(filterCard(cards[1], 'sandton', told, false)?.notes.length, 2, 'the area name keeps every story');
+  assert.deepEqual(filterCard(cards[1], 'horses', told, false)?.notes.map((x) => x.id), ['s2'], 'otherwise only matching stories');
+  assert.equal(filterCard(cards[1], 'clarens', told, false), null);
+  assert.deepEqual(filterCard(cards[1], '', told, true)?.notes.map((x) => x.id), ['s2'], 'not heard yet');
+  assert.equal(filterCard({ ...cards[1], notes: [cards[1].notes[1]] }, '', told, true), null, 'all heard: nothing for that filter');
+}
+
 console.log('all core tests passed');
