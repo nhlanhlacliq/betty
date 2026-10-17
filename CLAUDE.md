@@ -421,6 +421,18 @@ has dynamic content, and a smoke test.
 - Story lists fold (2026-10-17, owner: "can be quite long"): `foldList` shows the first 4 moments / 5 lines, the rest
   `li.more` hidden by `.moments.folded`; a full-width `.text-button` "Show all N ..." / "Show less" (chevron turns)
   toggles the class. Lists only one item over the limit are shown whole.
+## Garage search and Help (2026-10-17, owner)
+
+`ui/help.ts` is the content as data: `VOICE_COMMANDS` (groups of {say[], does, kind}; a core test runs EVERY phrase
+through `parseCommand` and checks each command kind is listed: add a command -> add it here or the test fails),
+`GOOD_QUESTIONS`, `HELP_TOPICS` ({id, title, keywords, html}; `commands` is written from VOICE_COMMANDS), `searchHelp`
+(every word must match; title 3, keywords 2, body 1). `ui/screens/HelpScreen.ts`: the `help` screen (static section,
+`<details>` per topic, its own search, swipe/Back to Garage, restorable after a refresh) and the Garage search
+(`#garagesearch`: hides non-matching `.settings-card` children and cards with `.search-hide`, never `hidden`, which
+rows use for their own state; `#garagefound` lists matching commands and topics). `[data-help="<topic id>"]` anywhere
+opens Help at that topic (Garage Help card, the ask sheet's "What can I say?", the empty Journeys page). Keep the
+help text true when behaviour changes: it states button mappings, limits (12 s, 10 min parked) and fuel defaults.
+
 ## Long ride of 2026-10-17 (219 min, 93 km): fixes, owner's answers per item
 
 - **Web search** (owner: "we really need to fix that web search"): she said "I shall search that speed now" seven

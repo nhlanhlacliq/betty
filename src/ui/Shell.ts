@@ -11,11 +11,11 @@
  */
 import { hydrateIcons } from './icons';
 
-export type ScreenId = 'home' | 'ride' | 'chat' | 'journeys' | 'story' | 'explore' | 'settings' | 'workshop';
+export type ScreenId = 'home' | 'ride' | 'chat' | 'journeys' | 'story' | 'explore' | 'settings' | 'workshop' | 'help';
 
 /** Which navigation button is lit for each screen. */
 const NAV_OF: Record<ScreenId, ScreenId> = {
-  home: 'home', ride: 'home', chat: 'home', journeys: 'journeys', story: 'journeys', explore: 'explore', settings: 'settings', workshop: 'settings',
+  home: 'home', ride: 'home', chat: 'home', journeys: 'journeys', story: 'journeys', explore: 'explore', settings: 'settings', workshop: 'settings', help: 'settings',
 };
 
 export interface Shell {

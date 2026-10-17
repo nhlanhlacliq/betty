@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Search the Garage: type at the top (say "louder", "fuel" or "buttons") and only the matching settings show, with the help topics and voice commands that fit.',
+      'Help (Garage > Help): getting started, talking to Betty, every voice command, things to ask her, what she tells you on her own, the ride screen, fuel, routes, journeys, Explore, troubleshooting and your data. "What can I say?" in the ask sheet opens the voice commands.',
       'Fuel range now comes from your bike: an 11 litre tank with 1 litre of reserve and your dash average of 4.4 L/100 km (about 227 km to reserve). Change them in Garage > In your garage, or say "consumption 4.6". Betty tells you km to reserve and litres left.',
       'When fuel gets low, or you ask where to fill up, Betty names the petrol stations ahead (on your route if you have one) and whether you will make the first one.',
       'Planning a route says whether it fits in your tank, or where to fill up on the way.',

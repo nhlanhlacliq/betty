@@ -95,7 +95,7 @@ export function mountSheetDrag(doc: Document, shell: Shell) {
 }
 
 /** Screens that go back to where he came from: a ride's story, the whole conversation, the Workshop. */
-export const BACK_SCREENS = new Set(['story', 'chat', 'workshop']);
+export const BACK_SCREENS = new Set(['story', 'chat', 'workshop', 'help']);
 /** A back swipe starts within this many px of the left edge, and goes back past BACK_AT px (or a quick flick). */
 const EDGE = 36;
 export const BACK_AT = 90;
@@ -180,7 +180,7 @@ export function mountEdgeStretch(doc: Document) {
  */
 const RESTORE_KEY = 'betty.restore';
 /** Screens that make sense after a reload (the ride and its chat need a ride running). */
-const RESTORABLE = new Set(['home', 'journeys', 'story', 'explore', 'settings', 'workshop']);
+const RESTORABLE = new Set(['home', 'journeys', 'story', 'explore', 'settings', 'workshop', 'help']);
 export interface Spot { screen: string; ride?: number; scroll: number }
 
 export function rememberSpot(spot: Spot, store?: Pick<Storage, 'setItem'>) {

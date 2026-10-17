@@ -170,7 +170,14 @@
       <!-- ============ GARAGE & SETTINGS ============ -->
       <section class="screen page" data-screen="settings" hidden>
         <div class="intro"><div><p class="eyebrow">Make yourself at home</p><h1>Your ride. Your Betty.</h1><p class="sub">A few thoughtful adjustments, then back to the road.</p></div></div>
-        <div class="page-grid">
+        <label class="explore-search garage-search"><i data-icon="compass" class="sm"></i><input type="search" id="garagesearch" placeholder="Search settings and help" aria-label="Search settings and help" autocomplete="off" /></label>
+        <div id="garagefound" class="garage-found" hidden></div>
+        <div class="page-grid" id="garagecards">
+          <section class="settings-card help-card">
+            <h2>Help</h2>
+            <button class="whatsnew-row" type="button" data-go="help"><span><b>How Betty works</b><small>Getting started, talking to her, every voice command, fuel, routes and fixes.</small></span><i data-icon="arrow" class="sm"></i></button>
+            <button class="text-button" type="button" data-help="commands">Voice commands <i data-icon="arrow" class="sm"></i></button>
+          </section>
           <section class="settings-card">
             <h2>Betty's personality</h2>
             <div class="setting"><div><p>Narration</p><small id="talkhint">How much company feels right?</small></div><select id="talkpreset" aria-label="How often Betty talks"></select></div>
@@ -254,6 +261,14 @@
           </section>
         </div>
         <p class="footer-note" id="footer"></p>
+      </section>
+
+      <!-- ============ HELP ============ -->
+      <section class="screen page" data-screen="help" hidden>
+        <div class="intro"><div><p class="eyebrow">Help</p><h1>How Betty works.</h1><p class="sub">Tap a topic to open it.</p></div><button class="text-button" type="button" data-back>← Garage</button></div>
+        <label class="explore-search"><i data-icon="compass" class="sm"></i><input type="search" id="helpsearch" placeholder="Search help" aria-label="Search help" autocomplete="off" /></label>
+        <p class="sub help-none" id="helpnone" hidden>Nothing in Help matches that.</p>
+        <div id="helpbody"></div>
       </section>
 
       <!-- ============ WORKSHOP (developer panels; docked beside the phone on a wide screen) ============ -->
@@ -402,6 +417,7 @@
               <button class="primary" type="submit">Ask Betty <i data-icon="arrow" class="sm"></i></button>
             </div>
           </form>
+          <button class="text-button" type="button" data-help="commands">What can I say? <i data-icon="arrow" class="sm"></i></button>
           <div class="recent ask-chips" id="asksheetchips"></div>
           <button class="free-button" type="button" data-go="chat">See the whole conversation <i data-icon="arrow" class="sm"></i></button>
         </section>

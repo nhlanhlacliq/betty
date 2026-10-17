@@ -71,7 +71,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     if (!rides.length) {
       totals.innerHTML = '';
       list.innerHTML = `<div class="empty"><button class="orb resting" type="button" tabindex="-1" aria-hidden="true"></button><h2>Your story starts on the road.</h2>
-        <p>Rides of three minutes or a kilometre and up land here, quietly organised by journey.</p></div>`;
+        <p>Rides of three minutes or a kilometre and up land here, quietly organised by journey.</p>
+        <button class="text-button" type="button" data-help="start">How Betty works</button></div>`;
       return;
     }
     const km = Math.round(rides.reduce((n, r) => n + r.distanceKm, 0));

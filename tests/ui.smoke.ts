@@ -268,6 +268,33 @@ resetConfig();
     fuelBox('fuelprice').value = '31,10'; ev(fuelBox('fuelprice'), 'change'); assert.equal(CONFIG.fuel.pricePerL, 31.1); assert.equal(CONFIG.fuel.priceSource, 'manual');
     assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"lPer100":5/);
     CONFIG.fuel.lPer100 = 4.4; CONFIG.fuel.pricePerL = 30.25; page.window.dispatchEvent(new page.window.Event('betty-config'));
+
+    // Garage search: rows that match stay, the rest of the Garage hides; help topics and commands are offered
+    const gsearch = doc.getElementById('garagesearch') as HTMLInputElement;
+    const shownCards = () => [...doc.querySelectorAll('#garagecards > .settings-card')].filter((c) => !c.classList.contains('search-hide')).map((c) => c.querySelector('h2')!.textContent);
+    gsearch.value = 'consumption'; ev(gsearch, 'input');
+    assert.deepEqual(shownCards(), ['In your garage'], 'only the card with it');
+    const garageRows = [...doc.querySelectorAll('#garagecards .settings-card:not(.search-hide) > .setting')].filter((r) => !r.classList.contains('search-hide'));
+    assert.equal(garageRows.length, 1); assert.match(garageRows[0].textContent!, /Average consumption/);
+    const found = doc.getElementById('garagefound')!;
+    assert.equal(found.hidden, false); assert.match(found.textContent!, /"Consumption 4\.6"/); assert.match(found.textContent!, /Fuel range and costs/);
+    gsearch.value = 'louder'; ev(gsearch, 'input'); assert.deepEqual(shownCards(), ['Voice & audio']);
+    gsearch.value = 'zzzz'; ev(gsearch, 'input'); assert.match(found.textContent!, /Nothing matches/);
+    gsearch.value = ''; ev(gsearch, 'input');
+    assert.equal(found.hidden, true); assert.equal(doc.querySelectorAll('#garagecards .search-hide').length, 0, 'cleared: everything back');
+    // Help: the topics, a topic opened from Garage, its own search
+    assert.ok(doc.querySelectorAll('#helpbody details.help-topic').length >= 10);
+    click(doc.querySelector('[data-nav="settings"]')!);
+    click(doc.querySelector('#garagecards [data-help="commands"]')!);
+    assert.equal((doc.querySelector('[data-screen="help"]') as HTMLElement).hidden, false, 'Help is open');
+    assert.equal((doc.getElementById('help-commands') as HTMLDetailsElement).open, true);
+    assert.match(doc.getElementById('help-commands')!.textContent!, /"Quiet for ten minutes".*"End ride".*"Mark this spot".*"Consumption 4\.6"/s);
+    const hsearch = doc.getElementById('helpsearch') as HTMLInputElement;
+    hsearch.value = 'detour'; ev(hsearch, 'input');
+    assert.equal(doc.querySelectorAll('#helpbody details:not(.search-hide)').length, 1); assert.equal((doc.getElementById('help-routes') as HTMLDetailsElement).open, true);
+    hsearch.value = ''; ev(hsearch, 'input');
+    click(doc.querySelector('[data-screen="help"] [data-back]')!);
+    assert.equal((doc.querySelector('[data-screen="settings"]') as HTMLElement).hidden, false, 'back to the Garage');
     CONFIG.persona.humour = 75; CONFIG.persona.tars = 50;
 
     // explore: notes and marked spots, with Forget

@@ -55,6 +55,7 @@ import { RideActions, mountRideScreen } from './ui/screens/RideScreen';
 import { mountJourneysScreen } from './ui/screens/JourneysScreen';
 import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
+import { mountHelpScreen } from './ui/screens/HelpScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
@@ -492,6 +493,7 @@ const sayOutsideRide = (text: string) => {
   t.speak(text, () => { helloOrb.className = 'orb resting'; }, { priority: 4, id: 'voice' });
 };
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
+mountHelpScreen(document, shell);
 // The petrol price, once a month after the first-Wednesday change (his own figure wins until then).
 if (SERVER) void refreshFuelPrice().then((p) => { if (p !== null) { saveConfig(); window.dispatchEvent(new window.Event('betty-config')); } });
 // Betty's look: the default companion or his own picture/GIF, kept on the phone.
@@ -1185,6 +1187,7 @@ $('endconfirm').addEventListener('click', () => { if (endNow) endNow(); else if 
   const spot = takeSpot();
   if (spot && spot.screen !== 'home') {
     if (spot.screen === 'story' && spot.ride) { shell.show('journeys'); journeys.open(spot.ride); } // back goes to the journeys
+    else if (spot.screen === 'help') { shell.show('settings'); shell.show('help'); } // back goes to the Garage
     else shell.show(spot.screen as ScreenId);
     const el = document.querySelector<HTMLElement>(`[data-screen="${spot.screen}"]`);
     if (el) requestAnimationFrame(() => { el.scrollTop = spot.scroll; });

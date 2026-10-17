@@ -580,3 +580,28 @@ html, body { overscroll-behavior: none; }
 .know-ask { margin: 8px 0 4px; padding: 12px 14px; border-left: 3px solid var(--accent); background: #fffdf3; border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--ink); }
 .know-text { width: 100%; margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid #e3e8da; background: #fff; color: var(--ink); font: inherit; font-size: 16px; line-height: 1.45; resize: vertical; }
 #routefuel { display: block; margin-top: 4px; color: var(--sage-text); }
+
+/* Garage search and Help (2026-10-17) */
+.search-hide { display: none !important; }
+.garage-search { margin: 0 0 12px; }
+.garage-found { display: grid; gap: 8px; margin: 0 0 14px; }
+.found-row { display: grid; gap: 3px; text-align: left; padding: 12px 14px; border: 1px solid var(--card-line); border-radius: 16px; background: var(--card); color: var(--ink); font: inherit; }
+.found-row b { font-size: 15px; font-weight: 600; }
+.found-row small { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.help-card .text-button { margin-top: 6px; }
+.help-topic { background: var(--card); border: 1px solid var(--card-line); border-radius: 18px; margin: 0 0 10px; overflow: hidden; }
+.help-topic summary { list-style: none; cursor: pointer; padding: 15px 44px 15px 16px; font-size: 16px; font-weight: 600; color: var(--ink); position: relative; }
+.help-topic summary::-webkit-details-marker { display: none; }
+.help-topic summary::after { content: ''; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-70%) rotate(45deg); transition: transform .2s; }
+.help-topic[open] summary::after { transform: translateY(-30%) rotate(-135deg); }
+.help-body { padding: 0 16px 14px; font-size: 14px; line-height: 1.55; color: var(--ink); }
+.help-body p { margin: 0 0 10px; }
+.help-body ul { margin: 0 0 10px; padding-left: 18px; }
+.help-body li { margin: 0 0 8px; }
+.help-body h3 { font-size: 12px; letter-spacing: .4px; text-transform: uppercase; color: var(--sage-text); margin: 14px 0 6px; }
+.help-body ul.commands { list-style: none; padding: 0; }
+.help-body ul.commands li { padding: 9px 0; border-bottom: 1px solid var(--line-soft); margin: 0; }
+.help-body ul.commands b { display: block; font-weight: 600; }
+.help-body .also { display: block; font-size: 13px; color: var(--sage-text); margin-top: 2px; }
+.help-body ul.commands small { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+.help-none { margin: 0 0 12px; }

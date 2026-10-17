@@ -2132,4 +2132,19 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   } finally { globalThis.fetch = realFetch; process.env = saved; }
 }
 
+// ---- Help: every voice command it lists is really understood; the search finds topics
+{
+  const { VOICE_COMMANDS, HELP_TOPICS, searchHelp, helpHtml } = await import('../src/ui/help');
+  for (const g of VOICE_COMMANDS) for (const c of g.items) for (const said of c.say) {
+    assert.equal(parseCommand(said)?.kind, c.kind, `Help says "${said}" does ${c.kind}`);
+  }
+  const kinds = new Set(VOICE_COMMANDS.flatMap((g) => g.items.map((c) => c.kind)));
+  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
+  assert.equal(searchHelp('headset buttons')[0].id, 'talk');
+  assert.equal(searchHelp('petrol')[0].id, 'fuel');
+  assert.ok(searchHelp('quiet').some((t) => t.id === 'commands'), 'commands are searchable');
+  assert.deepEqual(searchHelp('xyzzy'), []);
+  assert.equal((helpHtml().match(/<details/g) ?? []).length, HELP_TOPICS.length);
+}
+
 console.log('all core tests passed');
