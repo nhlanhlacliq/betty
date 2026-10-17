@@ -13,7 +13,7 @@ import { describeFuelPlan, fuelLeft, kmToReserve, routeFuelPlan } from './core/F
 import { StationSource } from './adapters/StationSource';
 import { refreshFuelPrice } from './adapters/FuelPrice';
 import { ServiceStore } from './adapters/ServiceStore';
-import { dueInfo, dueText, findReminder, markDone } from './core/Reminders';
+import { dueInfo, dueText, findReminder, markDone, undoDone } from './core/Reminders';
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
@@ -965,6 +965,16 @@ async function beginRide(desk: boolean) {
         reply(`${r.name}: done. Next one ${dueText(d)}.`, 'done');
         return;
       }
+      case 'undone': {
+        const book = ServiceStore.load();
+        const r = findReminder(book.items, c.what);
+        if (!r?.prev) { reply(r ? `${r.name} wasn't marked done, so there's nothing to take back.` : "I don't have a reminder for that.", 'undone'); return; }
+        const next = undoDone(book, r.id);
+        ServiceStore.save(next);
+        engine.setServiceBook(next);
+        reply(`${r.name}: not done after all. Back to ${dueText(dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now()))}.`, 'undone');
+        return;
+      }
       case 'end': {
         if (rig?.engine !== engine || rig.desk) { reply('There is no ride to end.', 'end'); return; }
         void stop(); // her sign-off follows, and the ride's story opens
@@ -994,7 +1004,7 @@ async function beginRide(desk: boolean) {
     }
     let command = parseCommand(text);
     // "Checked the weather?" is not maintenance: a "done" with no reminder of that name is a question for her.
-    if (command?.kind === 'done' && !findReminder(ServiceStore.load().items, command.what)) command = null;
+    if ((command?.kind === 'done' || command?.kind === 'undone') && !findReminder(ServiceStore.load().items, command.what)) command = null;
     if (command) { obey(command); renderLog(); return null; }
     // "Where can I fill up?": the stations near him, if they can be had in a couple of seconds.
     const here = agg.current;

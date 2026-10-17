@@ -2139,7 +2139,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(parseCommand(said)?.kind, c.kind, `Help says "${said}" does ${c.kind}`);
   }
   const kinds = new Set(VOICE_COMMANDS.flatMap((g) => g.items.map((c) => c.kind)));
-  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
+  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done', 'undone']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
   assert.equal(searchHelp('headset buttons')[0].id, 'talk');
   assert.equal(searchHelp('petrol')[0].id, 'fuel');
   assert.ok(searchHelp('quiet').some((t) => t.id === 'commands'), 'commands are searchable');
@@ -2182,6 +2182,13 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(up.bike, 'bmw-g310gs'); assert.ok(!up.items.some((r) => r.id === 'service'));
   assert.equal(up.items.find((r) => r.id === 'chain')!.everyKm, 500, 'his changes kept'); assert.ok(up.items.some((r) => r.id === 'rx') && up.items.some((r) => r.id === 'oil'));
   assert.equal(R.upgradeBook(up, t0), up, 'once');
+  // not done after all: back to how it stood, guess included
+  const undone = R.undoDone(doneOil, 'oil');
+  const was = aligned.items.find((r) => r.id === 'oil')!, back = undone.items.find((r) => r.id === 'oil')!;
+  assert.deepEqual([back.lastKm, back.lastAt, back.assumed, back.prev], [was.lastKm, was.lastAt, true, undefined]);
+  assert.deepEqual(R.undoDone(undone, 'oil').items.find((r) => r.id === 'oil'), back, 'nothing left to undo: unchanged');
+  for (const [said, what] of [['Chain not done', 'chain'], ['Mark the oil as not done', 'oil'], ['Undo the brake fluid', 'brake fluid']] as const) assert.deepEqual(parseCommand(said), { kind: 'undone', what }, said);
+  assert.equal(parseCommand('Undo that'), null, '"that" is no reminder');
   assert.match(R.describeDue(book, t0 + 15 * DAY), /^Maintenance: Chain clean and lube is due \(50 km overdue\); Tyre pressures is due \(1 day overdue\)\.$/);
   assert.equal(R.describeDue(R.starterBook(0, t0), t0), '', 'nothing due: nothing to say');
   assert.match(R.describeDue(R.starterBook(0, t0), t0, true), /Engine oil and filter in 10,000 km or in 12 months/);

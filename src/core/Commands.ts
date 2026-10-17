@@ -18,6 +18,8 @@ export type Command =
   | { kind: 'end' }
   /** "Chain done", "I lubed the chain", "the bike was serviced": a service reminder done (which one: findReminder) */
   | { kind: 'done'; what: string }
+  /** "Chain not done", "undo the oil": take back the last Done of that reminder */
+  | { kind: 'undone'; what: string }
   /** "Consumption 4.6" (the dash's L/100 km) or "petrol price 31.20" (rand a litre) */
   | { kind: 'fuelset'; what: 'consumption' | 'price'; value: number }
   /** Humour dial: set to a value, or step it */
@@ -81,6 +83,8 @@ export function parseCommand(said: string): Command | null {
 
   // Maintenance done (after "end": "I'm done" ends the ride). Which reminder it is, main.ts finds by name.
   if (n <= 10) {
+    const not = low.match(/^(?:mark |set )?(?:the )?(.+?) (?:as |is )?not done$/) ?? low.match(/^undo (?:the )?(.+?)(?: done)?$/);
+    if (not && !/^(that|it|this|everything|all)$/.test(not[1].trim())) return { kind: 'undone', what: not[1].trim() };
     const did = low.match(/^(?:i |we )?(?:just |have just |'ve just |have |'ve )?(lubed|lubricated|oiled|cleaned|serviced|checked|changed|replaced|topped up|pumped up|did the)\b(.+)$/)
       ?? low.match(/^(?:mark |set )?(?:the )?(.+?) (?:is |as |all )?(?:done|sorted)$/);
     if (did) {

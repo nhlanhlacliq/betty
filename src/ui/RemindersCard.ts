@@ -1,4 +1,4 @@
-import { BIKES, Reminder, ServiceBook, alignToOdometer, dueList, dueText, markDone } from '../core/Reminders';
+import { BIKES, Reminder, ServiceBook, alignToOdometer, dueList, dueText, markDone, undoDone } from '../core/Reminders';
 import type { Shell } from './Shell';
 
 export interface RemindersContext {
@@ -33,6 +33,8 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
   const odo = $<HTMLInputElement>('odometer');
   let editing: string | null = null;
   let showAll = false;
+  /** Done this visit: the row offers Undo instead of Done until he leaves the Garage. */
+  const justDone = new Set<string>();
   /** Rows shown before "Show all": everything due or close, then the next few. */
   const KEEP = 5;
 
@@ -47,8 +49,10 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
     list.innerHTML = (bike ? `<p class="sub reminder-bike">${esc(bike.name)} schedule from the handbook${book.odoKm ? '' : '. Set the odometer first so it lines up'}${guessed ? '. "Last done" is a guess until you set it or tap Done.' : '.'}</p>` : '')
       + (rows.length ? shown.map((d) => `<div class="reminder-row ${d.state}" data-reminder="${esc(d.r.id)}">
         <button class="reminder-main" type="button" data-edit="${esc(d.r.id)}"><b>${esc(d.r.name)}</b><small>${esc(interval(d.r))}${d.r.assumed ? ' · last done: a guess' : ''}</small></button>
-        <span class="reminder-state">${esc(d.state === 'ok' ? dueText(d) : `${d.state === 'due' ? 'Due' : 'Soon'}: ${dueText(d)}`)}</span>
-        <button class="secondary small" type="button" data-done="${esc(d.r.id)}">Done</button></div>`).join('')
+        <span class="reminder-state">${esc(justDone.has(d.r.id) ? `Done just now · next ${dueText(d)}` : d.state === 'ok' ? dueText(d) : `${d.state === 'due' ? 'Due' : 'Soon'}: ${dueText(d)}`)}</span>
+        ${justDone.has(d.r.id) && d.r.prev
+          ? `<button class="secondary small" type="button" data-undo="${esc(d.r.id)}">Undo</button>`
+          : `<button class="secondary small" type="button" data-done="${esc(d.r.id)}">Done</button>`}</div>`).join('')
         + (rows.length > keep ? `<button class="text-button fold-toggle" type="button" data-showall>${showAll ? 'Show less' : `Show all ${rows.length}`}</button>` : '')
       : '<p class="sub">No reminders. Add one below.</p>');
   };
@@ -67,6 +71,10 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
     const d = new Date(r?.lastAt ?? now());
     $<HTMLInputElement>('reminderdate').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     $('reminderdelete').hidden = !r;
+    // Mark as not done: back to before the last Done (the date it goes back to, so he knows what he is choosing).
+    const back = $<HTMLButtonElement>('reminderundo');
+    back.hidden = !r?.prev;
+    if (r?.prev) back.textContent = `Mark as not done (back to ${new Date(r.prev.lastAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })})`;
     shell.openSheet('reminder');
   };
 
@@ -74,11 +82,19 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
     const t = e.target as Element;
     if (t.closest('[data-showall]')) { showAll = !showAll; paint(); return; }
     const done = t.closest('[data-done]') as HTMLElement | null;
-    if (done) { ctx.save(markDone(ctx.load(), done.dataset.done!, now())); paint(); return; }
+    if (done) { ctx.save(markDone(ctx.load(), done.dataset.done!, now())); justDone.add(done.dataset.done!); paint(); return; }
+    const undo = t.closest('[data-undo]') as HTMLElement | null;
+    if (undo) { ctx.save(undoDone(ctx.load(), undo.dataset.undo!)); justDone.delete(undo.dataset.undo!); paint(); return; }
     const ed = t.closest('[data-edit]') as HTMLElement | null;
     if (ed) open(ctx.load().items.find((r) => r.id === ed.dataset.edit) ?? null);
   });
   $('reminderadd').addEventListener('click', () => open(null));
+  $('reminderundo').addEventListener('click', () => {
+    if (!editing) return;
+    ctx.save(undoDone(ctx.load(), editing));
+    justDone.delete(editing);
+    shell.closeSheet(); paint();
+  });
   $('reminderdelete').addEventListener('click', () => {
     if (!editing) return;
     const book = ctx.load();
@@ -112,7 +128,7 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
   });
 
   doc.defaultView?.addEventListener('betty-service', paint);
-  shell.onShow((id) => { if (id === 'settings') paint(); });
+  shell.onShow((id) => { if (id === 'settings') paint(); else justDone.clear(); });
   paint();
   return { paint, open };
 }

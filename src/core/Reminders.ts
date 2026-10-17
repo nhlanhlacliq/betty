@@ -18,6 +18,8 @@ export interface Reminder {
   note?: string;
   /** "Last done" is a guess (the last schedule milestone below the odometer): he has not confirmed it */
   assumed?: boolean;
+  /** How it stood before the last Done, so Done can be taken back ("mark as not done") */
+  prev?: { lastKm: number; lastAt: number; assumed?: boolean };
 }
 export interface ServiceBook {
   odoKm: number;
@@ -65,7 +67,15 @@ export function dueText(d: DueInfo): string {
 
 /** Done: counted again from here. */
 export const markDone = (book: ServiceBook, id: string, now: number): ServiceBook =>
-  ({ ...book, items: book.items.map((r) => (r.id === id ? { ...r, lastKm: book.odoKm, lastAt: now, assumed: false } : r)) });
+  ({ ...book, items: book.items.map((r) => (r.id === id ? { ...r, lastKm: book.odoKm, lastAt: now, assumed: false, prev: { lastKm: r.lastKm, lastAt: r.lastAt, assumed: r.assumed } } : r)) });
+
+/** Not done after all (tapped by mistake, or "chain not done"): back to how it stood before the last Done. */
+export const undoDone = (book: ServiceBook, id: string): ServiceBook =>
+  ({ ...book, items: book.items.map((r) => {
+    if (r.id !== id || !r.prev) return r;
+    const { prev, ...rest } = r;
+    return { ...rest, lastKm: prev.lastKm, lastAt: prev.lastAt, ...(prev.assumed ? { assumed: true } : { assumed: false }) };
+  }) });
 
 /** One line of a bike's maintenance schedule. */
 export interface ScheduleItem { id: string; name: string; everyKm: number | null; everyDays: number | null; note?: string }

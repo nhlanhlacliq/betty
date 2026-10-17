@@ -35,6 +35,7 @@ export const VOICE_COMMANDS: CommandGroup[] = [
   ] },
   { title: 'Maintenance', items: [
     { say: ['Chain done', 'I lubed the chain', 'Changed the oil', 'The bike was serviced', 'Checked the tyre pressures', 'Brake fluid done'], does: 'Marks a reminder done (Garage > Reminders) and tells you when the next one is due.', kind: 'done' },
+    { say: ['Chain not done', 'Undo the oil'], does: 'Takes back the last Done of that reminder, if it was a mistake.', kind: 'undone' },
   ] },
   { title: 'Fuel', items: [
     { say: ['Consumption 4.6', 'My average consumption is 4.8'], does: 'Your dash average in L/100 km: her fuel range is worked out from it.', kind: 'fuelset' },
@@ -111,6 +112,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Set the odometer first</b> to the reading on your dash. The handbook items then line up with its milestones: at 23,450 km the oil counts as last done at 20,000, so it is due at 30,000. Betty adds every km you ride with her after that.',
       '<b>"Last done: a guess"</b> means Betty assumed it. Tap the reminder to set when it was really done (km ago and date), or tap Done if you have just done it.',
       '<b>Done:</b> tap Done, or say "chain done", "changed the oil", "the bike was serviced". It counts again from there.',
+      '<b>Not done after all:</b> right after tapping Done the button reads <i>Undo</i>. Later, tap the reminder and choose <i>Mark as not done</i>, which puts it back to how it was before the last Done. Or say "chain not done".',
       'Tap any reminder to change its interval, rename it or delete it; <i>Add a reminder</i> makes your own (by km, by time, or both).',
       'She mentions anything due or coming up in the briefing and the sign-off, and the Details sheet on the Ride tab shows the most pressing one. Ask "what\'s due?" any time. The list shows the most pressing five; Show all opens the rest.',
     ])}` },
