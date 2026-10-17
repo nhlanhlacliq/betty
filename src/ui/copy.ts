@@ -31,6 +31,9 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
   local_fact: { kicker: 'A sense of place', headline: 'Worth knowing.' },
   area_story: { kicker: 'A local story', headline: 'About this place.' },
   marked_spot: { kicker: 'Heads up', headline: 'Your marked spot.' },
+  off_route: { kicker: 'Heads up', headline: 'Off your route.' },
+  route_stop: { kicker: 'Coming up', headline: 'Your next stop.' },
+  route_arrived: { kicker: "You're here", headline: 'Destination reached.' },
   ride_debrief: { kicker: "That's a wrap", headline: 'Good ride.' },
   voice: { kicker: 'Betty', headline: 'On it.' },
 };
@@ -57,7 +60,9 @@ export const COMPANION_STATE = {
 export const LINE_LINGER_MS = 30_000;
 
 export interface GlanceCopy { icon: IconName; label: string }
-export const GLANCE: Record<'range' | 'rain' | 'traffic' | 'sunset' | 'area' | 'place' | 'riding', GlanceCopy> = {
+export const GLANCE: Record<'range' | 'rain' | 'traffic' | 'route' | 'offroute' | 'sunset' | 'area' | 'place' | 'riding', GlanceCopy> = {
+  route: { icon: 'pin', label: 'Your route' },
+  offroute: { icon: 'compass', label: 'Off your route' },
   range: { icon: 'fuel', label: 'Fuel range · estimate' },
   rain: { icon: 'rain', label: 'On the road ahead' },
   traffic: { icon: 'traffic', label: 'Traffic on your way' },

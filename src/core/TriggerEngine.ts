@@ -1,5 +1,6 @@
 import { CONFIG, cleanBikeName } from '../config/betty';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
+import { PlannedRoute, RouteProgress, describeRoute, minutesText, routeProgress } from './Route';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
@@ -17,7 +18,7 @@ export const isSafeWindow = (s: BikeState) =>
 /** How an alert is remembered later in the ride and in the ride log. */
 const EVENT_LABELS: Partial<Record<TriggerId, string>> = {
   engine_overtemp: 'engine running hot', dtc_detected: 'a fault code', low_fuel: 'low fuel',
-  rain_soon: 'rain', traffic_incident: 'a traffic incident', marked_spot: 'a spot he marked',
+  rain_soon: 'rain', traffic_incident: 'a traffic incident', marked_spot: 'a spot he marked', off_route: 'leaving the route',
   fuel_range: 'fuel range getting low', sunset_soon: 'sunset approaching',
 };
 
@@ -35,6 +36,10 @@ export const incidentKey = (i: TrafficIncident) => (i.roadName ? `${i.descriptio
 const MIN_CLOSURE_M = 150;
 /** How far either side of straight ahead still counts as "on his way". */
 const AHEAD_DEG = 50;
+/** Off the route: this far from its line (km) for this long while moving; back on it under BACK_ON_KM. */
+const OFF_ROUTE_KM = 0.4;
+const OFF_ROUTE_MS = 20_000;
+const BACK_ON_KM = 0.15;
 /** Warn about a marked spot this far ahead (km), and not again for this long. */
 const MARK_WARN_KM = 0.4;
 const WARN_AGAIN_MS = 10 * 60_000;
@@ -109,6 +114,17 @@ export class TriggerEngine {
   setToldNotes(ids: string[]) { this.toldNotes = new Set(ids); }
   toldNoteIds(): string[] { return [...this.toldNotes]; }
   private freshNote(s: BikeState) { return s.areaNotes.find((n) => !this.toldNotes.has(n.id)) ?? null; }
+  /** The planned route (api/route.ts) and where he is on it, updated each evaluate */
+  private route: PlannedRoute | null = null;
+  private progress: RouteProgress | null = null;
+  private offSince: number | null = null;
+  private offWarned = false;
+  private stopsSaid = new Set<string>();
+  private arrivedSaid = false;
+  setRoute(r: PlannedRoute | null) {
+    this.route = r; this.progress = null; this.offSince = null; this.offWarned = false; this.stopsSaid.clear(); this.arrivedSaid = false;
+  }
+  routeNow(): { route: PlannedRoute; progress: RouteProgress | null } | null { return this.route ? { route: this.route, progress: this.progress } : null; }
   /** Marked spots warned about, by when the spot was saved -> when warned (each at most once in WARN_AGAIN_MS) */
   private warnedSpots = new Map<number, number>();
   private spotNow: { spot: MarkedSpot; km: number } | null = null;
@@ -215,6 +231,18 @@ export class TriggerEngine {
       out.push(this.force('traffic_incident', s, inc));
     }
 
+    // The planned route: leaving it (well off it for 20 s while moving), the next named stop within 1 km, arrival.
+    if (this.route && s.lat != null && s.lon != null) {
+      const p = routeProgress(this.route, { lat: s.lat, lon: s.lon }, this.progress?.index ?? 0);
+      this.progress = p;
+      if (p.offKm > OFF_ROUTE_KM && s.speedKmh >= 15) {
+        this.offSince ??= this.now();
+        if (!this.offWarned && this.now() - this.offSince >= OFF_ROUTE_MS && this.ready('off_route')) { this.offWarned = true; out.push(this.force('off_route', s)); }
+      } else if (p.offKm < BACK_ON_KM) { this.offSince = null; this.offWarned = false; }
+      if (p.next && p.next.km <= 1 && p.offKm < OFF_ROUTE_KM && !this.stopsSaid.has(p.next.name)) { this.stopsSaid.add(p.next.name); out.push(this.force('route_stop', s)); }
+      if (p.arrived && !this.arrivedSaid) { this.arrivedSaid = true; out.push(this.force('route_arrived', s)); }
+    }
+
     const spot = this.spotAhead(s);
     if (spot && this.ready('marked_spot')) {
       this.warnedSpots.set(spot.spot.at, this.now());
@@ -286,7 +314,7 @@ export class TriggerEngine {
           w ? ` ${cap(w.summary)}, ${Math.round(w.tempC)} degrees, ${w.rainChanceNextHourPct} percent chance of rain in the next hour.` : '',
           left === null ? '' : ` About ${left} kilometres of fuel range by my count.`].join('');
         return {
-          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}`,
+          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}` : ''}`,
           fallback: canned,
         };
       }
@@ -390,6 +418,31 @@ export class TriggerEngine {
           mark: () => { this.mentioned.add(p.id); this.stats.notePlace(p.name); }, // never the same place twice in a ride
         };
       }
+      case 'off_route': {
+        const p = this.progress, r = this.route;
+        if (!p || !r) return { context: '', fallback: '' };
+        return {
+          context: `He has left his planned route to ${r.name}: he is about ${p.offKm.toFixed(1)} km away from it. Tell him plainly in a line; Google Maps on his screen will guide him back, so do not give directions.`,
+          fallback: `You're off the route to ${r.name}. Maps will bring you back.`,
+        };
+      }
+      case 'route_stop': {
+        const p = this.progress;
+        if (!p?.next) return { context: '', fallback: '' };
+        return {
+          context: `His next planned stop, ${p.next.name}, is about ${Math.max(0.1, Math.round(p.next.km * 10) / 10)} km ahead. Let him know it is coming up, in a line.`,
+          fallback: `${p.next.name} coming up, about a kilometre ahead.`,
+        };
+      }
+      case 'route_arrived': {
+        const r = this.route;
+        if (!r) return { context: '', fallback: '' };
+        const mins = Math.round((this.now() - this.rideStart) / 60_000);
+        return {
+          context: `He has reached the end of his planned route: ${r.name}, ${Math.round(r.km)} km planned, ${minutesText(mins)} since he set off. Welcome him in, warmly, one or two lines.`,
+          fallback: `That's ${r.name}. Route done.`,
+        };
+      }
       case 'marked_spot': {
         const m = this.spotNow;
         if (!m) return { context: '', fallback: '' };
@@ -419,7 +472,7 @@ export class TriggerEngine {
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress)}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }

@@ -18,6 +18,8 @@ export interface HomeContext {
   track(rideId: number): TrackPoint[];
   /** Where to centre the map with no ride to show */
   home(): { lat: number; lon: number };
+  /** The planned route, if any: shown on the map instead of the last ride */
+  route?(): { name: string; points: TrackPoint[]; stops: Array<{ lat: number; lon: number; name: string; named: boolean }> } | null;
 }
 
 export interface HomeScreen {
@@ -78,7 +80,8 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
   let lastMap = '';
   const paint = () => {
     const mode = real.checked ? 'real' : 'sim';
-    $('modetitle').textContent = HOME.modes[mode].title;
+    const plannedName = ctx.route?.()?.name;
+    $('modetitle').textContent = plannedName ? `${HOME.modes[mode].title} · ${plannedName}` : HOME.modes[mode].title;
     $('modeicon').innerHTML = icon(mode === 'real' ? 'ride' : 'wrench');
     for (const t of tiles) {
       const on = t.dataset.mode === mode;
@@ -89,8 +92,14 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
     }
     paintReady();
     const last = [...ctx.rides()].reverse()[0];
-    const track = last ? ctx.track(last.startedAt) : [];
-    const svg = mapSvg({
+    const planned = ctx.route?.() ?? null;
+    // A planned route takes the map (dotted, with its named stops); otherwise the last ride's road.
+    const track = planned ? [] : last ? ctx.track(last.startedAt) : [];
+    const svg = planned ? mapSvg({
+      center: trackCenter(planned.points), here: null, headingDeg: null, track: [], route: planned.points,
+      routeStops: planned.stops.filter((s) => s.named).map((s) => ({ lat: s.lat, lon: s.lon, label: s.name })),
+      places: [], incidents: [], marks: [], spanKm: spanFor(planned.points),
+    }, `Your route to ${planned.name}: not for navigation`, 'home') : mapSvg({
       center: trackCenter(track) ?? ctx.home(), here: track.length ? null : ctx.home(), headingDeg: null, track,
       places: [], incidents: [], marks: [], spanKm: track.length ? spanFor(track) : DEFAULT_SPAN_KM,
     }, 'Sketch of your last ride: not for navigation', 'home');

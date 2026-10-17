@@ -437,3 +437,13 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .share-ride { display: grid; gap: 10px; margin: 18px 0 6px; }
 .check-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink); }
 .check-row input { width: 18px; height: 18px; accent-color: #2f4741; }
+
+/* Where to? (route planner in the ride-mode sheet) */
+.route-plan { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); display: grid; gap: 10px; }
+.route-form { display: flex; gap: 8px; }
+.route-form input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 14px; border: 1px solid #e3e8da; background: #fff; color: var(--ink); font-size: 16px; }
+.route-form .primary { flex: none; padding: 0 18px; }
+.route-summary { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: var(--chip, #eef0e6); }
+.route-summary small { color: #7d857b; font-size: 12px; line-height: 1.45; }
+.route-summary .dialog-actions { margin-top: 8px; }
+.route-summary[hidden] { display: none; }

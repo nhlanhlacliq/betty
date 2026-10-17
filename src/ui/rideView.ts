@@ -29,6 +29,8 @@ export interface RideInput {
   trafficRadiusKm: number;
   untoldStories: number;
   showGlance: boolean;
+  /** The planned route and where he is on it, if he planned one */
+  route?: { name: string; leftKm: number; leftMin: number; next: { name: string; km: number } | null; offKm: number } | null;
 }
 
 export interface Glance { icon: IconName; label: string; title: string; value: string }
@@ -71,6 +73,12 @@ export function pickGlance(i: RideInput): Glance {
   }
   const jam = [...s.incidents].filter((x) => x.distanceKm <= i.trafficRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm)[0];
   if (jam) return { ...GLANCE.traffic, title: `${km(jam.distanceKm)} km`, value: jam.roadName || jam.description };
+  const r = i.route;
+  if (r && r.offKm > 0.4) return { ...GLANCE.offroute, title: `${km(r.offKm)} km off`, value: `to ${r.name}` };
+  if (r) {
+    const left = r.leftMin >= 60 ? `${Math.floor(r.leftMin / 60)} h ${String(r.leftMin % 60).padStart(2, '0')}` : `${r.leftMin} min`;
+    return { ...GLANCE.route, title: `${Math.round(r.leftKm)} km · ${left}`, value: r.next ? `${r.next.name} in ${km(r.next.km)} km` : `to ${r.name}` };
+  }
   if (w?.sunsetAt && w.sunsetAt > i.now && w.sunsetAt - i.now <= 60 * 60_000) {
     return { ...GLANCE.sunset, title: `Sunset ${hhmm(w.sunsetAt)}`, value: '' };
   }

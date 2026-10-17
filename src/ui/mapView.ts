@@ -21,6 +21,9 @@ export interface MapInput {
   marks: MapPin[];
   /** Width of the map in km */
   spanKm: number;
+  /** The planned route (dotted, under the ridden track) and its named stops */
+  route?: TrackPoint[];
+  routeStops?: MapPin[];
 }
 
 export const MAP_W = 660;
@@ -70,6 +73,16 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
   if (center) {
     const at = projector(center, m.spanKm);
     const onMap = (p: { x: number; y: number }, pad = 40) => p.x > -pad && p.x < MAP_W + pad && p.y > -pad && p.y < MAP_H + pad;
+    if (m.route && m.route.length > 1) {
+      const d = m.route.map((t, i) => { const p = at({ lat: t[0], lon: t[1] }); return `${i ? 'L' : 'M'}${r1(p.x)} ${r1(p.y)}`; }).join('');
+      parts.push(`<path d="${d}" fill="none" stroke="#fffdf3" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>`
+        + `<path d="${d}" fill="none" stroke="#b39a52" stroke-width="4" stroke-dasharray="2 9" stroke-linecap="round" stroke-linejoin="round"/>`);
+      for (const p of m.routeStops ?? []) {
+        const q = at(p); if (!onMap(q, 0)) continue;
+        parts.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="6" fill="#f4dc7b" stroke="#fffef4" stroke-width="2.5"/>`
+          + (p.label ? `<text x="${r1(q.x)}" y="${r1(q.y - 12)}" font-size="12" font-weight="600" fill="#5d6a55" text-anchor="middle">${esc(p.label.length > 22 ? p.label.slice(0, 21) + '…' : p.label)}</text>` : ''));
+      }
+    }
     if (m.track.length > 1) {
       const d = m.track.map((t, i) => { const p = at({ lat: t[0], lon: t[1] }); return `${i ? 'L' : 'M'}${r1(p.x)} ${r1(p.y)}`; }).join('');
       parts.push(`<path d="${d}" fill="none" stroke="#fffdf3" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`

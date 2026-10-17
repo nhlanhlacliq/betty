@@ -53,6 +53,7 @@ import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
+import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
 import { mountPullToRefresh, mountSheetDrag } from './ui/gestures';
@@ -463,6 +464,18 @@ const readiness = (): ReadyRow[] => {
 const home = mountHomeScreen(document, shell, {
   hello: () => sayOutsideRide(HOME.hello(cleanRiderName(CONFIG.riderName))), readiness, fuelText,
   rides: () => RideLog.load(), track: (rideId) => TrackStore.get(rideId), home: () => CONFIG.feeds.fallbackLocation,
+  route: () => RouteStore.get(),
+});
+// Where to? A Google Maps link or typed places, planned by TomTom on Betty's server; Betty follows it on the ride.
+mountRoutePlanner(document, {
+  position: async () => {
+    const s = rig?.agg.current;
+    if (s?.lat != null && s.lon != null) return { lat: s.lat, lon: s.lon };
+    if (!('geolocation' in navigator)) return null;
+    return new Promise((res) => navigator.geolocation.getCurrentPosition((p) => res({ lat: p.coords.latitude, lon: p.coords.longitude }), () => res(null), { timeout: 6000, maximumAge: 120_000 }));
+  },
+  onChange: (r) => { rig?.engine.setRoute(r); window.dispatchEvent(new window.Event('betty-config')); paintRide(); },
+  toast: (m, err) => shell.toast(m, err),
 });
 /** A ride is running (not just a desk chat session). */
 const riding = () => !!rig && !rig.desk;
@@ -513,11 +526,13 @@ function paintRide() {
   const told = new Set(r.engine.toldNoteIds());
   const quietMin = r.engine.quietLeftMin();
   const snap = r.engine.rideSnapshot();
+  const routeNow = r.engine.routeNow();
   const view = rideView({
     now: Date.now(), state: s, speaking: speakingNow, lastSaid, talk: talkState, quietMin, ending: endNow !== null,
     distanceKm: snap.distanceKm, minutesOut: snap.minutesOut, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
     rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
     untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
+    route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm } : null,
   });
   const moving = s.speedKmh >= 3 ? 'On the road' : 'Parked';
   const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : r.real ? null : CONFIG.feeds.fallbackLocation;
@@ -533,6 +548,7 @@ function paintRide() {
     places: s.nearbyPlaces.map((p) => ({ lat: p.lat, lon: p.lon, label: p.name })),
     incidents: s.incidents.map((i) => ({ lat: i.lat, lon: i.lon, label: i.description })),
     marks: markPins,
+    route: routeNow?.route.points, routeStops: routeNow?.route.stops.filter((x) => x.named).map((x) => ({ lat: x.lat, lon: x.lon, label: x.name })),
   });
   chatScreen.setState(view.state, view.orb, talkState === 'listening');
   paintBrand();
@@ -602,6 +618,7 @@ async function beginRide(desk: boolean) {
   engine.setFuelKm(FuelStore.load());
   engine.setMemory(RiderMemoryStore.load());
   engine.setToldNotes(ToldStore.load());
+  engine.setRoute(RouteStore.get()); // the route he planned, if any
   // History and culture of the area (researched on Betty's server, so only when deployed with it).
   // Each change of what the area feed is doing goes in the saved log too ("researching Germiston", "ok, ...").
   if (SERVER) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { if (m !== feed.areas) { newLine('[areas]', m); renderLog(); } feed.areas = m; }));

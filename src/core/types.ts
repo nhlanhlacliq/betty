@@ -4,12 +4,14 @@ export type TriggerId =
   | 'startup' | 'engine_overtemp' | 'dtc_detected' | 'low_fuel'
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
   | 'ambient_banter' | 'local_fact' | 'area_story' | 'marked_spot'
+  | 'off_route' | 'route_stop' | 'route_arrived'
   | 'fuel_range' | 'sunset_soon' | 'ride_debrief';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
   'ambient_banter', 'local_fact', 'area_story', 'marked_spot',
+  'off_route', 'route_stop', 'route_arrived',
   'fuel_range', 'sunset_soon', 'ride_debrief',
 ];
 

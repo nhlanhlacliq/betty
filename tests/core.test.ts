@@ -1232,6 +1232,57 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(trimEnds(track.slice(0, 5), 0.5), [], 'a ride shorter than the trim shows no road');
 }
 
+// ---- routes: his Google Maps link -> stops -> TomTom route; following it on the ride
+{
+  const { parseGoogleMapsDir, resolveLink, pickResult, mapsUrlFor } = await import('../api/route');
+  const { routeProgress, describeRoute } = await import('../src/core/Route');
+  const full = 'https://www.google.com/maps/dir/BMW+Motorrad+Fourways/-25.943222,27.879599/-25.9639901,27.79907/BMW+Motorrad+Fourways/data=!4m33!4m32!1m5!1m4!1s0x1e95:0xb3e0!8m2!3d-26.0208531!4d28.0022658!1m1!4e1!1m1!4e1!1m5!1m4!1s0x1e95:0xb3e0!8m2!3d-26.0208531!4d28.0022658!2m2!2b1!11b1!3e0?g_st=aw';
+  const stops = parseGoogleMapsDir(full);
+  assert.deepEqual(stops.map((x) => [x.name, x.lat, x.lon, x.named]), [
+    ['BMW Motorrad Fourways', -26.0208531, 28.0022658, true], ['-25.943, 27.880', -25.943222, 27.879599, false],
+    ['-25.964, 27.799', -25.9639901, 27.79907, false], ['BMW Motorrad Fourways', -26.0208531, 28.0022658, true]]);
+  assert.deepEqual(parseGoogleMapsDir('https://www.google.com/maps/dir//Clarens/').map((x) => [x.name, Number.isNaN(x.lat)]), [['Clarens', true]], 'from here; a name with no coordinates is looked up');
+  // only Google's own short links are ever fetched
+  await assert.rejects(resolveLink('https://evil.example/maps'), /Google Maps directions link/);
+  await assert.rejects(resolveLink('not a link'), /not a link/);
+  const fake = (async () => new Response(null, { status: 302, headers: { location: full } })) as unknown as typeof fetch;
+  assert.equal(await resolveLink('https://maps.app.goo.gl/udizMiFvko6vS6ka8?g_st=aw', fake), full);
+  const bad = (async () => new Response(null, { status: 302, headers: { location: 'https://evil.example/' } })) as unknown as typeof fetch;
+  await assert.rejects(resolveLink('https://maps.app.goo.gl/x', bad), /does not open a Google Maps route/);
+  // "Clarens" near Edenvale: the town, not the suburb that came first
+  const results = [{ entityType: 'MunicipalitySubdivision', address: { freeformAddress: 'Clarens Park, Edenvale' } }, { entityType: 'Municipality', address: { freeformAddress: 'Clarens' } }];
+  assert.equal(pickResult(results, 'Clarens'), results[1]); assert.equal(pickResult(results, 'Clarens Park'), results[0]);
+  assert.match(mapsUrlFor([{ name: 'A', lat: 1, lon: 2, named: true }, { name: 'B', lat: 3, lon: 4, named: true }]), /destination=3,4&waypoints=1,2&travelmode=driving$/);
+
+  // a loop: out east, back west along a parallel road, to the start
+  const pts: Array<[number, number]> = [];
+  for (let i = 0; i <= 50; i++) pts.push([-26.0, 28.0 + i * 0.002]);
+  for (let i = 50; i >= 0; i--) pts.push([-26.01, 28.0 + i * 0.002]);
+  const loop = { name: 'Loop from Home', stops: [{ name: 'Home', lat: -26.0, lon: 28.0, named: true }, { name: 'Cafe', lat: -26.0, lon: 28.1, named: true }, { name: 'Home', lat: -26.01, lon: 28.0, named: true }],
+    km: 21, minutes: 30, delayMin: 0, legs: [], points: pts, mapsUrl: '', thrilling: false, plannedAt: 0 };
+  const start = routeProgress(loop, { lat: -26.0, lon: 28.0005 });
+  assert.equal(start.next!.name, 'Cafe'); assert.ok(start.leftKm > 20 && start.offKm < 0.1);
+  const out = routeProgress(loop, { lat: -26.0, lon: 28.09 }, start.index);
+  assert.ok(Math.abs(out.next!.km - 1) < 0.2, String(out.next!.km));
+  const back = routeProgress(loop, { lat: -26.01, lon: 28.0005 }, routeProgress(loop, { lat: -26.01, lon: 28.05 }, out.index).index);
+  assert.equal(back.arrived, true, 'the finish of a loop, not its start'); assert.equal(back.next, null);
+  assert.ok(routeProgress(loop, { lat: -26.03, lon: 28.05 }, out.index).offKm > 2);
+  assert.match(describeRoute(loop, null), /planned the fastest route: Loop from Home, 21 km, about 30 min, via Home, Cafe/);
+
+  // the engine: next stop within 1 km, leaving the route, arriving
+  resetConfig(); clock = 40_000_000;
+  const e = new TriggerEngine(now); e.setRoute(loop);
+  const ids = (st: any) => e.evaluate({ ...initialState(), speedKmh: 40, ...st }).map((x) => x.id);
+  assert.ok(!ids({ lat: -26.0, lon: 28.0005 }).includes('route_stop'));
+  assert.ok(ids({ lat: -26.0, lon: 28.092 }).includes('route_stop'), 'Cafe about 1 km ahead'); assert.ok(!ids({ lat: -26.0, lon: 28.094 }).includes('route_stop'), 'once');
+  ids({ lat: -26.03, lon: 28.1 }); clock += 25_000;
+  assert.ok(ids({ lat: -26.03, lon: 28.1 }).includes('off_route'), 'off for 20 s'); clock += 25_000;
+  assert.ok(!ids({ lat: -26.03, lon: 28.1 }).includes('off_route'), 'once until back on it');
+  ids({ lat: -26.01, lon: 28.05 });
+  assert.ok(ids({ lat: -26.01, lon: 28.0005 }).includes('route_arrived'));
+  assert.match(e.ask('how far to go?', { ...initialState(), lat: -26.01, lon: 28.0005 }).context, /planned route to Loop from Home/);
+}
+
 // ---- cloud voice: server function
 {
   const realFetch = globalThis.fetch; const saved = { ...process.env };

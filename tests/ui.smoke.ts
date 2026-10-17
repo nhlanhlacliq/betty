@@ -478,7 +478,7 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; }
   }
 
-  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'routeform', 'routeinput', 'routethrilling', 'routeplan', 'routesummary', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered
@@ -830,5 +830,28 @@ resetConfig();
   btn.dispatchEvent(new j.window.Event('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 5));
   assert.deepEqual(shared, [[ride.startedAt, true], [ride.startedAt, false]]);
+}
+// ---- Where to? plans through Betty's server, keeps the route, clears it
+{
+  const { mountRoutePlanner, routeRequest, RouteStore } = await import('../src/ui/RoutePlanner');
+  assert.deepEqual(routeRequest('Heidelberg, Villiers then Clarens', true, null), { stops: ['Heidelberg', 'Villiers', 'Clarens'], thrilling: true });
+  assert.deepEqual(routeRequest(' https://maps.app.goo.gl/x ', false, { lat: 1, lon: 2 }), { link: 'https://maps.app.goo.gl/x', thrilling: false, from: { lat: 1, lon: 2 } });
+  const mem = new Map<string, string>();
+  (globalThis as any).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+  const w = new JSDOM(`<!doctype html><form id="routeform"><input id="routeinput" /><button id="routeplan" type="submit">Plan</button></form><input type="checkbox" id="routethrilling" />
+    <div id="routesummary" hidden><b id="routename"></b><small id="routestats"></small><a id="routemaps"></a><button id="routeclear"></button></div>`);
+  const d = w.window.document; const changes: any[] = []; const sent: any[] = [];
+  const route = { name: 'Clarens', stops: [{ name: 'Heidelberg', named: true }, { name: 'Clarens', named: true }], km: 307.3, minutes: 199, delayMin: 0, legs: [], points: [[1, 2], [3, 4]], mapsUrl: 'https://maps', thrilling: true };
+  mountRoutePlanner(d, { position: async () => ({ lat: -26.14, lon: 28.15 }), onChange: (r) => changes.push(r), toast() {},
+    fetcher: (async (_u: any, init: any) => { sent.push(JSON.parse(init.body)); return new Response(JSON.stringify(route)); }) as typeof fetch });
+  (d.getElementById('routeinput') as HTMLInputElement).value = 'Heidelberg, Clarens'; (d.getElementById('routethrilling') as HTMLInputElement).checked = true;
+  d.getElementById('routeform')!.dispatchEvent(new w.window.Event('submit', { cancelable: true }));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(sent[0], { stops: ['Heidelberg', 'Clarens'], thrilling: true, from: { lat: -26.14, lon: 28.15 } });
+  assert.equal(RouteStore.get()!.name, 'Clarens'); assert.equal((d.getElementById('routesummary') as HTMLElement).hidden, false);
+  assert.match(d.getElementById('routestats')!.textContent!, /307 km · about 3 h 19 · twisty roads · via Heidelberg/);
+  d.getElementById('routeclear')!.dispatchEvent(new w.window.Event('click'));
+  assert.equal(RouteStore.get(), null); assert.equal(changes.at(-1), null);
+  delete (globalThis as any).localStorage;
 }
 console.log('ui smoke tests passed');

@@ -266,7 +266,16 @@
             <button class="destination-result" type="button" role="radio" data-mode="real"><span class="place-icon"><i data-icon="ride"></i></span><span><b class="tile-label"></b><small></small></span><span class="check"></span></button>
             <button class="destination-result" type="button" role="radio" data-mode="sim"><span class="place-icon"><i data-icon="wrench"></i></span><span><b class="tile-label"></b><small></small></span><span class="check"></span></button>
           </div>
-          <p class="sheet-note">Destinations and routes are not built yet: Betty rides wherever you go and keeps you company on the way.</p>
+          <div class="route-plan">
+            <p class="eyebrow">Where to?</p>
+            <form id="routeform" class="route-form"><input type="text" id="routeinput" autocomplete="off" placeholder="Clarens, or stops: Heidelberg, Villiers, Clarens, or a Google Maps link" aria-label="Where to" /><button class="primary" id="routeplan" type="submit">Plan</button></form>
+            <label class="check-row"><input type="checkbox" id="routethrilling" /> Twisty roads (thrilling route)</label>
+            <div class="route-summary" id="routesummary" hidden>
+              <b id="routename"></b><small id="routestats"></small>
+              <div class="dialog-actions"><a class="secondary" id="routemaps" target="_blank" rel="noopener">Open in Google Maps</a><button class="secondary" id="routeclear" type="button">Clear route</button></div>
+            </div>
+            <p class="sheet-note">Betty follows the route for time left, stops and leaving it. Google Maps gives you the turns. Leave it empty for a free ride.</p>
+          </div>
         </section>
       </div>
       <div class="sheet-backdrop" data-sheet="ready" hidden>
