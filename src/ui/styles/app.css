@@ -285,7 +285,7 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 #explorepinbody .area-head > .ico { display: none; }
 #explorepinbody .area-body { padding: 0; }
 .explore-search { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 0 14px; min-height: 44px; border: 1px solid var(--card-line); border-radius: 22px; background: var(--card); color: var(--muted); }
-.explore-search input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 14px; color: var(--ink); outline: none; padding: 10px 0; }
+.explore-search input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 16px; color: var(--ink); outline: none; padding: 10px 0; }
 .area-card { padding: 0; }
 .area-head { display: flex; align-items: center; gap: 13px; width: 100%; padding: 14px 18px; text-align: left; min-height: 64px; }
 .area-head > span { flex: 1; min-width: 0; }
@@ -605,3 +605,22 @@ html, body { overscroll-behavior: none; }
 .help-body .also { display: block; font-size: 13px; color: var(--sage-text); margin-top: 2px; }
 .help-body ul.commands small { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
 .help-none { margin: 0 0 12px; }
+
+/* iPhone Safari zooms the page into any field whose text is under 16px when it is tapped (owner, 2026-10-17: the
+   search bars). Every typing field is at least 16px there; Android Chrome does not zoom. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), select, textarea { font-size: max(16px, 1em) !important; }
+}
+
+/* Garage > Reminders (2026-10-17) */
+.setting input.num.wide { width: 100px; max-width: 100px; }
+.reminder-list { display: grid; gap: 2px; margin: 4px 0 6px; }
+.reminder-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'main done' 'state done'; align-items: center; gap: 2px 10px; padding: 11px 0; border-top: 1px solid var(--line-soft); }
+.reminder-main { grid-area: main; text-align: left; background: none; border: 0; padding: 0; color: var(--ink); }
+.reminder-main b { display: block; font-size: 15px; font-weight: 600; }
+.reminder-main small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.reminder-state { grid-area: state; font-size: 13px; color: var(--sage-text); }
+.reminder-row.soon .reminder-state { color: #9a7a1c; font-weight: 600; }
+.reminder-row.due .reminder-state { color: var(--danger); font-weight: 600; }
+.reminder-row [data-done] { grid-area: done; }
+#reminderform .setting input[type=date] { font-size: 16px; color: var(--ink); background: #f1f4e9; border: 0; border-radius: 9px; padding: 8px 10px; min-height: 38px; }

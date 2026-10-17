@@ -245,6 +245,13 @@
           </section>
 
           <section class="settings-card">
+            <h2>Reminders</h2>
+            <div class="setting"><div><p>Odometer</p><small>Km ridden with Betty. Set it to the bike's reading so a service due at 30,000 km lines up.</small></div><input type="text" class="num wide" id="odometer" inputmode="numeric" autocomplete="off" aria-label="Odometer in km" /></div>
+            <div id="reminderlist" class="reminder-list"></div>
+            <button class="text-button" type="button" id="reminderadd">Add a reminder</button>
+          </section>
+
+          <section class="settings-card">
             <h2>Talking to Betty</h2>
             <div class="setting"><div><p>Headset buttons</p><small>Play/pause talks to Betty, next track repeats her, previous track hands the buttons back to your music. Pauses your music.</small></div><input type="checkbox" id="buttons" aria-label="Headset buttons talk to Betty" /></div>
             <div class="setting"><div><p>Your journeys, your business</p><small>Rides, lines and notes stay on this phone.</small></div><i data-icon="shield"></i></div>
@@ -346,6 +353,21 @@
             <button class="secondary" id="filled" type="button" data-filled>Filled up</button>
             <button class="primary" type="button" data-sheet-close>All good</button>
           </div>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="reminder" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Reminder">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <h2 id="remindertitle">Reminder</h2>
+          <form id="reminderform">
+            <div class="setting stack"><div><p>What</p></div><input type="text" id="remindername" maxlength="40" autocomplete="off" placeholder="Chain clean and lube" /></div>
+            <div class="setting"><div><p>Every</p><small>Km, leave empty if not by distance.</small></div><input type="text" class="num wide" id="reminderkm" inputmode="numeric" autocomplete="off" aria-label="Every how many km" /></div>
+            <div class="setting"><div><p>Or every</p><small>Leave empty if not by time.</small></div><div class="pair"><input type="text" class="num" id="remindertime" inputmode="numeric" autocomplete="off" aria-label="Every how long" /><select id="reminderunit" aria-label="Unit"><option value="1">days</option><option value="7">weeks</option><option value="30">months</option><option value="365">years</option></select></div></div>
+            <div class="setting"><div><p>Last done</p><small>Km ago (0 = today).</small></div><input type="text" class="num wide" id="reminderago" inputmode="numeric" autocomplete="off" aria-label="Last done, km ago" /></div>
+            <div class="setting"><div><p>On</p></div><input type="date" id="reminderdate" aria-label="Last done on" /></div>
+            <div class="dialog-actions"><button class="secondary" type="button" id="reminderdelete">Delete</button><button class="primary" type="submit">Save</button></div>
+          </form>
         </section>
       </div>
       <div class="sheet-backdrop" data-sheet="whatsnew" hidden>

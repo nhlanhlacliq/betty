@@ -421,6 +421,27 @@ has dynamic content, and a smoke test.
 - Story lists fold (2026-10-17, owner: "can be quite long"): `foldList` shows the first 4 moments / 5 lines, the rest
   `li.more` hidden by `.moments.folded`; a full-width `.text-button` "Show all N ..." / "Show less" (chevron turns)
   toggles the class. Lists only one item over the limit are shown whole.
+## Service reminders (2026-10-17, owner: "yes build reminders")
+
+`core/Reminders.ts` (pure, tested): `Reminder {id, name, everyKm|null, everyDays|null, lastKm, lastAt}`, `ServiceBook
+{odoKm, items}`; `dueInfo` (ok / soon = within a tenth of the interval, at least 100 km or 7 days / due), `dueList`
+(most pressing first), `dueText` ("in 80 km", "50 km overdue", "in 12 months"; en-US digit grouping so a voice reads
+"9,350", not "9 350"), `markDone`, `starterBook` (chain 600 km, tyre pressures 14 days, service 10,000 km or a year:
+COMMON GUIDANCE, not checked against the G 310 GS handbook; tyre age 5 years), `findReminder` (word stems: "lubed the
+chain" -> chain), `describeDue`. `adapters/ServiceStore` (`betty.service.v1`, in the backup; first load saves the
+starter set from that day, odometer 0). Betty's odometer = km of REAL rides (not desk sessions), added as a delta in
+`remember()` each minute so an odometer he sets mid-ride is kept; setting the odometer in Garage shifts every
+`lastKm` by the same amount (what is due does not change). Garage > Reminders (`ui/RemindersCard.ts`): odometer, rows
+(tap = edit sheet `data-sheet="reminder"`: name, every km, or every N days/weeks/months/years, last done km ago and
+date; Delete), Done, Add. Voice: `{kind: 'done', what}` ("chain done", "I lubed the chain", "the bike was serviced",
+"mark tyre pressures as done"; after `end`, so "I'm done" still ends the ride); a "done" that matches no reminder is
+passed to her as a question. She mentions due/soon items in the briefing and the sign-off, answers get them (all of
+them when he asks about service/maintenance/chain/tyres), the home Details sheet has a Maintenance row.
+NOT BUILT: a phone notification. A web page can only notify from the background with web push (a push server and
+the installed app); for now reminders surface when he opens or rides with Betty.
+iPhone zoom (same day): Safari zooms into any field under 16px when tapped (the search boxes were 14px); every field
+is 16px on iOS (`@supports (-webkit-touch-callout: none)`). Android does not zoom.
+
 ## Garage search and Help (2026-10-17, owner)
 
 `ui/help.ts` is the content as data: `VOICE_COMMANDS` (groups of {say[], does, kind}; a core test runs EVERY phrase

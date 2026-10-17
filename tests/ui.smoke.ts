@@ -295,6 +295,29 @@ resetConfig();
     hsearch.value = ''; ev(hsearch, 'input');
     click(doc.querySelector('[data-screen="help"] [data-back]')!);
     assert.equal((doc.querySelector('[data-screen="settings"]') as HTMLElement).hidden, false, 'back to the Garage');
+
+    // Reminders: the starting set, Done, editing in the sheet, the odometer
+    const rlist = doc.getElementById('reminderlist')!;
+    const rowsNow = () => [...rlist.querySelectorAll('.reminder-row')].map((r) => [...r.querySelectorAll('b, small, .reminder-state, [data-done]')].map((x) => x.textContent).join(' '));
+    assert.equal(rowsNow().length, 4); assert.match(rowsNow().join('|'), /Chain clean and lube Every 600 km in 600 km Done/);
+    const odoBox = doc.getElementById('odometer') as HTMLInputElement;
+    odoBox.value = '23,450'; ev(odoBox, 'change');
+    assert.equal(JSON.parse(page.window.localStorage.getItem('betty.service.v1')!).odoKm, 23450);
+    assert.match(rowsNow().join('|'), /Chain clean and lube Every 600 km in 600 km/, 'setting the odometer keeps what is due');
+    click(rlist.querySelector('[data-edit="chain"]')!);
+    assert.equal((doc.querySelector('[data-sheet="reminder"]') as HTMLElement).hidden, false);
+    (doc.getElementById('reminderago') as HTMLInputElement).value = '550';
+    doc.getElementById('reminderform')!.dispatchEvent(new page.window.Event('submit', { cancelable: true }));
+    assert.match(rowsNow()[0], /^Chain clean and lube Every 600 km Soon: in 50 km Done/, 'lubed 550 km ago: soon, and first');
+    click(rlist.querySelector('[data-done="chain"]')!);
+    assert.match(rowsNow().join('|'), /Chain clean and lube Every 600 km in 600 km/);
+    click(doc.getElementById('reminderadd')!);
+    (doc.getElementById('remindername') as HTMLInputElement).value = 'Brake fluid';
+    (doc.getElementById('remindertime') as HTMLInputElement).value = '2'; (doc.getElementById('reminderunit') as HTMLSelectElement).value = '365';
+    doc.getElementById('reminderform')!.dispatchEvent(new page.window.Event('submit', { cancelable: true }));
+    assert.match(rowsNow().join('|'), /Brake fluid Every 2 years in 2 years/);
+    gsearch.value = 'chain'; ev(gsearch, 'input'); assert.ok(shownCards().includes('Reminders')); gsearch.value = ''; ev(gsearch, 'input');
+    page.window.localStorage.removeItem('betty.service.v1');
     CONFIG.persona.humour = 75; CONFIG.persona.tars = 50;
 
     // explore: notes and marked spots, with Forget

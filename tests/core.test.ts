@@ -2139,12 +2139,55 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(parseCommand(said)?.kind, c.kind, `Help says "${said}" does ${c.kind}`);
   }
   const kinds = new Set(VOICE_COMMANDS.flatMap((g) => g.items.map((c) => c.kind)));
-  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
+  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
   assert.equal(searchHelp('headset buttons')[0].id, 'talk');
   assert.equal(searchHelp('petrol')[0].id, 'fuel');
   assert.ok(searchHelp('quiet').some((t) => t.id === 'commands'), 'commands are searchable');
   assert.deepEqual(searchHelp('xyzzy'), []);
   assert.equal((helpHtml().match(/<details/g) ?? []).length, HELP_TOPICS.length);
+}
+
+// ---- service reminders (owner, 2026-10-17)
+{
+  const R = await import('../src/core/Reminders');
+  const DAY = 86_400_000, t0 = new Date(2026, 9, 17).getTime();
+  let book = R.starterBook(23_000, t0);
+  assert.deepEqual(book.items.map((r) => r.id), ['chain', 'tyres', 'service', 'tyreage']);
+  assert.ok(R.dueList(book, t0).every((d) => d.state === 'ok'), 'all fresh');
+  book = { ...book, odoKm: 23_520 };
+  let chain = R.dueInfo(book.items[0], book.odoKm, t0 + 3 * DAY);
+  assert.equal(chain.state, 'soon'); assert.equal(chain.kmLeft, 80); assert.equal(R.dueText(chain), 'in 80 km');
+  book = { ...book, odoKm: 23_650 };
+  chain = R.dueInfo(book.items[0], book.odoKm, t0 + 4 * DAY);
+  assert.equal(chain.state, 'due'); assert.equal(R.dueText(chain), '50 km overdue');
+  const tyres = R.dueInfo(book.items[1], book.odoKm, t0 + 15 * DAY);
+  assert.equal(tyres.state, 'due'); assert.equal(R.dueText(tyres), '1 day overdue');
+  assert.deepEqual(R.dueList(book, t0 + 15 * DAY).map((d) => d.r.id).slice(0, 2), ['chain', 'tyres'], 'most pressing first');
+  const service = R.dueInfo(book.items[2], book.odoKm, t0 + 15 * DAY);
+  assert.equal(R.dueText(service), 'in 9,350 km or in 12 months');
+  assert.match(R.describeDue(book, t0 + 15 * DAY), /^Maintenance: Chain clean and lube is due \(50 km overdue\); Tyre pressures is due \(1 day overdue\)\.$/);
+  assert.equal(R.describeDue(R.starterBook(0, t0), t0), '', 'nothing due: nothing to say');
+  assert.match(R.describeDue(R.starterBook(0, t0), t0, true), /Service in 10,000 km or in 12 months/);
+  const done = R.markDone(book, 'chain', t0 + 15 * DAY);
+  assert.equal(R.dueInfo(done.items[0], done.odoKm, t0 + 15 * DAY).kmLeft, 600);
+  for (const [said, id] of [['chain done', 'chain'], ['lubed the chain', 'chain'], ['service', 'service'], ['checked the tyre pressures', 'tyres'], ['tyre age', 'tyreage']] as const) {
+    assert.equal(R.findReminder(book.items, said)?.id, id, said);
+  }
+  assert.equal(R.findReminder(book.items, 'checked the weather'), null);
+  for (const [said, what] of [['Chain done', 'chain'], ['I lubed the chain', 'lubed the chain'], ['Hey Betty, the bike was serviced', 'service'], ['Mark tyre pressures as done', 'tyre pressures']] as const) {
+    assert.deepEqual(parseCommand(said), { kind: 'done', what }, said);
+  }
+  for (const said of ['Did you look it up?', "I'm done", "That's done", 'Did you check the reviews?']) assert.notEqual(parseCommand(said)?.kind, 'done', said);
+  assert.equal(parseCommand("I'm done")?.kind, 'end');
+  // she mentions what is due when he sets off, when asked, and at the end
+  resetConfig(); clock = t0 + 15 * DAY;
+  const e = new TriggerEngine(now); e.setServiceBook(book);
+  assert.match(e.startup(initialState()).context, /Maintenance: Chain clean and lube is due.*Mention what is due briefly/);
+  assert.match(e.ask("what's due on the bike?", initialState()).context, /Service in 9,350 km/, 'asked: every reminder');
+  assert.match(e.ask('how far have we come?', initialState()).context, /Chain clean and lube is due/);
+  e.setServiceBook(R.starterBook(0, clock));
+  assert.doesNotMatch(e.startup(initialState()).context, /Maintenance/);
+  resetConfig();
 }
 
 console.log('all core tests passed');

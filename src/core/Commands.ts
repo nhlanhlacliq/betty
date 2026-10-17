@@ -16,6 +16,8 @@ export type Command =
   | { kind: 'forget' }
   /** "End ride": the same as End ride on the screen (sign-off, then the ride's story) */
   | { kind: 'end' }
+  /** "Chain done", "I lubed the chain", "the bike was serviced": a service reminder done (which one: findReminder) */
+  | { kind: 'done'; what: string }
   /** "Consumption 4.6" (the dash's L/100 km) or "petrol price 31.20" (rand a litre) */
   | { kind: 'fuelset'; what: 'consumption' | 'price'; value: number }
   /** Humour dial: set to a value, or step it */
@@ -76,6 +78,17 @@ export function parseCommand(said: string): Command | null {
   if (n <= 12 && price) { const v = Number(price[1].replace(',', '.')); if (v >= 5 && v <= 100) return { kind: 'fuelset', what: 'price', value: v }; }
 
   if (n <= 6 && /^((end|finish|stop) (the |this |my |our )?(ride|trip)( now| here)?|(we'?re|we are|i'?m|i am) done( riding)?( for (today|the day|now))?|that'?s (it|a wrap) for (today|the day))$/.test(low)) return { kind: 'end' };
+
+  // Maintenance done (after "end": "I'm done" ends the ride). Which reminder it is, main.ts finds by name.
+  if (n <= 10) {
+    const did = low.match(/^(?:i |we )?(?:just |have just |'ve just |have |'ve )?(lubed|lubricated|oiled|cleaned|serviced|checked|changed|replaced|topped up|pumped up|did the)\b(.+)$/)
+      ?? low.match(/^(?:mark |set )?(?:the )?(.+?) (?:is |as |all )?(?:done|sorted)$/);
+    if (did) {
+      const what = (did.length === 3 ? `${did[1]} ${did[2]}` : did[1]).replace(/\s+/g, ' ');
+      if (!/^(i'?m|we'?re|i am|we are|that'?s|it'?s|all)$/.test(what.trim())) return { kind: 'done', what: what.trim() };
+    }
+    if (/^(?:the )?(?:bike|she|it) (?:has been|was|got|just got) serviced/.test(low)) return { kind: 'done', what: 'service' };
+  }
 
   if (n <= 8 && /^(forget (that|it|this|the last (thing|one|note)|what i (just )?said)|scratch that|delete that)$/.test(low)) return { kind: 'forget' };
 

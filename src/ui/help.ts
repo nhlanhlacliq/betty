@@ -23,7 +23,7 @@ export const VOICE_COMMANDS: CommandGroup[] = [
   ] },
   { title: 'Remembering things', items: [
     { say: ['Mark this spot', 'Mark this spot, pothole in the left lane', 'Remember this place because the coffee is good'], does: 'Saves where you are, with a note. She warns you when you come up on it again, and it shows in Explore.', kind: 'mark' },
-    { say: ['Remember that the chain needs lube', 'Make a note: tyres at 2.2 bar'], does: 'Keeps a note. Ask her about it any time; it shows in Explore.', kind: 'remember' },
+    { say: ['Remember that the coffee at Clarens is the best', 'Make a note: tyres at 2.2 bar'], does: 'Keeps a note. She does not remind you of it by herself: ask about it any time, and it shows in Explore. For maintenance, use Reminders.', kind: 'remember' },
     { say: ['Forget that', 'Scratch that'], does: 'Removes the newest note or marked spot.', kind: 'forget' },
   ] },
   { title: 'Her personality', items: [
@@ -32,6 +32,9 @@ export const VOICE_COMMANDS: CommandGroup[] = [
     { say: ['More TARS', 'More JARVIS', 'Full TARS', 'TARS 70 percent'], does: 'Blunt and deadpan (TARS) or polished and courteous (JARVIS).', kind: 'persona' },
     { say: ['Switch to stories', 'Minimal', 'Balanced'], does: 'The talk presets from Garage: mostly stories, mostly quiet, or a mix.', kind: 'preset' },
     { say: ['More banter', 'Fewer stories', 'Less chatty', 'Talk more'], does: 'Nudges the mix of banter, stories and silence, or how often she speaks.', kind: 'mix' },
+  ] },
+  { title: 'Maintenance', items: [
+    { say: ['Chain done', 'I lubed the chain', 'The bike was serviced', 'Checked the tyre pressures'], does: 'Marks a reminder done (Garage > Reminders) and tells you when the next one is due.', kind: 'done' },
   ] },
   { title: 'Fuel', items: [
     { say: ['Consumption 4.6', 'My average consumption is 4.8'], does: 'Your dash average in L/100 km: her fuel range is worked out from it.', kind: 'fuelset' },
@@ -100,6 +103,14 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Tap <i>Filled up</i> (or say "I just filled up") after every fill-up. Keep the consumption close to your dash: say "consumption 4.6" when it changes.',
       'When fuel gets low she names the stations ahead, and planning a route tells you whether it fits in a tank.',
       'Each ride keeps what it cost in petrol; My journeys shows the month. The price is looked up each month; a price you type or say counts until the next change.',
+    ])}` },
+  { id: 'reminders', title: 'Service reminders', keywords: 'reminders maintenance service chain lube tyres tires pressures odometer due',
+    html: `${li([
+      'Garage &gt; Reminders: chain clean and lube (every 600 km), tyre pressures (every 2 weeks), service (every 10,000 km or a year) and a tyre age check (5 years) to start with. Check the service interval against your service book; tap a reminder to change it, or add your own.',
+      '<b>Odometer:</b> Betty counts every km you ride with her. Set it to the bike\'s reading once so the numbers match your dash.',
+      '<b>Done:</b> tap Done, or say "chain done" / "the bike was serviced". It counts again from there.',
+      'She mentions anything due or coming up in the briefing when you set off and in the sign-off, and the Details sheet on the Ride tab shows the most pressing one. Ask "what\'s due?" any time.',
+      'The starting set counts from the day you first opened Reminders: if the chain was done a while ago, tap it and set Last done.',
     ])}` },
   { id: 'routes', title: 'Planning a route', keywords: 'route where to google maps link plan twisty thrilling stops off route detour',
     html: `${li([

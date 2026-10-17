@@ -2,6 +2,7 @@ import { CONFIG, cleanBikeName } from '../config/betty';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
 import { PlannedRoute, RouteProgress, describeRoute, minutesText, routeProgress } from './Route';
 import { profileUse } from './Profile';
+import { ServiceBook, describeDue } from './Reminders';
 import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
@@ -124,6 +125,18 @@ export class TriggerEngine {
   }
   /** Litres and km left (null = no fill-up on record). */
   fuelNow() { const used = this.kmSinceFill(); return used === null ? null : fuelLeft(used, CONFIG.fuel); }
+  /** Service reminders and Betty's odometer (what is due goes in the briefing, answers and sign-off). */
+  private book: ServiceBook | null = null;
+  setServiceBook(b: ServiceBook | null) { this.book = b; }
+  /** What is due now, with the km ridden this ride added (the book's odometer is saved once a minute). */
+  private dueNote(all = false): string {
+    return this.book ? describeDue(this.book, this.now(), all) : '';
+  }
+  /** For an answer: what is due, or every reminder when he asks about maintenance. */
+  private dueFor(said: string): string {
+    const note = this.dueNote(/\b(service|maintenance|due|chain|tyres?|tires?|oil|lube|reminders?)\b/i.test(said));
+    return note ? ` ${note}` : '';
+  }
   /** Petrol stations near him (adapters/StationSource, fetched when fuel gets low or he asks). */
   private stations: Station[] = [];
   setStations(list: Station[]) { this.stations = list; }
@@ -385,7 +398,7 @@ export class TriggerEngine {
           w ? ` ${cap(w.summary)}, ${Math.round(w.tempC)} degrees, ${w.rainChanceNextHourPct} percent chance of rain in the next hour.` : '',
           left === null ? '' : ` About ${left} kilometres to reserve by my count.`].join('');
         return {
-          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}${this.fuelPlanNote()}` : ''}`,
+          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}${this.fuelPlanNote()}` : ''}${this.dueNote() ? ` ${this.dueNote()} Mention what is due briefly.` : ''}`,
           fallback: canned,
         };
       }
@@ -478,6 +491,8 @@ export class TriggerEngine {
         if (s.weather) bits.push(`weather ${s.weather.summary}, ${s.weather.tempC} C`);
         const left = s.obd ? null : this.fuelKmLeft();
         if (left !== null) bits.push(`about ${left} km of fuel range left by distance`);
+        const due = this.dueNote();
+        if (due) bits.push(`${due.replace(/\.$/, '')} (mention it in passing)`);
         return {
           context: `The ride has just ended. Summary: ${bits.join('; ')}.`,
           fallback: `Ride done: ${Math.round(r.minutesOut)} minutes and ${r.distanceKm} kilometres${r.stops ? `, with ${r.stops} stop${r.stops === 1 ? '' : 's'}` : ''}. Good one.`,
@@ -560,7 +575,7 @@ export class TriggerEngine {
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }

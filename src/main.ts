@@ -12,6 +12,8 @@ import { saysDetour, saysFilledUp } from './core/Heard';
 import { describeFuelPlan, fuelLeft, kmToReserve, routeFuelPlan } from './core/Fuel';
 import { StationSource } from './adapters/StationSource';
 import { refreshFuelPrice } from './adapters/FuelPrice';
+import { ServiceStore } from './adapters/ServiceStore';
+import { dueInfo, dueText, findReminder, markDone } from './core/Reminders';
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
@@ -56,6 +58,7 @@ import { mountJourneysScreen } from './ui/screens/JourneysScreen';
 import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { mountHelpScreen } from './ui/screens/HelpScreen';
+import { mountReminders, readinessRow } from './ui/RemindersCard';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
@@ -494,6 +497,7 @@ const sayOutsideRide = (text: string) => {
 };
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
 mountHelpScreen(document, shell);
+mountReminders(document, shell, { load: () => ServiceStore.load(), save: (b) => { ServiceStore.save(b); rig?.engine.setServiceBook(b); } });
 // The petrol price, once a month after the first-Wednesday change (his own figure wins until then).
 if (SERVER) void refreshFuelPrice().then((p) => { if (p !== null) { saveConfig(); window.dispatchEvent(new window.Event('betty-config')); } });
 // Betty's look: the default companion or his own picture/GIF, kept on the phone.
@@ -574,6 +578,7 @@ const readiness = (): ReadyRow[] => {
     { icon: 'headset', label: 'Talking to her', value: CONFIG.headsetButtons ? 'Headset buttons and Ask Betty' : 'Ask Betty button', ok: true },
     { icon: 'spark', label: 'Brain', value: brain, ok: SERVER || !!ENV.VITE_ANTHROPIC_API_KEY },
     { icon: 'gauge', label: 'Engine data', value: CONFIG.obdMode === 'mock' ? 'Simulated (mock)' : 'Off: GPS only', ok: true },
+    { icon: 'wrench', label: 'Maintenance', ...readinessRow(ServiceStore.load(), Date.now()) },
     { icon: 'lock', label: 'Screen', value: nav && 'wakeLock' in nav ? 'Kept awake while riding' : 'Set Auto-Lock to Never', ok: !!nav && 'wakeLock' in nav },
   ];
 };
@@ -757,16 +762,20 @@ async function beginRide(desk: boolean) {
   engine.setMemory(RiderMemoryStore.load());
   engine.setToldNotes(ToldStore.load());
   engine.setRoute(RouteStore.get()); // the route he planned, if any
+  engine.setServiceBook(ServiceStore.load()); // what is due (the briefing, answers and sign-off mention it)
   engine.setProfile(CONFIG.useProfile ? ProfileStore.get() : null); // what he chose to share, used lightly
   // History and culture of the area (researched on Betty's server, so only when deployed with it).
   // Each change of what the area feed is doing goes in the saved log too ("researching Germiston", "ok, ...").
   if (SERVER) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { if (m !== feed.areas) { newLine('[areas]', m); renderLog(); } feed.areas = m; }));
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
+  let odoSaved = 0;
   const remember = () => {
     const w = agg.current.weather;
     const rec = desk ? null : toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null, CONFIG.fuel);
     if (rec) RideLog.save(rec);
     FuelStore.save(engine.kmSinceFill());
+    // Betty's odometer (service reminders): only real rides count, as a delta so an odometer set mid-ride is kept.
+    if (!desk && real) { const km = engine.rideSnapshot().distanceKm; ServiceStore.addKm(km - odoSaved); odoSaved = km; engine.setServiceBook(ServiceStore.load()); }
     IncidentMemory.save(engine.announcedIncidents());
     TrackStore.save(engine.rideSnapshot().startedAt, rideTrack);
     ToldStore.save(engine.toldNoteIds());
@@ -945,6 +954,17 @@ async function beginRide(desk: boolean) {
           : `Petrol at R${c.value.toFixed(2)} a litre. Noted.`, 'fuelset');
         return;
       }
+      case 'done': {
+        const book = ServiceStore.load();
+        const r = findReminder(book.items, c.what);
+        if (!r) { reply("I don't have a reminder for that. They're in the Garage.", 'done'); return; }
+        const next = markDone(book, r.id, Date.now());
+        ServiceStore.save(next);
+        engine.setServiceBook(next);
+        const d = dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now());
+        reply(`${r.name}: done. Next one ${dueText(d)}.`, 'done');
+        return;
+      }
       case 'end': {
         if (rig?.engine !== engine || rig.desk) { reply('There is no ride to end.', 'end'); return; }
         void stop(); // her sign-off follows, and the ride's story opens
@@ -972,7 +992,9 @@ async function beginRide(desk: boolean) {
       newLine('[heard]', 'detour: no off-route lines until he is back on the route');
       noted.push('He is taking a detour on purpose: you will not mention being off the route until he is back on it.');
     }
-    const command = parseCommand(text);
+    let command = parseCommand(text);
+    // "Checked the weather?" is not maintenance: a "done" with no reminder of that name is a question for her.
+    if (command?.kind === 'done' && !findReminder(ServiceStore.load().items, command.what)) command = null;
     if (command) { obey(command); renderLog(); return null; }
     // "Where can I fill up?": the stations near him, if they can be had in a couple of seconds.
     const here = agg.current;
