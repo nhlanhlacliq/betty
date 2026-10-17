@@ -23,8 +23,8 @@ is wrong or risky, say so.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 Voice foundation | Scaffold, GPS speed, TTS to helmet, "Systems online", trigger engine, audio queue | Done (web app) |
-| 2 Data feeds | Weather, traffic, phone IMU lean, TPMS BLE, mock OBD2 | Weather (Open-Meteo), traffic (TomTom, key optional), IMU lean, mock OBD2 done. TPMS outstanding |
-| 3 AI brain | Claude-phrased speech, session memory, voice input "Hey Betty", chat test mode | Phrasing and ambient personality (banter + grounded tour guide) done. Memory, voice input, chat test mode outstanding |
+| 2 Data feeds | Weather, traffic, phone IMU lean, TPMS BLE, mock OBD2 | Weather (Open-Meteo), traffic (TomTom), GPS lean, mock OBD2, places, area names, routes, petrol stations done. TPMS outstanding |
+| 3 AI brain | Claude-phrased speech, session memory, voice input "Hey Betty", chat test mode | Done: phrasing, ambient personality, area stories, web search, ride memory, notes/marked spots, push-to-talk voice input, chat. Wake word left for Phase 4 |
 | 4 Hardware | Raspberry Pi 4 under seat, real OBD2 via ELM327, standalone, local Piper TTS, Porcupine wake word | Not started |
 
 History: Phase 1 was first scaffolded as Expo/React Native, then converted to a Vite web app on request
@@ -430,7 +430,7 @@ years (first after 1 year); running-in check left out) plus `RIDER_CARE` (chain 
 age 5 years). `bikeBook` assumes schedule items done at the last milestone below the odometer (`assumed: true`, shown
 as "last done: a guess"); `alignToOdometer` redoes that when he sets the odometer (his own and confirmed items keep
 their km since); `upgradeBook` turns a book saved before this (no `bike`) into the schedule, dropping the generic
-"Service" if untouched. `ServiceBook.bike` is the id: changing bikes is the next step (see the owner's question).
+"Service" if untouched. `ServiceBook.bike` is the id: changing bikes is Backlog item 1.
 `core/Reminders.ts` (pure, tested): `Reminder {id, name, everyKm|null, everyDays|null, lastKm, lastAt}`, `ServiceBook
 {odoKm, items}`; `dueInfo` (ok / soon = within a tenth of the interval, at least 100 km or 7 days / due), `dueList`
 (most pressing first), `dueText` ("in 80 km", "50 km overdue", "in 12 months"; en-US digit grouping so a voice reads
@@ -791,41 +791,6 @@ wake word last / on the Pi.
   the lane or what speed (first live try said "keep left of centre" for a pothole in the left lane). Canned fallback
   "Marked spot ahead: <note>.". UNVERIFIED ON A RIDE.
 
-## Backlog: chat-style test mode (spec; BUILT as stage 1 above, except scenario scripts)
-
-Goal: talk to Betty from the desk as if you were the rider, against the live (or simulated) `BikeState`, to tune her
-personality and see exactly what is sent to Claude, without riding.
-
-Build it as a third panel, `src/ui/ChatPanel.ts`, mounted next to SIMULATOR (works in the same simulated session).
-
-Behaviour:
-1. Chat UI: message list + text input. The user types as the rider ("how's the bike?", "is it going to rain?",
-   "any traffic ahead?"). Betty's replies appear as bubbles. Each bubble shows a small metadata line:
-   source (`claude` or `fallback`), latency in ms, priority, and which trigger id if one fired it.
-2. Rider messages are P4 and go through the SAME pipeline voice input will use later: text -> `rider_query` event
-   (extend `TriggerEngine.describe` so the context includes the rider's actual words and the full relevant state:
-   weather, nearest incident, temp, fuel, faults) -> ClaudeClient -> AudioQueue -> Speaker. Honour "Speak aloud".
-3. Proactive speech (triggers firing from the simulator or evaluate()) also appears in the chat as Betty-initiated
-   bubbles, so one timeline shows both what she said unprompted and what she said when asked.
-4. "Show prompt" toggle on each Betty bubble: reveal the exact system prompt, situation text, bike-state JSON and
-   "already said" list that were sent to Claude. This is the main tuning tool.
-5. Multi-turn: add `ClaudeClient.converse(text, state)` that keeps a short rolling message history (last ~6 turns)
-   so follow-ups work ("and tomorrow?"). Keep the 2-sentence spoken-style rule. This history IS the first cut of
-   session memory (Phase 3); extract it into `core/SessionMemory.ts` when it grows.
-6. Compare mode: a checkbox "Also show fallback" renders the canned fallback line under the Claude reply, to judge
-   how much the AI phrasing adds.
-7. Scenario scripts (stretch): named timelines that drive the simulator overrides, e.g. "overheat on the N3"
-   (temp ramps 95 -> 112 over 60 s), "rain front" (rain chance 20 -> 90), "closure ahead". A dropdown plus
-   Play/Stop. Scripts live in `src/ui/scenarios.ts` as plain data (array of `{atMs, set: {...overrides}}`).
-
-Constraints:
-- Without `VITE_ANTHROPIC_API_KEY` the chat must still work using fallbacks, and say so in the metadata line.
-- Core stays pure: any new logic (history, prompt assembly) goes in `core/` with tests; the panel only renders.
-- Prompt assembly should be a pure function `buildClaudeRequest(ev, state, history)` used by both ClaudeClient and
-  the "Show prompt" view, so what you see is exactly what is sent.
-- Add jsdom smoke tests in `tests/ui.smoke.ts` for: sending a message, bubble metadata, Show prompt, compare mode.
-- Reuse this path later for voice: SpeechRecognition (Chrome/Android; iOS support is weak) -> same `rider_query` flow.
-
 ## Claude call (verified live 2026-10-08)
 
 - Model is `claude-haiku-5-5` (owner asked for a simple fast model; about 1 s per line). `CONFIG.claudeThinkingOff`
@@ -878,73 +843,6 @@ Constraints:
 
 The original spec is kept below for reference.
 
-## Backlog: ambient personality — snark and tour guide (spec; built, see above)
-
-Idea (from the owner): ambient (P3) remarks should not be only status commentary. Two flavours, mixed:
-1. **Banter**: snarky, funny, dry. Affectionate teasing of the situation, never of the rider's skill or speed.
-2. **Tour guide**: interesting knowledge about the area being ridden through (history, landmarks, odd facts), the
-   way a local friend on the intercom would.
-Betty should feel like a companion, so most ambient lines should be one of these, not "you've been out 45 minutes".
-
-### Design decisions already made
-
-- **Trust is the main risk.** A confident voice stating a wrong fact is worse than silence. Tour-guide lines must be
-  GROUNDED: fetch facts for the current location, pass them to Claude as the only allowed source, and tell it to
-  stay silent (return an empty string) if nothing supplied is interesting. Never let Claude "recall" local facts
-  from its own training data for the spoken line. The existing prompt rule "never invent numbers, places or road
-  names" stays and applies here.
-- **Banter is grounded in the ride context** (time of day, weather, duration, steady speed, traffic, fuel, a long
-  quiet stretch), not random jokes. Same rule: no invented numbers or places.
-- **Safety stays serious.** P1 and P2 lines (overtemp, faults, low fuel, traffic, rain) are never snarky and never
-  get a joke appended. No banter while any P1 condition is active. Never tease about speed or lean in a way that
-  encourages riding harder, never comment on how fast he is going as praise.
-- **Silence is a valid output.** If there is no grounded fact and nothing funny and true to say, say nothing.
-  No canned banter fallback (canned jokes repeat and get annoying fast). Without Claude/network, ambient is silent.
-- **Novelty.** Never repeat a place or fact in the same ride; keep a set of mentioned place ids (feeds the session
-  memory work already on the backlog).
-- Spoken style unchanged: 1 to 2 short sentences, plain spoken English, no markdown or emojis. South African
-  context and register are welcome (en-ZA), without caricature.
-
-### Proposed implementation
-
-- New trigger ids (both P3, add to `TriggerId`/`TRIGGER_IDS`/`DEFAULT_CONFIG`): `ambient_banter`, `local_fact`.
-  They share the existing P3 rules (safe window, `ambientCooldownMs`, `ambientMaxAgeMs`).
-- **Chooser** (pure function in `core/`, injectable RNG for tests): when the ambient cooldown has elapsed and the
-  safe window is open, pick `local_fact`, `ambient_banter`, or nothing using tunable weights. Add the weights to
-  CONFIG and the TUNING panel (e.g. banter %, tour-guide %, silence %).
-- **Place awareness** for tour guide: a `PlaceSource` adapter (DataSource) that, when the rider has moved more than
-  ~1-2 km or the nearest notable place changes, fetches nearby notable places and short summaries and writes them to
-  `BikeState` (e.g. `nearbyPlaces: {id, name, distanceKm, summary}[]`). Prefer firing `local_fact` when the area
-  CHANGES (new suburb or landmark comes into range) rather than on a random timer.
-- **Candidate data sources (all unverified, check before relying on them):**
-  - Wikipedia GeoSearch (`action=query&list=geosearch&gscoord=<lat>|<lon>&gsradius=<m>`, with `origin=*` for CORS)
-    plus the page summary REST endpoint for a short extract. Free, no key. Content is CC BY-SA, so keep it
-    paraphrased and consider an attribution line in the log/UI.
-  - Overpass API (OpenStreetMap) for named POIs (historic, tourism tags). Free, shared infrastructure, be gentle.
-  - Reverse geocoding for suburb/locality names (Nominatim has a strict usage policy: about 1 request per second,
-    no bulk use, and it expects an identifying referer/user agent). A cheaper alternative is to derive the area
-    from the Wikipedia results themselves.
-  - Cache results per rounded coordinate cell; round coordinates (about 2 decimals) before sending them to any third
-    party. This is the rider's live location.
-- **Prompt assembly**: extend the (future) pure `buildClaudeRequest(ev, state, history)` so `local_fact` includes only
-  the supplied place snippets and `ambient_banter` includes the ride-context summary. Add per-flavour instructions to
-  the system prompt, e.g. banter: "dry, affectionate, one quip, never mock the rider's riding"; tour guide: "one
-  interesting fact from the supplied notes, tie it to where he is, say nothing if the notes are dull".
-  Claude may return an empty string; `ClaudeClient` and the queue must treat that as "say nothing".
-- **Simulator support (needed to develop this at a desk):** location presets or a lat/lon override in the SIMULATOR
-  panel (Edenvale, Johannesburg CBD, Soweto, Sandton, Pretoria, Cape Town), buttons to fire `ambient_banter` and
-  `local_fact`, and the grounding snippets shown under "Show prompt" in the chat test mode.
-- **Tests:** chooser distribution with a seeded RNG (weights respected, silence respected); novelty (a mentioned
-  place is never chosen twice); no ambient while a P1 condition is active; empty Claude reply produces no speech;
-  prompt builder includes only supplied snippets. Add jsdom smoke tests for any new tuning controls.
-
-### Acceptance criteria
-
-- On a simulated ride through a new area, Betty produces a grounded tour-guide remark once, not again for that place.
-- With only a weather/time context she can produce one believable quip that contains no invented specifics.
-- Setting the tour-guide and banter weights to zero makes ambient silent; nothing else regresses.
-- With an overtemp active, no banter or tour-guide line is spoken.
-
 ## Backlog: offline line bank (NOT BUILT, spec for a later session)
 
 Goal: when the phone has no signal (or Claude is slow), Betty should still sound like Claude wrote the line, not
@@ -993,26 +891,6 @@ Voice: "humour 60 percent", "set humor to 60", "humour up/down", "more/less joke
 "full TARS", "JARVIS 70 percent", and "status" / "what are your settings" (humour, blend, flavour mix as percentages,
 remark gap, quiet). Checked live at TARS 0/50/100 and humour 0/20/75/100: clearly different registers.
 
-## Backlog: settings by voice and personalities (PARTLY BUILT, see above; owner, 2026-10-16, "like TARS in Interstellar")
-
-Goal: she reports her own settings and he changes them by voice, TARS style ("humour, 75 percent"). Builds on the
-stage 3 command path (`parseCommand` -> carried out on the phone -> instant reply, works offline).
-- **Status report**: "status" / "what are your settings" -> she reads them out: the flavour mix as percentages
-  (banter / tour guide / silence, from `CONFIG.ambient` weights), how often she chats (`ambientCooldownMs`), line
-  length (`maxSpokenSentences`), the active personality, and quiet if on ("Banter 40, tour guide 40, silence 20.
-  Chat every two minutes. Quiet for another 8 minutes.").
-- **Dials by voice**: "banter up/down", "tour guide up/down", "more/less chatty" (silence weight and/or the gap),
-  "shorter/longer answers", "set banter to 70 percent". Steps of 10, the mix renormalised to 100, clamped. Reply
-  states the new value. Saved with `saveConfig` so TUNING shows it.
-- **New dial: humour** (0 to 100, the TARS one): goes into the banter/answer prompts as how dry and how often to joke.
-  P1/P2 lines stay straight regardless (behaviour rules).
-- **Personalities**: named presets of all the dials plus a prompt flavour, e.g. commute (quiet, short, alerts and
-  answers only), weekend (chatty, banter-heavy), tour (tour guide heavy, longer lines), plus his own saved ones.
-  "Switch to weekend mode", "what mode are you in". Also a picker on the main screen. Overlaps the "Moods/personas"
-  idea below; this replaces it.
-- Open questions for the owner before building: which presets and what is in each; whether a voice change lasts
-  only for this ride or until changed back.
-
 ## Route planning (BUILT 2026-10-17; UNVERIFIED ON A RIDE)
 
 Where to? lives in the ride-mode sheet ("How are we riding?"): one box takes places separated by commas ("Clarens",
@@ -1056,104 +934,83 @@ find interesting ("interests"); alerts and time checks never. `profileNote` adds
 say you were told this, never quote it, never list it". Checked live: a sample distilled well; "where should I stop
 for coffee out west" used it naturally.
 
-## Backlog: what the new app layout makes possible (owner, 2026-10-17: "all good, store them"; NONE BUILT)
+## Backlog (open items only; consolidated 2026-10-17, built items removed)
 
-Ideas that build on the stored ride tracks (`core/Track`, `betty.tracks.v1`), the map (`ui/mapView`), Explore, the
-chat outside a ride, the installable app and the backup file. Owner's first picks were not chosen yet; suggested: 1
-and 5 first (small, visible), 7 as the bigger job.
-From the stored tracks and the map:
-1. New road vs usual road: compare the live track with past tracks; she notices a road never ridden before ("first time
-   on this one") or his most-ridden stretch. Pure core logic on track points (grid cells of ~100 m).
-2. Rough patches on the map: plot hard braking and big jolts on each ride's map in Journeys (needs positions logged
-   with those events). Spots that recur across rides become automatic marked-spot warnings.
-3. Personal records: longest ride, highest point, longest day, most cornering; shown in Journeys, called out live
-   ("your longest ride yet").
-4. Shareable ride card: BUILT 2026-10-17, see App shell.
-From Explore:
-5. Explore as a map: area stories, Wikipedia places and marked spots as pins; tap one and she tells it, at home.
-6. Stories you missed: area stories researched but not told on the ride, saved to play later.
-From the empty "Where to?" slot (needs ROUTE PLANNING, see below):
-7. Route awareness lite: distance and time left, stops, off route: BUILT (see Route planning). Still to do: weather
-   where he will be, fuel stops in range, stories researched ahead.
-From chat outside a ride:
-8. Plan a ride with her at home ("a breakfast run, two hours, twisty roads"): web search plus his past tracks;
-   needs route planning to turn the plan into a route.
-9. Memory across rides: "what did we talk about on Saturday?", "where was that pothole?", from the saved logs.
-From the installable app:
-10. Reminders: chain lube, service by distance, tyre age; kept in Garage, mentioned on the ride, and a phone
-    notification from the installed app (iPhone allows web push for home-screen apps).
-From the backup file:
-11. Share spots, stories or a ride with a friend's Betty (export a subset, import it): a first step to group rides.
+Built and taken off: chat test mode, ambient personality, settings by voice (status, humour, TARS/JARVIS, presets,
+mix nudges), shareable ride card, Explore map + Listen + Not heard yet (was "stories you missed"), route planning and
+following, fuel stations ahead, service reminders, offline loading (service worker), home-screen install, fuel range
+without OBD, sunset warnings, the spoken sign-off and the ride story page with its map.
 
-Route planning (for 7 and 8), the plan discussed 2026-10-17, UNVERIFIED: a server function `api/route` with the TomTom
-key Betty already has (TomTom Routing: car/motorcycle routes with live traffic, and a "thrilling" route type that
-prefers winding, hilly roads, which suits a motorcycle; check the free quota and parameters before building).
-Destination search through TomTom Search (same key) or Nominatim. Betty does NOT do turn-by-turn: Google Maps/Waze on
-the handlebar screen navigates (an "Open in Maps" link with the same destination); Betty uses the route line for
-what is ahead (weather sampled along it at the time he will be there, fuel stations along it, area stories fetched
-for the towns on it in advance, time and distance left, "you have left the route" if he strays far).
-CHECKED 2026-10-17 with the existing TomTom key: motorcycle routing and `routeType=thrilling` (hilliness/windingness
-high) work in South Africa (Edenvale to Clarens: fastest 302 km / ~3 h, thrilling 306 km / ~3 h 50 on twistier roads;
-hilliness/windingness are rejected with any other route type); Search finds "Clarens". Free per MONTH, no card:
-Routing 20,000, Search 2,500, Traffic Incident Details 2,500 (the last is why traffic now polls less, see Feeds).
-Mapbox: Directions 100,000 a month free (third-party sources), no motorcycle profile or twisty option found, needs a
-new account; its strength is real map tiles.
-OWNER'S DIRECTION (2026-10-17): he plans routes in GOOGLE MAPS today. Plan: Mapbox for route PLANNING (a planning map,
-drawn in the app's sketch style if possible), TomTom to FOLLOW the route (traffic, time left, thrilling option). Keep
-the sketch look on the ride screen: the planned route continues the ridden track as a fainter dotted line with a few
-pins (story towns, fuel, rain), the glance card shows the next thing ahead, an "Up ahead" sheet lists towns with
-arrival time and weather, fuel in range and stories waiting; her voice carries most of it. Also wanted:
-- His own route with stops: an ordered list of stops ("Heidelberg, Villiers, Clarens", typed or said), pass-through
-  points vs real stops (breakfast, fuel) that she counts in the arrival time; re-ride a past ride's stored track;
-  saved routes in Journeys.
-- Import: ONLY a shared Google Maps directions link (owner, 2026-10-17: he uses no other riding apps, so no GPX for
-  now). He plans in Google Maps, shares the directions, pastes the link into "Where to?"; Betty reads the stops from it
-  and asks TomTom for the route through them. Shared links are short (maps.app.goo.gl/...) and redirect to the full
-  /maps/dir/A/B/C... URL, so a server function must follow the redirect (the browser cannot, CORS); the full URL may
-  carry names, coordinates or both (check real links). Turn-by-turn stays in Google Maps (a link takes about 9 stops).
-- HIS REAL LINK (2026-10-17), maps.app.goo.gl/udizMiFvko6vS6ka8: a 302 redirect (followed server side, no key) to
-  /maps/dir/BMW+Motorrad+Fourways/-25.943222,27.879599/.../-25.8701221,27.8771522/BMW+Motorrad+Fourways/data=...
-  i.e. path segments = stops in order: named places as text (their coordinates are in the data blob as
-  !3d<lat>!4d<lon>, here -26.0208531, 28.0022658) and his added stops as plain "lat,lon". A loop ride: start and end
-  at the dealership, 8 coordinate stops. `!3e0` = driving. TomTom routed all 10 points as one motorcycle route:
-  230 km, about 179 min, 9 legs (19, 12, 35, 39, 20, 41, 7, 32, 24 km), 2,613 shape points. So: parse path segments,
-  take coordinates as they are, take a name's coordinates from the !3d/!4d pairs in order (or TomTom Search), route.
-- To check before building: TomTom's stop limit per route (10 worked), and its option to follow a given line.
-- HIS SECOND LINK (iPhone share, g_st=ic, 2026-10-17) was refused as "not a route": iPhone shares the OLDER form,
-  maps.google.com/?saddr=<start address>&daddr=<lat,lon>+to:<lat,lon>&dirflg=d. `parseLegacy` reads it (addresses are
-  geocoded whole, shown by their first part). A dropped-pin destination is named by TomTom reverse geocoding ("near
-  Mandela Section"). Checked: from home 68.8 km / 65 min vs Google's 68 km / 1 h 04.
+**Next up (owner has asked, design agreed or proposed):**
+1. **Change the bike** (proposed 2026-10-17, owner asked to note it for later; questions still open: build it? one
+   bike at a time or a garage of several with an active one?). Design:
+   - Garage > In your garage: a "Your bike" picker (BMW G 310 GS, or Another bike). The bike carries its tank and
+     reserve (fuel range follows the bike) and its maintenance schedule (`BIKES` in core/Reminders.ts;
+     `ServiceBook.bike` already stores the id).
+   - Another bike's schedule, three ways: (a) RECOMMENDED: a photo of the handbook's maintenance page (what the owner
+     did for the G 310 GS): a server function sends it to Claude (vision), which returns the items as JSON
+     ({name, everyKm, everyDays, note}); he reviews and edits the list before saving; a photo of the spec page can
+     fill the tank size the same way. (b) Type the model: Betty looks it up with web search, marked "from the web,
+     check it". (c) Start blank: rider care (chain, tyres) only, add your own.
+   - Switching: his own reminders and the rider care items stay, the handbook items are swapped, the odometer is
+     asked again. Each bike's book is kept separately (keyed by bike), so switching back restores it.
+   - Rides record which bike (`RideRecord.bike`) so My journeys can total per bike. Her name for the bike stays
+     `CONFIG.bikeName`.
+2. **Reminder notifications**: a phone notification when something falls due while Betty is not open. Needs web
+   push (a push server, VAPID keys, the installed app; iPhone allows it for home-screen apps). Until then reminders
+   surface in the briefing, sign-off, Garage and the Details sheet.
+3. **Route: what is ahead**: weather where he will be at arrival time (Open-Meteo sampled along the route), area
+   stories researched ahead for the towns on it, pass-through points vs real stops (breakfast, fuel) counted in the
+   arrival time, re-ride a past ride's stored track, saved routes in Journeys. A planning map (Mapbox was the
+   owner's direction, drawn in the sketch style) is the bigger piece.
+4. **Native app** (owner, 2026-10-17: "we will move to a native app pretty soon"): CarPlay "voice-based
+   conversational apps" category since iOS 26.4 (entitlement requested from Apple per app, `CPVoiceControlTemplate`;
+   verify the key in Apple's docs) gives Betty a talk button on the CarPlay screen, so the headset buttons stay with
+   the music app; his aftermarket CarPlay screen's handlebar remote (if it has one) can press it; Siri App Intents
+   ("Hey Siri, ask Betty...") are hands-free. Native also gives audio ducking instead of pausing music, background
+   running without the silent track, and real call-mode control. Android Auto has no equivalent category (unverified).
 
-## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
+**From the stored rides and the map:**
+- New road vs usual road: she notices a road never ridden before ("first time on this one") or his most-ridden
+  stretch (track points on a ~100 m grid; pure core logic).
+- Rough patches / road-hazard memory: plot hard braking and big jolts on each ride's map (needs positions logged
+  with those events); spots that recur across rides become automatic marked-spot warnings. Jolts need a better
+  signal first (2,402 from vibration on 2026-10-17; threshold now 2 g).
+- Personal records: longest ride, highest point, most cornering; shown in Journeys, called out live.
+- Memory across rides: "what did we talk about on Saturday?", "last time we came through here it rained", from the
+  saved logs; favourite roads, places visited.
 
-Co-pilot:
-- Voice input "Hey Betty" (notes below). Biggest single upgrade; unlocks her questions and remembering what he says.
-- Route awareness: a destination gives fuel stops in range, weather where he will be in 30 min, distance/time left,
-  tour-guide facts for places being approached.
-- Fuel range without OBD: BUILT. Sunset and light warnings: BUILT.
+**At home:**
+- Plan a ride with her ("a breakfast run, two hours, twisty roads"): web search plus his past tracks, turned into a
+  route with the planner.
+- Share spots, stories or a ride with a friend's Betty (export a subset, import it): a first step to group rides.
 
-Safety:
-- Crash detection: hard impact then no movement starts a countdown, then messages an emergency contact with the
-  location. A web page cannot send an SMS by itself, so this is a native-app or Pi feature done properly.
+**On the ride:**
+- Offline line bank (spec in its own section above; measure first how often the logs show `fallback: network error/timeout`).
 - Fatigue nudges from time in the saddle and time of day, naming the next stop.
-- Road-hazard memory: remember where hard jolts or hard braking happened and warn on approach next time.
 - Wind and cold: crosswind relative to heading, wind-chill at speed.
-
-Personality and memory:
-- Ride debrief: spoken sign-off BUILT. Still open: a written report with a map of the route.
-- Longer memory: favourite roads, places visited, personal records, "last time we came through here it rained".
-- Moods/personas: a quieter commuting mode, a chattier weekend mode, switchable on screen.
-- Better voice (notes below).
-
-Practical:
-- Offline line bank and offline loading (see the backlog section above); home-screen install.
-- Music ducking and quiet times (stay silent during a call, lower music while speaking).
-- Maintenance log: chain lube, service intervals, tyre age by distance ridden, with reminders.
+- Music: stay silent during a phone call (ducking needs the native app).
 - Group rides: two riders running Betty share position ("your mate has dropped back").
+- Crash detection: hard impact then no movement, a countdown, then a message to an emergency contact with the
+  location. A web page cannot send an SMS: native app or Pi.
+- Voice: "shorter/longer answers", "set banter to 70 percent", his own named personalities ("weekend mode", "what mode
+  are you in") on top of the minimal/balanced/stories presets.
+- Searched answers on Sonnet (owner's option if Haiku keeps muddling search snippets, e.g. RPM to road speed).
+- Workshop: scenario scripts for the simulator ("overheat on the N3", "rain front") as plain data.
 
-Hardware (Phase 4): real engine data, tyre pressure sensors, a handlebar button ("repeat that", "quiet for ten
-minutes", "mark this spot"; one physical button beats any on-screen control on a bike), camera clips saved on a hard
-brake or a "mark this" press.
+**Housekeeping:**
+- ROTATE the Claude and TomTom keys (old deployment URLs still serve pages with them inside), and/or delete old
+  deployments (owner's OK needed).
+- TomTom quota: Search is 2,500 a month free and now serves routes, place names and petrol stations; watch it.
+
+**Hardware (Phase 4):** Raspberry Pi with real OBD2 (ELM327), tyre pressure sensors (TPMS BLE: Web Bluetooth is
+Android Chrome only), Piper TTS, Porcupine wake word, a physical handlebar button, camera clips on a hard brake or a
+"mark this" press. Hardware BOM was estimated around R2,180.
+
+**Unverified on a ride (check on the next rides, from the shared log):** forced web search, parked mode and "end
+ride", detour, fill-up by voice, previous track letting go, Louder voice, 12 s recordings, riding time, fuel range
+from consumption and stations ahead, reminders in the briefing/sign-off, the island, route following, marked-spot
+warnings, map gestures, slim panels.
 
 ### Notes: a personal voice
 1. Free first: iOS "Enhanced"/"Premium" voices (Settings > Accessibility > Spoken Content > Voices). BUILT: the
@@ -1283,19 +1140,6 @@ were not a command; the answer prompt now says only the commands change settings
   which button presses actually reach the page on his headset and iPhone.
 - Order: typed chat test mode first, then push-to-talk with cloud transcription, wake word last (likely on the Pi
   with Porcupine).
-
-## Next steps (suggested order)
-
-1. Deploy to Vercel, test on the phone with helmet comms on a real ride (audio routing, GPS cadence, lean zeroing).
-2. Verify Open-Meteo and TomTom parsers against live responses (see Feeds); fix any shape mismatch.
-3. Move the Claude/TomTom calls behind Vercel serverless functions so keys are not exposed.
-4. Build the chat-style test mode above.
-5. Ambient personality: done. Tune weights and prompts after real rides.
-5b. Offline line bank + service worker (see the backlog section above), once the logs show how often signal drops.
-6. Memory: ride stats and past-ride records are built. Still open: remembering what the rider says (needs voice input).
-7. Voice input "Hey Betty" feeding the same `rider_query` path.
-8. TPMS BLE (Web Bluetooth works on Android Chrome only; otherwise Phase 4).
-9. Phase 4: Pi adapters (python-obd/ELM327, Piper TTS, Porcupine). Hardware BOM was estimated around R2,180 total.
 
 ## Conventions
 
