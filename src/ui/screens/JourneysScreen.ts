@@ -16,6 +16,8 @@ export interface JourneysContext {
   copyRide(rideId: number): Promise<boolean>;
   /** Save one ride's log as a file */
   saveRide(rideId: number): void;
+  /** Make and share a picture of the ride (ui/rideCard.ts) */
+  shareRide(rideId: number, hideEnds: boolean): Promise<void>;
   toast(msg: string): void;
 }
 
@@ -80,6 +82,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
         <div class="settings-card"><h2>The moments in between</h2>
           <ul class="moments">${said.length ? said.map((e) => `<li>${esc(triggerOf(e.head).replace(/_/g, ' '))}<small>${new Date(e.at).toTimeString().slice(0, 5)}</small><span class="said">${esc(e.text.replace(/<[^>]+>/g, ''))}</span></li>`).join('')
             : '<li>A moment for yourself<small>No saved lines for this ride</small></li>'}</ul>
+          <div class="share-ride"><button class="primary wide" type="button" data-share="${rideId}">${icon('share', 'ico sm')} Share this ride</button>
+            <label class="check-row"><input type="checkbox" data-hideends checked /> Hide where I start and finish</label></div>
           <div class="dialog-actions"><button class="secondary" type="button" data-copy="${rideId}">${icon('share', 'ico sm')} Copy the log</button>
             <button class="secondary" type="button" data-save="${rideId}">Save as a file</button><button class="primary" type="button" data-go="home">Ride again →</button></div>
         </div>
@@ -96,6 +100,12 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     if (c) void ctx.copyRide(Number(c.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
     const s = t.closest<HTMLElement>('[data-save]');
     if (s) ctx.saveRide(Number(s.dataset.save));
+    const sh = t.closest<HTMLButtonElement>('[data-share]');
+    if (sh && !sh.disabled) {
+      const hide = story.querySelector<HTMLInputElement>('[data-hideends]')?.checked ?? true;
+      sh.disabled = true;
+      void ctx.shareRide(Number(sh.dataset.share), hide).finally(() => { sh.disabled = false; });
+    }
   });
   const open = (rideId: number) => { renderStory(rideId); shell.show('story'); };
   shell.onShow((id) => { if (id === 'journeys') renderList(); });

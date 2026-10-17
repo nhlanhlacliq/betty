@@ -1202,6 +1202,28 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(shouldClose(60, 80), true, 'a quick flick'); assert.equal(shouldClose(30, 10), false, 'a twitch');
 }
 
+// ---- shareable ride card: the line to quote, and home kept private
+{
+  const { bestLine, trimEnds, shorten } = await import('../src/core/RideCard');
+  const lines = [
+    { trigger: 'startup', text: 'Evening, sir. Betty here, ready when you are, with clear skies.' },
+    { trigger: 'ambient_banter', text: 'Sixty-two on a night road, which is a sensible pace. <chuckle> I approve.' },
+    { trigger: 'area_story', text: 'You are riding through Germiston, named by John Jack after the farm near Glasgow where he was born.' },
+    { trigger: 'rain_soon', text: 'Rain within the hour, worth finding cover before it arrives.' },
+  ];
+  assert.match(bestLine(lines)!, /^You are riding through Germiston/, 'a story beats banter');
+  assert.equal(bestLine(lines.slice(0, 2)), 'Sixty-two on a night road, which is a sensible pace. I approve.', 'voice tags removed');
+  assert.equal(bestLine([{ trigger: 'rain_soon', text: 'Rain within the hour, worth finding cover.' }]), null, 'alerts are not quotes');
+  assert.equal(bestLine([]), null);
+  assert.equal(shorten('One sentence here. Then a much longer second one that goes on.', 30), 'One sentence here.');
+  // a 3 km straight track north: trimming 0.5 km off each end leaves the middle 2 km
+  const track: Array<[number, number]> = Array.from({ length: 31 }, (_, i) => [-26.2 + i * 0.0009, 28.1]);
+  const mid = trimEnds(track, 0.5);
+  assert.ok(mid.length > 15 && mid.length < 25, String(mid.length));
+  assert.ok(mid[0][0] > track[3][0] && mid.at(-1)![0] < track[27][0], 'both ends gone');
+  assert.deepEqual(trimEnds(track.slice(0, 5), 0.5), [], 'a ride shorter than the trim shows no road');
+}
+
 // ---- cloud voice: server function
 {
   const realFetch = globalThis.fetch; const saved = { ...process.env };

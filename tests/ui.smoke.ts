@@ -811,4 +811,24 @@ resetConfig();
   await (src as any).tick(false); assert.equal(calls, 2, 'not due again for 5 minutes');
   resetConfig();
 }
+// ---- a ride's story: Share this ride hands over the ride and the "hide where I start and finish" choice
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const j = new JSDOM(`<!doctype html><div id="journeylist"></div><div id="journeytotals"></div><div id="story"></div>`);
+  const d = j.window.document;
+  const ride = { startedAt: 1_760_000_000_000, minutes: 95, distanceKm: 120, weather: 'clear, 24 C', places: ['Germiston'], events: [] };
+  const shared: Array<[number, boolean]> = [];
+  const shell: any = { show() {}, onShow() {} };
+  const view = mountJourneysScreen(d, shell, { rides: () => [ride], entries: () => [], track: () => [], copyRide: async () => true, saveRide() {}, toast() {},
+    shareRide: async (id: number, hide: boolean) => { shared.push([id, hide]); } });
+  view.open(ride.startedAt);
+  const btn = d.querySelector('[data-share]') as HTMLButtonElement;
+  assert.ok(btn, 'Share this ride is on the story'); assert.equal((d.querySelector('[data-hideends]') as HTMLInputElement).checked, true, 'home hidden by default');
+  btn.dispatchEvent(new j.window.Event('click', { bubbles: true }));
+  (d.querySelector('[data-hideends]') as HTMLInputElement).checked = false;
+  await new Promise((r) => setTimeout(r, 5));
+  btn.dispatchEvent(new j.window.Event('click', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(shared, [[ride.startedAt, true], [ride.startedAt, false]]);
+}
 console.log('ui smoke tests passed');

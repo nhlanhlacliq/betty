@@ -317,6 +317,13 @@ has dynamic content, and a smoke test.
   refresh" past 64 px damped), letting go saves the log and reloads. Disabled while a ride or desk session runs (a
   reload would end it), inside sheets, lists and fields. Every sheet can be dragged down to close: from its handle,
   or from its body when scrolled to the top; past 110 px or a quick flick it closes, otherwise it snaps back.
+- Share this ride (2026-10-17): the ride's story has "Share this ride" and "Hide where I start and finish" (on by
+  default). `ui/rideCard.ts` draws a 1080 x 1350 PNG on a canvas in the app's colours: RIDDEN WITH BETTY, title and
+  date, the map sketch (the same `mapSvg`, given an xmlns and drawn as an image; the track's first and last 0.5 km cut
+  by `core/RideCard.trimEnds` so home is not on it), km / time / places, and "Betty said" with `bestLine` (area story
+  > place > banter > time check > answer > sign-off > briefing; alerts never; voice tags removed; ~140 chars best) next
+  to her orb or his picture (a GIF gives its first frame). Shared with the share sheet (WhatsApp, Instagram, Photos),
+  downloaded where there is none. NOT SEEN RENDERED YET (no browser here): check on the phone.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
@@ -807,7 +814,7 @@ From the stored tracks and the map:
    with those events). Spots that recur across rides become automatic marked-spot warnings.
 3. Personal records: longest ride, highest point, longest day, most cornering; shown in Journeys, called out live
    ("your longest ride yet").
-4. Shareable ride card: one image (map sketch, stats, her best line of the ride) through the share sheet.
+4. Shareable ride card: BUILT 2026-10-17, see App shell.
 From Explore:
 5. Explore as a map: area stories, Wikipedia places and marked spots as pins; tap one and she tells it, at home.
 6. Stories you missed: area stories researched but not told on the ride, saved to play later.

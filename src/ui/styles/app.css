@@ -432,3 +432,8 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
   background: #2e483f; color: #fffbed; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .15s; }
 .ptr.show { opacity: .92; }
 .ptr.armed { background: var(--accent); color: #3d3618; }
+
+/* Share this ride (Journeys story) */
+.share-ride { display: grid; gap: 10px; margin: 18px 0 6px; }
+.check-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink); }
+.check-row input { width: 18px; height: 18px; accent-color: #2f4741; }

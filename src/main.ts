@@ -53,6 +53,8 @@ import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
+import { rideTitle } from './ui/screens/HomeScreen';
+import { drawRideCard, shareRideCard } from './ui/rideCard';
 import { mountPullToRefresh, mountSheetDrag } from './ui/gestures';
 import { SaidLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
@@ -171,6 +173,21 @@ const journeys = mountJourneysScreen(document, shell, {
   copyRide: (rideId) => copyText(rideLogText(rideId)),
   saveRide: (rideId) => { if (!downloadText(`betty-ride-${new Date(rideId).toISOString().slice(0, 16).replace(':', '')}.txt`, rideLogText(rideId))) shell.toast('Saving a file is not available here'); },
   toast: (msg) => shell.toast(msg),
+  // A picture of the ride to share (owner, 2026-10-17): map sketch, numbers, her best line, her orb or his picture.
+  shareRide: async (rideId, hideEnds) => {
+    const r = RideLog.load().find((x) => x.startedAt === rideId);
+    if (!r) return;
+    saveLog();
+    const lines = LineLogStore.load()
+      .filter((e) => e.rideId === rideId && /^\[P\d\]/.test(e.head) && e.text && !e.text.startsWith('('))
+      .map((e) => ({ trigger: e.head.match(/^\[P\d\] (\w+)/)?.[1] ?? '', text: e.text }));
+    shell.toast('Making your ride card...');
+    try {
+      const png = await drawRideCard(document, { ride: r, title: rideTitle(r), track: TrackStore.get(rideId), lines, avatar: await avatarStore.get().catch(() => null), hideEnds });
+      const how = await shareRideCard(document, png, `betty-ride-${new Date(rideId).toISOString().slice(0, 10)}.png`);
+      if (how === 'saved') shell.toast('Ride card saved to your downloads.');
+    } catch (e) { shell.toast(`Could not make the ride card: ${(e as Error).message}`, true); }
+  },
 });
 mountWhatsNew(document); // Garage > What's new, with the unread count on the card and the Garage tab
 
