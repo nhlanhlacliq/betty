@@ -482,8 +482,6 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .dock-mini small { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #8a9287; }
 .dock-mini b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dock-slim .ride-dock #start { width: auto; flex: none; min-height: 48px; padding: 0 18px; gap: 10px; margin: 0; }
-.dock-slim .map-greeting { opacity: 0; transition: opacity .2s; }
-.map-greeting { transition: opacity .2s; }
 .dock-slim .active-dock .ride-stats, .dock-slim .active-dock #ridesub, .dock-slim .active-dock .ride-actions, .dock-slim .active-dock .simulation-note { display: none; }
 .dock-slim .active-dock .betty-ride-heading { margin-bottom: 0; }
 .dock-slim .active-dock { padding-top: 18px; }
