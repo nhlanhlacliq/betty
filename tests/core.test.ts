@@ -1216,6 +1216,9 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(bestLine([{ trigger: 'rain_soon', text: 'Rain within the hour, worth finding cover.' }]), null, 'alerts are not quotes');
   assert.equal(bestLine([]), null);
   assert.equal(shorten('One sentence here. Then a much longer second one that goes on.', 30), 'One sentence here.');
+  assert.equal(shorten('Ekurhuleni is a Tsonga word meaning "place of peace". It was chosen when the municipality was formed in 2000, partly as a sign.', 90),
+    'Ekurhuleni is a Tsonga word meaning "place of peace".', 'a quote mark after the full stop still ends the sentence');
+  assert.equal(shorten('No sentence end anywhere in this rather long line of words', 30), 'No sentence end anywhere in…');
   // a 3 km straight track north: trimming 0.5 km off each end leaves the middle 2 km
   const track: Array<[number, number]> = Array.from({ length: 31 }, (_, i) => [-26.2 + i * 0.0009, 28.1]);
   const mid = trimEnds(track, 0.5);
