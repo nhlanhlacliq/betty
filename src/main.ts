@@ -56,7 +56,7 @@ import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
-import { mountPullToRefresh, mountSheetDrag } from './ui/gestures';
+import { mountPullToRefresh, mountSheetDrag, mountSwipeBack } from './ui/gestures';
 import { SaidLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 
@@ -392,6 +392,7 @@ mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(C
 // Pull down to refresh (never while a ride or desk session runs: a reload would end it); drag a sheet down to close.
 mountPullToRefresh(document, { canRefresh: () => rig === null, reload: () => { saveLog(); location.reload(); } });
 mountSheetDrag(document, shell);
+mountSwipeBack(document, shell); // swipe from the left edge: back from a ride's story, the chat, the Workshop
 const avatarStore = new IdbAvatarStore();
 mountAvatarSetting(document, avatarStore, (m, err) => shell.toast(m, err));
 // Your data: everything in one file, to move to a new phone.

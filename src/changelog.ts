@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Routes: in How are we riding?, type where to ("Clarens", or stops: "Heidelberg, Villiers, Clarens") or paste a Google Maps directions link, tick twisty roads if you like, and Plan. Betty follows it: time and distance left, your next stop, telling you if you leave it, and welcoming you in. Google Maps still gives the turns.',
+      'Swipe from the left edge to go back from a ride story, the chat or the Workshop. Explore and Garage no longer slide sideways.',
       'Ride cards show the weather of the ride in a small pill on the map, like the app does.',
       'Share a ride: open a ride in My journeys and tap Share this ride for a picture with the road you took, the numbers and the best thing Betty said. Where you start and finish is hidden unless you untick it.',
       'Pull down at the top of any screen to refresh the app (not during a ride). Drag any open panel down to close it.',

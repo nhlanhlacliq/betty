@@ -92,3 +92,45 @@ export function mountSheetDrag(doc: Document, shell: Shell) {
   doc.addEventListener('touchend', end);
   doc.addEventListener('touchcancel', end);
 }
+
+/** Screens that go back to where he came from: a ride's story, the whole conversation, the Workshop. */
+export const BACK_SCREENS = new Set(['story', 'chat', 'workshop']);
+/** A back swipe starts within this many px of the left edge, and goes back past BACK_AT px (or a quick flick). */
+const EDGE = 36;
+export const BACK_AT = 90;
+export const shouldGoBack = (dx: number, dy: number, ms: number) => Math.abs(dy) < Math.max(60, dx * 0.6) && (dx >= BACK_AT || (dx > 40 && dx / Math.max(1, ms) >= FLICK));
+
+/** Swipe right from the left edge to go back, as in iPhone apps (the installed app has no browser back gesture). */
+export function mountSwipeBack(doc: Document, shell: Shell) {
+  let screen: HTMLElement | null = null, startX = 0, startY = 0, startAt = 0, dx = 0, dy = 0, dragging = false;
+  doc.addEventListener('touchstart', (e) => {
+    const p = point(e);
+    const t = e.target as Element | null;
+    const s = t?.closest?.('.screen') as HTMLElement | null;
+    screen = null;
+    if (!s || !BACK_SCREENS.has(s.dataset.screen ?? '') || shell.current !== s.dataset.screen || t?.closest?.('[data-sheet], input, textarea, select')) return;
+    const left = s.getBoundingClientRect?.().left ?? 0;
+    if (p.clientX - left > EDGE) return;
+    screen = s; startX = p.clientX; startY = p.clientY; startAt = Date.now(); dx = 0; dy = 0; dragging = false;
+  }, { passive: true });
+  doc.addEventListener('touchmove', (e) => {
+    if (!screen) return;
+    const p = point(e); dx = p.clientX - startX; dy = p.clientY - startY;
+    if (!dragging && (dx < 8 || Math.abs(dy) > dx)) { if (Math.abs(dy) > 12) screen = null; return; }
+    dragging = true;
+    e.preventDefault();
+    screen.classList.add('swiping');
+    screen.style.transform = `translateX(${Math.max(0, dx)}px)`;
+  }, { passive: false });
+  const end = () => {
+    if (!screen) return;
+    const s = screen; screen = null;
+    if (!dragging) return;
+    s.classList.remove('swiping'); s.classList.add('swipe-settle');
+    const back = shouldGoBack(dx, dy, Date.now() - startAt);
+    s.style.transform = back ? 'translateX(100%)' : '';
+    setTimeout(() => { s.classList.remove('swipe-settle'); s.style.transform = ''; if (back) shell.back(); }, 190);
+  };
+  doc.addEventListener('touchend', end);
+  doc.addEventListener('touchcancel', end);
+}

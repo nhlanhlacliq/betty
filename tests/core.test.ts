@@ -1200,6 +1200,10 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(pullState(1000).offset, 90, 'the pill stops following'); assert.equal(pullState(-30).offset, 0);
   assert.equal(shouldClose(120, 600), true, 'dragged far'); assert.equal(shouldClose(60, 600), false, 'not far, slow: snaps back');
   assert.equal(shouldClose(60, 80), true, 'a quick flick'); assert.equal(shouldClose(30, 10), false, 'a twitch');
+  const { shouldGoBack, BACK_SCREENS } = await import('../src/ui/gestures');
+  assert.equal(shouldGoBack(120, 10, 500), true); assert.equal(shouldGoBack(60, 5, 500), false, 'not far, slow');
+  assert.equal(shouldGoBack(60, 5, 60), true, 'a quick flick'); assert.equal(shouldGoBack(120, 150, 300), false, 'mostly downwards: not a back swipe');
+  assert.ok(BACK_SCREENS.has('story') && !BACK_SCREENS.has('home'), 'only screens that have somewhere to go back to');
 }
 
 // ---- shareable ride card: the line to quote, and home kept private

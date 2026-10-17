@@ -328,6 +328,11 @@ has dynamic content, and a smoke test.
   with no road (rides before tracks were kept, or too short once trimmed) the map scenery shows with a note.
   The ride's weather (`RideRecord.weather`, "partly cloudy, 22 C") is a pill in the map's top corner like the app's
   condition pill: `weatherPill` -> "Partly cloudy · 22°C" with a drawn sun/cloud/rain/storm/fog glyph.
+- Swipe back (2026-10-17, `mountSwipeBack`): from within 36 px of the left edge on a ride's story, the chat and the
+  Workshop (`BACK_SCREENS`), the screen follows the finger and goes back past 90 px or a quick flick.
+- No sideways scrolling: Explore and Garage scrolled left/right (Explore's tabs reach past the page padding; Garage's
+  dropdowns had a fixed width). `.screen` clips sideways and cards/controls shrink to fit; Explore's tab row still
+  scrolls on its own. Not measured on a phone here (no browser): if a screen still moves sideways, find what is wide.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
@@ -806,6 +811,32 @@ stage 3 command path (`parseCommand` -> carried out on the phone -> instant repl
 - Open questions for the owner before building: which presets and what is in each; whether a voice change lasts
   only for this ride or until changed back.
 
+## Route planning (BUILT 2026-10-17; UNVERIFIED ON A RIDE)
+
+Where to? lives in the ride-mode sheet ("How are we riding?"): one box takes places separated by commas ("Clarens",
+"Heidelberg, Villiers, Clarens", "... then ...") or his shared Google Maps directions link, a "Twisty roads (thrilling
+route)" tick, Plan. `ui/RoutePlanner.ts` posts to `api/route.ts` with his position (the ride's, or one GPS read):
+- Link: only maps.app.goo.gl/goo.gl short links are fetched (redirect: manual, SSRF guard) and only Google Maps
+  /maps/dir/ URLs parsed (`parseGoogleMapsDir`: "lat,lon" segments = dragged-through points, `named: false`; names
+  get their coordinates from the !3d/!4d pairs in order). The link itself is kept as the "Open in Google Maps" link.
+- Typed places: TomTom Search, towns first (idxSet=Geo, then everything), each biased to the stop before, and
+  `pickResult` prefers an exact name and a town over a suburb ("Clarens" from Edenvale was "Clarens Park, Edenvale").
+  A Google Maps link is built for the turns (about 9 waypoints).
+- TomTom calculateRoute, travelMode=motorcycle, traffic, fastest or thrilling (hilliness normal, windingness high),
+  from his position unless he is within 300 m of the first stop; up to 40 stops; points thinned to 800. Loops are
+  named "Loop from <start>". Checked live: his link = Loop from BMW Motorrad Fourways, 255 km / 204 min from home;
+  "Clarens" thrilling 339 km / 6 h; "Heidelberg, Villiers, Clarens" 307 km.
+The route is kept on the phone (`betty.route.v1`, in the backup) until "Clear route". The home map shows it instead
+of the last ride (dotted line, named stops as yellow pins), and the mode title reads "Free ride · <route>".
+On the ride (`core/Route.ts`, pure): `routeProgress` finds him on the line (searching near the last index first, so a
+loop's finish is not its start), gives km and minutes left (planned time scaled by distance), the next NAMED stop and
+how far off the line he is. TriggerEngine: `off_route` P2 (over 0.4 km off for 20 s at 15 km/h+, once until back
+under 0.15 km; she must not give directions, Google Maps does), `route_stop` P2 (a named stop within 1 km, once
+each), `route_arrived` P2 (under 0.3 km left and past halfway). The briefing and his answers get `describeRoute`. Ride
+map: the route dotted under the track; glance card "Your route: 212 km · 2 h 40, Villiers in 35 km" or "Off your
+route". Not built yet from the plan: weather along the route at arrival time, fuel stops in range, stories fetched
+ahead for towns on the route.
+
 ## Backlog: what the new app layout makes possible (owner, 2026-10-17: "all good, store them"; NONE BUILT)
 
 Ideas that build on the stored ride tracks (`core/Track`, `betty.tracks.v1`), the map (`ui/mapView`), Explore, the
@@ -823,8 +854,8 @@ From Explore:
 5. Explore as a map: area stories, Wikipedia places and marked spots as pins; tap one and she tells it, at home.
 6. Stories you missed: area stories researched but not told on the ride, saved to play later.
 From the empty "Where to?" slot (needs ROUTE PLANNING, see below):
-7. Route awareness lite: a destination gives weather where he will be in 30 min, fuel stops in range, stories
-   researched ahead, distance and time left.
+7. Route awareness lite: distance and time left, stops, off route: BUILT (see Route planning). Still to do: weather
+   where he will be, fuel stops in range, stories researched ahead.
 From chat outside a ride:
 8. Plan a ride with her at home ("a breakfast run, two hours, twisty roads"): web search plus his past tracks;
    needs route planning to turn the plan into a route.

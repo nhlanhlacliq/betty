@@ -447,3 +447,17 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .route-summary small { color: #7d857b; font-size: 12px; line-height: 1.45; }
 .route-summary .dialog-actions { margin-top: 8px; }
 .route-summary[hidden] { display: none; }
+
+/* No sideways scrolling on any screen (Explore and Garage scrolled left/right, 2026-10-17): the Explore tabs reach
+   past the page padding on purpose and long dropdowns had a fixed width. Screens clip sideways, cards and their
+   controls shrink to fit; the Explore tabs keep their own sideways scroll. */
+.screen { overflow-x: hidden; }
+.page-grid, .settings-card, .setting, .setting > div, .journey-list, .explore-list { min-width: 0; max-width: 100%; }
+.setting.stack select, .setting.stack input[type=text] { width: 100%; max-width: 100%; }
+.setting select, .setting input[type=text] { max-width: 55%; }
+.setting.stack select { max-width: 100%; }
+.settings-card img, .settings-card svg, .settings-card pre { max-width: 100%; }
+
+/* Swipe from the left edge to go back (ui/gestures.ts): the screen follows the finger */
+.screen.swiping { transition: none; box-shadow: -8px 0 24px #20302a22; }
+.screen.swipe-settle { transition: transform .2s ease; }
