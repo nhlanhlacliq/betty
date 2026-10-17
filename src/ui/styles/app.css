@@ -510,3 +510,7 @@ html, body { overscroll-behavior: none; }
 .island-dots i { width: 5px; height: 5px; border-radius: 50%; background: #ffffff40; }
 .island-dots i.on { background: #fffdf1; }
 .island-dots[hidden] { display: none; }
+
+/* Let Betty know me (ui/KnowMe.ts) */
+.know-ask { margin: 8px 0 4px; padding: 12px 14px; border-left: 3px solid var(--accent); background: #fffdf3; border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--ink); }
+.know-text { width: 100%; margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid #e3e8da; background: #fff; color: var(--ink); font: inherit; font-size: 16px; line-height: 1.45; resize: vertical; }

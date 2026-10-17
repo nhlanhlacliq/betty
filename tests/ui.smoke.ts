@@ -478,7 +478,7 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; }
   }
 
-  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'minititle', 'glanceaction', 'glancedots', 'glanceprogress', 'islandcompact', 'islandtap', 'islandbrowse', 'islandactions', 'islandprogress', 'upaheadlist', 'routeform', 'routeinput', 'routethrilling', 'routeplan', 'routesummary', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'minititle', 'glanceaction', 'glancedots', 'glanceprogress', 'islandcompact', 'islandtap', 'islandbrowse', 'islandactions', 'islandprogress', 'upaheadlist', 'knowme', 'knowprofile', 'knowdistil', 'routeform', 'routeinput', 'routethrilling', 'routeplan', 'routesummary', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered
@@ -861,6 +861,28 @@ resetConfig();
   assert.match(d.getElementById('routestats')!.textContent!, /307 km · about 3 h 19 · twisty roads · via Heidelberg/);
   d.getElementById('routeclear')!.dispatchEvent(new w.window.Event('click'));
   assert.equal(RouteStore.get(), null); assert.equal(changes.at(-1), null);
+  delete (globalThis as any).localStorage;
+}
+// ---- Let Betty know me: paste, distil, read, save; switch it off; forget
+{
+  const { mountKnowMe, ProfileStore } = await import('../src/ui/KnowMe');
+  const mem = new Map<string, string>();
+  (globalThis as any).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+  const k = new JSDOM(`<!doctype html><input type="checkbox" id="knowme" /><small id="knowsub"></small><blockquote id="knowask"></blockquote><button id="knowcopy"></button>
+    <textarea id="knowsource"></textarea><input type="file" id="knowfile" /><button id="knowdistil">Distil</button><textarea id="knowprofile"></textarea><button id="knowsave"></button><button id="knowforget"></button>`);
+  const d = k.window.document; let on = false; let changes = 0; const sent: any[] = [];
+  mountKnowMe(d, { enabled: () => on, setEnabled: (v) => { on = v; }, changed: () => { changes++; }, toast() {}, copy: async () => true,
+    fetcher: (async (_u: any, init: any) => { sent.push(JSON.parse(init.body)); return new Response(JSON.stringify({ profile: 'Rides a G 310 GS; loves history.' })); }) as typeof fetch });
+  assert.match(d.getElementById('knowask')!.textContent!, /Summarise what you know about me/);
+  (d.getElementById('knowsource') as HTMLTextAreaElement).value = 'ChatGPT says: he rides a BMW G 310 GS in Gauteng and loves history.';
+  d.getElementById('knowdistil')!.dispatchEvent(new k.window.Event('click'));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sent.length, 1); assert.equal((d.getElementById('knowprofile') as HTMLTextAreaElement).value, 'Rides a G 310 GS; loves history.');
+  assert.equal(ProfileStore.get(), null, 'nothing kept until he saves');
+  d.getElementById('knowsave')!.dispatchEvent(new k.window.Event('click'));
+  assert.equal(ProfileStore.get(), 'Rides a G 310 GS; loves history.'); assert.equal(on, true, 'saving switches it on'); assert.ok(changes >= 1);
+  d.getElementById('knowforget')!.dispatchEvent(new k.window.Event('click'));
+  assert.equal(ProfileStore.get(), null);
   delete (globalThis as any).localStorage;
 }
 console.log('ui smoke tests passed');

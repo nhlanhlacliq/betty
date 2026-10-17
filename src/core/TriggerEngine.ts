@@ -1,6 +1,7 @@
 import { CONFIG, cleanBikeName } from '../config/betty';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
 import { PlannedRoute, RouteProgress, describeRoute, minutesText, routeProgress } from './Route';
+import { profileUse } from './Profile';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
@@ -114,6 +115,9 @@ export class TriggerEngine {
   setToldNotes(ids: string[]) { this.toldNotes = new Set(ids); }
   toldNoteIds(): string[] { return [...this.toldNotes]; }
   private freshNote(s: BikeState) { return s.areaNotes.find((n) => !this.toldNotes.has(n.id)) ?? null; }
+  /** His rider profile (null = none, or "Let Betty know me" is off) */
+  private profile: string | null = null;
+  setProfile(text: string | null) { this.profile = text && text.trim() ? text.trim() : null; }
   /** The planned route (api/route.ts) and where he is on it, updated each evaluate */
   private route: PlannedRoute | null = null;
   private progress: RouteProgress | null = null;
@@ -194,7 +198,8 @@ export class TriggerEngine {
     mark?.();
     const label = EVENT_LABELS[id];
     if (label) this.stats.noteEvent(label);
-    return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now() };
+    const use = this.profile && context ? profileUse(id, this.rng) : null;
+    return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now(), ...(use ? { profile: { text: this.profile!, use } } : {}) };
   }
 
   evaluate(s: BikeState): TriggerEvent[] {

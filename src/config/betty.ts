@@ -50,6 +50,8 @@ export interface Config {
   headsetButtons: boolean;
   /** Ride screen: show the one glanceable cue (rain, range, traffic, the area) under Betty. Off = voice and orb only. */
   showGlance: boolean;
+  /** Let Betty know me: use his rider profile (ui/KnowMe.ts, core/Profile.ts), if he has given her one */
+  useProfile: boolean;
   /**
    * The island (the card at the top of the ride map; owner, 2026-10-17). compact: a small pill that grows for ~10 s
    * when something new comes up; tapExpand: tap to grow/shrink it; browse: swipe sideways through the other cues;
@@ -117,6 +119,7 @@ export const DEFAULT_CONFIG: Config = {
   chirpStandIn: 'Zephyr', // owner, 2026-10-17: Chirp's default voice
   headsetButtons: false,
   showGlance: true,
+  useProfile: true,
   island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false },
   micDeviceId: '',
   micLabel: '',

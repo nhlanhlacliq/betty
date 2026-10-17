@@ -167,6 +167,8 @@
             <div class="setting"><div><p>Character <b class="val" id="blendval"></b></p><small>JARVIS (polished) → TARS (blunt)</small></div><input type="range" id="blend" min="0" max="100" step="10" aria-label="Character blend" /></div>
             <div class="setting"><div><p>Betty's look</p><small>The yellow companion, or your own picture or GIF, cropped to a circle.</small></div><div class="orb mini resting" id="avatarpreview" aria-hidden="true"></div></div>
             <div class="setting buttons"><label class="secondary file-button">Choose a picture or GIF<input type="file" id="avatarfile" accept="image/*" /></label><button id="avatarreset" class="secondary" type="button" hidden>Use the default</button></div>
+            <div class="setting"><div><p>Let Betty know me</p><small id="knowsub"></small></div><input type="checkbox" id="knowme" aria-label="Let Betty know me" /></div>
+            <button class="text-button" type="button" data-sheet-open="knowme">What she knows about you <i data-icon="arrow" class="sm"></i></button>
             <button class="text-button" id="sample" type="button">Hear Betty's voice <i data-icon="arrow" class="sm"></i></button>
           </section>
 
@@ -326,6 +328,23 @@
           <p class="sub" id="upaheadsub"></p>
           <div id="upaheadlist"></div>
           <div class="dialog-actions"><a class="secondary" id="upaheadmaps" target="_blank" rel="noopener">Open in Google Maps</a><button class="primary" type="button" data-sheet-close>Back to the road</button></div>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="knowme" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Let Betty know you">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <p class="eyebrow">Let Betty know you</p>
+          <h2>A little about you.</h2>
+          <p class="sheet-note">Ask ChatGPT or Claude this, then paste the answer below:</p>
+          <blockquote class="know-ask" id="knowask"></blockquote>
+          <button class="text-button" id="knowcopy" type="button">Copy the question <i data-icon="arrow" class="sm"></i></button>
+          <textarea id="knowsource" class="know-text" rows="5" placeholder="Paste the answer, your own notes, or load a file"></textarea>
+          <div class="setting buttons"><label class="secondary file-button">Load a file<input type="file" id="knowfile" accept=".txt,.md,.json,text/plain,application/json" /></label><button class="primary" id="knowdistil" type="button">Distil</button></div>
+          <p class="eyebrow" style="margin-top:14px">What she knows</p>
+          <textarea id="knowprofile" class="know-text" rows="7" placeholder="Nothing yet"></textarea>
+          <p class="sheet-note">Read it, trim anything you would rather she did not use. It stays on this phone and goes with her lines to Claude. She uses it lightly: now and then in a remark, to pick stories you would like, and when you ask her something.</p>
+          <div class="dialog-actions"><button class="secondary" id="knowforget" type="button">Forget it</button><button class="primary" id="knowsave" type="button">Save</button></div>
         </section>
       </div>
       <div class="sheet-backdrop" data-sheet="end" hidden>

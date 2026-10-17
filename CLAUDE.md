@@ -877,6 +877,23 @@ map: the route dotted under the track; glance card "Your route: 212 km · 2 h 40
 route". Not built yet from the plan: weather along the route at arrival time, fuel stops in range, stories fetched
 ahead for towns on the route.
 
+## Let Betty know me: rider profile (BUILT 2026-10-17; UNVERIFIED ON A RIDE)
+
+Owner: "export context from Claude or ChatGPT ... incorporate it ... like a bit of salt in an already good meal"; a
+slider was his idea but he was unsure, so the dose is fixed in code instead (one constant). Garage > Betty's
+personality: "Let Betty know me" switch (`CONFIG.useProfile`, default on; does nothing without a profile) and "What
+she knows about you" sheet: the question to ask ChatGPT/Claude (`ASK_ABOUT_ME`, Copy), a box to paste the answer or
+load a .txt/.md/.json (a zip says to unzip and pick conversations.json), Distil -> `api/profile.ts` (Haiku, once;
+for an export only HIS words: Claude `chat_messages` sender human, ChatGPT `mapping` author user; capped at 60k
+characters; told to drop health, money, relationships, exact addresses, other people) -> an editable profile of at
+most ~1,400 characters, Save / Forget. Without the server a short text can be used as it is. Kept in
+`betty.profile.v1` (in the backup). Dose per line (`core/Profile.ts` `profileUse`, decided in TriggerEngine.force with
+its rng): answers, briefing and sign-off always ("answer"); banter one in four (`PROFILE_BANTER_SHARE` 0.25,
+"remark": only if it fits, never forced, not repeated in a ride); tour guide and area stories only to pick what he'd
+find interesting ("interests"); alerts and time checks never. `profileNote` adds it under the situation with "never
+say you were told this, never quote it, never list it". Checked live: a sample distilled well; "where should I stop
+for coffee out west" used it naturally.
+
 ## Backlog: what the new app layout makes possible (owner, 2026-10-17: "all good, store them"; NONE BUILT)
 
 Ideas that build on the stored ride tracks (`core/Track`, `betty.tracks.v1`), the map (`ui/mapView`), Explore, the

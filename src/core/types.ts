@@ -103,6 +103,8 @@ export interface TriggerEvent {
   /** What the rider actually said, when this is his question (typed in the chat panel now, spoken later) */
   riderSaid?: string;
   createdAt: number;
+  /** What she knows about him (his rider profile), when this line may use it, and how (core/Profile.ts) */
+  profile?: { text: string; use: 'answer' | 'remark' | 'interests' };
 }
 
 export interface AreaInfo { suburb: string | null; town: string | null; region: string | null }

@@ -1229,6 +1229,33 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- rider profile: a pinch of salt, decided per line
+{
+  resetConfig();
+  const { profileUse, profileNote, PROFILE_BANTER_SHARE } = await import('../src/core/Profile');
+  const { ownWords } = await import('../api/profile');
+  assert.equal(profileUse('rider_query', () => 0.9), 'answer'); assert.equal(profileUse('startup', () => 0.9), 'answer');
+  assert.equal(profileUse('ambient_banter', () => PROFILE_BANTER_SHARE - 0.01), 'remark'); assert.equal(profileUse('ambient_banter', () => PROFILE_BANTER_SHARE + 0.01), null, 'most banter leaves him out');
+  assert.equal(profileUse('area_story', () => 0), 'interests'); assert.equal(profileUse('rain_soon', () => 0), null, 'alerts never'); assert.equal(profileUse('ride_milestone', () => 0), null);
+  assert.match(profileNote({ text: 'Loves history.', use: 'interests' }), /ONLY to choose which part of the notes/);
+  assert.match(profileNote({ text: 'Loves history.', use: 'remark' }), /only if it fits naturally/); assert.match(profileNote({ text: 'x', use: 'answer' }), /Never say you were told this/);
+  // the engine attaches it as decided, and the request carries it; none without a profile
+  const e = new TriggerEngine(now, () => 0.1);
+  assert.equal(e.ask('hi', initialState()).profile, undefined);
+  e.setProfile('Nhlanhla, rides a G 310 GS around Gauteng, loves history and breakfast runs.');
+  const ask = e.ask('plan me a breakfast run', initialState());
+  assert.equal(ask.profile!.use, 'answer');
+  assert.match(buildClaudeRequest(ask, initialState(), []).messages.at(-1)!.content as string, /What you know about him \(from what he chose to share\): Nhlanhla, rides a G 310 GS/);
+  assert.equal(e.force('rain_soon', initialState()).profile, undefined, 'alerts never');
+  e.setProfile(null); assert.equal(e.ask('hi', initialState()).profile, undefined);
+  // exports: only his own words
+  const claudeExport = JSON.stringify([{ name: 'x', chat_messages: [{ sender: 'human', text: 'I ride a BMW G 310 GS.' }, { sender: 'assistant', text: 'Nice bike!' }] }]);
+  assert.equal(ownWords(claudeExport), 'I ride a BMW G 310 GS.');
+  const gptExport = JSON.stringify([{ mapping: { a: { message: { author: { role: 'user' }, content: { parts: ['I love Clarens.'] } } }, b: { message: { author: { role: 'assistant' }, content: { parts: ['Lovely town.'] } } } } }]);
+  assert.equal(ownWords(gptExport), 'I love Clarens.');
+  assert.equal(ownWords('Just some notes about me.'), 'Just some notes about me.');
+}
+
 // ---- slim panels: a swipe down slims, up brings it back, sideways or short does nothing
 {
   const { dockSwipe } = await import('../src/ui/dockSwipe');

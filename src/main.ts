@@ -54,6 +54,7 @@ import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
+import { ProfileStore, mountKnowMe } from './ui/KnowMe';
 import { stopsAhead } from './core/Route';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
@@ -475,6 +476,14 @@ const home = mountHomeScreen(document, shell, {
   rides: () => RideLog.load(), track: (rideId) => TrackStore.get(rideId), home: () => CONFIG.feeds.fallbackLocation,
   route: () => RouteStore.get(),
 });
+// Let Betty know me: his rider profile (Garage), passed to a running ride whenever it changes.
+mountKnowMe(document, {
+  enabled: () => CONFIG.useProfile,
+  setEnabled: (on) => { CONFIG.useProfile = on; saveConfig(); },
+  changed: () => rig?.engine.setProfile(CONFIG.useProfile ? ProfileStore.get() : null),
+  toast: (m, err) => shell.toast(m, err),
+  copy: (t) => copyText(t),
+});
 // Where to? A Google Maps link or typed places, planned by TomTom on Betty's server; Betty follows it on the ride.
 mountRoutePlanner(document, {
   position: async () => {
@@ -631,6 +640,7 @@ async function beginRide(desk: boolean) {
   engine.setMemory(RiderMemoryStore.load());
   engine.setToldNotes(ToldStore.load());
   engine.setRoute(RouteStore.get()); // the route he planned, if any
+  engine.setProfile(CONFIG.useProfile ? ProfileStore.get() : null); // what he chose to share, used lightly
   // History and culture of the area (researched on Betty's server, so only when deployed with it).
   // Each change of what the area feed is doing goes in the saved log too ("researching Germiston", "ok, ...").
   if (SERVER) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { if (m !== feed.areas) { newLine('[areas]', m); renderLog(); } feed.areas = m; }));

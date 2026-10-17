@@ -1,6 +1,7 @@
 import { CONFIG, bettySystemPrompt, cleanRiderName, FLAVOUR_PROMPTS, SILENT_TOKEN, VOICE_TAGS, sentencesFor } from '../config/betty';
 import { clockNote } from './ambient';
 import { BikeState, TriggerEvent, UNPROMPTED_IDS } from './types';
+import { profileNote } from './Profile';
 
 /** What Betty will say (empty text = say nothing) and where the words came from. */
 export interface Phrase {
@@ -154,7 +155,7 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
     system: flavour ? `${base}\n\n${flavour}` : base,
     messages: [...history, {
       role: 'user' as const,
-      content: `Situation: ${ev.context}${bike}\nAlready said this ride: ${JSON.stringify(spoken)}`,
+      content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}`,
     }],
   };
 }
