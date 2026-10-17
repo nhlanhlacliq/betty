@@ -940,6 +940,10 @@ arrival time and weather, fuel in range and stories waiting; her voice carries m
   230 km, about 179 min, 9 legs (19, 12, 35, 39, 20, 41, 7, 32, 24 km), 2,613 shape points. So: parse path segments,
   take coordinates as they are, take a name's coordinates from the !3d/!4d pairs in order (or TomTom Search), route.
 - To check before building: TomTom's stop limit per route (10 worked), and its option to follow a given line.
+- HIS SECOND LINK (iPhone share, g_st=ic, 2026-10-17) was refused as "not a route": iPhone shares the OLDER form,
+  maps.google.com/?saddr=<start address>&daddr=<lat,lon>+to:<lat,lon>&dirflg=d. `parseLegacy` reads it (addresses are
+  geocoded whole, shown by their first part). A dropped-pin destination is named by TomTom reverse geocoding ("near
+  Mandela Section"). Checked: from home 68.8 km / 65 min vs Google's 68 km / 1 h 04.
 
 ## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
 

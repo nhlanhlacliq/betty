@@ -17,7 +17,11 @@ const MAX_POINTS = 800;
 
 /** Only these hosts are ever fetched or parsed: a pasted link must not make the server fetch anything else. */
 const SHORT_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl']);
-const isGoogleMaps = (u: URL) => /(^|\.)google\.[a-z.]+$/.test(u.hostname) && u.pathname.startsWith('/maps');
+/**
+ * A Google Maps route URL: the new form /maps/dir/A/B/C, or the older form iPhone shares (2026-10-17, his second link):
+ * maps.google.com/?saddr=<start>&daddr=<stop>+to:<stop>&dirflg=d.
+ */
+const isGoogleMaps = (u: URL) => /(^|\.)google\.[a-z.]+$/.test(u.hostname) && (u.pathname.startsWith('/maps') || u.searchParams.has('daddr'));
 
 /**
  * The stops in a full Google Maps directions URL, in order: /maps/dir/<stop>/<stop>/.../data=...
@@ -27,6 +31,7 @@ const isGoogleMaps = (u: URL) => /(^|\.)google\.[a-z.]+$/.test(u.hostname) && u.
  */
 export function parseGoogleMapsDir(full: string): Stop[] {
   const u = new URL(full);
+  if (u.searchParams.has('daddr')) return parseLegacy(u);
   const m = u.pathname.match(/\/maps\/dir\/(.*)$/);
   if (!m) return [];
   const segs = m[1].split('/');
@@ -42,6 +47,20 @@ export function parseGoogleMapsDir(full: string): Stop[] {
     if (c) { stops.push({ name: `${Number(c[1]).toFixed(3)}, ${Number(c[2]).toFixed(3)}`, lat: Number(c[1]), lon: Number(c[2]), named: false }); continue; }
     const p = pairs[named++];
     stops.push({ name: s, lat: p ? p.lat : NaN, lon: p ? p.lon : NaN, named: true });
+  }
+  return stops;
+}
+
+/** The older form: saddr (start, often his home address) and daddr ("A to:B to:C"); "lat,lon" or addresses. */
+function parseLegacy(u: URL): Stop[] {
+  const parts = [u.searchParams.get('saddr') ?? '', ...(u.searchParams.get('daddr') ?? '').split(/\s*\+?to:\s*/)];
+  const stops: Stop[] = [];
+  for (const raw of parts) {
+    const s = raw.replace(/\+/g, ' ').trim();
+    if (!s || /^(my location|current location)$/i.test(s)) continue;
+    const c = s.match(COORD);
+    if (c) stops.push({ name: `${Number(c[1]).toFixed(3)}, ${Number(c[2]).toFixed(3)}`, lat: Number(c[1]), lon: Number(c[2]), named: false });
+    else stops.push({ name: s.split(',')[0].trim(), lat: NaN, lon: NaN, named: true, address: s } as Stop & { address: string });
   }
   return stops;
 }
@@ -89,6 +108,15 @@ async function geocode(q: string, key: string, near: { lat: number; lon: number 
   throw new Error(`Could not find "${q}".`);
 }
 
+/** A dropped pin's place name (TomTom reverse geocoding): the suburb or town, for naming the route. */
+async function placeName(p: { lat: number; lon: number }, key: string, fetcher: typeof fetch): Promise<string | null> {
+  try {
+    const res = await fetcher(`https://api.tomtom.com/search/2/reverseGeocode/${p.lat},${p.lon}.json?key=${key}`);
+    const a: any = (await res.json().catch(() => ({})))?.addresses?.[0]?.address;
+    return a?.municipalitySubdivision || a?.municipality || a?.countrySecondarySubdivision || null;
+  } catch { return null; }
+}
+
 const km = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
   const R = 6371, d = Math.PI / 180;
   const x = Math.sin(((b.lat - a.lat) * d) / 2) ** 2 + Math.cos(a.lat * d) * Math.cos(b.lat * d) * Math.sin(((b.lon - a.lon) * d) / 2) ** 2;
@@ -126,7 +154,10 @@ export async function POST(req: Request): Promise<Response> {
     // One at a time, so each lookup is biased towards the stop before it.
     let near = from;
     for (let i = 0; i < stops.length; i++) {
-      if (!Number.isFinite(stops[i].lat)) stops[i] = await geocode(stops[i].name, key, near, fetch);
+      if (!Number.isFinite(stops[i].lat)) {
+        const found = await geocode((stops[i] as Stop & { address?: string }).address ?? stops[i].name, key, near, fetch);
+        stops[i] = { ...found, name: (stops[i] as Stop & { address?: string }).address ? stops[i].name : found.name };
+      }
       near = stops[i];
     }
     if (!mapsUrl) mapsUrl = mapsUrlFor(stops);
@@ -146,8 +177,10 @@ export async function POST(req: Request): Promise<Response> {
     const s = route.summary;
     const last = stops[stops.length - 1];
     const loop = stops.length > 1 && km(stops[0], last) < 0.3;
+    // A dropped pin as the destination gets its place name ("-26.282, 27.699" -> "near Lenasia South").
+    const pinName = !loop && !last.named ? await placeName(last, key, fetch) : null;
     return json({
-      name: loop ? `Loop from ${stops[0].name}` : last.name,
+      name: loop ? `Loop from ${stops[0].name}` : pinName ? `near ${pinName}` : last.name,
       stops, km: Math.round(s.lengthInMeters / 100) / 10, minutes: Math.round(s.travelTimeInSeconds / 60),
       delayMin: Math.round((s.trafficDelayInSeconds ?? 0) / 60),
       legs: route.legs.map((l: any) => ({ km: Math.round(l.summary.lengthInMeters / 100) / 10, minutes: Math.round(l.summary.travelTimeInSeconds / 60) })),

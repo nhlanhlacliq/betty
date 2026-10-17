@@ -1326,6 +1326,13 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     ['BMW Motorrad Fourways', -26.0208531, 28.0022658, true], ['-25.943, 27.880', -25.943222, 27.879599, false],
     ['-25.964, 27.799', -25.9639901, 27.79907, false], ['BMW Motorrad Fourways', -26.0208531, 28.0022658, true]]);
   assert.deepEqual(parseGoogleMapsDir('https://www.google.com/maps/dir//Clarens/').map((x) => [x.name, Number.isNaN(x.lat)]), [['Clarens', true]], 'from here; a name with no coordinates is looked up');
+  // the older form iPhone shares: saddr + daddr "A+to:B"
+  const legacy = 'https://maps.google.com/?geocode=x&daddr=-26.1406890,28.0848845+to:-26.2816160,27.6994360&saddr=60+Cecil+Awret+Rd,+Illiondale,+Edenvale,+1609&dirflg=d&g_st=ic';
+  const ls = parseGoogleMapsDir(legacy);
+  assert.deepEqual(ls.map((x) => [x.name, x.named]), [['60 Cecil Awret Rd', true], ['-26.141, 28.085', false], ['-26.282, 27.699', false]]);
+  assert.equal((ls[0] as any).address, '60 Cecil Awret Rd, Illiondale, Edenvale, 1609', 'the whole address is looked up');
+  const legacyFake = (async () => new Response(null, { status: 302, headers: { location: legacy } })) as unknown as typeof fetch;
+  assert.equal(await resolveLink('https://maps.app.goo.gl/aGLNFQH53FqXtr9j9?g_st=ic', legacyFake), legacy, 'accepted: it is a route');
   // only Google's own short links are ever fetched
   await assert.rejects(resolveLink('https://evil.example/maps'), /Google Maps directions link/);
   await assert.rejects(resolveLink('not a link'), /not a link/);
