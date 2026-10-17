@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'What\'s new now lives in Garage, with a count of new updates on the Garage tab. Opening it marks them read.',
+      'Live traffic is checked every 5 minutes, only on a real ride and only while you are moving (it saves the free TomTom allowance).',
       'Install Betty as an app: on iPhone, Share then Add to Home Screen; on Android, Install app from the browser menu. She has her own icon now, and the app opens even with no signal.',
       'Your data: Garage > Export all data saves everything (rides, logs, memory, stories, settings, her look) to one file; Import a backup on a new phone brings it all back.',
       'Betty\'s look: choose your own picture or GIF in Settings. It is cropped to a circle and moves just like her (GIFs keep animating). "Use the default" brings her back.',

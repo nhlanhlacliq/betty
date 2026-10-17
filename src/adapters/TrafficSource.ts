@@ -21,6 +21,8 @@ export class TrafficSource implements DataSource {
     private provider: TrafficProvider | null,
     private getPos: () => LatLon,
     private onStatus: (msg: string) => void = () => {},
+    /** False while parked: TomTom's free incident allowance is 2,500 a month, so no polls at a stop (owner, 2026-10-17) */
+    private moving: () => boolean = () => true,
   ) {}
 
   start(onUpdate: (p: Partial<BikeState>) => void) {
@@ -38,7 +40,7 @@ export class TrafficSource implements DataSource {
     const now = Date.now();
     const moved = this.lastPos ? haversineKm(this.lastPos, pos) : Infinity;
     const due = now - this.lastAt >= CONFIG.feeds.pollTrafficMs || moved >= 2;
-    if (!force && !due) return;
+    if (!force && (!due || !this.moving())) return;
     this.busy = true;
     try {
       const incidents = await this.provider.fetchIncidents(pos.lat, pos.lon, Math.max(CONFIG.thresholds.trafficRadiusKm, 1));

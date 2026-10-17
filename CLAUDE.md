@@ -308,6 +308,10 @@ has dynamic content, and a smoke test.
   entry plus her picture (base64) in one JSON file, shared through the share sheet (or downloaded); import validates,
   shows what is in it, asks, REPLACES all betty.* entries (other keys untouched), then reloads. Voice clips are not in
   it (made again on demand). Refused during a ride.
+- What's new (2026-10-17): moved from the Workshop to Garage (`ui/WhatsNew.ts`): a card with the unread count, the
+  same count as a badge on the Garage tab, and a sheet listing `src/changelog.ts` with the unread items marked. Seen =
+  how many items he has seen (`betty.seen.v1`; entries are only added at the top); opening the sheet marks all read;
+  a first visit counts only the newest day. Keep writing changelog entries: they now show as a badge.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
@@ -339,6 +343,9 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
   section; section titles and bare lists are stripped. `NearbyPlace.interest` is the article size and `freshPlace`
   takes the richest unmentioned place in range, not the nearest. Requests go one at a time: eight in parallel got
   HTTP 429 in testing. A partly failed read is used but not cached. Checked live for Edenvale and Pretoria.
+- **Traffic polling (owner, 2026-10-17)**: every 5 min (was 2), only on a real ride (no live traffic in desk or
+  simulated sessions: inject from the simulator) and not while parked under 5 km/h (`TrafficSource` `moving`), plus
+  a first look at ride start. Reason: TomTom Traffic Incident Details is 2,500 free a MONTH.
 - **Traffic**: there is no keyless live-traffic-incident API. The real provider is TomTom Traffic Incident Details v5
   (free developer key, set `VITE_TOMTOM_API_KEY`; free-tier limits not confirmed from the docs read, check them).
   LIVE as of 2026-10-09: the owner added the key (in `.env` and in Vercel production env) and the parser
@@ -819,6 +826,25 @@ Destination search through TomTom Search (same key) or Nominatim. Betty does NOT
 the handlebar screen navigates (an "Open in Maps" link with the same destination); Betty uses the route line for
 what is ahead (weather sampled along it at the time he will be there, fuel stations along it, area stories fetched
 for the towns on it in advance, time and distance left, "you have left the route" if he strays far).
+CHECKED 2026-10-17 with the existing TomTom key: motorcycle routing and `routeType=thrilling` (hilliness/windingness
+high) work in South Africa (Edenvale to Clarens: fastest 302 km / ~3 h, thrilling 306 km / ~3 h 50 on twistier roads;
+hilliness/windingness are rejected with any other route type); Search finds "Clarens". Free per MONTH, no card:
+Routing 20,000, Search 2,500, Traffic Incident Details 2,500 (the last is why traffic now polls less, see Feeds).
+Mapbox: Directions 100,000 a month free (third-party sources), no motorcycle profile or twisty option found, needs a
+new account; its strength is real map tiles.
+OWNER'S DIRECTION (2026-10-17): he plans routes in GOOGLE MAPS today. Plan: Mapbox for route PLANNING (a planning map,
+drawn in the app's sketch style if possible), TomTom to FOLLOW the route (traffic, time left, thrilling option). Keep
+the sketch look on the ride screen: the planned route continues the ridden track as a fainter dotted line with a few
+pins (story towns, fuel, rain), the glance card shows the next thing ahead, an "Up ahead" sheet lists towns with
+arrival time and weather, fuel in range and stories waiting; her voice carries most of it. Also wanted:
+- His own route with stops: an ordered list of stops ("Heidelberg, Villiers, Clarens", typed or said), pass-through
+  points vs real stops (breakfast, fuel) that she counts in the arrival time; re-ride a past ride's stored track;
+  saved routes in Journeys.
+- Import from other software: GPX (Calimoto, Kurviger, Scenic, Komoot, REVER, Garmin; Google My Maps via KML). Betty
+  uses the imported line as it is (no re-routing). A shared Google Maps directions link could be parsed for its stops
+  (his planning tool). Turn-by-turn stays with Google Maps (a link takes about 9 stops) or a GPX-following app.
+- To check before building: TomTom's stop limit per route, its option to follow a given line (supporting points),
+  and real files from his apps.
 
 ## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
 

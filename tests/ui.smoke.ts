@@ -201,7 +201,7 @@ resetConfig();
     assert.deepEqual(shown(), ['home'], 'opens on home, one screen at a time');
     assert.equal(doc.getElementById('homeheadline')!.textContent, 'The road is yours.');
     assert.equal(doc.getElementById('profileinitial')!.textContent, 'S', 'his initial on the avatar');
-    assert.deepEqual([...doc.querySelectorAll('.tab-bar [data-nav]')].map((b) => b.textContent!.trim()), ['Ride', 'Journeys', 'Explore', 'Garage'], 'four tabs');
+    assert.deepEqual([...doc.querySelectorAll('.tab-bar [data-nav]')].map((b) => b.querySelector('span')!.textContent!.trim()), ['Ride', 'Journeys', 'Explore', 'Garage'], 'four tabs');
     assert.ok(!doc.querySelector('i[data-icon]'), 'every icon placeholder became an SVG');
     click(doc.querySelector('[data-nav="journeys"]')!);
     assert.deepEqual(shown(), ['journeys']); assert.ok(doc.querySelector('[data-nav="journeys"]')!.classList.contains('active'));
@@ -478,7 +478,7 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; }
   }
 
-  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'exportdata', 'importdata', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered
@@ -493,8 +493,8 @@ resetConfig();
   cn.value = 'Sulafat'; cn.dispatchEvent(new page.window.Event('change'));
   cv.value = 'off'; cv.dispatchEvent(new page.window.Event('change'));
   assert.equal(CONFIG.cloudVoiceName, 'Sulafat'); assert.equal(CONFIG.cloudVoice, 'off'); assert.equal(cn.disabled, true);
-  assert.match(doc.getElementById('changelogpanel')!.textContent!, /WHAT'S NEW \(this version: dev build\)/);
-  assert.match(doc.getElementById('changelogpanel')!.textContent!, /mark this spot/);
+  assert.match(doc.getElementById('whatsnewversion')!.textContent!, /Development build/);
+  assert.match(doc.getElementById('whatsnewlist')!.textContent!, /mark this spot/);
   resetConfig();
 }
 
@@ -784,5 +784,31 @@ resetConfig();
   assert.equal(await newPic.blob!.text(), 'GIF89a'); assert.equal(newPic.blob!.type, 'image/gif');
   assert.throws(() => parseBackup('{"hello":1}'), /not a Betty backup/); assert.throws(() => parseBackup('nope'), /not a Betty backup/);
   assert.throws(() => parseBackup(JSON.stringify({ ...b, storage: { 'evil.key': 'x' } })), /damaged/);
+}
+// ---- Garage > What's new: unread count on the card and the tab, cleared by opening it
+{
+  const { unreadCount, totalItems, mountWhatsNew } = await import('../src/ui/WhatsNew');
+  const log = [{ date: 'b', items: ['new one', 'new two'] }, { date: 'a', items: ['old'] }];
+  assert.equal(unreadCount(log, null), 2, 'first visit: only the newest day counts'); assert.equal(unreadCount(log, 1), 2); assert.equal(unreadCount(log, 3), 0);
+  const w = new JSDOM(`<!doctype html><button id="whatsnewopen"></button><small id="whatsnewsub"></small><b id="whatsnewbadge"></b><b id="garagebadge"></b><p id="whatsnewversion"></p><div id="whatsnewlist"></div>`);
+  const d = w.window.document; let seen: number | null = 1;
+  mountWhatsNew(d, { get: () => seen, set: (n) => { seen = n; } }, log, null);
+  assert.equal(d.getElementById('garagebadge')!.textContent, '2'); assert.equal((d.getElementById('garagebadge') as HTMLElement).hidden, false);
+  assert.match(d.getElementById('whatsnewsub')!.textContent!, /2 new updates/);
+  assert.equal(d.querySelectorAll('#whatsnewlist li.new').length, 2, 'the new ones are marked');
+  d.getElementById('whatsnewopen')!.dispatchEvent(new w.window.Event('click'));
+  assert.equal(seen, totalItems(log)); assert.equal((d.getElementById('whatsnewbadge') as HTMLElement).hidden, true); assert.match(d.getElementById('whatsnewsub')!.textContent!, /Up to date/);
+}
+// ---- traffic: every 5 minutes, and not while parked
+{
+  const { TrafficSource } = await import('../src/adapters/TrafficSource');
+  CONFIG.feeds.pollTrafficMs = 300_000;
+  let calls = 0; let moving = false;
+  const src = new TrafficSource({ fetchIncidents: async () => { calls++; return []; } }, () => ({ lat: -26.15, lon: 28.15 }), () => {}, () => moving);
+  await (src as any).tick(true); assert.equal(calls, 1, 'one look at the start');
+  (src as any).lastAt = 0; await (src as any).tick(false); assert.equal(calls, 1, 'parked: no poll even when due');
+  moving = true; await (src as any).tick(false); assert.equal(calls, 2, 'moving and due: poll');
+  await (src as any).tick(false); assert.equal(calls, 2, 'not due again for 5 minutes');
+  resetConfig();
 }
 console.log('ui smoke tests passed');

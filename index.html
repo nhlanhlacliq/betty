@@ -204,6 +204,10 @@
             <button class="workshop-link" type="button" data-go="workshop"><span><b>Workshop</b><small>Simulator, tuning, log, voice test, developer chat and what's new.</small></span><i data-icon="wrench"></i></button>
           </section>
           <section class="settings-card">
+            <h2>What's new</h2>
+            <button class="whatsnew-row" type="button" id="whatsnewopen" data-sheet-open="whatsnew"><span><b>Latest updates</b><small id="whatsnewsub"></small></span><b class="badge" id="whatsnewbadge" hidden></b><i data-icon="arrow" class="sm"></i></button>
+          </section>
+          <section class="settings-card">
             <h2>Your data</h2>
             <div class="setting"><div><p>Moving to a new phone?</p><small>One file with your rides, logs, memory, area stories, settings and Betty's look. Import it on the new phone.</small></div></div>
             <div class="setting buttons"><button id="exportdata" class="secondary" type="button">Export all data</button><label class="secondary file-button">Import a backup<input type="file" id="importdata" accept=".json,application/json" /></label></div>
@@ -239,7 +243,6 @@
           <div id="voicetestpanel"></div>
           <div id="logpanel"></div>
           <div id="memorypanel"></div>
-          <div id="changelogpanel"></div>
         </div>
       </section>
 
@@ -248,7 +251,7 @@
         <button class="tab" type="button" data-go="home" data-nav="home"><i data-icon="ride"></i><span>Ride</span></button>
         <button class="tab" type="button" data-go="journeys" data-nav="journeys"><i data-icon="journeys"></i><span>Journeys</span></button>
         <button class="tab" type="button" data-go="explore" data-nav="explore"><i data-icon="explore"></i><span>Explore</span></button>
-        <button class="tab" type="button" data-go="settings" data-nav="settings"><i data-icon="garage"></i><span>Garage</span></button>
+        <button class="tab" type="button" data-go="settings" data-nav="settings"><i data-icon="garage"></i><span>Garage</span><b class="tab-badge" id="garagebadge" hidden></b></button>
       </nav>
       <div class="home-indicator" aria-hidden="true"></div>
 
@@ -278,6 +281,16 @@
             <button class="secondary" id="filled" type="button" data-filled>Filled up</button>
             <button class="primary" type="button" data-sheet-close>All good</button>
           </div>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="whatsnew" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="What's new">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <p class="eyebrow" id="whatsnewversion"></p>
+          <h2>What's new</h2>
+          <p class="sheet-note">If the newest entry is missing after an update, pull down to reload.</p>
+          <div id="whatsnewlist" class="whatsnew-list"></div>
         </section>
       </div>
       <div class="sheet-backdrop" data-sheet="end" hidden>

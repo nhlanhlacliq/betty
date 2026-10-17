@@ -37,7 +37,7 @@ import { mountTuningPanel } from './ui/TuningPanel';
 import { mountLockScreen } from './ui/LockScreen';
 import { mountLogPanel } from './ui/LogPanel';
 import { mountMemoryPanel } from './ui/MemoryPanel';
-import { mountChangelogPanel } from './ui/ChangelogPanel';
+import { mountWhatsNew } from './ui/WhatsNew';
 import { LineLogStore } from './adapters/LineLogStore';
 import { FuelStore } from './adapters/FuelStore';
 import { HeadsetButtons } from './adapters/HeadsetButtons';
@@ -171,7 +171,7 @@ const journeys = mountJourneysScreen(document, shell, {
   saveRide: (rideId) => { if (!downloadText(`betty-ride-${new Date(rideId).toISOString().slice(0, 16).replace(':', '')}.txt`, rideLogText(rideId))) shell.toast('Saving a file is not available here'); },
   toast: (msg) => shell.toast(msg),
 });
-mountChangelogPanel($('changelogpanel'));
+mountWhatsNew(document); // Garage > What's new, with the unread count on the card and the Garage tab
 
 // Lock screen: covers everything so nothing can be pressed by accident; hold its button to get back.
 /** Set while a ride runs: start or finish talking to Betty. */
@@ -555,7 +555,8 @@ async function beginRide(desk: boolean) {
   const weather = new WeatherSource(pos, (m) => { feed.weather = m; });
   const key = ENV.VITE_TOMTOM_API_KEY as string | undefined;
   const provider = key ? new TomTomTrafficProvider(key) : SERVER ? new TomTomTrafficProvider(null) : null;
-  const traffic = new TrafficSource(provider, pos, (m) => { feed.traffic = m; });
+  // Live traffic only on a real ride (not desk or simulated sessions), every 5 minutes, and not while parked.
+  const traffic = new TrafficSource(real ? provider : null, pos, (m) => { feed.traffic = m; }, () => agg.current.speedKmh >= 5);
 
   const places = new PlaceSource(pos, (m) => { feed.places = m; });
 

@@ -119,7 +119,7 @@ export const DEFAULT_CONFIG: Config = {
   persona: { tars: 50, humour: 75 },
   feeds: {
     pollWeatherMs: 10 * 60 * 1000,
-    pollTrafficMs: 2 * 60 * 1000,
+    pollTrafficMs: 5 * 60 * 1000, // TomTom incident details: 2,500 free a month (owner: every 5 min, only while riding)
     refetchDistanceKm: 5,
     placeRefetchKm: 1.5,
     briefingWaitMs: 10_000,
