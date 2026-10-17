@@ -1237,6 +1237,15 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const { edgeStretch } = await import('../src/ui/gestures');
   assert.equal(edgeStretch(0), 1); assert.ok(edgeStretch(60) > 1.01 && edgeStretch(60) < 1.02, 'a tiny stretch');
   assert.ok(edgeStretch(5000) <= 1.035, 'never more than 3.5%'); assert.equal(edgeStretch(-60), edgeStretch(60));
+  const { rememberSpot, takeSpot } = await import('../src/ui/gestures');
+  const ss = new Map<string, string>();
+  const store = { getItem: (k: string) => ss.get(k) ?? null, setItem: (k: string, v: string) => { ss.set(k, v); }, removeItem: (k: string) => { ss.delete(k); } };
+  rememberSpot({ screen: 'settings', scroll: 640 }, store);
+  assert.deepEqual(takeSpot(store), { screen: 'settings', scroll: 640 }, 'back to Garage, scrolled where it was');
+  assert.equal(takeSpot(store), null, 'once: an ordinary reload later starts at Home');
+  rememberSpot({ screen: 'story', ride: 1760000000000, scroll: 0 }, store); assert.equal(takeSpot(store)!.ride, 1760000000000);
+  rememberSpot({ screen: 'ride', scroll: 0 }, store); assert.equal(takeSpot(store), null, 'not the ride screen: no ride runs after a reload');
+  rememberSpot({ screen: 'story', scroll: 0 }, store); assert.equal(takeSpot(store), null, 'a story needs its ride');
   const { shouldGoBack, BACK_SCREENS } = await import('../src/ui/gestures');
   assert.equal(shouldGoBack(120, 10, 500), true); assert.equal(shouldGoBack(60, 5, 500), false, 'not far, slow');
   assert.equal(shouldGoBack(60, 5, 60), true, 'a quick flick'); assert.equal(shouldGoBack(120, 150, 300), false, 'mostly downwards: not a back swipe');

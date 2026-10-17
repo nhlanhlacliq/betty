@@ -67,6 +67,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       ...r.places.map((p) => `<li>${esc(p)}<small>A sense of place</small></li>`),
       ...r.events.map((e) => `<li>${esc(e)}<small>Flagged on the way</small></li>`),
     ];
+    story.dataset.ride = String(rideId); // which ride is showing (a refresh reopens it)
     story.innerHTML = `<div class="intro"><div><p class="eyebrow">A ride worth remembering</p><h1>Your little escape.</h1></div>
         <button class="text-button" type="button" data-go="journeys">← My journeys</button></div>
       <div class="summary-hero"><div class="orb resting"></div><p class="eyebrow">Saved privately on this phone</p>

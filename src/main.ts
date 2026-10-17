@@ -45,7 +45,7 @@ import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushT
 import { beep } from './adapters/audio';
 import { IncidentMemory } from './adapters/IncidentMemory';
 import { LogEntry, formatLog } from './core/LineLog';
-import { copyText, downloadText, mountShell } from './ui/Shell';
+import { ScreenId, copyText, downloadText, mountShell } from './ui/Shell';
 import { ReadyRow, mountHomeScreen } from './ui/screens/HomeScreen';
 import { RideActions, mountRideScreen } from './ui/screens/RideScreen';
 import { mountJourneysScreen } from './ui/screens/JourneysScreen';
@@ -56,7 +56,7 @@ import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
-import { mountEdgeStretch, mountPullToRefresh, mountSheetDrag, mountSwipeBack } from './ui/gestures';
+import { mountEdgeStretch, mountPullToRefresh, mountSheetDrag, mountSwipeBack, rememberSpot, takeSpot } from './ui/gestures';
 import { SaidLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 
@@ -390,7 +390,13 @@ const sayOutsideRide = (text: string) => {
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
 // Betty's look: the default companion or his own picture/GIF, kept on the phone.
 // Pull down to refresh (never while a ride or desk session runs: a reload would end it); drag a sheet down to close.
-mountPullToRefresh(document, { canRefresh: () => rig === null, reload: () => { saveLog(); location.reload(); } });
+mountPullToRefresh(document, { canRefresh: () => rig === null, reload: () => {
+  saveLog();
+  const el = document.querySelector<HTMLElement>(`[data-screen="${shell.current}"]`);
+  const ride = Number(document.getElementById('story')?.dataset.ride);
+  rememberSpot({ screen: shell.current, scroll: el?.scrollTop ?? 0, ...(shell.current === 'story' && ride ? { ride } : {}) });
+  location.reload();
+} });
 mountSheetDrag(document, shell);
 mountEdgeStretch(document); // a tiny stretch at the top and bottom edges instead of the iPhone's bounce
 mountSwipeBack(document, shell); // swipe from the left edge: back from a ride's story, the chat, the Workshop
@@ -951,3 +957,14 @@ async function stop() {
 startBtn.addEventListener('click', () => { if (riding()) shell.show('ride'); else if (!starting) void start(); });
 endBtn.addEventListener('click', () => { if (endNow) endNow(); else if (riding()) shell.openSheet('end'); });
 $('endconfirm').addEventListener('click', () => { if (endNow) endNow(); else if (rig) void stop(); });
+
+// Last, once every screen is mounted (their onShow handlers fill them in). After a pull-to-refresh: back to the screen he was on (and the same ride's story), scrolled where it was.
+{
+  const spot = takeSpot();
+  if (spot && spot.screen !== 'home') {
+    if (spot.screen === 'story' && spot.ride) { shell.show('journeys'); journeys.open(spot.ride); } // back goes to the journeys
+    else shell.show(spot.screen as ScreenId);
+    const el = document.querySelector<HTMLElement>(`[data-screen="${spot.screen}"]`);
+    if (el) requestAnimationFrame(() => { el.scrollTop = spot.scroll; });
+  }
+}

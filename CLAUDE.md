@@ -354,6 +354,9 @@ has dynamic content, and a smoke test.
 - Edge stretch (2026-10-17, `mountEdgeStretch`): every screen's native bounce is off (overscroll-behavior-y none);
   pulling past the top or bottom stretches the screen up to 3.5% (`edgeStretch`, easing off), pinned at the edge he
   pulls from, springing back. Not on the map, the panels, sheets, fields or the chat list (they have their own).
+- Pull-to-refresh keeps his place (2026-10-17; it went back to Home): `rememberSpot` puts the screen, the open story's
+  ride (`#story[data-ride]`) and the scroll in sessionStorage; `takeSpot` at the very end of main.ts restores it once
+  (home, journeys, story with journeys under it, explore, settings, workshop; never ride/chat).
 - Ending a ride (2026-10-17): a remembered ride's story opens AT ONCE on End & see my story, while she signs off, and
   is re-rendered with her sign-off line after. (It used to wait up to 45 s for the sign-off and only open if he was
   still on the ride screen: "sometimes I don't get the ride summary".) A ride too short to keep (under 3 min and 1 km)

@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Pull to refresh keeps you on the screen you were on, scrolled to the same place.',
       'Ending a ride now opens its summary straight away, while Betty signs off. A ride too short to keep (under 3 minutes and 1 km) tells you so. The screens also stretch a tiny bit at the top and bottom instead of bouncing.',
       'Swipe the panel down on the Ride and riding screens for more map: home keeps the greeting, Betty, your route and Let\'s ride; riding keeps Betty\'s row with the microphone. Swipe up or tap the bar to bring it all back. It remembers how you left it.',
       'Chirp\'s alert voice is Zephyr by default when you use an accent voice like Veda.',

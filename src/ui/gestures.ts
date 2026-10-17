@@ -173,3 +173,25 @@ export function mountEdgeStretch(doc: Document) {
   doc.addEventListener('touchend', end);
   doc.addEventListener('touchcancel', end);
 }
+
+/**
+ * A refresh keeps him where he was (owner, 2026-10-17: it went back to Home): the screen, the ride whose story was
+ * open, and how far down the screen was scrolled, kept in sessionStorage for the one reload.
+ */
+const RESTORE_KEY = 'betty.restore';
+/** Screens that make sense after a reload (the ride and its chat need a ride running). */
+const RESTORABLE = new Set(['home', 'journeys', 'story', 'explore', 'settings', 'workshop']);
+export interface Spot { screen: string; ride?: number; scroll: number }
+
+export function rememberSpot(spot: Spot, store: Pick<Storage, 'setItem'> = sessionStorage) {
+  try { store.setItem(RESTORE_KEY, JSON.stringify(spot)); } catch { /* storage blocked */ }
+}
+/** The spot saved before the reload, once (it is removed as it is read); null if none or not restorable. */
+export function takeSpot(store: Pick<Storage, 'getItem' | 'removeItem'> = sessionStorage): Spot | null {
+  try {
+    const raw = store.getItem(RESTORE_KEY);
+    store.removeItem(RESTORE_KEY);
+    const s = raw ? JSON.parse(raw) : null;
+    return s && RESTORABLE.has(s.screen) && (s.screen !== 'story' || Number.isFinite(s.ride)) ? s : null;
+  } catch { return null; }
+}
