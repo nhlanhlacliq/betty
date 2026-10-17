@@ -292,6 +292,11 @@ has dynamic content, and a smoke test.
 - My journeys: totals, rides, a ride's story (map of the road taken, moments, every line, copy/save the log). Explore:
   marked spots, notes, area stories (tabs). Garage: personality (narration presets, humour, JARVIS/TARS, visual
   companion), voices, names, fuel range, OBD, headset buttons, Workshop link.
+- Betty's look (2026-10-17): Settings > "Choose a picture or GIF" (`ui/avatar.ts`). Kept on the phone in IndexedDB
+  (`betty-avatar`), never uploaded. GIF/WebP/APNG kept as they are (up to 6 MB, so they stay animated); still photos
+  are centre-cropped and shrunk to 320 px JPEG. `applyAvatar` sets `--orb-image` and `.has-avatar` on <html>; app.css
+  then shows the picture in every orb as a true circle with the same sway/breathing (`breathe-round`: the companion's
+  rotate/scale without the blob reshaping), speaking pace, quiet fade and listening ring; the eyes are hidden.
 
 ## Simulator and tuning (dev tools, ship with the app)
 
