@@ -392,6 +392,10 @@ has dynamic content, and a smoke test.
   below, each once at the middle of its run, at most 6 spread along; `labelsSvg` puts each name above or below its dot,
   drops overlaps and anything under the weather pill (`avoid`). `api/area` now strips "City of" / "Local
   Municipality" from every name (Westonaria was read out as "Westonaria Local Municipality").
+  The ride's STORY map shows them too (owner: "so it doesn't have to fetch those when sharing"): `prepareCard` returns
+  the fetch promise and the story map is repainted when it lands (`mapExtras`, every name: the story is private;
+  `labelSize` 26 since that map is about half the card's scale). Share button: disabled while busy, each step on its
+  label (`status` callback: Finding the places on your road / Making your ride card / Opening share), label restored.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

@@ -60,6 +60,8 @@ import { stopsAhead } from './core/Route';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
 import { CardExtras, CardExtrasSource } from './adapters/CardExtras';
+import { pickLabels } from './core/RideCard';
+import { spanFor } from './ui/mapView';
 import { mountEdgeStretch, mountPullToRefresh, mountSheetDrag, mountSwipeBack, rememberSpot, takeSpot } from './ui/gestures';
 import { SaidLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
@@ -178,12 +180,19 @@ const journeys = mountJourneysScreen(document, shell, {
   rides: () => RideLog.load(),
   entries: () => { saveLog(); return LineLogStore.load(); },
   track: (rideId) => TrackStore.get(rideId),
-  prepareCard: (rideId) => { const t = TrackStore.get(rideId); if (cardWanted() && t.length > 1) void cardExtras.prepare(rideId, t); },
+  prepareCard: (rideId) => { const t = TrackStore.get(rideId); return cardWanted() && t.length > 1 && !cardExtras.kept(rideId) ? cardExtras.prepare(rideId, t) : null; },
+  // On the story map every name shows (it is private); the card leaves his start and finish off when asked.
+  mapExtras: (rideId) => {
+    const x = cardWanted() ? cardExtras.kept(rideId) : null;
+    if (!x) return null;
+    const t = TrackStore.get(rideId);
+    return { labels: CONFIG.cardPlaces ? pickLabels(x.samples, spanFor(t), []).map((l) => ({ lat: l.lat, lon: l.lon, label: l.name })) : [], metro: CONFIG.cardMetro ? x.metro : null };
+  },
   copyRide: (rideId) => copyText(rideLogText(rideId)),
   saveRide: (rideId) => { if (!downloadText(`betty-ride-${new Date(rideId).toISOString().slice(0, 16).replace(':', '')}.txt`, rideLogText(rideId))) shell.toast('Saving a file is not available here'); },
   toast: (msg) => shell.toast(msg),
   // A picture of the ride to share (owner, 2026-10-17): map sketch, numbers, her best line, her orb or his picture.
-  shareRide: async (rideId, hideEnds) => {
+  shareRide: async (rideId, hideEnds, status) => {
     const r = RideLog.load().find((x) => x.startedAt === rideId);
     if (!r) return;
     saveLog();
@@ -196,16 +205,17 @@ const journeys = mountJourneysScreen(document, shell, {
     if (cardWanted() && track.length > 1) {
       extras = cardExtras.kept(rideId);
       if (!extras) {
-        shell.toast('Finding the places along your road...');
+        status('Finding the places on your road...');
         extras = await Promise.race([cardExtras.prepare(rideId, track), new Promise<null>((res) => setTimeout(() => res(null), 40_000))]);
       }
     }
-    shell.toast('Making your ride card...');
+    status('Making your ride card...');
     try {
       const png = await drawRideCard(document, {
         ride: r, title: rideTitle(r), track, lines, avatar: await avatarStore.get().catch(() => null), hideEnds,
         extras: extras ? { ...extras, places: CONFIG.cardPlaces, metroLine: CONFIG.cardMetro } : null,
       });
+      status('Opening share...');
       const how = await shareRideCard(document, png, `betty-ride-${new Date(rideId).toISOString().slice(0, 10)}.png`);
       if (how === 'saved') shell.toast('Ride card saved to your downloads.');
     } catch (e) { shell.toast(`Could not make the ride card: ${(e as Error).message}`, true); }

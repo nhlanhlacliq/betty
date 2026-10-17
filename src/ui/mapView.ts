@@ -30,6 +30,8 @@ export interface MapInput {
   labels?: MapPin[];
   /** Areas (in map units) where no label may go, e.g. under the card's weather pill */
   avoid?: Array<{ x0: number; y0: number; x1: number; y1: number }>;
+  /** Size of those names in map units (15 on the card; a small map on the phone needs bigger) */
+  labelSize?: number;
 }
 
 export const MAP_W = 660;
@@ -103,7 +105,7 @@ function bordersSvg(b: NonNullable<MapInput['borders']>, at: (p: LatLon) => { x:
  * Names along the road (ride card): a dot on the line and the name beside it with a pale halo, above the dot or below
  * it, whichever is free. A name that would overlap another, an `avoid` box or the edge is left out.
  */
-function labelsSvg(labels: MapPin[], at: (p: LatLon) => { x: number; y: number }, avoid: NonNullable<MapInput['avoid']>): string {
+function labelsSvg(labels: MapPin[], at: (p: LatLon) => { x: number; y: number }, avoid: NonNullable<MapInput['avoid']>, size: number): string {
   const taken = [...avoid];
   const hits = (b: { x0: number; y0: number; x1: number; y1: number }) => b.x0 < 4 || b.y0 < 4 || b.x1 > MAP_W - 4 || b.y1 > MAP_H - 4
     || taken.some((t) => b.x0 < t.x1 && b.x1 > t.x0 && b.y0 < t.y1 && b.y1 > t.y0);
@@ -112,14 +114,15 @@ function labelsSvg(labels: MapPin[], at: (p: LatLon) => { x: number; y: number }
     if (!l.label) continue;
     const q = at(l);
     const name = l.label.length > 24 ? `${l.label.slice(0, 23)}…` : l.label;
-    const w = name.length * 8.6 + 6; // ~15px semibold
-    const above = { x0: q.x - w / 2, y0: q.y - 32, x1: q.x + w / 2, y1: q.y - 10 };
-    const below = { x0: q.x - w / 2, y0: q.y + 10, x1: q.x + w / 2, y1: q.y + 32 };
+    const k = size / 15;
+    const w = (name.length * 8.6 + 6) * k; // semibold at `size`
+    const above = { x0: q.x - w / 2, y0: q.y - 10 * k - 22 * k, x1: q.x + w / 2, y1: q.y - 10 * k };
+    const below = { x0: q.x - w / 2, y0: q.y + 10 * k, x1: q.x + w / 2, y1: q.y + 32 * k };
     const box = !hits(above) ? above : !hits(below) ? below : null;
     if (!box) continue;
     taken.push(box);
-    out.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="4.5" fill="#fffdf3" stroke="#4f6a4a" stroke-width="2.2"/>`
-      + `<text x="${r1(q.x)}" y="${r1(box.y1 - 6)}" font-size="15" font-weight="600" fill="#3d5239" text-anchor="middle" stroke="#f4f5ec" stroke-width="4" stroke-linejoin="round" paint-order="stroke" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">${esc(name)}</text>`);
+    out.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="${r1(4.5 * k)}" fill="#fffdf3" stroke="#4f6a4a" stroke-width="${r1(2.2 * k)}"/>`
+      + `<text x="${r1(q.x)}" y="${r1(box.y1 - 6 * k)}" font-size="${size}" font-weight="600" fill="#3d5239" text-anchor="middle" stroke="#f4f5ec" stroke-width="${r1(4 * k)}" stroke-linejoin="round" paint-order="stroke" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">${esc(name)}</text>`);
   }
   return `<g class="labels">${out.join('')}</g>`;
 }
@@ -185,7 +188,7 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
       const s = at({ lat: m.track[0][0], lon: m.track[0][1] });
       if (onMap(s)) parts.push(`<circle cx="${r1(s.x)}" cy="${r1(s.y)}" r="7" fill="#faf9ee" stroke="#7e9674" stroke-width="3"/>`);
     }
-    if (m.labels?.length) parts.push(labelsSvg(m.labels, at, m.avoid ?? []));
+    if (m.labels?.length) parts.push(labelsSvg(m.labels, at, m.avoid ?? [], m.labelSize ?? 15));
     for (const p of m.places) {
       const q = at(p); if (!onMap(q, 0)) continue;
       parts.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="4" fill="#fbfaf5" stroke="#8a9a80" stroke-width="2"/>`

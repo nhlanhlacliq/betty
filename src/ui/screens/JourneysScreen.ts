@@ -2,7 +2,7 @@ import type { LogEntry } from '../../core/LineLog';
 import type { RideRecord } from '../../core/RideMemory';
 import type { TrackPoint } from '../../core/Track';
 import { icon } from '../icons';
-import { mapSvg, spanFor, trackCenter } from '../mapView';
+import { MapPin, mapSvg, spanFor, trackCenter } from '../mapView';
 import type { Shell } from '../Shell';
 import { rideTitle } from './HomeScreen';
 
@@ -12,14 +12,19 @@ export interface JourneysContext {
   /** Every saved line */
   entries(): LogEntry[];
   track(rideId: number): TrackPoint[];
-  /** Start fetching what the ride card adds (place names, metro line), so Share is quick */
-  prepareCard?(rideId: number): void;
+  /**
+   * The place names and metro line for this ride's map (Garage > The map), if already kept, and a promise for when
+   * they have been fetched (null when there is nothing to fetch). The story map shows them, and the card reuses them.
+   */
+  mapExtras?(rideId: number): { labels: MapPin[]; metro: Array<Array<[number, number]>> | null } | null;
+  prepareCard?(rideId: number): Promise<unknown> | null;
   /** Copy one ride's log as plain text; resolves with whether it worked */
   copyRide(rideId: number): Promise<boolean>;
   /** Save one ride's log as a file */
   saveRide(rideId: number): void;
   /** Make and share a picture of the ride (ui/rideCard.ts) */
-  shareRide(rideId: number, hideEnds: boolean): Promise<void>;
+  /** `status` puts each step on the Share button ("Finding places...", "Making your card...") */
+  shareRide(rideId: number, hideEnds: boolean, status: (text: string) => void): Promise<void>;
   toast(msg: string): void;
 }
 
@@ -70,7 +75,18 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       ...r.events.map((e) => `<li>${esc(e)}<small>Flagged on the way</small></li>`),
     ];
     story.dataset.ride = String(rideId); // which ride is showing (a refresh reopens it)
-    ctx.prepareCard?.(rideId);
+    // The road, with the towns along it and the metro line once they are known (fetched now if not kept yet).
+    const roadMap = () => {
+      const x = ctx.mapExtras?.(rideId) ?? null;
+      return mapSvg({ center: trackCenter(track), here: null, headingDeg: null, track, places: [], incidents: [], marks: [], spanKm: spanFor(track),
+        labels: x?.labels ?? [], labelSize: 26, borders: x?.metro?.length ? { suburbs: [], metro: x.metro } : null }, 'The road you took', 'story');
+    };
+    if (track.length > 1) {
+      void ctx.prepareCard?.(rideId)?.then(() => {
+        const m = story.querySelector('.story-map');
+        if (m && story.dataset.ride === String(rideId)) m.innerHTML = roadMap();
+      });
+    }
     story.innerHTML = `<div class="intro"><div><p class="eyebrow">A ride worth remembering</p><h1>Your little escape.</h1></div>
         <button class="text-button" type="button" data-go="journeys">← My journeys</button></div>
       <div class="summary-hero"><div class="orb resting"></div><p class="eyebrow">Saved privately on this phone</p>
@@ -78,7 +94,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
         <div class="summary-stats"><div><b>${r.distanceKm}</b><small>Kilometres</small></div><div><b>${r.minutes}</b><small>Minutes</small></div><div><b>${said.length}</b><small>Things she said</small></div></div></div>
       <div class="page-grid">
         <div class="settings-card"><h2>The road you took</h2>
-          ${track.length > 1 ? `<div class="story-map">${mapSvg({ center: trackCenter(track), here: null, headingDeg: null, track, places: [], incidents: [], marks: [], spanKm: spanFor(track) }, 'The road you took', 'story')}</div>`
+          ${track.length > 1 ? `<div class="story-map">${roadMap()}</div>`
             : '<p class="empty-note">No map for this ride: it was recorded before Betty kept the road, or without GPS.</p>'}
           <p>${esc(longDate(r.startedAt))}</p>
           ${moments.length ? `<ul class="moments">${moments.join('')}</ul>` : '<p class="sub">A quiet ride is a good ride, too.</p>'}
@@ -107,8 +123,11 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const sh = t.closest<HTMLButtonElement>('[data-share]');
     if (sh && !sh.disabled) {
       const hide = story.querySelector<HTMLInputElement>('[data-hideends]')?.checked ?? true;
+      const label = sh.innerHTML;
       sh.disabled = true;
-      void ctx.shareRide(Number(sh.dataset.share), hide).finally(() => { sh.disabled = false; });
+      sh.setAttribute('aria-busy', 'true');
+      void ctx.shareRide(Number(sh.dataset.share), hide, (text) => { sh.textContent = text; })
+        .finally(() => { sh.disabled = false; sh.removeAttribute('aria-busy'); sh.innerHTML = label; });
     }
   });
   const open = (rideId: number) => { renderStory(rideId); shell.show('story'); };

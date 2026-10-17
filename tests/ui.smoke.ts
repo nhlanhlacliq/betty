@@ -832,16 +832,33 @@ resetConfig();
   const ride = { startedAt: 1_760_000_000_000, minutes: 95, distanceKm: 120, weather: 'clear, 24 C', places: ['Germiston'], events: [] };
   const shared: Array<[number, boolean]> = [];
   const shell: any = { show() {}, onShow() {} };
-  const view = mountJourneysScreen(d, shell, { rides: () => [ride], entries: () => [], track: () => [], copyRide: async () => true, saveRide() {}, toast() {},
-    shareRide: async (id: number, hide: boolean) => { shared.push([id, hide]); } });
+  let release = () => {};
+  let extras: any = null;
+  let fetched = () => {};
+  const view = mountJourneysScreen(d, shell, { rides: () => [ride], entries: () => [], track: () => [[-26.1, 28.0], [-26.1, 28.2]], copyRide: async () => true, saveRide() {}, toast() {},
+    mapExtras: () => extras, prepareCard: () => new Promise((r) => { fetched = () => r(null); }),
+    shareRide: async (id: number, hide: boolean, status: (t: string) => void) => {
+      shared.push([id, hide]); status('Making your ride card...');
+      await new Promise<void>((r) => { release = r; });
+    } });
   view.open(ride.startedAt);
   const btn = d.querySelector('[data-share]') as HTMLButtonElement;
   assert.ok(btn, 'Share this ride is on the story'); assert.equal((d.querySelector('[data-hideends]') as HTMLInputElement).checked, true, 'home hidden by default');
+  assert.ok(!d.querySelector('.story-map')!.innerHTML.includes('Sandton'), 'no names until fetched');
+  extras = { labels: [{ lat: -26.1, lon: 28.1, label: 'Sandton' }], metro: [[[-26.2, 28.1], [-26.0, 28.1]]] };
+  fetched(); await new Promise((r) => setTimeout(r, 5));
+  assert.match(d.querySelector('.story-map')!.innerHTML, />Sandton</, 'the story map fills in the names once fetched');
+  assert.match(d.querySelector('.story-map')!.innerHTML, /stroke-dasharray="7 6"/, 'and the metro line');
+  const label = btn.innerHTML;
   btn.dispatchEvent(new j.window.Event('click', { bubbles: true }));
+  assert.equal(btn.disabled, true, 'disabled while making the card'); assert.equal(btn.textContent, 'Making your ride card...', 'the step shows on the button');
+  btn.dispatchEvent(new j.window.Event('click', { bubbles: true }));
+  assert.equal(shared.length, 1, 'a second tap does nothing while busy');
+  release(); await new Promise((r) => setTimeout(r, 5));
+  assert.equal(btn.disabled, false); assert.equal(btn.innerHTML, label, 'its label comes back');
   (d.querySelector('[data-hideends]') as HTMLInputElement).checked = false;
-  await new Promise((r) => setTimeout(r, 5));
   btn.dispatchEvent(new j.window.Event('click', { bubbles: true }));
-  await new Promise((r) => setTimeout(r, 5));
+  release(); await new Promise((r) => setTimeout(r, 5));
   assert.deepEqual(shared, [[ride.startedAt, true], [ride.startedAt, false]]);
 }
 // ---- Where to? plans through Betty's server, keeps the route, clears it
