@@ -247,6 +247,11 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .moments { list-style: none; padding: 0; margin: 0 0 16px; }
 .moments li { padding: 14px 0; border-top: 1px solid #e9ede0; font-size: 13px; }
 .moments small { display: block; font-size: 10px; color: var(--muted); margin-top: 5px; text-transform: uppercase; letter-spacing: .5px; }
+.moments.folded .more { display: none; }
+.moments:has(+ .fold-toggle) { margin-bottom: 0; }
+.fold-toggle { margin: 0 0 12px; border-top: 1px solid #e9ede0; width: 100%; justify-content: space-between; }
+.fold-toggle .ico { transform: rotate(90deg); transition: transform .2s ease; }
+.fold-toggle[aria-expanded="true"] .ico { transform: rotate(-90deg); }
 .moments .said { display: block; font-size: 12px; color: #55605a; margin-top: 5px; line-height: 1.55; }
 .keep-grid { display: grid; gap: 12px; }
 .keep-card { background: var(--card); border: 1px solid var(--card-line); border-radius: 20px; padding: 18px 20px; min-width: 0; }

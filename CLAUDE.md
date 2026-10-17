@@ -396,6 +396,9 @@ has dynamic content, and a smoke test.
   the fetch promise and the story map is repainted when it lands (`mapExtras`, every name: the story is private;
   `labelSize` 26 since that map is about half the card's scale). Share button: disabled while busy, each step on its
   label (`status` callback: Finding the places on your road / Making your ride card / Opening share), label restored.
+- Story lists fold (2026-10-17, owner: "can be quite long"): `foldList` shows the first 4 moments / 5 lines, the rest
+  `li.more` hidden by `.moments.folded`; a full-width `.text-button` "Show all N ..." / "Show less" (chevron turns)
+  toggles the class. Lists only one item over the limit are shown whole.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

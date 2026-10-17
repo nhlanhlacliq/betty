@@ -861,6 +861,29 @@ resetConfig();
   release(); await new Promise((r) => setTimeout(r, 5));
   assert.deepEqual(shared, [[ride.startedAt, true], [ride.startedAt, false]]);
 }
+// ---- a long ride's story: lists fold to a few items with Show all / Show less
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const j = new JSDOM(`<!doctype html><div id="journeylist"></div><div id="journeytotals"></div><div id="story"></div>`);
+  const d = j.window.document;
+  const ride = { startedAt: 1_760_000_000_000, minutes: 219, distanceKm: 93, weather: null, places: ['A', 'B', 'C', 'D', 'E', 'F'], events: ['x'] };
+  const entries = Array.from({ length: 30 }, (_, i) => ({ id: `l${i}`, at: ride.startedAt + i * 60_000, rideId: ride.startedAt, head: '[P3] area_story (claude)', text: `line ${i}` }));
+  const view = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => [ride], entries: () => entries as any, track: () => [], copyRide: async () => true, saveRide() {}, toast() {}, shareRide: async () => {} });
+  view.open(ride.startedAt);
+  const lists = [...d.querySelectorAll('.moments')];
+  assert.equal(lists.length, 2); assert.ok(lists.every((l) => l.classList.contains('folded')), 'both long lists start folded');
+  assert.equal(lists[1].querySelectorAll('li:not(.more)').length, 5, 'five lines show'); assert.equal(lists[1].querySelectorAll('li.more').length, 25);
+  const btns = [...d.querySelectorAll<HTMLButtonElement>('[data-fold]')];
+  assert.equal(btns[1].textContent, 'Show all 30 things she said');
+  btns[1].dispatchEvent(new j.window.Event('click', { bubbles: true }));
+  assert.ok(!lists[1].classList.contains('folded')); assert.equal(btns[1].textContent, 'Show less'); assert.equal(btns[1].getAttribute('aria-expanded'), 'true');
+  assert.ok(lists[0].classList.contains('folded'), 'the other list stays as it was');
+  btns[1].dispatchEvent(new j.window.Event('click', { bubbles: true }));
+  assert.equal(btns[1].textContent, 'Show all 30 things she said');
+  const short = { ...ride, startedAt: 2, places: ['A'], events: [] };
+  const v2 = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => [short], entries: () => [], track: () => [], copyRide: async () => true, saveRide() {}, toast() {}, shareRide: async () => {} });
+  v2.open(2); assert.equal(d.querySelectorAll('[data-fold]').length, 0, 'short lists are not folded');
+}
 // ---- Where to? plans through Betty's server, keeps the route, clears it
 {
   const { mountRoutePlanner, routeRequest, RouteStore } = await import('../src/ui/RoutePlanner');

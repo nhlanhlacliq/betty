@@ -35,6 +35,16 @@ const duration = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h ${Strin
 /** What she said on a ride: her spoken lines only, not silences, drops or diagnostics. */
 const spokenLines = (entries: LogEntry[], rideId: number) =>
   entries.filter((e) => e.rideId === rideId && /^\[P\d\]/.test(e.head) && e.text && !e.text.startsWith('('));
+/**
+ * A list that shows its first `keep` items and a quiet "Show all N" button under it (owner, 2026-10-17: a long ride's
+ * lists were very long). Items past `keep` are hidden by CSS (`.folded .more`), so expanding needs no re-render.
+ */
+const foldList = (items: string[], keep: number, what: string) => {
+  if (items.length <= keep + 1) return `<ul class="moments">${items.join('')}</ul>`;
+  const lis = items.map((li, i) => (i < keep ? li : li.replace('<li>', '<li class="more">'))).join('');
+  return `<ul class="moments folded">${lis}</ul><button class="text-button fold-toggle" type="button" data-fold aria-expanded="false" data-all="Show all ${items.length} ${what}">`
+    + `<span>Show all ${items.length} ${what}</span>${icon('chev', 'ico sm')}</button>`;
+};
 const triggerOf = (head: string) => head.match(/^\[P\d\] (\w+)/)?.[1] ?? '';
 
 /**
@@ -97,11 +107,11 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
           ${track.length > 1 ? `<div class="story-map">${roadMap()}</div>`
             : '<p class="empty-note">No map for this ride: it was recorded before Betty kept the road, or without GPS.</p>'}
           <p>${esc(longDate(r.startedAt))}</p>
-          ${moments.length ? `<ul class="moments">${moments.join('')}</ul>` : '<p class="sub">A quiet ride is a good ride, too.</p>'}
+          ${moments.length ? foldList(moments, 4, 'moments') : '<p class="sub">A quiet ride is a good ride, too.</p>'}
         </div>
         <div class="settings-card"><h2>The moments in between</h2>
-          <ul class="moments">${said.length ? said.map((e) => `<li>${esc(triggerOf(e.head).replace(/_/g, ' '))}<small>${new Date(e.at).toTimeString().slice(0, 5)}</small><span class="said">${esc(e.text.replace(/<[^>]+>/g, ''))}</span></li>`).join('')
-            : '<li>A moment for yourself<small>No saved lines for this ride</small></li>'}</ul>
+          ${said.length ? foldList(said.map((e) => `<li>${esc(triggerOf(e.head).replace(/_/g, ' '))}<small>${new Date(e.at).toTimeString().slice(0, 5)}</small><span class="said">${esc(e.text.replace(/<[^>]+>/g, ''))}</span></li>`), 5, 'things she said')
+            : '<ul class="moments"><li>A moment for yourself<small>No saved lines for this ride</small></li></ul>'}
           <div class="share-ride"><button class="primary wide" type="button" data-share="${rideId}">${icon('share', 'ico sm')} Share this ride</button>
             <label class="check-row"><input type="checkbox" data-hideends checked /> Hide where I start and finish</label></div>
           <div class="dialog-actions"><button class="secondary" type="button" data-copy="${rideId}">${icon('share', 'ico sm')} Copy the log</button>
@@ -116,6 +126,14 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   });
   story.addEventListener('click', (e) => {
     const t = e.target as Element;
+    const f = t.closest<HTMLButtonElement>('[data-fold]');
+    if (f) {
+      const list = f.previousElementSibling as HTMLElement;
+      const open = list.classList.toggle('folded') === false;
+      f.setAttribute('aria-expanded', String(open));
+      f.querySelector('span')!.textContent = open ? 'Show less' : f.dataset.all!;
+      if (!open) list.scrollIntoView?.({ block: 'nearest' }); // folding a long list: don't leave him far below it
+    }
     const c = t.closest<HTMLElement>('[data-copy]');
     if (c) void ctx.copyRide(Number(c.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
     const s = t.closest<HTMLElement>('[data-save]');
