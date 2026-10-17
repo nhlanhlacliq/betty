@@ -99,7 +99,7 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft =
   }
   if (!s.obd && fuelKmLeft !== null) {
     add('range', Math.floor(fuelKmLeft / 50),
-      `Going only by distance since the last fill-up (there is no fuel gauge to read), he has roughly ${Math.round(fuelKmLeft / 10) * 10} km of range left.`);
+      `Going by distance since the last fill-up and his average consumption (there is no fuel gauge to read), he has roughly ${Math.round(fuelKmLeft / 10) * 10} km before the reserve.`);
   }
   if (mins >= 10) add('duration', Math.floor(mins / 20), `He has been out for ${Math.round(mins)} minutes.`);
   if (ride.distanceKm >= 2) add('distance', Math.floor(ride.distanceKm / 15), `He has covered ${ride.distanceKm} km this ride.`);

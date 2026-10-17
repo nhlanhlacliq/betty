@@ -1,5 +1,5 @@
 import type { LogEntry } from '../../core/LineLog';
-import { RideRecord, rideMinutes, stoppedMinutes } from '../../core/RideMemory';
+import { RideRecord, fuelSpend, rideMinutes, stoppedMinutes } from '../../core/RideMemory';
 import { CONFIG } from '../../config/betty';
 import type { TrackPoint } from '../../core/Track';
 import { icon } from '../icons';
@@ -33,6 +33,14 @@ export interface JourneysContext {
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const date = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
 const longDate = (ms: number) => new Date(ms).toLocaleString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+/** What fuel cost this month and per km (rides that kept a cost: from 2026-10-17 on). */
+function spendLine(rides: RideRecord[]): string {
+  const f = fuelSpend(rides, Date.now());
+  if (f.perKmR == null) return '';
+  const month = f.monthRides ? `R${f.monthR} on fuel this month over ${f.monthRides} ride${f.monthRides === 1 ? '' : 's'}` : 'No fuel spent this month yet';
+  return `<p class="fuel-spend">${month} · about R${f.perKmR.toFixed(2)} a km</p>`;
+}
+
 /** Riding and stopped time as a slim bar under the ride's numbers, when the ride kept its riding time. */
 function timeSplit(r: RideRecord): string {
   const stopped = stoppedMinutes(r);
@@ -68,7 +76,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     }
     const km = Math.round(rides.reduce((n, r) => n + r.distanceKm, 0));
     const min = rides.reduce((n, r) => n + rideMinutes(r, CONFIG.ridingTimeOnly), 0);
-    totals.innerHTML = `<div class="totals"><div><b>${rides.length}</b><small>ride${rides.length === 1 ? '' : 's'}</small></div><div><b>${km} km</b><small>together</small></div><div><b>${duration(min)}</b><small>in the saddle</small></div></div>`;
+    totals.innerHTML = `<div class="totals"><div><b>${rides.length}</b><small>ride${rides.length === 1 ? '' : 's'}</small></div><div><b>${km} km</b><small>together</small></div><div><b>${duration(min)}</b><small>in the saddle</small></div></div>${spendLine(rides)}`;
     list.innerHTML = `<div class="journey-list">${rides.map((r) => `<button class="journey-row" type="button" data-ride="${r.startedAt}">
       <div><p class="eyebrow">${esc(date(r.startedAt))}</p><h2 style="font-size:19px">${esc(rideTitle(r))}</h2><p class="sub" style="margin-top:7px">${esc(r.weather ?? 'Out with Betty')}</p></div>
       <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))} · ${r.places.length + r.events.length} moments ↗</p></div></button>`).join('')}</div>`;
@@ -105,7 +113,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
         <button class="text-button" type="button" data-go="journeys">← My journeys</button></div>
       <div class="summary-hero"><div class="orb resting"></div><p class="eyebrow">Saved privately on this phone</p>
         <h1>${esc(rideTitle(r))}</h1><p>${esc(blurb)}</p>
-        <div class="summary-stats"><div><b>${r.distanceKm}</b><small>Kilometres</small></div><div><b>${shown}</b><small>${CONFIG.ridingTimeOnly && stopped != null ? 'Minutes riding' : 'Minutes'}</small></div><div><b>${said.length}</b><small>Things she said</small></div></div>
+        <div class="summary-stats"><div><b>${r.distanceKm}</b><small>Kilometres</small></div><div><b>${shown}</b><small>${CONFIG.ridingTimeOnly && stopped != null ? 'Minutes riding' : 'Minutes'}</small></div><div><b>${said.length}</b><small>Things she said</small></div>${r.costR != null ? `<div><b>R${r.costR}</b><small>Fuel, ${r.fuelL} L</small></div>` : ''}</div>
         ${timeSplit(r)}</div>
       <div class="page-grid">
         <div class="settings-card"><h2>The road you took</h2>

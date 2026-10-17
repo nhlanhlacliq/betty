@@ -16,6 +16,8 @@ export type Command =
   | { kind: 'forget' }
   /** "End ride": the same as End ride on the screen (sign-off, then the ride's story) */
   | { kind: 'end' }
+  /** "Consumption 4.6" (the dash's L/100 km) or "petrol price 31.20" (rand a litre) */
+  | { kind: 'fuelset'; what: 'consumption' | 'price'; value: number }
   /** Humour dial: set to a value, or step it */
   | { kind: 'humour'; set?: number; step?: number }
   /** JARVIS/TARS blend: set the TARS share, or step it (+ = more TARS) */
@@ -67,6 +69,11 @@ export function parseCommand(said: string): Command | null {
   const mark = t.match(/^(?:mark|save|pin|bookmark|remember|drop a pin (?:on|at)?|note)\s+(?:this|the|that|my)\s+(?:spot|place|location|point|corner|road|position|here)\b(.*)$/i)
     ?? t.match(/^(?:drop a pin|mark (?:it|here))\b(.*)$/i);
   if (mark) return { kind: 'mark', note: tail(mark[1]) };
+
+  const cons = low.match(/^(?:set )?(?:my |the )?(?:average )?(?:fuel )?consumption(?: is| at| to| of)?(?: now)?\s+(\d{1,2}(?:[.,]\d{1,2})?)\b/);
+  if (n <= 12 && cons) { const v = Number(cons[1].replace(',', '.')); if (v >= 2 && v <= 15) return { kind: 'fuelset', what: 'consumption', value: v }; }
+  const price = low.match(/^(?:set )?(?:the )?(?:fuel|petrol|gas)(?: price(?: is| at| to)?| is| at| costs?)(?: now)?\s+r?\s?(\d{1,3}(?:[.,]\d{1,2})?)\b/);
+  if (n <= 12 && price) { const v = Number(price[1].replace(',', '.')); if (v >= 5 && v <= 100) return { kind: 'fuelset', what: 'price', value: v }; }
 
   if (n <= 6 && /^((end|finish|stop) (the |this |my |our )?(ride|trip)( now| here)?|(we'?re|we are|i'?m|i am) done( riding)?( for (today|the day|now))?|that'?s (it|a wrap) for (today|the day))$/.test(low)) return { kind: 'end' };
 

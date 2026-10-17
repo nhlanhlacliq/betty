@@ -118,10 +118,10 @@ const leanHold = [...troot.querySelectorAll('input[type=checkbox]')].find((c) =>
 assert.equal(leanHold.checked, false, 'lean hold is off by default');
 leanHold.checked = true; fire(leanHold, 'change');
 assert.equal(CONFIG.safeWindow.useLean, true);
-for (const label of ['Longest line', 'Traffic min delay', 'Sunset warning', 'Full-tank range', 'Fuel range warning']) assert.ok(nums.some((n) => n.parentElement?.textContent?.startsWith(label)), `${label} is tunable`);
-const tank = nums.find((n) => n.parentElement?.textContent?.startsWith('Full-tank range'))!;
-tank.value = '320'; fire(tank, 'change');
-assert.equal(CONFIG.fuel.rangeKm, 320);
+for (const label of ['Longest line', 'Traffic min delay', 'Sunset warning', 'Fuel consumption', 'Fuel range warning']) assert.ok(nums.some((n) => n.parentElement?.textContent?.startsWith(label)), `${label} is tunable`);
+const cons = nums.find((n) => n.parentElement?.textContent?.startsWith('Fuel consumption'))!;
+cons.value = '5.1'; fire(cons, 'change');
+assert.equal(CONFIG.fuel.lPer100, 5.1); CONFIG.fuel.lPer100 = 4.4;
 const banterW = nums.find((n) => n.parentElement?.textContent?.startsWith('Banter weight'))!;
 assert.equal(banterW.value, '40');
 banterW.value = '0'; fire(banterW, 'change');
@@ -260,6 +260,14 @@ resetConfig();
     const ro = doc.getElementById('ridingonly') as HTMLInputElement;
     assert.equal(ro.checked, true, 'riding time only by default'); ro.checked = false; ev(ro, 'change'); assert.equal(CONFIG.ridingTimeOnly, false); ro.checked = true; ev(ro, 'change');
     assert.equal((doc.getElementById('buttonsback') as HTMLButtonElement).hidden, true, 'nothing to take back before a ride');
+    const fuelBox = (id: string) => doc.getElementById(id) as HTMLInputElement;
+    assert.deepEqual(['tankl', 'reservel', 'lper100', 'fuelprice'].map((id) => fuelBox(id).value), ['11', '1', '4.4', '30.25'], 'his fuel figures by default');
+    assert.match(doc.getElementById('pricesub')!.textContent!, /Yours, set 17 Oct/);
+    fuelBox('lper100').value = '5'; ev(fuelBox('lper100'), 'change'); assert.equal(CONFIG.fuel.lPer100, 5);
+    fuelBox('lper100').value = '99'; ev(fuelBox('lper100'), 'change'); assert.equal(CONFIG.fuel.lPer100, 5, 'nonsense is refused'); assert.equal(fuelBox('lper100').value, '5');
+    fuelBox('fuelprice').value = '31,10'; ev(fuelBox('fuelprice'), 'change'); assert.equal(CONFIG.fuel.pricePerL, 31.1); assert.equal(CONFIG.fuel.priceSource, 'manual');
+    assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"lPer100":5/);
+    CONFIG.fuel.lPer100 = 4.4; CONFIG.fuel.pricePerL = 30.25; page.window.dispatchEvent(new page.window.Event('betty-config'));
     CONFIG.persona.humour = 75; CONFIG.persona.tars = 50;
 
     // explore: notes and marked spots, with Forget
@@ -301,9 +309,9 @@ resetConfig();
   // fuel range: unknown until FILLED UP is tapped, then the configured full-tank range
   assert.equal(doc.getElementById('range')!.textContent, '-');
   doc.getElementById('filled')!.dispatchEvent(new page.window.Event('click'));
-  assert.equal(doc.getElementById('range')!.textContent, '280');
+  assert.equal(doc.getElementById('range')!.textContent, '227');
   assert.match(page.window.localStorage.getItem('betty.fuel.v1')!, /"kmSinceFill":0/, 'fill-up is remembered');
-  assert.match(doc.getElementById('status')!.textContent!, /Range reset to 280 km/);
+  assert.match(doc.getElementById('status')!.textContent!, /Range reset to 227 km/);
 
   // LOG panel on the real page: starts empty, wired to storage
   assert.match(doc.getElementById('logpanel')!.textContent!, /LOG \(saved on this device\)/);
@@ -839,12 +847,14 @@ resetConfig();
   const { CONFIG } = await import('../src/config/betty');
   const j = new JSDOM(`<!doctype html><div id="journeylist"></div><div id="journeytotals"></div><div id="story"></div>`);
   const d = j.window.document;
-  const ride = { startedAt: 1_760_000_000_000, minutes: 219, movingMin: 139, distanceKm: 93.4, weather: null, places: [], events: [] };
+  const ride = { startedAt: Date.now(), minutes: 219, movingMin: 139, distanceKm: 93.4, fuelL: 4.1, costR: 124, weather: null, places: [], events: [] };
   const view = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => [ride], entries: () => [], track: () => [], copyRide: async () => true, saveRide() {}, toast() {}, shareRide: async () => {} });
   view.open(ride.startedAt);
   const story = d.getElementById('story')!.textContent!;
   assert.match(story, /139\s*Minutes riding/); assert.match(story, /2h 19m riding/); assert.match(story, /1h 20m stopped/);
   assert.match(story, /93\.4 km and 2h 19m riding/);
+  assert.match(story, /R124\s*Fuel, 4\.1 L/, 'what the ride cost');
+  assert.match(d.getElementById('journeytotals')!.textContent!, /R124 on fuel this month over 1 ride · about R1\.33 a km/);
   assert.match((d.querySelector('.time-split .bar i') as HTMLElement).style.width, /^63%/);
   CONFIG.ridingTimeOnly = false; view.open(ride.startedAt);
   assert.match(d.getElementById('story')!.textContent!, /219\s*Minutes/, 'switched off: the whole time'); assert.ok(d.querySelector('.time-split'), 'the split still shows');

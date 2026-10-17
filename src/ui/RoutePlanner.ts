@@ -24,6 +24,8 @@ export interface PlannerContext {
   position(): Promise<LatLon | null>;
   onChange(r: PlannedRoute | null): void;
   toast(msg: string, err?: boolean): void;
+  /** Whether the route fits in the fuel he has ("Needs a fuel stop: fill up by Villiers") */
+  fuelNote?(r: PlannedRoute): string;
   fetcher?: typeof fetch;
 }
 
@@ -43,6 +45,7 @@ export function mountRoutePlanner(doc: Document, ctx: PlannerContext) {
     if (!r) return;
     $('routename').textContent = r.name;
     $('routestats').textContent = routeStats(r);
+    const fuel = $('routefuel'); if (fuel) fuel.textContent = ctx.fuelNote?.(r) ?? '';
     ($<HTMLAnchorElement>('routemaps')).href = r.mapsUrl;
   };
   form?.addEventListener('submit', async (e) => {

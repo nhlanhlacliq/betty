@@ -44,6 +44,12 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     $<HTMLInputElement>('voiceboost').value = String(CONFIG.voiceBoostDb);
     $('voiceboostval').textContent = boostText(CONFIG.voiceBoostDb);
     $<HTMLInputElement>('ridingonly').checked = CONFIG.ridingTimeOnly;
+    const f = CONFIG.fuel;
+    for (const [id, v] of [['tankl', f.tankL], ['reservel', f.reserveL], ['lper100', f.lPer100], ['fuelprice', f.pricePerL]] as const) {
+      const box = $<HTMLInputElement>(id); if (doc.activeElement !== box) box.value = String(v);
+    }
+    const when = new Date(f.priceAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
+    $('pricesub').textContent = f.priceSource === 'auto' ? `Rand a litre. Looked up ${when}; checked each month.` : `Rand a litre. Yours, set ${when}; looked up again after the next monthly change.`;
     for (const [id, key] of ISLAND) { const b = $<HTMLInputElement>(id); b.checked = CONFIG.island[key]; b.disabled = !CONFIG.showGlance; }
     $('garagefuel').textContent = ctx.fuelText();
   };
@@ -61,6 +67,15 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   const boost = $<HTMLInputElement>('voiceboost');
   boost.addEventListener('input', () => { $('voiceboostval').textContent = boostText(Number(boost.value)); });
   boost.addEventListener('change', () => { CONFIG.voiceBoostDb = Number(boost.value); changed(); });
+  // Fuel: a figure he types is kept if it makes sense; the price he types wins until the next monthly change.
+  const num = (id: string, min: number, max: number, set: (v: number) => void) => $<HTMLInputElement>(id).addEventListener('change', (e) => {
+    const v = Number((e.target as HTMLInputElement).value.replace(',', '.'));
+    if (Number.isFinite(v) && v >= min && v <= max) { set(Math.round(v * 100) / 100); changed(); } else paint();
+  });
+  num('tankl', 3, 40, (v) => { CONFIG.fuel.tankL = v; CONFIG.fuel.reserveL = Math.min(CONFIG.fuel.reserveL, v); });
+  num('reservel', 0, 10, (v) => { CONFIG.fuel.reserveL = Math.min(v, CONFIG.fuel.tankL); });
+  num('lper100', 2, 15, (v) => { CONFIG.fuel.lPer100 = v; });
+  num('fuelprice', 5, 100, (v) => { CONFIG.fuel.pricePerL = v; CONFIG.fuel.priceSource = 'manual'; CONFIG.fuel.priceAt = Date.now(); });
   $<HTMLInputElement>('ridingonly').addEventListener('change', (e) => { CONFIG.ridingTimeOnly = (e.target as HTMLInputElement).checked; changed(); });
   for (const [id, key] of ISLAND) $<HTMLInputElement>(id).addEventListener('change', (e) => { CONFIG.island[key] = (e.target as HTMLInputElement).checked; changed(); });
   $('sample').addEventListener('click', () => ctx.sample());

@@ -84,7 +84,7 @@ export function mountTuningPanel(root: HTMLElement) {
     numRow('Traffic min severity', () => t.trafficMinSeverity, (v) => (t.trafficMinSeverity = v), 0, 4, 1, '0-4'),
     numRow('Traffic min delay', () => t.trafficMinDelaySec, (v) => (t.trafficMinDelaySec = v), 0, 1800, 30, 's'),
     numRow('Sunset warning', () => t.sunsetWarnMin, (v) => (t.sunsetWarnMin = v), 5, 180, 5, 'min before'),
-    numRow('Full-tank range', () => CONFIG.fuel.rangeKm, (v) => (CONFIG.fuel.rangeKm = v), 50, 600, 10, 'km'),
+    numRow('Fuel consumption', () => CONFIG.fuel.lPer100, (v) => (CONFIG.fuel.lPer100 = v), 2, 10, 0.1, 'L/100 km'),
     numRow('Fuel range warning', () => CONFIG.fuel.warnKmLeft, (v) => (CONFIG.fuel.warnKmLeft = v), 10, 200, 5, 'km left'),
   );
 

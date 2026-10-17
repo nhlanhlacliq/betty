@@ -625,30 +625,30 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.equal(ride(5).filter((x) => x.id === 'fuel_range').length, 0, 'no warning until a fill-up has been recorded');
   assert.match(e.force('fuel_range', s).fallback, /no fill-up on record/);
 
-  e.setFuelKm(200); // 200 km already ridden on this tank when the ride started
-  assert.equal(e.fuelKmLeft(), 80, '280 km range by default');
-  assert.equal(ride(5).filter((x) => x.id === 'fuel_range').length, 0, '6 km later: 74 left, above the 60 km warning');
+  e.setFuelKm(150); // 150 km already ridden on this tank when the ride started
+  assert.equal(e.fuelKmLeft(), 77, '227 km to reserve by default (10 L at 4.4 L/100 km)');
+  assert.equal(ride(5).filter((x) => x.id === 'fuel_range').length, 0, '6 km later: 71 left, above the 60 km warning');
   const warned = ride(15).filter((x) => x.id === 'fuel_range');
   assert.equal(warned.length, 1, 'warns once when it crosses 60 km left, then respects the cooldown');
-  assert.equal(warned[0].priority, 2); assert.match(warned[0].context, /about \d+ km of fuel range is left.*estimate/);
-  assert.match(warned[0].fallback, /^About \d+ kilometres of fuel left by my count/);
+  assert.equal(warned[0].priority, 2); assert.match(warned[0].context, /About \d+ km before the reserve starts.*not a gauge/);
+  assert.match(warned[0].fallback, /^About \d+ kilometres before reserve by my count/);
   assert.ok(e.rideSnapshot().events.some((x) => x.what === 'fuel range getting low'));
   const before = e.kmSinceFill()!;
-  assert.ok(Math.abs(before - 224) < 1, `200 + 24 km ridden, got ${before}`);
+  assert.ok(Math.abs(before - 174) < 1, `150 + 24 km ridden, got ${before}`);
 
   e.reset();
   assert.equal(e.kmSinceFill(), before, 'a new ride carries the count over');
   e.filledUp();
-  assert.equal(e.kmSinceFill(), 0); assert.equal(e.fuelKmLeft(), 280);
+  assert.equal(e.kmSinceFill(), 0); assert.equal(e.fuelKmLeft(), 227, '10 usable litres at 4.4 L/100 km');
   assert.equal(ride(10).filter((x) => x.id === 'fuel_range').length, 0, 'full tank, no warning');
-  CONFIG.fuel.rangeKm = 60;
+  CONFIG.fuel.lPer100 = 20; // 50 km to reserve
   assert.equal(e.evaluate({ ...s, obd: true, fuelPct: 80 }).filter((x) => x.id === 'fuel_range').length, 0, 'with a real fuel reading the estimate stays out of it');
   assert.equal(e.evaluate(s).filter((x) => x.id === 'fuel_range').length, 1);
   resetConfig();
 
   const topics = banterTopics({ s, ride: ride0(), history: [], at: new Date(2026, 0, 1, 7), placeRadiusKm: 4, fuelKmLeft: 132 });
-  assert.match(topics.find((x) => x.id === 'range')!.text, /no fuel gauge to read\), he has roughly 130 km of range left/);
-  assert.match(e.force('rider_query', s).context, /km of fuel range is left \(an estimate, not a gauge\)/);
+  assert.match(topics.find((x) => x.id === 'range')!.text, /no fuel gauge to read\), he has roughly 130 km before the reserve/);
+  assert.match(e.force('rider_query', s).context, /km before the reserve starts, about [\d.]+ litres left.*not a gauge/);
 }
 // ---- sunset
 {
@@ -1062,12 +1062,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(voiceStyle('rain_soon', 2), 'calm, clear and firm', 'alerts keep their own pace');
   assert.equal(sentencesFor('startup'), 4); assert.equal(sentencesFor('ambient_banter'), 2);
   const e = new TriggerEngine(now);
-  e.setFuelKm(190);
+  e.setFuelKm(130);
   const w: WeatherState = { tempC: 22, windKmh: 4, rainNowMm: 0, rainChanceNextHourPct: 10, summary: 'partly cloudy', fetchedAt: 0, sunriseAt: null, sunsetAt: null };
   const b = e.startup({ ...initialState(), weather: w, lat: -26.15, lon: 28.15 });
   assert.match(b.context, /Your settings: humour 75 percent, 50 percent JARVIS, 50 percent TARS/); assert.match(b.context, /10 percent chance in the next hour/);
-  assert.match(b.context, /roughly 90 km of range left/);
-  assert.equal(b.fallback, 'Systems online. Partly cloudy, 22 degrees, 10 percent chance of rain in the next hour. About 90 kilometres of fuel range by my count.');
+  assert.match(b.context, /roughly 100 km before the reserve/);
+  assert.equal(b.fallback, 'Systems online. Partly cloudy, 22 degrees, 10 percent chance of rain in the next hour. About 97 kilometres to reserve by my count.');
   assert.equal(new TriggerEngine(now).startup().fallback, 'Systems online.', 'nothing known yet: the old line');
   const closure: TrafficIncident = { id: 'tt1', description: 'a road closure', roadName: 'Hendrik Potgieter Street', distanceKm: 0.3, severity: 4, delaySec: 600, lengthM: 400, lat: -26.15, lon: 28.15 } as any;
   const known = new TriggerEngine(now); known.setKnownIncidents([incidentKey(closure)]);
@@ -2046,6 +2046,90 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(f.every((x) => Math.abs(x) <= 1), 'never past full scale');
   assert.equal(dbToGain(40), dbToGain(16), 'capped at +16 dB');
   resetConfig();
+}
+
+// ---- fuel from the tank and the dash average (owner, 2026-10-17): range, stations ahead, route check, cost
+{
+  const F = await import('../src/core/Fuel');
+  const f = { ...CONFIG.fuel };
+  assert.deepEqual([f.tankL, f.reserveL, f.lPer100, f.pricePerL], [11, 1, 4.4, 30.25], 'his figures by default');
+  assert.equal(Math.round(F.kmToReserve(f)), 227); assert.equal(Math.round(F.reserveKm(f)), 23);
+  assert.deepEqual(F.fuelLeft(100, f), { litres: 6.6, kmToReserve: 127, kmToEmpty: 150, onReserve: false });
+  assert.equal(F.fuelLeft(235, f).onReserve, true); assert.equal(F.fuelLeft(235, f).kmToEmpty, 15);
+  assert.equal(F.costOf(93.4, f), 124, '93.4 km at 4.4 L/100 km and R30.25');
+  // the price: first Wednesday of the month
+  assert.equal(new Date(F.firstWednesday(2026, 10)).getDate(), 4, '4 November 2026');
+  assert.equal(F.priceDue(f, new Date(2026, 9, 30).getTime()), false, 'set 17 October: good until the November change');
+  assert.equal(F.priceDue(f, new Date(2026, 10, 4, 12).getTime()), true, 'after the change: look it up');
+  assert.equal(F.parsePrice('R23,45'), 23.45); assert.equal(F.parsePrice('The price is 30.25 rand.'), 30.25); assert.equal(F.parsePrice('95 octane: unknown'), null);
+  // stations ahead without a route: in the direction he is going, nearest first, a brand before a nameless one close by
+  const here = { lat: -26.62, lon: 28.33 };
+  const list = [
+    { name: 'Eliot X Cell Gas Station', brand: null, area: 'Ratanda', lat: -26.558, lon: 28.333 },
+    { name: 'Engen', brand: 'Engen', area: 'Heidelberg', lat: -26.545, lon: 28.336 },
+    { name: 'Shell', brand: 'Shell', area: 'Behind', lat: -26.70, lon: 28.33 },
+  ];
+  const ahead = F.stationsAhead(list, here, 0, null, null);
+  assert.deepEqual(ahead.map((x) => x.name), ['Engen', 'Eliot X Cell Gas Station'], 'north: the one behind is out; the brand first');
+  assert.deepEqual(F.stationsAhead(list, here, null).length, 3, 'no heading: all of them');
+  assert.match(F.describeStations(ahead, 150), /^Petrol stations ahead: Engen in Heidelberg, about 1[01] km ahead \(he makes it comfortably\)/);
+  assert.match(F.describeStations([], 40), /No petrol station found ahead/);
+  // along a route: on it, by distance along it
+  const pts: Array<[number, number]> = []; for (let i = 0; i <= 100; i++) pts.push([-26.0 - i * 0.027, 28.0]); // about 300 km south
+  const route = { name: 'Villiers', stops: [{ name: 'Home', lat: -26.0, lon: 28.0, named: true }, { name: 'Heidelberg', lat: -27.0, lon: 28.0, named: true }, { name: 'Villiers', lat: -28.7, lon: 28.0, named: true }],
+    km: 300, minutes: 200, delayMin: 0, legs: [], points: pts, mapsUrl: '', thrilling: false, plannedAt: 0 };
+  const { routeProgress } = await import('../src/core/Route');
+  const p = routeProgress(route, { lat: -26.1, lon: 28.0 });
+  const on = F.stationsAhead([{ name: 'X', brand: 'Sasol', area: null, lat: -26.3, lon: 28.005 }, { name: 'Y', brand: 'BP', area: null, lat: -26.3, lon: 28.2 }, { name: 'Z', brand: 'Total', area: null, lat: -26.05, lon: 28.0 }], { lat: -26.1, lon: 28.0 }, 180, route, p);
+  assert.deepEqual(on.map((x) => x.name), ['Sasol'], 'on the route and ahead only'); assert.ok(Math.abs(on[0].km - 22) < 1.5, String(on[0].km));
+  // the route check
+  const plan = F.routeFuelPlan(route, f, null);
+  assert.equal(plan.fits, false); assert.equal(plan.stopBy?.name, 'Heidelberg');
+  assert.match(F.describeFuelPlan(plan), /^Needs a fuel stop: 300 km, with 227 km before reserve on a full tank\. Fill up by Heidelberg/);
+  assert.match(F.describeFuelPlan(F.routeFuelPlan({ ...route, km: 120 }, f, 50)), /^Fits in the tank: 120 km, with 177 km before reserve\.$/);
+  // her lines
+  resetConfig(); clock = 95_000_000;
+  const e = new TriggerEngine(now); e.setFuelKm(200);
+  const st = { ...initialState(), lat: here.lat, lon: here.lon, headingDeg: 0, speedKmh: 60 };
+  e.setStations(list);
+  const warn = e.force('fuel_range', st);
+  assert.match(warn.context, /About 27 km before the reserve starts, about 2.2 litres left, 50 km until empty.*Engen in Heidelberg/);
+  assert.match(warn.fallback, /Engen in Heidelberg is about 1[01] kilometres ahead/);
+  assert.match(e.ask('where can I get petrol?', st).context, /Fuel: About 27 km before the reserve/);
+  e.setRoute(route);
+  assert.match(e.startup(st).context, /Fuel for the route: Needs a fuel stop/);
+  // cost per ride, and spend
+  const rec = toRecord({ ...ride0(), startedAt: new Date(2026, 9, 17).getTime(), minutesOut: 219, movingMin: 139, distanceKm: 93.4 }, null, f)!;
+  assert.equal(rec.fuelL, 4.1); assert.equal(rec.costR, 124);
+  const { fuelSpend } = await import('../src/core/RideMemory');
+  const spend = fuelSpend([rec, { ...rec, startedAt: new Date(2026, 8, 1).getTime() }, { startedAt: 1, minutes: 5, distanceKm: 3, weather: null, places: [], events: [] }], new Date(2026, 9, 20).getTime());
+  assert.deepEqual(spend, { monthR: 124, monthRides: 1, perKmR: 1.33 });
+  // by voice
+  assert.deepEqual(parseCommand('Consumption 4.6'), { kind: 'fuelset', what: 'consumption', value: 4.6 });
+  assert.deepEqual(parseCommand('Hey Betty, my average consumption is 4,8 litres per 100'), { kind: 'fuelset', what: 'consumption', value: 4.8 });
+  assert.deepEqual(parseCommand('Petrol is R31.20 a litre now'), { kind: 'fuelset', what: 'price', value: 31.2 });
+  assert.deepEqual(parseCommand('Fuel price 30.25'), { kind: 'fuelset', what: 'price', value: 30.25 });
+  assert.equal(parseCommand('What is my fuel consumption?'), null);
+  resetConfig();
+}
+
+// ---- api/stations: petrol stations from TomTom, compact
+{
+  const { GET: stationsApi } = await import('../api/stations');
+  const realFetch = globalThis.fetch; const saved = { ...process.env };
+  let asked = '';
+  globalThis.fetch = (async (u: any) => { asked = String(u); return new Response(JSON.stringify({ results: [
+    { poi: { name: 'Engen', brands: [{ name: 'Engen' }] }, address: { municipalitySubdivision: 'Rensburgdorp' }, position: { lat: -26.52, lon: 28.37 } },
+    { poi: { name: 'Legend Fuels' }, address: { municipality: 'Lesedi' }, position: { lat: -26.5, lon: 28.3 } },
+  ] })); }) as typeof fetch;
+  const req = (q: string) => new Request(`https://betty-zeta.vercel.app/api/stations${q}`, { headers: { host: 'betty-zeta.vercel.app', origin: 'https://betty-zeta.vercel.app' } });
+  try {
+    process.env.TOMTOM_API_KEY = 'tt';
+    assert.equal((await stationsApi(req('?lat=x'))).status, 400);
+    const r = await stationsApi(req('?lat=-26.6234&lon=28.3311'));
+    assert.match(asked, /lat=-26\.62&lon=28\.33&radius=50000.*categorySet=7311/, 'rounded to about a km');
+    assert.deepEqual(await r.json(), [{ name: 'Engen', brand: 'Engen', area: 'Rensburgdorp', lat: -26.52, lon: 28.37 }, { name: 'Legend Fuels', brand: null, area: 'Lesedi', lat: -26.5, lon: 28.3 }]);
+  } finally { globalThis.fetch = realFetch; process.env = saved; }
 }
 
 console.log('all core tests passed');

@@ -2,6 +2,7 @@ import { CONFIG, cleanBikeName } from '../config/betty';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
 import { PlannedRoute, RouteProgress, describeRoute, minutesText, routeProgress } from './Route';
 import { profileUse } from './Profile';
+import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
@@ -116,10 +117,34 @@ export class TriggerEngine {
     if (this.fuelBaseKm === null) return null;
     return Math.round((this.fuelBaseKm + this.stats.snapshot().distanceKm - this.fuelOffsetKm) * 10) / 10;
   }
-  /** Estimated range left, from the configured full-tank range. An estimate from distance, not a gauge. */
+  /** Km left before the reserve, from the tank and his average consumption. An estimate from distance, not a gauge. */
   fuelKmLeft(): number | null {
     const used = this.kmSinceFill();
-    return used === null ? null : Math.max(0, Math.round(CONFIG.fuel.rangeKm - used));
+    return used === null ? null : fuelLeft(used, CONFIG.fuel).kmToReserve;
+  }
+  /** Litres and km left (null = no fill-up on record). */
+  fuelNow() { const used = this.kmSinceFill(); return used === null ? null : fuelLeft(used, CONFIG.fuel); }
+  /** Petrol stations near him (adapters/StationSource, fetched when fuel gets low or he asks). */
+  private stations: Station[] = [];
+  setStations(list: Station[]) { this.stations = list; }
+  stationsNear(s: BikeState) {
+    if (!this.stations.length || s.lat == null || s.lon == null) return [];
+    return stationsAhead(this.stations, { lat: s.lat, lon: s.lon }, s.speedKmh >= 10 ? s.headingDeg : null, this.route, this.progress);
+  }
+  /** Her words on the fuel: litres and km left, the reserve, and stations ahead when known. '' without a fill-up. */
+  private fuelNote(s: BikeState): string {
+    const f = this.fuelNow();
+    if (!f) return '';
+    const est = `estimated from distance since the last fill-up and his dash average of ${CONFIG.fuel.lPer100} L/100 km, not a gauge`;
+    const now = f.onReserve
+      ? `He is on reserve: about ${f.litres} litres and ${f.kmToEmpty} km until empty (${est}).`
+      : `About ${f.kmToReserve} km before the reserve starts, about ${f.litres} litres left, ${f.kmToEmpty} km until empty (${est}).`;
+    const near = this.stationsNear(s);
+    return `${now}${this.stations.length && s.lat != null ? ` ${describeStations(near, f.kmToEmpty)}` : ''}`;
+  }
+  private fuelPlanNote(): string {
+    if (!this.route || this.progress) return '';
+    return ` Fuel for the route: ${describeFuelPlan(routeFuelPlan(this.route, CONFIG.fuel, this.kmSinceFill()))}`;
   }
 
   private memory: RiderMemory = EMPTY_MEMORY;
@@ -358,9 +383,9 @@ export class TriggerEngine {
         const w = s.weather;
         const canned = ['Systems online.',
           w ? ` ${cap(w.summary)}, ${Math.round(w.tempC)} degrees, ${w.rainChanceNextHourPct} percent chance of rain in the next hour.` : '',
-          left === null ? '' : ` About ${left} kilometres of fuel range by my count.`].join('');
+          left === null ? '' : ` About ${left} kilometres to reserve by my count.`].join('');
         return {
-          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}` : ''}`,
+          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}${this.fuelPlanNote()}` : ''}`,
           fallback: canned,
         };
       }
@@ -425,9 +450,10 @@ export class TriggerEngine {
         if (left === null) {
           return { context: 'No fill-up has been recorded, so the fuel range is unknown. Tell him so, briefly.', fallback: 'I have no fill-up on record, so I cannot estimate your range.' };
         }
+        const near = this.stationsNear(s)[0];
         return {
-          context: `By distance ridden since the last fill-up, about ${left} km of fuel range is left. This is an estimate from distance, not a gauge reading.`,
-          fallback: `About ${left} kilometres of fuel left by my count. Time to plan a stop.`,
+          context: `Fuel is getting low. ${this.fuelNote(s)} Tell him plainly, and where the nearest station ahead is if one is given.`,
+          fallback: `About ${left} kilometres before reserve by my count.${near ? ` ${near.name}${near.area ? ` in ${near.area}` : ''} is about ${Math.round(near.km)} kilometres ahead.` : ' Time to plan a stop.'}`,
         };
       }
       case 'sunset_soon': {
@@ -534,7 +560,7 @@ export class TriggerEngine {
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}` : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }
@@ -542,10 +568,10 @@ export class TriggerEngine {
           const r = this.stats.snapshot();
           const w = s.weather ? ` Weather: ${s.weather.summary}, ${s.weather.tempC} C.` : '';
           const left = this.fuelKmLeft();
-          const range = left === null ? '' : ` By distance since the last fill-up, about ${left} km of fuel range is left (an estimate, not a gauge).`;
+          const range = left === null ? '' : ` ${this.fuelNote(s)}`;
           return {
             context: `The rider asked how things are going. No engine data is connected, so say nothing about engine temperature, revs or faults. He has been out ${Math.round(r.minutesOut)} minutes and covered ${r.distanceKm} km.${range}${w}`,
-            fallback: `No engine data connected. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done${left === null ? '' : `, about ${left} kilometres of fuel left by my count`}.`,
+            fallback: `No engine data connected. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done${left === null ? '' : `, about ${left} kilometres to reserve by my count`}.`,
           };
         }
         return {

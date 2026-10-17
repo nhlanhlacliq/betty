@@ -1,5 +1,6 @@
 import type { Priority, TriggerId } from '../core/types';
 import { LIBRARY_VOICES } from './voiceLibrary';
+import type { FuelSetup } from '../core/Fuel';
 
 export type ObdMode = 'off' | 'mock';
 /** Google cloud voice: off = phone voice only; mixed = Chirp 3 HD for alerts (P1/P2), Gemini TTS for the rest. */
@@ -18,8 +19,8 @@ export interface Config {
     /** Warn this many minutes before sunset */
     sunsetWarnMin: number;
   };
-  /** Fuel range by distance since the last fill-up (used while there is no OBD fuel reading) */
-  fuel: { rangeKm: number; warnKmLeft: number };
+  /** Fuel by distance since the last fill-up, from the tank and his dash's average consumption (no OBD fuel reading) */
+  fuel: FuelSetup;
   priorities: Record<TriggerId, Priority>;
   cooldownsMs: Record<TriggerId, number>;
   /** Min gap between ambient slots (enforced in TriggerEngine; the queue speaks whatever it is given) */
@@ -100,7 +101,8 @@ export const DEFAULT_CONFIG: Config = {
   safeWindow: { useLean: false, maxLeanDeg: 20 },
   thresholds: { overtempC: 105, lowFuelPct: 15, rainChancePct: 60, trafficRadiusKm: 5, trafficMinSeverity: 2, trafficMinDelaySec: 120, sunsetWarnMin: 45 },
   // G 310 GS: 11 litre tank. 280 km is a cautious full-tank range; tune it to what the bike actually does.
-  fuel: { rangeKm: 280, warnKmLeft: 60 },
+  // Owner's figures, 2026-10-17: 11 L tank with 1 L reserve, 4.4 L/100 km on the dash, R30.25 a litre.
+  fuel: { tankL: 11, reserveL: 1, lPer100: 4.4, warnKmLeft: 60, pricePerL: 30.25, priceSource: 'manual', priceAt: new Date(2026, 9, 17).getTime() },
   priorities: {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,

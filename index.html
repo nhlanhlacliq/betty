@@ -229,6 +229,9 @@
             <div class="setting"><div><p>What she calls you</p></div><input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
             <div class="setting"><div><p>Your motorcycle</p><small>What she calls the bike.</small></div><input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
             <div class="setting"><div><p>Fuel range</p><small id="garagefuel">Estimate by distance since the last fill-up.</small></div><button class="secondary small" type="button" data-filled>Filled up</button></div>
+            <div class="setting"><div><p>Tank</p><small>Litres, of which reserve.</small></div><div class="pair"><input type="text" class="num" id="tankl" inputmode="decimal" autocomplete="off" aria-label="Tank size in litres" /><input type="text" class="num" id="reservel" inputmode="decimal" autocomplete="off" aria-label="Reserve in litres" /></div></div>
+            <div class="setting"><div><p>Average consumption</p><small>L/100 km, from the dash. Or say "consumption 4.6".</small></div><input type="text" class="num" id="lper100" inputmode="decimal" autocomplete="off" aria-label="Average consumption in litres per 100 km" /></div>
+            <div class="setting"><div><p>Petrol price</p><small id="pricesub">Rand a litre.</small></div><input type="text" class="num" id="fuelprice" inputmode="decimal" autocomplete="off" aria-label="Petrol price in rand per litre" /></div>
             <div class="setting"><div><p>Count riding time only</p><small>Ride times leave out parking and breaks. Each ride's story still shows riding and stopped time.</small></div><input type="checkbox" id="ridingonly" aria-label="Count riding time only" /></div>
             <div class="setting stack"><div><p>Motorcycle telemetry</p><small>Real OBD2 needs the hardware.</small></div>
               <select id="obdmode"><option value="off">Off: GPS only</option><option value="mock">Simulated (mock)</option><option value="real" disabled>Real OBD2 (needs the hardware)</option></select></div>
@@ -309,7 +312,7 @@
             <p class="route-tip">Tip: plan your ride in Google Maps, stops and all, tap Share and paste the link here.</p>
             <label class="check-row"><input type="checkbox" id="routethrilling" /> Twisty roads (thrilling route)</label>
             <div class="route-summary" id="routesummary" hidden>
-              <b id="routename"></b><small id="routestats"></small>
+              <b id="routename"></b><small id="routestats"></small><small id="routefuel"></small>
               <div class="dialog-actions"><a class="secondary" id="routemaps" target="_blank" rel="noopener">Open in Google Maps</a><button class="secondary" id="routeclear" type="button">Clear route</button></div>
             </div>
             <p class="sheet-note">Betty follows the route for time left, stops and leaving it. Google Maps gives you the turns. Leave it empty for a free ride.</p>

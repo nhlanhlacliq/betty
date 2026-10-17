@@ -8,6 +8,10 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Fuel range now comes from your bike: an 11 litre tank with 1 litre of reserve and your dash average of 4.4 L/100 km (about 227 km to reserve). Change them in Garage > In your garage, or say "consumption 4.6". Betty tells you km to reserve and litres left.',
+      'When fuel gets low, or you ask where to fill up, Betty names the petrol stations ahead (on your route if you have one) and whether you will make the first one.',
+      'Planning a route says whether it fits in your tank, or where to fill up on the way.',
+      'Fuel cost: each ride\'s page and the ride card show what the ride cost in petrol, and My journeys shows this month\'s spend and the cost per km. The price is R30.25 a litre for now; Betty looks it up each month after the price change, and a price you type (or say: "petrol price 31.20") counts until the next change.',
       'Web search that actually happens: when you say search, look it up, Google it or the internet (even misheard), or ask about prices, reviews, events or which bike to buy, Betty searches every time. If she ever says she will look something up without doing it, she is asked again and made to search.',
       'Betty answers common knowledge herself now (books like Animal Farm, how gearing works, history) instead of saying she does not know, and searches when she is not sure. Answers use km/h and rand.',
       'Answers stick to what you asked: no more speed and "you are off the route" tacked on. Tell her you are on a detour and the off-route reminders stop until you are back on the route. She no longer offers directions back: Google Maps does that.',

@@ -241,6 +241,7 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .summary-stats { display: flex; justify-content: space-around; margin-top: 26px; gap: 12px; }
 .summary-stats b { display: block; font-size: 24px; font-weight: 500; letter-spacing: -.7px; }
 .summary-stats small { font-size: 8px; letter-spacing: .3px; color: var(--muted); display: block; margin-top: 6px; text-transform: uppercase; }
+.fuel-spend { margin: 10px 2px 0; font-size: 13px; color: var(--muted); text-align: center; }
 .time-split { margin: 20px auto 0; max-width: 300px; }
 .time-split .bar { height: 6px; border-radius: 3px; background: var(--butter); overflow: hidden; }
 .time-split .bar i { display: block; height: 100%; background: var(--sage); border-radius: 3px; }
@@ -327,6 +328,8 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .setting p { font-size: 12px; font-weight: 500; }
 .setting .val { font-weight: 600; margin-left: 4px; }
 .setting small { display: block; font-size: 10px; line-height: 1.5; margin-top: 5px; color: var(--muted); }
+.setting input.num { font-size: 16px; color: var(--ink); background: #f1f4e9; border: 0; border-radius: 9px; padding: 8px 10px; width: 78px; min-height: 38px; flex: none; text-align: right; }
+.setting .pair { display: flex; gap: 6px; flex: none; }
 .setting select, .setting input[type=text] { font-size: 16px; color: var(--ink); background: #f1f4e9; border: 0; border-radius: 9px; padding: 8px 10px; width: 150px; min-height: 38px; flex: none; }
 .setting.stack { flex-direction: column; align-items: stretch; gap: 10px; }
 .setting.stack select { width: 100%; }
@@ -516,6 +519,7 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .page-grid, .settings-card, .setting, .setting > div, .journey-list, .explore-list { min-width: 0; max-width: 100%; }
 .setting.stack select, .setting.stack input[type=text] { width: 100%; max-width: 100%; }
 .setting select, .setting input[type=text] { max-width: 55%; }
+.setting input.num { width: 78px; max-width: 78px; }
 .setting.stack select { max-width: 100%; }
 .settings-card img, .settings-card svg, .settings-card pre { max-width: 100%; }
 
@@ -575,3 +579,4 @@ html, body { overscroll-behavior: none; }
 /* Let Betty know me (ui/KnowMe.ts) */
 .know-ask { margin: 8px 0 4px; padding: 12px 14px; border-left: 3px solid var(--accent); background: #fffdf3; border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--ink); }
 .know-text { width: 100%; margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid #e3e8da; background: #fff; color: var(--ink); font: inherit; font-size: 16px; line-height: 1.45; resize: vertical; }
+#routefuel { display: block; margin-top: 4px; color: var(--sage-text); }

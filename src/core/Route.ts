@@ -81,6 +81,17 @@ export function routeProgress(r: PlannedRoute, here: LatLon, hint = 0): RoutePro
   };
 }
 
+/** Where a point (a petrol station) falls on the route from `fromIndex` on: km along it and how far off its line. */
+export function projectOnRoute(r: PlannedRoute, pt: LatLon, fromIndex = 0): { index: number; km: number; offKm: number } | null {
+  const { along } = geometry(r);
+  let best = -1, bestD = Infinity;
+  for (let i = Math.max(0, fromIndex); i < r.points.length; i++) {
+    const d = haversineKm(pt, { lat: r.points[i][0], lon: r.points[i][1] });
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best < 0 ? null : { index: best, km: along[best], offKm: bestD };
+}
+
 /** The named stops still ahead of him, with the distance to each along the route (the island's "Up ahead"). */
 export function stopsAhead(r: PlannedRoute, p: RouteProgress): Array<{ name: string; km: number }> {
   const { along, stopAt } = geometry(r);

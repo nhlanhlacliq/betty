@@ -210,11 +210,32 @@ Dev note: Node's `fetch` on this Mac fails with ETIMEDOUT in about 250 ms when t
 attempt timeout). For live checks from scripts use
 `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=8000`. It is not an API or app fault.
 
+## Fuel from the tank and the dash average (2026-10-17, owner's figures and picks 3 + 5)
+
+`core/Fuel.ts` (pure, tested) replaced the guessed `fuel.rangeKm` (280): `CONFIG.fuel` = tankL 11, reserveL 1, lPer100
+4.4 (his dash average), warnKmLeft 60 (now km BEFORE RESERVE), pricePerL 30.25, priceSource manual/auto, priceAt.
+227 km to reserve, 23 km of reserve. Garage > In your garage: Tank (litres, of which reserve), Average consumption,
+Petrol price (text boxes with a decimal keypad: a number box drops "31,10"); voice: "consumption 4.6", "petrol price
+31.20" (`{kind: 'fuelset'}`). Her fuel lines (`fuelNote`): km to reserve, litres left, km to empty, on reserve.
+- Stations ahead: `api/stations` (TomTom nearbySearch, category 7311, 50 km, 100 results, rounded coords, a day at
+  the edge; Search is 2,500 free a month) via `adapters/StationSource`, asked only once he is within 40 km of the
+  warning, or when his question mentions fuel/petrol/station (waits up to 2.5 s), and again after 10 km.
+  `stationsAhead`: on the route (within 1.5 km of its line, by km along it, `projectOnRoute`) or, without one, within
+  60 deg of his heading by straight line x 1.25; a brand within 2 km of a nameless one goes first. Used in the
+  `fuel_range` warning (and its canned line) and in answers.
+- Route check: `routeFuelPlan`/`describeFuelPlan` on the Where to? sheet (`#routefuel`) and in the briefing: fits, or
+  "fill up by <last named stop before reserve>".
+- Cost: `toRecord(..., CONFIG.fuel)` keeps `fuelL` and `costR` (price of the day) per ride; story stat, ride card
+  (4th number), Journeys `fuelSpend` line (this month, R a km). Older rides have none.
+- Price: `adapters/FuelPrice` at app load (server only): when `priceDue` (set before the last first-Wednesday
+  change), Claude with a forced web search for the inland ULP 95 price; `parsePrice` takes 10 to 80. Checked live
+  2026-10-17: "30.25" for October, his figure. His own figure wins until the next change.
+
 ## Fuel range, sunset, debrief (built 2026-10-10)
 
 - **Fuel range by distance** (for as long as there is no fuel gauge): the rider taps FILLED UP on the main screen;
   the engine counts km since then (`setFuelKm`/`filledUp`/`kmSinceFill`/`fuelKmLeft`) against `CONFIG.fuel.rangeKm`
-  (default 280, a cautious guess for the 11 litre tank; tune it) and fires `fuel_range` at `fuel.warnKmLeft` (60).
+  (was 280; since 2026-10-17 worked out from the tank and his consumption, see the section above) and fires `fuel_range` at `fuel.warnKmLeft` (60).
   The count carries across rides via `adapters/FuelStore` (`betty.fuel.v1`), saved every minute and at END RIDE.
   With no fill-up recorded there is no estimate and no warning. With OBD on, the real `low_fuel` alert is used
   instead. She is told it is an estimate, not a gauge. Also a banter topic (`range`) and part of `rider_query`.

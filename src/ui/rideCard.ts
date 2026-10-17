@@ -154,6 +154,7 @@ export async function drawRideCard(doc: Document, c: CardInput): Promise<Blob> {
     [`${c.ride.distanceKm}`, 'kilometres'],
     [min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}` : `${min}`, min >= 60 ? 'in the saddle' : 'minutes'],
     [`${c.ride.places.length}`, c.ride.places.length === 1 ? 'place' : 'places'],
+    ...(c.ride.costR != null ? [[`R${c.ride.costR}`, 'of fuel'] as [string, string]] : []),
   ];
   const colW = (W - PAD * 2) / stats.length;
   stats.forEach(([v, l], i) => {

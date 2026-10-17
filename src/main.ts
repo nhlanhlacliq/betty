@@ -9,6 +9,9 @@ import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { placesFromHere, travelDirection } from './core/ambient';
 import { Command, addMark, addNote, forgetLast, parseCommand } from './core/Commands';
 import { saysDetour, saysFilledUp } from './core/Heard';
+import { describeFuelPlan, fuelLeft, kmToReserve, routeFuelPlan } from './core/Fuel';
+import { StationSource } from './adapters/StationSource';
+import { refreshFuelPrice } from './adapters/FuelPrice';
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
@@ -311,20 +314,22 @@ nameInput.addEventListener('change', () => {
 
 // Fuel range by distance, for as long as there is no fuel gauge to read. The count carries on across rides.
 const showRange = (kmSinceFill: number | null) => {
-  $('range').textContent = kmSinceFill === null ? '-' : String(Math.max(0, Math.round(CONFIG.fuel.rangeKm - kmSinceFill)));
-  $('rangesrc').textContent = kmSinceFill === null ? 'tap FILLED UP' : `km left, ${Math.round(kmSinceFill)} since fill`;
+  $('range').textContent = kmSinceFill === null ? '-' : String(fuelLeft(kmSinceFill, CONFIG.fuel).kmToReserve);
+  $('rangesrc').textContent = kmSinceFill === null ? 'tap FILLED UP' : `km to reserve, ${Math.round(kmSinceFill)} since fill`;
 };
 showRange(FuelStore.load());
 const fuelText = () => {
   const since = rig ? rig.engine.kmSinceFill() : FuelStore.load();
-  return since === null ? 'Tap Filled up to start counting' : `${Math.max(0, Math.round(CONFIG.fuel.rangeKm - since))} km left, ${Math.round(since)} since the fill`;
+  if (since === null) return 'Tap Filled up to start counting';
+  const f = fuelLeft(since, CONFIG.fuel);
+  return f.onReserve ? `On reserve: about ${f.kmToEmpty} km to empty` : `${f.kmToReserve} km to reserve · ${f.litres} L left`;
 };
 document.querySelectorAll('[data-filled]').forEach((b) => b.addEventListener('click', () => {
   rig?.engine.filledUp();
   FuelStore.save(0);
   showRange(0);
   for (const id of ['readyfuel', 'garagefuel']) { const out = document.getElementById(id); if (out) out.textContent = fuelText(); }
-  setStatus(`Fill-up noted. Range reset to ${CONFIG.fuel.rangeKm} km.`);
+  setStatus(`Fill-up noted. Range reset to ${Math.round(kmToReserve(CONFIG.fuel))} km.`);
 }));
 
 const bikeInput = $<HTMLInputElement>('bikename');
@@ -487,6 +492,8 @@ const sayOutsideRide = (text: string) => {
   t.speak(text, () => { helloOrb.className = 'orb resting'; }, { priority: 4, id: 'voice' });
 };
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
+// The petrol price, once a month after the first-Wednesday change (his own figure wins until then).
+if (SERVER) void refreshFuelPrice().then((p) => { if (p !== null) { saveConfig(); window.dispatchEvent(new window.Event('betty-config')); } });
 // Betty's look: the default companion or his own picture/GIF, kept on the phone.
 // Pull down to refresh (never while a ride or desk session runs: a reload would end it); drag a sheet down to close.
 mountPullToRefresh(document, { canRefresh: () => rig === null, reload: () => {
@@ -590,6 +597,7 @@ mountKnowMe(document, {
 });
 // Where to? A Google Maps link or typed places, planned by TomTom on Betty's server; Betty follows it on the ride.
 mountRoutePlanner(document, {
+  fuelNote: (r) => (CONFIG.obdMode === 'off' ? describeFuelPlan(routeFuelPlan(r, CONFIG.fuel, rig ? rig.engine.kmSinceFill() : FuelStore.load())) : ''),
   position: async () => {
     const s = rig?.agg.current;
     if (s?.lat != null && s.lon != null) return { lat: s.lat, lon: s.lon };
@@ -658,7 +666,7 @@ function paintRide() {
     rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
     untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
     route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm, detour: r.engine.onDetour() } : null,
-    fuelRangeKm: CONFIG.fuel.rangeKm,
+    fuelRangeKm: Math.round(kmToReserve(CONFIG.fuel)),
   });
   const minLabel = document.getElementById('rideminlabel');
   if (minLabel) minLabel.textContent = CONFIG.ridingTimeOnly ? 'min riding' : 'min out';
@@ -754,7 +762,7 @@ async function beginRide(desk: boolean) {
   // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
   const remember = () => {
     const w = agg.current.weather;
-    const rec = desk ? null : toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null);
+    const rec = desk ? null : toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null, CONFIG.fuel);
     if (rec) RideLog.save(rec);
     FuelStore.save(engine.kmSinceFill());
     IncidentMemory.save(engine.announcedIncidents());
@@ -801,6 +809,7 @@ async function beginRide(desk: boolean) {
     return line.item;
   };
 
+  const stations = new StationSource();
   const unsub = agg.subscribe((s) => {
     if (s.lat != null && s.lon != null) addTrackPoint(rideTrack, { lat: s.lat, lon: s.lon });
     $('speed').textContent = String(s.speedKmh);
@@ -825,6 +834,11 @@ async function beginRide(desk: boolean) {
     $('feeds').textContent = s.weather
       ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby | ${areaLine}`
       : feedStatus();
+    // Petrol stations ahead once the fuel is getting low (within 40 km of the warning), for her warning and answers.
+    const toReserve = s.obd ? null : engine.fuelKmLeft();
+    if (SERVER && !desk && toReserve !== null && toReserve <= CONFIG.fuel.warnKmLeft + 40 && s.lat != null && s.lon != null) {
+      void stations.near(s.lat, s.lon).then((l) => engine.setStations(l));
+    }
     engine.evaluate(s).forEach(say);
     queue.pump();
     paintRide();
@@ -920,6 +934,15 @@ async function beginRide(desk: boolean) {
         reply(`${name}${mixSummary()}`, c.kind);
         return;
       }
+      case 'fuelset': {
+        if (c.what === 'consumption') CONFIG.fuel.lPer100 = c.value;
+        else { CONFIG.fuel.pricePerL = c.value; CONFIG.fuel.priceSource = 'manual'; CONFIG.fuel.priceAt = Date.now(); }
+        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+        reply(c.what === 'consumption'
+          ? `${c.value} litres per hundred. That's about ${Math.round(kmToReserve(CONFIG.fuel))} kilometres to reserve on a full tank.`
+          : `Petrol at R${c.value.toFixed(2)} a litre. Noted.`, 'fuelset');
+        return;
+      }
       case 'end': {
         if (rig?.engine !== engine || rig.desk) { reply('There is no ride to end.', 'end'); return; }
         void stop(); // her sign-off follows, and the ride's story opens
@@ -939,8 +962,8 @@ async function beginRide(desk: boolean) {
     const noted: string[] = [];
     if (saysFilledUp(text)) {
       (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click();
-      newLine('[heard]', `fill-up: range reset to ${CONFIG.fuel.rangeKm} km`);
-      noted.push(`The phone has just recorded his fill-up from what he said: fuel range reset to about ${CONFIG.fuel.rangeKm} km.`);
+      newLine('[heard]', `fill-up: range reset to ${Math.round(kmToReserve(CONFIG.fuel))} km`);
+      noted.push(`The phone has just recorded his fill-up from what he said: fuel range reset to about ${Math.round(kmToReserve(CONFIG.fuel))} km.`);
     }
     if (saysDetour(text) && engine.routeNow() && !engine.onDetour()) {
       engine.setDetour(true);
@@ -949,6 +972,11 @@ async function beginRide(desk: boolean) {
     }
     const command = parseCommand(text);
     if (command) { obey(command); renderLog(); return null; }
+    // "Where can I fill up?": the stations near him, if they can be had in a couple of seconds.
+    const here = agg.current;
+    if (SERVER && !desk && /\b(fuel|petrol|gas|garage|station|fill up|filling|refuel|reserve|tank)\b/i.test(text) && here.lat != null && here.lon != null) {
+      engine.setStations(await within(stations.near(here.lat, here.lon), 2500, 'stations').catch(() => stations.list));
+    }
     // A web search takes a few seconds: rather than silence, she says she is on it.
     const slow = window.setTimeout(() => sayNow(HANG_ON), HANG_ON_AFTER_MS);
     try { return await say(engine.ask(text, agg.current, noted)); } finally { window.clearTimeout(slow); }
@@ -1006,7 +1034,7 @@ async function beginRide(desk: boolean) {
     toggleQuiet: () => { obey(engine.quietLeftMin() > 0 ? { kind: 'talk' } : { kind: 'quiet', minutes: null }); renderLog(); paintRide(); },
     // The island's one button per card.
     island: (kind, g) => {
-      if (kind === 'filled') { (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click(); shell.toast(`Fill-up noted: about ${CONFIG.fuel.rangeKm} km of range.`); paintRide(); }
+      if (kind === 'filled') { (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click(); shell.toast(`Fill-up noted: about ${Math.round(kmToReserve(CONFIG.fuel))} km of range.`); paintRide(); }
       else if (kind === 'ask-rain') void askBetty('Is the rain going to last, and will it catch me on this ride?');
       else if (kind === 'ask-traffic') void askBetty('Tell me about the traffic on my way.');
       else if (kind === 'ask-place') void askBetty(`Tell me about ${g.value}.`);
