@@ -783,6 +783,43 @@ stage 3 command path (`parseCommand` -> carried out on the phone -> instant repl
 - Open questions for the owner before building: which presets and what is in each; whether a voice change lasts
   only for this ride or until changed back.
 
+## Backlog: what the new app layout makes possible (owner, 2026-10-17: "all good, store them"; NONE BUILT)
+
+Ideas that build on the stored ride tracks (`core/Track`, `betty.tracks.v1`), the map (`ui/mapView`), Explore, the
+chat outside a ride, the installable app and the backup file. Owner's first picks were not chosen yet; suggested: 1
+and 5 first (small, visible), 7 as the bigger job.
+From the stored tracks and the map:
+1. New road vs usual road: compare the live track with past tracks; she notices a road never ridden before ("first time
+   on this one") or his most-ridden stretch. Pure core logic on track points (grid cells of ~100 m).
+2. Rough patches on the map: plot hard braking and big jolts on each ride's map in Journeys (needs positions logged
+   with those events). Spots that recur across rides become automatic marked-spot warnings.
+3. Personal records: longest ride, highest point, longest day, most cornering; shown in Journeys, called out live
+   ("your longest ride yet").
+4. Shareable ride card: one image (map sketch, stats, her best line of the ride) through the share sheet.
+From Explore:
+5. Explore as a map: area stories, Wikipedia places and marked spots as pins; tap one and she tells it, at home.
+6. Stories you missed: area stories researched but not told on the ride, saved to play later.
+From the empty "Where to?" slot (needs ROUTE PLANNING, see below):
+7. Route awareness lite: a destination gives weather where he will be in 30 min, fuel stops in range, stories
+   researched ahead, distance and time left.
+From chat outside a ride:
+8. Plan a ride with her at home ("a breakfast run, two hours, twisty roads"): web search plus his past tracks;
+   needs route planning to turn the plan into a route.
+9. Memory across rides: "what did we talk about on Saturday?", "where was that pothole?", from the saved logs.
+From the installable app:
+10. Reminders: chain lube, service by distance, tyre age; kept in Garage, mentioned on the ride, and a phone
+    notification from the installed app (iPhone allows web push for home-screen apps).
+From the backup file:
+11. Share spots, stories or a ride with a friend's Betty (export a subset, import it): a first step to group rides.
+
+Route planning (for 7 and 8), the plan discussed 2026-10-17, UNVERIFIED: a server function `api/route` with the TomTom
+key Betty already has (TomTom Routing: car/motorcycle routes with live traffic, and a "thrilling" route type that
+prefers winding, hilly roads, which suits a motorcycle; check the free quota and parameters before building).
+Destination search through TomTom Search (same key) or Nominatim. Betty does NOT do turn-by-turn: Google Maps/Waze on
+the handlebar screen navigates (an "Open in Maps" link with the same destination); Betty uses the route line for
+what is ahead (weather sampled along it at the time he will be there, fuel stations along it, area stories fetched
+for the towns on it in advance, time and distance left, "you have left the route" if he strays far).
+
 ## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
 
 Co-pilot:
