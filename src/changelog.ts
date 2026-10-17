@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Reminders now follow the BMW G 310 GS handbook schedule: yearly service, oil every 10,000 km or yearly, air filter, spark plug, valves and fork oil every 20,000 km, fuel filters and intake hoses every 40,000 km or 4 years, brake fluid every 2 years, plus chain, tyre pressures and tyre age. Set the odometer and they line up with the handbook\'s milestones; "last done: a guess" shows until you set or confirm one.',
       'Service reminders (Garage > Reminders): chain clean and lube, tyre pressures, service and tyre age to start with, each due by distance or time. Set the odometer to your bike\'s once. Tap Done, or say "chain done" or "the bike was serviced". Betty mentions what is due when you set off and when you finish, and the Details sheet on the Ride tab shows it.',
       'On iPhone the page no longer zooms in when you tap a search box or a field.',
       'Search the Garage: type at the top (say "louder", "fuel" or "buttons") and only the matching settings show, with the help topics and voice commands that fit.',

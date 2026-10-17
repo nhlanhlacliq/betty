@@ -423,6 +423,14 @@ has dynamic content, and a smoke test.
   toggles the class. Lists only one item over the limit are shown whole.
 ## Service reminders (2026-10-17, owner: "yes build reminders")
 
+HANDBOOK SCHEDULE (owner's photo of the G 310 GS handbook p. 140, 2026-10-17): `BIKES` holds bike schedules
+(`bmw-g310gs`: yearly standard service; oil + filter 10,000 km or yearly; air filter, spark plug, valve clearance, fork
+oil 20,000 km; fuel filters + hoses and intake silencer hoses + tank vent valve 40,000 km or 4 years; brake fluid 2
+years (first after 1 year); running-in check left out) plus `RIDER_CARE` (chain 600 km, tyre pressures 14 days, tyre
+age 5 years). `bikeBook` assumes schedule items done at the last milestone below the odometer (`assumed: true`, shown
+as "last done: a guess"); `alignToOdometer` redoes that when he sets the odometer (his own and confirmed items keep
+their km since); `upgradeBook` turns a book saved before this (no `bike`) into the schedule, dropping the generic
+"Service" if untouched. `ServiceBook.bike` is the id: changing bikes is the next step (see the owner's question).
 `core/Reminders.ts` (pure, tested): `Reminder {id, name, everyKm|null, everyDays|null, lastKm, lastAt}`, `ServiceBook
 {odoKm, items}`; `dueInfo` (ok / soon = within a tenth of the interval, at least 100 km or 7 days / due), `dueList`
 (most pressing first), `dueText` ("in 80 km", "50 km overdue", "in 12 months"; en-US digit grouping so a voice reads
@@ -1292,6 +1300,8 @@ were not a command; the answer prompt now says only the commands change settings
 ## Conventions
 
 - TypeScript strict. Keep `core/` pure and covered by tests; adapters and ui stay thin.
+- Every change the owner would notice ALSO goes into Help (`src/ui/help.ts`): a new topic or the existing one updated,
+  and any new voice command in `VOICE_COMMANDS` (owner, 2026-10-17). Changelog = what changed; Help = how it works now.
 - Every change the owner would notice gets a plain-words line in `src/changelog.ts` (shown in the app as WHAT'S NEW,
   under LOG, with the build time so he can tell a reload picked up the new version). Owner's request, 2026-10-16.
 - Config values (thresholds, cooldowns, priorities, prompt) live in `config/betty.ts`, never inline.

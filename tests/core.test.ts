@@ -2152,7 +2152,11 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const R = await import('../src/core/Reminders');
   const DAY = 86_400_000, t0 = new Date(2026, 9, 17).getTime();
   let book = R.starterBook(23_000, t0);
-  assert.deepEqual(book.items.map((r) => r.id), ['chain', 'tyres', 'service', 'tyreage']);
+  assert.deepEqual(book.items.map((r) => r.id), ['chain', 'tyres', 'tyreage', 'bmw-service', 'oil', 'airfilter', 'sparkplug', 'valves', 'forkoil', 'fuelfilter', 'intake', 'brakefluid'], 'rider care plus the G 310 GS handbook');
+  const item = (id: string) => book.items.find((r) => r.id === id)!;
+  assert.equal(item('oil').lastKm, 20_000, 'assumed done at the last milestone below the odometer'); assert.equal(item('fuelfilter').lastKm, 0);
+  assert.equal(item('chain').lastKm, 23_000); assert.ok(item('oil').assumed && item('oil').schedule && !item('chain').schedule);
+  assert.deepEqual([item('oil').everyKm, item('oil').everyDays, item('brakefluid').everyDays, item('fuelfilter').everyKm, item('fuelfilter').everyDays], [10_000, 365, 730, 40_000, 1460]);
   assert.ok(R.dueList(book, t0).every((d) => d.state === 'ok'), 'all fresh');
   book = { ...book, odoKm: 23_520 };
   let chain = R.dueInfo(book.items[0], book.odoKm, t0 + 3 * DAY);
@@ -2163,14 +2167,27 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const tyres = R.dueInfo(book.items[1], book.odoKm, t0 + 15 * DAY);
   assert.equal(tyres.state, 'due'); assert.equal(R.dueText(tyres), '1 day overdue');
   assert.deepEqual(R.dueList(book, t0 + 15 * DAY).map((d) => d.r.id).slice(0, 2), ['chain', 'tyres'], 'most pressing first');
-  const service = R.dueInfo(book.items[2], book.odoKm, t0 + 15 * DAY);
-  assert.equal(R.dueText(service), 'in 9,350 km or in 12 months');
+  const oil = R.dueInfo(item('oil'), book.odoKm, t0 + 15 * DAY);
+  assert.equal(R.dueText(oil), 'in 6,350 km or in 12 months');
+  // setting the odometer: guesses line up with the new reading's milestones, his own items keep their km since
+  const aligned = R.alignToOdometer(book, 31_200);
+  assert.equal(aligned.items.find((r) => r.id === 'oil')!.lastKm, 30_000);
+  assert.equal(aligned.items.find((r) => r.id === 'chain')!.lastKm, 23_000 + (31_200 - 23_650));
+  const doneOil = R.markDone(aligned, 'oil', t0);
+  assert.equal(doneOil.items.find((r) => r.id === 'oil')!.assumed, false);
+  assert.equal(R.alignToOdometer(doneOil, 35_000).items.find((r) => r.id === 'oil')!.lastKm, 31_200 + 3_800, 'confirmed: no longer moved to a milestone');
+  // a book saved before the handbook: the generic Service goes, his own stay, the schedule is added
+  const old = { odoKm: 5_000, items: [{ id: 'chain', name: 'Chain', everyKm: 500, everyDays: null, lastKm: 4_900, lastAt: t0 }, { id: 'service', name: 'Service', everyKm: 10_000, everyDays: 365, lastKm: 0, lastAt: t0 }, { id: 'rx', name: 'Brake pads', everyKm: 8_000, everyDays: null, lastKm: 0, lastAt: t0 }] };
+  const up = R.upgradeBook(old, t0);
+  assert.equal(up.bike, 'bmw-g310gs'); assert.ok(!up.items.some((r) => r.id === 'service'));
+  assert.equal(up.items.find((r) => r.id === 'chain')!.everyKm, 500, 'his changes kept'); assert.ok(up.items.some((r) => r.id === 'rx') && up.items.some((r) => r.id === 'oil'));
+  assert.equal(R.upgradeBook(up, t0), up, 'once');
   assert.match(R.describeDue(book, t0 + 15 * DAY), /^Maintenance: Chain clean and lube is due \(50 km overdue\); Tyre pressures is due \(1 day overdue\)\.$/);
   assert.equal(R.describeDue(R.starterBook(0, t0), t0), '', 'nothing due: nothing to say');
-  assert.match(R.describeDue(R.starterBook(0, t0), t0, true), /Service in 10,000 km or in 12 months/);
+  assert.match(R.describeDue(R.starterBook(0, t0), t0, true), /Engine oil and filter in 10,000 km or in 12 months/);
   const done = R.markDone(book, 'chain', t0 + 15 * DAY);
   assert.equal(R.dueInfo(done.items[0], done.odoKm, t0 + 15 * DAY).kmLeft, 600);
-  for (const [said, id] of [['chain done', 'chain'], ['lubed the chain', 'chain'], ['service', 'service'], ['checked the tyre pressures', 'tyres'], ['tyre age', 'tyreage']] as const) {
+  for (const [said, id] of [['chain done', 'chain'], ['lubed the chain', 'chain'], ['service', 'bmw-service'], ['checked the tyre pressures', 'tyres'], ['tyre age', 'tyreage'], ['changed the oil', 'oil'], ['brake fluid', 'brakefluid'], ['fork oil', 'forkoil']] as const) {
     assert.equal(R.findReminder(book.items, said)?.id, id, said);
   }
   assert.equal(R.findReminder(book.items, 'checked the weather'), null);
@@ -2183,7 +2200,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig(); clock = t0 + 15 * DAY;
   const e = new TriggerEngine(now); e.setServiceBook(book);
   assert.match(e.startup(initialState()).context, /Maintenance: Chain clean and lube is due.*Mention what is due briefly/);
-  assert.match(e.ask("what's due on the bike?", initialState()).context, /Service in 9,350 km/, 'asked: every reminder');
+  assert.match(e.ask("what's due on the bike?", initialState()).context, /Engine oil and filter in 6,350 km/, 'asked: every reminder');
   assert.match(e.ask('how far have we come?', initialState()).context, /Chain clean and lube is due/);
   e.setServiceBook(R.starterBook(0, clock));
   assert.doesNotMatch(e.startup(initialState()).context, /Maintenance/);

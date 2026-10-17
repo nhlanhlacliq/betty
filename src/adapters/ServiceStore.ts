@@ -1,4 +1,4 @@
-import { ServiceBook, starterBook } from '../core/Reminders';
+import { DEFAULT_BIKE, ServiceBook, bikeBook, upgradeBook } from '../core/Reminders';
 
 const KEY = 'betty.service.v1';
 
@@ -10,9 +10,13 @@ export const ServiceStore = {
   load(now = Date.now()): ServiceBook {
     try {
       const v = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-      if (v && typeof v.odoKm === 'number' && Array.isArray(v.items)) return v as ServiceBook;
+      if (v && typeof v.odoKm === 'number' && Array.isArray(v.items)) {
+        const up = upgradeBook(v as ServiceBook, now); // saved before the handbook schedule: add it
+        if (up !== v) ServiceStore.save(up);
+        return up;
+      }
     } catch { /* fall through */ }
-    const book = starterBook(0, now);
+    const book = bikeBook(DEFAULT_BIKE, 0, now);
     ServiceStore.save(book);
     return book;
   },

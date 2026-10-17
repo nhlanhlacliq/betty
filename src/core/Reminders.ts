@@ -13,8 +13,18 @@ export interface Reminder {
   /** Odometer (km) and time (ms) when it was last done */
   lastKm: number;
   lastAt: number;
+  /** From the bike's maintenance schedule (not one he added), with the handbook's wording */
+  schedule?: boolean;
+  note?: string;
+  /** "Last done" is a guess (the last schedule milestone below the odometer): he has not confirmed it */
+  assumed?: boolean;
 }
-export interface ServiceBook { odoKm: number; items: Reminder[] }
+export interface ServiceBook {
+  odoKm: number;
+  items: Reminder[];
+  /** Which bike's schedule this is (BIKES id); missing = the first, generic set of 2026-10-17 */
+  bike?: string;
+}
 
 export type DueState = 'ok' | 'soon' | 'due';
 export interface DueInfo { r: Reminder; state: DueState; kmLeft: number | null; daysLeft: number | null }
@@ -55,20 +65,77 @@ export function dueText(d: DueInfo): string {
 
 /** Done: counted again from here. */
 export const markDone = (book: ServiceBook, id: string, now: number): ServiceBook =>
-  ({ ...book, items: book.items.map((r) => (r.id === id ? { ...r, lastKm: book.odoKm, lastAt: now } : r)) });
+  ({ ...book, items: book.items.map((r) => (r.id === id ? { ...r, lastKm: book.odoKm, lastAt: now, assumed: false } : r)) });
+
+/** One line of a bike's maintenance schedule. */
+export interface ScheduleItem { id: string; name: string; everyKm: number | null; everyDays: number | null; note?: string }
+export interface BikeSchedule { id: string; name: string; tankL: number; reserveL: number; items: ScheduleItem[] }
 
 /**
- * A starting set, counted from today (edit "last done" in Garage if it was longer ago). Intervals are common
- * guidance, not the bike's handbook: the service one should be checked against his service book.
+ * Rider care that no handbook schedule lists as a service item: common guidance, editable.
  */
-export function starterBook(odoKm: number, now: number): ServiceBook {
-  const r = (id: string, name: string, everyKm: number | null, everyDays: number | null): Reminder => ({ id, name, everyKm, everyDays, lastKm: odoKm, lastAt: now });
-  return { odoKm, items: [
-    r('chain', 'Chain clean and lube', 600, null),
-    r('tyres', 'Tyre pressures', null, 14),
-    r('service', 'Service', 10_000, 365),
-    r('tyreage', 'Tyre age check', null, 365 * 5),
-  ] };
+export const RIDER_CARE: ScheduleItem[] = [
+  { id: 'chain', name: 'Chain clean and lube', everyKm: 600, everyDays: null, note: 'Common guidance; sooner after rain or dirt roads.' },
+  { id: 'tyres', name: 'Tyre pressures', everyKm: null, everyDays: 14 },
+  { id: 'tyreage', name: 'Tyre age check', everyKm: null, everyDays: 365 * 5 },
+];
+
+/**
+ * The bikes Betty knows the schedule of. BMW G 310 GS: the owner's handbook, p. 140 (photo, 2026-10-17). The
+ * running-in check (500 to 1,200 km, once) is left out: a one-off long past on a 2018 bike.
+ */
+export const BIKES: BikeSchedule[] = [
+  { id: 'bmw-g310gs', name: 'BMW G 310 GS', tankL: 11, reserveL: 1, items: [
+    { id: 'bmw-service', name: 'Standard BMW service', everyKm: null, everyDays: 365, note: 'Every 12 months.' },
+    { id: 'oil', name: 'Engine oil and filter', everyKm: 10_000, everyDays: 365, note: 'Every 10,000 km or yearly, whichever comes first.' },
+    { id: 'airfilter', name: 'Air filter element', everyKm: 20_000, everyDays: null },
+    { id: 'sparkplug', name: 'Spark plug', everyKm: 20_000, everyDays: null },
+    { id: 'valves', name: 'Valve clearance check', everyKm: 20_000, everyDays: null },
+    { id: 'forkoil', name: 'Fork oil', everyKm: 20_000, everyDays: null },
+    { id: 'fuelfilter', name: 'Fuel filters and fuel hoses', everyKm: 40_000, everyDays: 365 * 4, note: 'Every 40,000 km or 4 years, whichever comes first.' },
+    { id: 'intake', name: 'Intake silencer hoses and tank vent valve', everyKm: 40_000, everyDays: 365 * 4, note: 'Every 40,000 km or 4 years, whichever comes first.' },
+    { id: 'brakefluid', name: 'Brake fluid, entire system', everyKm: null, everyDays: 365 * 2, note: 'First after one year, then every 2 years.' },
+  ] },
+];
+export const DEFAULT_BIKE = 'bmw-g310gs';
+
+/**
+ * A bike's schedule plus the rider care items. Distance items are assumed done at the last schedule milestone below
+ * the odometer (oil at 20,000 when the odometer reads 23,450), time items today; all are marked `assumed` until he
+ * confirms or changes them (alignToOdometer redoes the guess when he sets the odometer).
+ */
+export function bikeBook(bikeId: string, odoKm: number, now: number): ServiceBook {
+  const bike = BIKES.find((b) => b.id === bikeId);
+  const item = (x: ScheduleItem, schedule: boolean): Reminder => ({
+    ...x, schedule, assumed: true, lastAt: now,
+    lastKm: schedule && x.everyKm ? Math.floor(odoKm / x.everyKm) * x.everyKm : odoKm, // rider care: from today
+  });
+  return { odoKm, bike: bike?.id ?? 'other', items: [...RIDER_CARE.map((x) => item(x, false)), ...(bike?.items ?? []).map((x) => item(x, true))] };
+}
+/** The first set (before the handbook was known): kept for books saved then; new books use bikeBook. */
+export const starterBook = (odoKm: number, now: number): ServiceBook => bikeBook(DEFAULT_BIKE, odoKm, now);
+
+/**
+ * He set the odometer: schedule items still on a guessed "last done" move to the last milestone below it (rider-care
+ * items keep their km since, as before).
+ */
+export function alignToOdometer(book: ServiceBook, odoKm: number): ServiceBook {
+  const shift = odoKm - book.odoKm;
+  return { ...book, odoKm, items: book.items.map((r) => (r.schedule && r.assumed && r.everyKm
+    ? { ...r, lastKm: Math.floor(odoKm / r.everyKm) * r.everyKm }
+    : { ...r, lastKm: r.lastKm + shift })) };
+}
+
+/**
+ * A book saved before the handbook schedule existed (no `bike`): his own items stay, the generic "Service" goes if it
+ * was never changed, the bike's schedule is added.
+ */
+export function upgradeBook(book: ServiceBook, now: number): ServiceBook {
+  if (book.bike) return book;
+  const fresh = bikeBook(DEFAULT_BIKE, book.odoKm, now);
+  const kept = book.items.filter((r) => !(r.id === 'service' && r.everyKm === 10_000 && r.everyDays === 365));
+  const have = new Set(kept.map((r) => r.id));
+  return { ...book, bike: DEFAULT_BIKE, items: [...kept, ...fresh.items.filter((r) => !have.has(r.id))] };
 }
 
 /** Which reminder he means by "chain done", "I serviced the bike", "checked the tyres": word stems in common. */

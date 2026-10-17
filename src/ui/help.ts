@@ -34,7 +34,7 @@ export const VOICE_COMMANDS: CommandGroup[] = [
     { say: ['More banter', 'Fewer stories', 'Less chatty', 'Talk more'], does: 'Nudges the mix of banter, stories and silence, or how often she speaks.', kind: 'mix' },
   ] },
   { title: 'Maintenance', items: [
-    { say: ['Chain done', 'I lubed the chain', 'The bike was serviced', 'Checked the tyre pressures'], does: 'Marks a reminder done (Garage > Reminders) and tells you when the next one is due.', kind: 'done' },
+    { say: ['Chain done', 'I lubed the chain', 'Changed the oil', 'The bike was serviced', 'Checked the tyre pressures', 'Brake fluid done'], does: 'Marks a reminder done (Garage > Reminders) and tells you when the next one is due.', kind: 'done' },
   ] },
   { title: 'Fuel', items: [
     { say: ['Consumption 4.6', 'My average consumption is 4.8'], does: 'Your dash average in L/100 km: her fuel range is worked out from it.', kind: 'fuelset' },
@@ -104,13 +104,15 @@ export const HELP_TOPICS: HelpTopic[] = [
       'When fuel gets low she names the stations ahead, and planning a route tells you whether it fits in a tank.',
       'Each ride keeps what it cost in petrol; My journeys shows the month. The price is looked up each month; a price you type or say counts until the next change.',
     ])}` },
-  { id: 'reminders', title: 'Service reminders', keywords: 'reminders maintenance service chain lube tyres tires pressures odometer due',
+  { id: 'reminders', title: 'Service reminders', keywords: 'reminders maintenance service schedule handbook bmw oil chain lube tyres tires pressures brake fluid valves air filter spark plug fork odometer due',
     html: `${li([
-      'Garage &gt; Reminders: chain clean and lube (every 600 km), tyre pressures (every 2 weeks), service (every 10,000 km or a year) and a tyre age check (5 years) to start with. Check the service interval against your service book; tap a reminder to change it, or add your own.',
-      '<b>Odometer:</b> Betty counts every km you ride with her. Set it to the bike\'s reading once so the numbers match your dash.',
-      '<b>Done:</b> tap Done, or say "chain done" / "the bike was serviced". It counts again from there.',
-      'She mentions anything due or coming up in the briefing when you set off and in the sign-off, and the Details sheet on the Ride tab shows the most pressing one. Ask "what\'s due?" any time.',
-      'The starting set counts from the day you first opened Reminders: if the chain was done a while ago, tap it and set Last done.',
+      '<b>The schedule:</b> Garage &gt; Reminders follows the BMW G 310 GS handbook (page 140): the standard BMW service every year; engine oil and filter every 10,000 km or yearly; air filter, spark plug, valve clearance check and fork oil every 20,000 km; fuel filters and hoses, and the intake hoses and tank vent valve, every 40,000 km or 4 years; brake fluid every 2 years.',
+      '<b>Rider care</b> on top: chain clean and lube (600 km, common guidance), tyre pressures (2 weeks) and a tyre age check (5 years).',
+      '<b>Set the odometer first</b> to the reading on your dash. The handbook items then line up with its milestones: at 23,450 km the oil counts as last done at 20,000, so it is due at 30,000. Betty adds every km you ride with her after that.',
+      '<b>"Last done: a guess"</b> means Betty assumed it. Tap the reminder to set when it was really done (km ago and date), or tap Done if you have just done it.',
+      '<b>Done:</b> tap Done, or say "chain done", "changed the oil", "the bike was serviced". It counts again from there.',
+      'Tap any reminder to change its interval, rename it or delete it; <i>Add a reminder</i> makes your own (by km, by time, or both).',
+      'She mentions anything due or coming up in the briefing and the sign-off, and the Details sheet on the Ride tab shows the most pressing one. Ask "what\'s due?" any time. The list shows the most pressing five; Show all opens the rest.',
     ])}` },
   { id: 'routes', title: 'Planning a route', keywords: 'route where to google maps link plan twisty thrilling stops off route detour',
     html: `${li([

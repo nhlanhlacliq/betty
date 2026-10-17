@@ -299,11 +299,16 @@ resetConfig();
     // Reminders: the starting set, Done, editing in the sheet, the odometer
     const rlist = doc.getElementById('reminderlist')!;
     const rowsNow = () => [...rlist.querySelectorAll('.reminder-row')].map((r) => [...r.querySelectorAll('b, small, .reminder-state, [data-done]')].map((x) => x.textContent).join(' '));
-    assert.equal(rowsNow().length, 4); assert.match(rowsNow().join('|'), /Chain clean and lube Every 600 km in 600 km Done/);
+    assert.equal(rowsNow().length, 5, 'the most pressing five'); assert.match(rlist.textContent!, /BMW G 310 GS schedule from the handbook\. Set the odometer first/);
+    click(rlist.querySelector('[data-showall]')!); assert.equal(rowsNow().length, 12, 'Show all');
+    assert.match(rowsNow().join('|'), /Chain clean and lube Every 600 km · last done: a guess in 600 km Done/);
+    assert.match(rowsNow().join('|'), /Engine oil and filter Every 10,000 km or a year · last done: a guess in 10,000 km or in 12 months Done/);
+    assert.match(rowsNow().join('|'), /Brake fluid, entire system Every 2 years · last done: a guess in 2 years/);
     const odoBox = doc.getElementById('odometer') as HTMLInputElement;
     odoBox.value = '23,450'; ev(odoBox, 'change');
     assert.equal(JSON.parse(page.window.localStorage.getItem('betty.service.v1')!).odoKm, 23450);
-    assert.match(rowsNow().join('|'), /Chain clean and lube Every 600 km in 600 km/, 'setting the odometer keeps what is due');
+    assert.match(rowsNow().join('|'), /Chain clean and lube Every 600 km · last done: a guess in 600 km/, 'setting the odometer keeps what is due');
+    assert.match(rowsNow().join('|'), /Engine oil and filter Every 10,000 km or a year · last done: a guess in 6,550 km/, 'the schedule lines up with the odometer');
     click(rlist.querySelector('[data-edit="chain"]')!);
     assert.equal((doc.querySelector('[data-sheet="reminder"]') as HTMLElement).hidden, false);
     (doc.getElementById('reminderago') as HTMLInputElement).value = '550';

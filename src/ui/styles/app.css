@@ -624,3 +624,4 @@ html, body { overscroll-behavior: none; }
 .reminder-row.due .reminder-state { color: var(--danger); font-weight: 600; }
 .reminder-row [data-done] { grid-area: done; }
 #reminderform .setting input[type=date] { font-size: 16px; color: var(--ink); background: #f1f4e9; border: 0; border-radius: 9px; padding: 8px 10px; min-height: 38px; }
+.reminder-bike { margin: 2px 0 6px; font-size: 12px; }
