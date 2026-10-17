@@ -6,6 +6,9 @@
  * RISK (2026-10-16, owner accepted): this is a second sound source next to the headset buttons' silent track. On
  * iPhone it might take the buttons away. Switch "Cloud voice" back to the non-streamed option if presses stop.
  */
+import { CONFIG } from '../config/betty';
+import { Limiter, dbToGain } from '../core/Loudness';
+
 export class PcmClip {
   chunks: Uint8Array[] = [];
   done = false;
@@ -60,13 +63,14 @@ export class PcmPlayer {
     void ctx.resume();
     let idx = 0; let carry = new Uint8Array(0); let next = 0; let started = false; let stopped = false; let live = 0;
     const sources = new Set<AudioBufferSourceNode>();
+    const louder = new Limiter(dbToGain(CONFIG.voiceBoostDb), clip.rate); // Louder voice, one limiter for the whole line
     const finishIfDone = () => { if (!stopped && clip.done && idx >= clip.chunks.length && live === 0) { stop(); onEnded(); } };
     const schedule = (bytes: Uint8Array) => {
       const { samples, rest } = pcmToFloat(bytes);
       carry = rest;
       if (!samples.length) return;
       const buf = ctx.createBuffer(1, samples.length, clip.rate);
-      buf.getChannelData(0).set(samples);
+      buf.getChannelData(0).set(louder.process(samples));
       const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
       // Running dry (slow network) leaves a short gap rather than overlapping or skipping.
       if (next < ctx.currentTime + 0.02) next = ctx.currentTime + 0.05;

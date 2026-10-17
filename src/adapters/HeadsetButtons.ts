@@ -29,8 +29,12 @@ export class HeadsetButtons {
     } catch { this.audio = null; }
   }
 
-  /** Route play/pause to talk() and next track to repeat(). Returns false if this browser cannot do it. */
-  start(on: { talk(): void; repeat(): void }, log: (msg: string) => void = () => {}): boolean {
+  /**
+   * Route play/pause to talk(), next track to repeat() and previous track to letGo() (owner, 2026-10-17: previous
+   * track ends call mode and gives the buttons back to whatever app wants them). Returns false if this browser cannot
+   * do it. After stop() it can be started again, but only from a tap (prime() first).
+   */
+  start(on: { talk(): void; repeat(): void; letGo?(): void }, log: (msg: string) => void = () => {}): boolean {
     this.log = log;
     const ms = 'mediaSession' in navigator ? navigator.mediaSession : undefined;
     if (!ms || !this.audio) return false;
@@ -47,9 +51,10 @@ export class HeadsetButtons {
     set('play', () => { this.log('button: play'); keepPlaying(); on.talk(); });
     set('pause', () => { this.log('button: pause'); keepPlaying(); on.talk(); });
     set('nexttrack', () => { this.log('button: next track'); keepPlaying(); on.repeat(); });
-    // Owner: previous track does nothing. Registered anyway (as the VOICE TEST did, the setup that kept working),
-    // so no press falls through to the phone.
-    for (const a of ['previoustrack', 'seekbackward', 'seekforward', 'stop'] as MediaSessionAction[]) {
+    set('previoustrack', () => { this.log('button: previous track'); if (on.letGo) on.letGo(); else keepPlaying(); });
+    // The rest do nothing. Registered anyway (as the VOICE TEST did, the setup that kept working), so no press falls
+    // through to the phone.
+    for (const a of ['seekbackward', 'seekforward', 'stop'] as MediaSessionAction[]) {
       set(a, () => { this.log(`button: ${a} (does nothing)`); keepPlaying(); });
     }
     this.held = true;

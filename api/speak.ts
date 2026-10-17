@@ -68,6 +68,8 @@ export async function POST(req: Request): Promise<Response> {
   const stream = body?.stream === true;
   if (!model) return json({ error: 'unknown model' }, 400);
   const locale = String(body?.locale ?? 'en-US');
+  // Louder voice (Chirp only; Gemini clips are turned up on the phone): Google's own gain, 0 to 16 dB.
+  const gainDb = Math.max(0, Math.min(16, Number(body?.gainDb) || 0));
   if (!CHIRP_LOCALES.includes(locale)) return json({ error: 'unknown accent' }, 400);
   if (!text) return json({ error: 'no text' }, 400);
   if (text.length > MAX_TEXT) return json({ error: 'text too long' }, 413);
@@ -84,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
       body: JSON.stringify({
         input: { text },
         voice: { languageCode: locale, name: `${locale}-Chirp3-HD-${voice}` },
-        audioConfig: { audioEncoding: 'MP3' },
+        audioConfig: { audioEncoding: 'MP3', ...(gainDb ? { volumeGainDb: gainDb } : {}) },
       }),
     });
     if (!res.ok) return json({ error: `Google voice said HTTP ${res.status}`, detail: (await res.text()).slice(0, 300) }, 502);

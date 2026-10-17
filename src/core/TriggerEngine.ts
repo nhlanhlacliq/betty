@@ -43,6 +43,18 @@ const OFF_ROUTE_MS = 20_000;
 const BACK_ON_KM = 0.15;
 /** Warn about a marked spot this far ahead (km), and not again for this long. */
 const MARK_WARN_KM = 0.4;
+/** Standing still this long (under 3 km/h) = parked: one line asking, then quiet until he moves (ride of 2026-10-17). */
+export const PARKED_MS = 10 * 60_000;
+const STILL_KMH = 3;
+const MOVING_AGAIN_KMH = 10;
+/**
+ * One angle per time check, in turn: with only "N minutes out" to go on, 18 time checks in a ride all made the same
+ * joke ("Betty is holding steady", "I suspect..."). Each gets a different thing to hang it on.
+ */
+export const MILESTONE_ANGLES = [
+  'the distance covered so far', 'the weather right now', 'something about the area he is in', 'a comparison with how else the time could have been spent',
+  'just the time, bare and dry', 'the road or the riding so far', 'what is still ahead of the day', 'a small observation about the bike, without readings',
+];
 const WARN_AGAIN_MS = 10 * 60_000;
 
 /**
@@ -90,6 +102,7 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
+    this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
     this.fuelBaseKm = carried; this.fuelOffsetKm = 0;
@@ -125,9 +138,19 @@ export class TriggerEngine {
   private offWarned = false;
   private stopsSaid = new Set<string>();
   private arrivedSaid = false;
+  /** He said he is on a detour: no off-route lines until he is back on the route after having left it. */
+  private detour = false;
+  private detourLeft = false;
   setRoute(r: PlannedRoute | null) {
     this.route = r; this.progress = null; this.offSince = null; this.offWarned = false; this.stopsSaid.clear(); this.arrivedSaid = false;
+    this.detour = false; this.detourLeft = false;
   }
+  setDetour(on: boolean) { this.detour = on; this.detourLeft = false; if (on) this.offWarned = true; }
+  onDetour() { return this.detour; }
+  /** Since when he has been standing still, and whether she has gone quiet for it. */
+  private stillSince: number | null = null;
+  private parked = false;
+  isParked() { return this.parked; }
   routeNow(): { route: PlannedRoute; progress: RouteProgress | null } | null { return this.route ? { route: this.route, progress: this.progress } : null; }
   /** Marked spots warned about, by when the spot was saved -> when warned (each at most once in WARN_AGAIN_MS) */
   private warnedSpots = new Map<number, number>();
@@ -184,11 +207,14 @@ export class TriggerEngine {
   startup(s: BikeState = initialState()): TriggerEvent { return this.force('startup', s); }
 
   private riderText: string | null = null;
+  /** What the phone did with his words before asking her (a fill-up, a detour), for her answer. */
+  private riderNoted: string[] = [];
 
   /** He said something to her (typed in the chat panel now; spoken once voice input exists). */
-  ask(text: string, s: BikeState): TriggerEvent {
+  ask(text: string, s: BikeState, noted: string[] = []): TriggerEvent {
     this.riderText = text.trim();
-    try { return { ...this.force('rider_query', s), riderSaid: this.riderText }; } finally { this.riderText = null; }
+    this.riderNoted = noted;
+    try { return { ...this.force('rider_query', s), riderSaid: this.riderText }; } finally { this.riderText = null; this.riderNoted = []; }
   }
 
   /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
@@ -240,7 +266,10 @@ export class TriggerEngine {
     if (this.route && s.lat != null && s.lon != null) {
       const p = routeProgress(this.route, { lat: s.lat, lon: s.lon }, this.progress?.index ?? 0);
       this.progress = p;
-      if (p.offKm > OFF_ROUTE_KM && s.speedKmh >= 15) {
+      if (this.detour) { // he said so: no off-route lines; back on the route after leaving it ends the detour
+        if (p.offKm > OFF_ROUTE_KM) this.detourLeft = true;
+        else if (this.detourLeft && p.offKm < BACK_ON_KM) { this.detour = false; this.detourLeft = false; this.offSince = null; this.offWarned = false; }
+      } else if (p.offKm > OFF_ROUTE_KM && s.speedKmh >= 15) {
         this.offSince ??= this.now();
         if (!this.offWarned && this.now() - this.offSince >= OFF_ROUTE_MS && this.ready('off_route')) { this.offWarned = true; out.push(this.force('off_route', s)); }
       } else if (p.offKm < BACK_ON_KM) { this.offSince = null; this.offWarned = false; }
@@ -255,10 +284,22 @@ export class TriggerEngine {
       try { out.push(this.force('marked_spot', s)); } finally { this.spotNow = null; }
     }
 
+    // Parked: after PARKED_MS standing still she asks once, then stays quiet until he moves off again.
+    if (s.speedKmh < STILL_KMH) this.stillSince ??= this.now();
+    else if (s.speedKmh >= MOVING_AGAIN_KMH) {
+      this.stillSince = null;
+      if (this.parked) { this.parked = false; this.lastAmbientSlot = this.now(); }
+    }
+    if (!this.parked && this.stillSince !== null && this.now() - this.stillSince >= PARKED_MS) {
+      this.parked = true;
+      if (this.ready('ride_parked')) out.push(this.force('ride_parked', s));
+    }
+
     const mins = (this.now() - this.rideStart) / 60_000;
     const due = Math.floor(mins / CONFIG.milestoneEveryMin);
-    // He asked for quiet: time checks and ambient slots pass unused (so they do not all arrive the moment it ends).
-    if (this.now() < this.quietUntil) {
+    // He asked for quiet, or is parked: time checks and ambient slots pass unused (so they do not all arrive the
+    // moment it ends).
+    if (this.now() < this.quietUntil || this.parked) {
       this.milestonesHit = Math.max(this.milestonesHit, due);
       this.lastAmbientSlot = this.now();
       return out;
@@ -362,7 +403,22 @@ export class TriggerEngine {
       }
       case 'ride_milestone': {
         const mins = Math.round((this.now() - this.rideStart) / 60_000);
-        return { context: `The rider has been out for ${mins} minutes.`, fallback: `You've been out ${mins} minute${mins === 1 ? '' : 's'}. Good ride so far.` };
+        const r = this.stats.snapshot();
+        const riding = Math.round(r.movingMin);
+        const angle = MILESTONE_ANGLES[Math.max(0, this.milestonesHit - 1) % MILESTONE_ANGLES.length];
+        const facts = [`${r.distanceKm} km so far`, s.weather ? `weather ${s.weather.summary}, ${s.weather.tempC} C` : '', s.area?.suburb || s.area?.town ? `he is in ${s.area.suburb || s.area.town}` : ''].filter(Boolean).join('; ');
+        const split = mins - riding >= 5 ? ` (${riding} of them riding, the rest stopped)` : '';
+        return {
+          context: `The rider has been out for ${mins} minutes${split}. For this time check, hang the line on ${angle}. Facts you may use: ${facts}.`,
+          fallback: `You've been out ${mins} minute${mins === 1 ? '' : 's'}. Good ride so far.`,
+        };
+      }
+      case 'ride_parked': {
+        const mins = Math.round((this.now() - (this.stillSince ?? this.now())) / 60_000);
+        return {
+          context: `He has been standing still for ${mins} minutes: he may have parked or stopped for a break. In one short line, ask whether he has parked, tell him to say "end ride" if he is done, and that you will keep quiet until he moves.`,
+          fallback: "Parked? Say 'end ride' if we're done. I'll keep quiet till you move.",
+        };
       }
       case 'fuel_range': {
         const left = this.fuelKmLeft();
@@ -385,7 +441,8 @@ export class TriggerEngine {
       }
       case 'ride_debrief': {
         const r = this.stats.snapshot();
-        const bits = [`${Math.round(r.minutesOut)} minutes`, `${r.distanceKm} km`];
+        const stoppedMin = Math.round(r.minutesOut - r.movingMin);
+        const bits = [`${Math.round(r.minutesOut)} minutes${stoppedMin >= 5 ? ` (${Math.round(r.movingMin)} riding, ${stoppedMin} stopped)` : ''}`, `${r.distanceKm} km`];
         if (r.movingMin >= 1) bits.push(`averaging ${r.avgMovingKmh} km/h while moving`, `top speed ${r.maxSpeedKmh} km/h`);
         bits.push(`${r.stops} stop(s)`);
         if (r.climbM >= 20) bits.push(`${r.climbM} m climbed`);
@@ -477,7 +534,7 @@ export class TriggerEngine {
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress)}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}` : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }

@@ -4,6 +4,8 @@ import { RideSnapshot } from './RideStats';
 export interface RideRecord {
   startedAt: number;
   minutes: number;
+  /** Of those, the minutes moving (rides from before 2026-10-17 do not have it) */
+  movingMin?: number;
   distanceKm: number;
   weather: string | null;
   places: string[];
@@ -19,6 +21,7 @@ export function toRecord(snap: RideSnapshot, weather: string | null): RideRecord
   return {
     startedAt: snap.startedAt,
     minutes: Math.round(snap.minutesOut),
+    movingMin: Math.min(Math.round(snap.minutesOut), Math.round(snap.movingMin)),
     distanceKm: snap.distanceKm,
     weather,
     places: snap.places.slice(0, 8),
@@ -33,6 +36,14 @@ export function upsertRide(history: RideRecord[], rec: RideRecord): RideRecord[]
     .slice(-MAX_REMEMBERED_RIDES);
 }
 
+/**
+ * A ride's time as shown: riding time only (the default, owner 2026-10-17: an 80 minute stop made a 3 h 39 ride), or
+ * all of it. Rides recorded before riding time was kept show all of it.
+ */
+export const rideMinutes = (r: RideRecord, ridingOnly: boolean) => (ridingOnly && r.movingMin != null ? r.movingMin : r.minutes);
+/** Minutes stopped (parked, breaks, lights), when known. */
+export const stoppedMinutes = (r: RideRecord) => (r.movingMin != null ? Math.max(0, r.minutes - r.movingMin) : null);
+
 const ago = (ms: number) => {
   const days = Math.floor(ms / 86_400_000);
   if (days >= 2) return `${days} days ago`;
@@ -42,7 +53,8 @@ const ago = (ms: number) => {
 };
 
 export function describeRide(r: RideRecord, now: number): string {
-  const bits = [`${ago(now - r.startedAt)}: ${r.minutes} minutes, ${r.distanceKm} km`];
+  const stopped = stoppedMinutes(r);
+  const bits = [`${ago(now - r.startedAt)}: ${r.minutes} minutes${stopped ? ` (${r.minutes - stopped} of them riding)` : ''}, ${r.distanceKm} km`];
   if (r.weather) bits.push(`weather ${r.weather}`);
   if (r.places.length) bits.push(`talked about ${r.places.join(', ')}`);
   if (r.events.length) bits.push(`flagged ${r.events.join(', ')}`);

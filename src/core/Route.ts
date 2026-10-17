@@ -92,10 +92,10 @@ export function stopsAhead(r: PlannedRoute, p: RouteProgress): Array<{ name: str
 export const minutesText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')}` : `${Math.round(m)} min`);
 
 /** One line about the route for her answers and the briefing. */
-export function describeRoute(r: PlannedRoute, p: RouteProgress | null): string {
+export function describeRoute(r: PlannedRoute, p: RouteProgress | null, detour = false): string {
   const kind = r.thrilling ? 'a twisty (thrilling) route' : 'the fastest route';
   const named = r.stops.filter((s) => s.named).map((s) => s.name);
   if (!p) return `He has planned ${kind}: ${r.name}, ${Math.round(r.km)} km, about ${minutesText(r.minutes)}${named.length > 1 ? `, via ${named.slice(0, -1).join(', ')}` : ''}${r.delayMin ? `, ${r.delayMin} min of traffic delay` : ''}. Google Maps gives him the turns.`;
-  const off = p.offKm > 0.4 ? ` He is about ${p.offKm.toFixed(1)} km off the route right now.` : '';
+  const off = detour ? ' He is on a detour by choice: do not mention being off the route.' : p.offKm > 0.4 ? ` He is about ${p.offKm.toFixed(1)} km off the route right now.` : '';
   return `He is on his planned route to ${r.name}: ${Math.round(p.leftKm)} km and about ${minutesText(p.leftMin)} left${p.next ? `, next stop ${p.next.name} in ${Math.round(p.next.km)} km` : ''}.${off}`;
 }

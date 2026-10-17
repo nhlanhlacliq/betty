@@ -253,6 +253,13 @@ resetConfig();
       const box = doc.getElementById(id) as HTMLInputElement;
       assert.equal(box.checked, true, `${id} on by default`); box.checked = false; ev(box, 'change'); assert.equal(CONFIG[key], false); box.checked = true; ev(box, 'change');
     }
+    const boost = doc.getElementById('voiceboost') as HTMLInputElement;
+    assert.equal(boost.value, '6'); assert.equal(doc.getElementById('voiceboostval')!.textContent, '+6 dB');
+    boost.value = '12'; ev(boost, 'change'); assert.equal(CONFIG.voiceBoostDb, 12); assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"voiceBoostDb":12/);
+    boost.value = '0'; ev(boost, 'input'); assert.equal(doc.getElementById('voiceboostval')!.textContent, 'Off'); boost.value = '6'; ev(boost, 'change');
+    const ro = doc.getElementById('ridingonly') as HTMLInputElement;
+    assert.equal(ro.checked, true, 'riding time only by default'); ro.checked = false; ev(ro, 'change'); assert.equal(CONFIG.ridingTimeOnly, false); ro.checked = true; ev(ro, 'change');
+    assert.equal((doc.getElementById('buttonsback') as HTMLButtonElement).hidden, true, 'nothing to take back before a ride');
     CONFIG.persona.humour = 75; CONFIG.persona.tars = 50;
 
     // explore: notes and marked spots, with Forget
@@ -826,6 +833,24 @@ resetConfig();
   await (src as any).tick(false); assert.equal(calls, 2, 'not due again for 5 minutes');
   resetConfig();
 }
+// ---- a ride's story: riding and stopped time (ride of 2026-10-17: 80 minutes parked made a 3 h 39 ride)
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const { CONFIG } = await import('../src/config/betty');
+  const j = new JSDOM(`<!doctype html><div id="journeylist"></div><div id="journeytotals"></div><div id="story"></div>`);
+  const d = j.window.document;
+  const ride = { startedAt: 1_760_000_000_000, minutes: 219, movingMin: 139, distanceKm: 93.4, weather: null, places: [], events: [] };
+  const view = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => [ride], entries: () => [], track: () => [], copyRide: async () => true, saveRide() {}, toast() {}, shareRide: async () => {} });
+  view.open(ride.startedAt);
+  const story = d.getElementById('story')!.textContent!;
+  assert.match(story, /139\s*Minutes riding/); assert.match(story, /2h 19m riding/); assert.match(story, /1h 20m stopped/);
+  assert.match(story, /93\.4 km and 2h 19m riding/);
+  assert.match((d.querySelector('.time-split .bar i') as HTMLElement).style.width, /^63%/);
+  CONFIG.ridingTimeOnly = false; view.open(ride.startedAt);
+  assert.match(d.getElementById('story')!.textContent!, /219\s*Minutes/, 'switched off: the whole time'); assert.ok(d.querySelector('.time-split'), 'the split still shows');
+  CONFIG.ridingTimeOnly = true;
+}
+
 // ---- a ride's story: Share this ride hands over the ride and the "hide where I start and finish" choice
 {
   const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
@@ -844,6 +869,8 @@ resetConfig();
       await new Promise<void>((r) => { release = r; });
     } });
   view.open(ride.startedAt);
+  assert.ok(!d.querySelector('.time-split'), 'an older ride has no riding time: no split');
+  assert.match(d.getElementById('story')!.textContent!, /95\s*Minutes/);
   const btn = d.querySelector('[data-share]') as HTMLButtonElement;
   assert.ok(btn, 'Share this ride is on the story'); assert.equal((d.querySelector('[data-hideends]') as HTMLInputElement).checked, true, 'home hidden by default');
   assert.ok(!d.querySelector('.story-map')!.innerHTML.includes('Sandton'), 'no names until fetched');

@@ -22,6 +22,10 @@ export async function POST(req: Request): Promise<Response> {
     && body.tools[0]?.name === 'web_search' && typeof body.tools[0]?.max_uses === 'number' && body.tools[0].max_uses <= 2)) {
     return json({ error: 'tool not allowed' }, 400);
   }
+  // He asked her to search: the page may make that one tool compulsory, nothing else.
+  if (body.tool_choice !== undefined && !(body.tools && body.tool_choice?.type === 'tool' && body.tool_choice?.name === 'web_search' && Object.keys(body.tool_choice).length === 2)) {
+    return json({ error: 'tool choice not allowed' }, 400);
+  }
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },

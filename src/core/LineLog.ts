@@ -46,7 +46,7 @@ export function formatLog(entries: LogEntry[], rides: RideRecord[], rideId?: num
   const out: string[] = [];
   for (const { rideId: id, count } of listed) {
     const r = rides.find((x) => x.startedAt === id);
-    const facts = r ? `: ${r.minutes} min, ${r.distanceKm} km${r.weather ? `, ${r.weather}` : ''}` : '';
+    const facts = r ? `: ${r.minutes} min${r.movingMin != null ? ` (${r.movingMin} riding)` : ''}, ${r.distanceKm} km${r.weather ? `, ${r.weather}` : ''}` : '';
     if (out.length) out.push('');
     out.push(`=== Ride ${stamp(id)}${facts} ===`);
     if (r?.places.length) out.push(`Talked about: ${r.places.join(', ')}`);

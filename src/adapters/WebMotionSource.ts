@@ -2,8 +2,11 @@ import { BikeState, DataSource } from '../core/types';
 
 type Askable = { requestPermission?: () => Promise<'granted' | 'denied'> };
 
-/** A spike this far above gravity-free rest counts as a jolt (pothole, speed bump, rough patch). About 0.8 g. */
-const JOLT_MS2 = 8;
+/**
+ * A spike this far above gravity-free rest counts as a jolt (pothole, speed bump, rough patch). About 2 g: at 0.8 g
+ * highway vibration counted 2,402 on one ride (2026-10-17; hardest knocks 14 to 52 m/s2 on earlier rides).
+ */
+const JOLT_MS2 = 20;
 /** One bump rings for a moment; do not count it twice. */
 const JOLT_GAP_MS = 400;
 const PUSH_EVERY_MS = 1000;

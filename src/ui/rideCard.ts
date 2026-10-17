@@ -1,6 +1,7 @@
 import { bestLine, pickLabels, trimEnds, weatherPill } from '../core/RideCard';
 import type { CardExtras } from '../adapters/CardExtras';
-import type { RideRecord } from '../core/RideMemory';
+import { RideRecord, rideMinutes } from '../core/RideMemory';
+import { CONFIG } from '../config/betty';
 import type { TrackPoint } from '../core/Track';
 import { MAP_H, MAP_W, mapSvg, spanFor, trackCenter } from './mapView';
 
@@ -148,7 +149,7 @@ export async function drawRideCard(doc: Document, c: CardInput): Promise<Blob> {
 
   // Numbers
   const statsY = mapY + mapH + 68;
-  const min = c.ride.minutes;
+  const min = rideMinutes(c.ride, CONFIG.ridingTimeOnly);
   const stats: Array<[string, string]> = [
     [`${c.ride.distanceKm}`, 'kilometres'],
     [min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}` : `${min}`, min >= 60 ? 'in the saddle' : 'minutes'],

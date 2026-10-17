@@ -8,6 +8,7 @@ import { NO_OBD, StateAggregator } from './core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
 import { placesFromHere, travelDirection } from './core/ambient';
 import { Command, addMark, addNote, forgetLast, parseCommand } from './core/Commands';
+import { saysDetour, saysFilledUp } from './core/Heard';
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
@@ -653,12 +654,14 @@ function paintRide() {
   const routeNow = r.engine.routeNow();
   const view = rideView({
     now: Date.now(), state: s, speaking: speakingNow, lastSaid, talk: talkState, quietMin, ending: endNow !== null,
-    distanceKm: snap.distanceKm, minutesOut: snap.minutesOut, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
+    distanceKm: snap.distanceKm, minutesOut: CONFIG.ridingTimeOnly ? snap.movingMin : snap.minutesOut, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
     rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
     untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
-    route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm } : null,
+    route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm, detour: r.engine.onDetour() } : null,
     fuelRangeKm: CONFIG.fuel.rangeKm,
   });
+  const minLabel = document.getElementById('rideminlabel');
+  if (minLabel) minLabel.textContent = CONFIG.ridingTimeOnly ? 'min riding' : 'min out';
   const moving = s.speedKmh >= 3 ? 'On the road' : 'Parked';
   const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : r.real ? null : CONFIG.feeds.fallbackLocation;
   const voiceName = libraryVoice(CONFIG.cloudVoiceName)?.name ?? CONFIG.cloudVoiceName;
@@ -917,6 +920,11 @@ async function beginRide(desk: boolean) {
         reply(`${name}${mixSummary()}`, c.kind);
         return;
       }
+      case 'end': {
+        if (rig?.engine !== engine || rig.desk) { reply('There is no ride to end.', 'end'); return; }
+        void stop(); // her sign-off follows, and the ride's story opens
+        return;
+      }
       case 'forget': {
         const { memory, gone } = forgetLast(RiderMemoryStore.load());
         if (gone) remembered(memory);
@@ -927,11 +935,23 @@ async function beginRide(desk: boolean) {
   /** Something he said to her, typed or spoken: one path for both. */
   const askBetty = async (text: string) => {
     toChat({ from: 'rider', text, at: Date.now() });
+    // Said in passing, anywhere in a sentence: "I was just filling up", "we're taking a bit of a detour".
+    const noted: string[] = [];
+    if (saysFilledUp(text)) {
+      (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click();
+      newLine('[heard]', `fill-up: range reset to ${CONFIG.fuel.rangeKm} km`);
+      noted.push(`The phone has just recorded his fill-up from what he said: fuel range reset to about ${CONFIG.fuel.rangeKm} km.`);
+    }
+    if (saysDetour(text) && engine.routeNow() && !engine.onDetour()) {
+      engine.setDetour(true);
+      newLine('[heard]', 'detour: no off-route lines until he is back on the route');
+      noted.push('He is taking a detour on purpose: you will not mention being off the route until he is back on it.');
+    }
     const command = parseCommand(text);
     if (command) { obey(command); renderLog(); return null; }
     // A web search takes a few seconds: rather than silence, she says she is on it.
     const slow = window.setTimeout(() => sayNow(HANG_ON), HANG_ON_AFTER_MS);
-    try { return await say(engine.ask(text, agg.current)); } finally { window.clearTimeout(slow); }
+    try { return await say(engine.ask(text, agg.current, noted)); } finally { window.clearTimeout(slow); }
   };
 
   // ---- talking to her: headset play/pause (if switched on) or the lock screen's talk button
@@ -1015,9 +1035,36 @@ async function beginRide(desk: boolean) {
       : '<p class="sub">Nothing left but the road.</p>';
   };
   lockScreen.setTalk(true);
+  // Previous track: Betty lets go (owner, 2026-10-17): the mic closes (ending call mode) and the buttons go back to
+  // whichever app plays next. She keeps working; a tap on "Give Betty the buttons back" takes them again (a page can
+  // only start sound from a tap, and once music plays the buttons are the music app's).
+  const backBtn = document.getElementById('buttonsback') as HTMLButtonElement | null;
+  const takeButtons = () => buttons.start({ talk: () => void talk(), repeat, letGo }, (msg) => { newLine('[voice]', msg); renderLog(); });
+  const letGo = () => {
+    if (!buttons.holding) return;
+    buttons.tone(330);
+    window.setTimeout(() => {
+      ptt.release();
+      buttons.stop();
+      newLine('[voice]', 'previous track: Betty let go of the mic and the headset buttons (tap "Give Betty the buttons back" to take them again)');
+      renderLog();
+      if (backBtn) backBtn.hidden = false;
+    }, 350);
+  };
+  if (backBtn) {
+    backBtn.hidden = true;
+    backBtn.onclick = () => { // inside the tap, so the phone lets the silent track start
+      buttons.prime();
+      const ok = takeButtons();
+      backBtn.hidden = ok;
+      newLine('[voice]', ok ? 'headset buttons are Betty\'s again' : 'could not take the headset buttons back');
+      shell.toast(ok ? 'The buttons are Betty\'s again.' : 'Could not take the buttons back.');
+      renderLog();
+    };
+  }
   if (CONFIG.headsetButtons) {
-    const ok = buttons.start({ talk: () => void talk(), repeat }, (msg) => { newLine('[voice]', msg); renderLog(); });
-    newLine('[voice]', ok ? 'headset buttons: play/pause talks to Betty, next track repeats her last line' : 'headset buttons are not available in this browser');
+    const ok = takeButtons();
+    newLine('[voice]', ok ? 'headset buttons: play/pause talks to Betty, next track repeats her last line, previous track lets go' : 'headset buttons are not available in this browser');
   }
 
   rig = { agg, engine, queue, say, setObd, unsub, real, desk, unmountSim, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer, paintTimer };
@@ -1075,6 +1122,7 @@ async function stop() {
   r.unmountSim();
   r.buttons.stop();
   r.releaseMic();
+  const back = document.getElementById('buttonsback'); if (back) { back.hidden = true; (back as HTMLButtonElement).onclick = null; }
   talkNow = null;
   rideHooks = null;
   speakingNow = null; lastSaid = null; talkState = 'off';

@@ -6,6 +6,7 @@ import type { Shell } from '../Shell';
 export interface SettingsContext { sample(): void; fuelText(): string }
 
 const CUSTOM = 'custom';
+const boostText = (db: number) => (db > 0 ? `+${db} dB` : 'Off');
 /** Garage > The island: one switch per behaviour (CONFIG.island). */
 const ISLAND: Array<[string, keyof typeof CONFIG.island]> = [
   ['islandcompact', 'compact'], ['islandtap', 'tapExpand'], ['islandbrowse', 'browse'], ['islandactions', 'actions'], ['islandprogress', 'progress'],
@@ -40,6 +41,9 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     $<HTMLInputElement>('cardplaces').checked = CONFIG.cardPlaces;
     $<HTMLSelectElement>('listenvoice').value = CONFIG.listenVoice;
     $<HTMLInputElement>('cardmetro').checked = CONFIG.cardMetro;
+    $<HTMLInputElement>('voiceboost').value = String(CONFIG.voiceBoostDb);
+    $('voiceboostval').textContent = boostText(CONFIG.voiceBoostDb);
+    $<HTMLInputElement>('ridingonly').checked = CONFIG.ridingTimeOnly;
     for (const [id, key] of ISLAND) { const b = $<HTMLInputElement>(id); b.checked = CONFIG.island[key]; b.disabled = !CONFIG.showGlance; }
     $('garagefuel').textContent = ctx.fuelText();
   };
@@ -54,6 +58,10 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   $<HTMLSelectElement>('listenvoice').addEventListener('change', (e) => { CONFIG.listenVoice = (e.target as HTMLSelectElement).value as typeof CONFIG.listenVoice; changed(); });
   $<HTMLInputElement>('cardplaces').addEventListener('change', (e) => { CONFIG.cardPlaces = (e.target as HTMLInputElement).checked; changed(); });
   $<HTMLInputElement>('cardmetro').addEventListener('change', (e) => { CONFIG.cardMetro = (e.target as HTMLInputElement).checked; changed(); });
+  const boost = $<HTMLInputElement>('voiceboost');
+  boost.addEventListener('input', () => { $('voiceboostval').textContent = boostText(Number(boost.value)); });
+  boost.addEventListener('change', () => { CONFIG.voiceBoostDb = Number(boost.value); changed(); });
+  $<HTMLInputElement>('ridingonly').addEventListener('change', (e) => { CONFIG.ridingTimeOnly = (e.target as HTMLInputElement).checked; changed(); });
   for (const [id, key] of ISLAND) $<HTMLInputElement>(id).addEventListener('change', (e) => { CONFIG.island[key] = (e.target as HTMLInputElement).checked; changed(); });
   $('sample').addEventListener('click', () => ctx.sample());
 

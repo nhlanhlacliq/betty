@@ -127,7 +127,8 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft =
     add('braking', Math.floor((ride.hardBrakes + ride.hardAccels) / 6), // comes round again every half dozen, not every time
       `This ride: ${ride.hardBrakes} hard stop(s) on the brakes and ${ride.hardAccels} hard pull(s) on the throttle.`);
   }
-  if (ride.jolts >= 5) add('surface', Math.floor(ride.jolts / 10), `The road has thrown ${ride.jolts} hard jolts at him this ride.`);
+  // No road-surface topic: highway vibration counted 2,402 "jolts" on the ride of 2026-10-17, and she joked about
+  // it. The count stays in the [sensors] log lines until it means something.
   if (ride.movingMin >= 3) {
     add('pace', Math.floor(ride.avgMovingKmh / 20), `His riding so far: averaging ${ride.avgMovingKmh} km/h while moving, top speed ${ride.maxSpeedKmh} km/h.`);
   }

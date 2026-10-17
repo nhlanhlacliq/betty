@@ -303,9 +303,9 @@ const ride0 = () => new RideStats(now).snapshot();
 // ride memory: desk tests are not remembered, records upsert and are capped, descriptions read plainly
 {
   assert.equal(toRecord({ ...ride0(), minutesOut: 1, distanceKm: 0 }, null), null, 'too short to remember');
-  const rec = toRecord({ ...ride0(), startedAt: 1000, minutesOut: 42.4, distanceKm: 31.5, places: ['Soweto'],
+  const rec = toRecord({ ...ride0(), startedAt: 1000, minutesOut: 42.4, movingMin: 42.4, distanceKm: 31.5, places: ['Soweto'],
     events: [{ what: 'low fuel', atMin: 5 }, { what: 'low fuel', atMin: 20 }] }, 'clear, 22 C')!;
-  assert.deepEqual(rec, { startedAt: 1000, minutes: 42, distanceKm: 31.5, weather: 'clear, 22 C', places: ['Soweto'], events: ['low fuel'] });
+  assert.deepEqual(rec, { startedAt: 1000, minutes: 42, movingMin: 42, distanceKm: 31.5, weather: 'clear, 22 C', places: ['Soweto'], events: ['low fuel'] });
   let h: RideRecord[] = upsertRide([], rec);
   h = upsertRide(h, { ...rec, minutes: 50 });
   assert.equal(h.length, 1, 'same ride is updated, not duplicated'); assert.equal(h[0].minutes, 50);
@@ -330,13 +330,13 @@ const ride0 = () => new RideStats(now).snapshot();
     ride: { ...ride0(), minutesOut: 50, movingMin: 40, distanceKm: 37, stops: 2, climbM: 240, descentM: 90, hardBrakes: 2, hardAccels: 1, jolts: 14, maxSpeedKmh: 118, avgMovingKmh: 56, maxLeanDeg: 28, corneringPct: 30, maxEngineTempC: 97,
       fuelStartPct: 80, events: [{ what: 'rain', atMin: 12 }], places: ['Edenvale'] },
   };
-  assert.deepEqual(ids(full), ['time', 'weather', 'duration', 'distance', 'fuel', 'engine', 'corners', 'altitude', 'direction', 'braking', 'surface', 'pace', 'revs', 'stops', 'standing',
+  assert.deepEqual(ids(full), ['time', 'weather', 'duration', 'distance', 'fuel', 'engine', 'corners', 'altitude', 'direction', 'braking', 'pace', 'revs', 'stops', 'standing',
     'traffic', 'location', 'earlier', 'places', 'last_ride', 'totals', 'open']);
   const text = banterTopics(full).map((t) => t.text).join(' ');
   assert.match(text, /near Testville/); assert.ok(!/Faraway/.test(text), 'location respects the radius');
   assert.match(text, /down 25 since setting off/); assert.match(text, /rain at 12 minutes/); assert.match(text, /2 days ago: 40 minutes/);
   assert.match(text, /about 1690 metres above sea level; he has climbed 240 m and dropped 90 m/);
-  assert.match(text, /He is facing north-east\./); assert.match(text, /2 hard stop\(s\) on the brakes and 1 hard pull/); assert.match(text, /14 hard jolts/);
+  assert.match(text, /He is facing north-east\./); assert.match(text, /2 hard stop\(s\) on the brakes and 1 hard pull/); assert.doesNotMatch(text, /jolts/, "no road-surface topic (2,402 from vibration on 2026-10-17)");
   assert.match(text, /averaging 56 km\/h while moving, top speed 118/); assert.match(text, /4100 rpm/);
   assert.match(banterTopics({ ...full, s: { ...full.s, speedKmh: 87 } }).map((t) => t.text).join(' '), /doing 87 km\/h right now/);
 
@@ -1914,6 +1914,138 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(storyOfDay(cards, new Set(['a1', 'a2', 'a3', 'b1']), '2026-10-17'), null, 'all heard: none');
   assert.equal(dayKey(new Date(2026, 9, 7, 23, 59).getTime()), '2026-10-07');
   assert.deepEqual(exploreStats(cards, 2, 1000 + NEW_FOR_MS - 1), { areas: 2, stories: 4, heard: 1, spots: 2, fresh: 1 }, 'A is new this week, B is not');
+}
+
+// ---- Ride of 2026-10-17: search on request, no "I shall search now", detour, fill-up, parked, riding time, louder
+{
+  const { wantsSearch, putsOff, saysDetour, saysFilledUp } = await import('../src/core/Heard');
+  for (const said of ['Search the web to find out about Japanese events happening in around this area.', 'Do a whipserge on that speed.',
+    'Did you look it up?', 'Yes, don\'t guess, but please go onto the internet and do a web search.', 'Please confirm on pricing and availability for that CFModder 450 MT.',
+    'Did you check the reviews about the CF Voto 450 MT?', 'Which bike do you think I should get for my next bike?', 'Search the Internet.']) {
+    assert.ok(wantsSearch(said), said);
+  }
+  for (const said of ['Hello Betty.', 'Betty, where am I right now?', 'Can you still hear me, Betty?', 'Tell me more. Tell me a bit about the book, please.', 'How far to go?']) {
+    assert.ok(!wantsSearch(said), said);
+  }
+  for (const reply of ['I shall search that speed now, Sir.', 'Let me check the current reviews.', 'I cannot confirm current pricing or availability for the CFMoto 450 MT from here, and I would rather not guess.',
+    "I'm afraid I can't tell you much about Animal Farm, as I don't know the book well enough to do it justice.", 'Cloud Smith is not a name I can place, and I could not confirm it from here.',
+    'I cannot recommend a specific bike from here, but I can search for current options if you ask.']) {
+    assert.ok(putsOff(reply), reply);
+  }
+  assert.ok(!putsOff('Boxer, yes, the carthorse who worked himself to the bone.'));
+  const meta = cleanSpoken("I searched, sir, and the results were from far-off cities. Nothing Japanese is on near you tonight.", { ambient: false, name: 'sir', recent: [], maxSentences: 3 });
+  assert.equal(meta.text, 'Nothing Japanese is on near you tonight.', 'no talk about searching');
+  assert.ok(saysDetour("Moving again, but we're not going exactly to the location where I sit, so we're going to take a bit of a detour."));
+  assert.ok(saysDetour('Please remember that I am on a detour right now and I am not going directly to my route destination.'));
+  assert.ok(!saysDetour('How far is the route?'));
+  for (const said of ["Can you hear me? I was just filling up some fuel. Let's go.", 'Filled up.', 'Just topped up the tank', 'Got some petrol, full tank now.']) assert.ok(saysFilledUp(said), said);
+  for (const said of ['Where can I fill up?', 'I need petrol soon.', 'Should I fill up at the next one?', 'How much fuel do I have?']) assert.ok(!saysFilledUp(said), said);
+
+  // ClaudeClient: a search he asked for is forced; a reply that puts it off is asked again, searching
+  const realFetch = globalThis.fetch;
+  const sent: any[] = [];
+  const replies: any[] = [];
+  globalThis.fetch = (async (_u: any, init: any) => { sent.push(JSON.parse(init.body)); return new Response(JSON.stringify(replies.shift())); }) as typeof fetch;
+  const searchedReply = (text: string) => ({ content: [{ type: 'server_tool_use' }, { type: 'web_search_tool_result' }, { type: 'text', text }] });
+  try {
+    resetConfig(); clock = 60_000_000;
+    const e = new TriggerEngine(now); const c = new ClaudeClient('key'); const st = initialState();
+    replies.push(searchedReply('New ones are about R125 900.'));
+    let p = await c.phrase(e.ask('Do a web search for the CFMoto 450MT price please.', st), st);
+    assert.deepEqual(sent[0].tool_choice, { type: 'tool', name: 'web_search' }, 'asked to search: the search is compulsory');
+    assert.equal(p.text, 'New ones are about R125 900.'); assert.match(p.detail, /searched/);
+    replies.push({ content: [{ type: 'text', text: 'I shall look up the speed for that rev range now.' }] }, searchedReply('About 100 km/h in sixth at 6,000 rpm.'));
+    p = await c.phrase(e.ask('What speed is 6000 rpm in sixth gear on it?', st), st);
+    assert.equal(sent[1].tool_choice, undefined, 'not forced the first time');
+    assert.deepEqual(sent[2].tool_choice, { type: 'tool', name: 'web_search' }, 'promised a search: asked again, searching');
+    assert.equal(p.text, 'About 100 km/h in sixth at 6,000 rpm.'); assert.match(p.detail, /second go/);
+    replies.push({ content: [{ type: 'text', text: 'Boxer, the carthorse.' }] });
+    await c.phrase(e.ask('Was the horse in Animal Farm called Boxer?', st), st);
+    assert.equal(sent.length, 4, 'an answer is not asked twice');
+    // time checks see her earlier time checks
+    replies.push({ content: [{ type: 'text', text: 'Twenty minutes, and Betty is holding steady.' }] }, { content: [{ type: 'text', text: 'Forty minutes.' }] });
+    await c.phrase(e.force('ride_milestone', st), st);
+    await c.phrase(e.force('ride_milestone', st), st);
+    assert.match(sent[5].messages.at(-1).content, /earlier lines of this same kind this ride: \["Twenty minutes, and Betty is holding steady\."\]/);
+    assert.match(sent[5].messages.at(-1).content, /hang the line on/, 'each time check gets its own angle');
+    assert.doesNotMatch(buildClaudeRequest(e.ask('hi', st), st, []).system, /do not\s+know rather than guess/, 'common knowledge is allowed');
+  } finally { globalThis.fetch = realFetch; }
+
+  // the server takes the forced search and nothing else
+  const saved = { ...process.env }; process.env.ANTHROPIC_API_KEY = 'k';
+  const call = (extra: any) => phraseApi(new Request('https://betty-zeta.vercel.app/api/phrase', { method: 'POST', headers: { host: 'betty-zeta.vercel.app', origin: 'https://betty-zeta.vercel.app' },
+    body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 200, messages: [], tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }], ...extra }) }));
+  globalThis.fetch = (async () => new Response('{}')) as typeof fetch;
+  try {
+    assert.equal((await call({ tool_choice: { type: 'tool', name: 'web_search' } })).status, 200);
+    assert.equal((await call({ tool_choice: { type: 'any' } })).status, 400);
+    assert.equal((await call({ tool_choice: { type: 'tool', name: 'bash' } })).status, 400);
+  } finally { globalThis.fetch = realFetch; process.env = saved; }
+
+  // parked: after 10 minutes still she asks once, then nothing until he moves
+  resetConfig(); clock = 70_000_000; CONFIG.milestoneEveryMin = 5;
+  const { PARKED_MS } = await import('../src/core/TriggerEngine');
+  const e = new TriggerEngine(now, () => 0.01);
+  const run = (kmh: number) => e.evaluate({ ...initialState(), speedKmh: kmh }).map((x) => x.id);
+  run(40);
+  const heard: string[] = [];
+  for (let t = 0; t <= PARKED_MS + 30 * 60_000; t += 30_000) { clock += 30_000; heard.push(...run(0)); }
+  assert.equal(heard.filter((x) => x === 'ride_parked').length, 1, 'asks once');
+  const afterParked = heard.slice(heard.indexOf('ride_parked') + 1);
+  assert.deepEqual(afterParked, [], 'no time checks or banter while parked');
+  assert.ok(heard.slice(0, heard.indexOf('ride_parked')).length > 0, 'she talked before it counted as parked');
+  assert.match(e.force('ride_parked', initialState()).fallback, /end ride/);
+  clock += 1000; run(30); clock += 6 * 60_000;
+  assert.ok(run(30).length > 0, 'moving again: she talks again');
+
+  // the time split
+  clock = 80_000_000; const st = new RideStats(now);
+  for (let i = 0; i < 60; i++) { st.update({ ...initialState(), speedKmh: 50 }); clock += 10_000; }
+  for (let i = 0; i < 60; i++) { st.update({ ...initialState(), speedKmh: 0 }); clock += 10_000; }
+  const rec = toRecord(st.snapshot(), null)!;
+  assert.equal(rec.minutes, 20); assert.equal(rec.movingMin, 10);
+  const { rideMinutes, stoppedMinutes } = await import('../src/core/RideMemory');
+  assert.equal(rideMinutes(rec, true), 10); assert.equal(rideMinutes(rec, false), 20); assert.equal(stoppedMinutes(rec), 10);
+  const old: RideRecord = { startedAt: 1, minutes: 30, distanceKm: 5, weather: null, places: [], events: [] };
+  assert.equal(rideMinutes(old, true), 30, 'older rides keep their time'); assert.equal(stoppedMinutes(old), null);
+  assert.match(describeRide(rec, clock), /20 minutes \(10 of them riding\)/);
+
+  // detour: no off-route lines until he is back on the route after leaving it
+  resetConfig(); clock = 90_000_000;
+  const pts: Array<[number, number]> = []; for (let i = 0; i <= 50; i++) pts.push([-26.0, 28.0 + i * 0.002]);
+  const route = { name: 'Cafe', stops: [{ name: 'Home', lat: -26.0, lon: 28.0, named: true }, { name: 'Cafe', lat: -26.0, lon: 28.1, named: true }], km: 10, minutes: 15, delayMin: 0, legs: [], points: pts, mapsUrl: '', thrilling: false, plannedAt: 0 };
+  const d = new TriggerEngine(now); d.setRoute(route);
+  const at = (lat: number, lon: number) => d.evaluate({ ...initialState(), speedKmh: 40, lat, lon }).map((x) => x.id);
+  at(-26.0, 28.01); d.setDetour(true);
+  at(-26.03, 28.05); clock += 25_000;
+  assert.ok(!at(-26.03, 28.05).includes('off_route'), 'on a detour: no off-route line');
+  assert.match(d.ask('how far?', { ...initialState(), lat: -26.03, lon: 28.05 }).context, /detour by choice: do not mention being off the route/);
+  at(-26.0, 28.06); assert.equal(d.onDetour(), false, 'back on the route: detour over');
+  at(-26.03, 28.07); clock += 25_000;
+  assert.ok(at(-26.03, 28.07).includes('off_route'), 'off again later: she says so');
+  assert.match(d.ask('I was just filling up', initialState(), ['The phone has just recorded his fill-up.']).context, /recorded his fill-up/);
+
+  // "end ride" by voice
+  for (const said of ['End ride.', 'Hey Betty, end the ride please', "We're done for today", 'finish the ride']) assert.deepEqual(parseCommand(said), { kind: 'end' }, said);
+  for (const said of ['Do you remember the end of the ride?', 'When does the ride end?']) assert.notDeepEqual(parseCommand(said), { kind: 'end' }, said);
+
+  // louder: average up, peaks held under full scale; anything not a 16-bit WAV is left alone
+  const { boostWav, Limiter, dbToGain } = await import('../src/core/Loudness');
+  const n = 24000, wav = new Uint8Array(44 + n * 2), v = new DataView(wav.buffer);
+  const put = (at: number, t: string) => { for (let i = 0; i < 4; i++) wav[at + i] = t.charCodeAt(i); };
+  put(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); put(8, 'WAVE'); put(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); put(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin(i / 7) * (i % 4800 < 200 ? 32000 : 5000)), true); // quiet speech, a loud burst
+  const level = (b: Uint8Array) => { const w = new DataView(b.buffer, b.byteOffset); let pk = 0, ss = 0; let m = 0; for (let i = 0; i < n; i++) { const x = w.getInt16(44 + i * 2, true); pk = Math.max(pk, Math.abs(x)); if (i % 4800 >= 3000) { ss += x * x; m++; } } return { pk, rms: Math.sqrt(ss / m) }; }; // rms of the speech between bursts
+  const before = level(wav), after = level(boostWav(wav, 10));
+  assert.ok(after.rms > before.rms * 2.5, `the speech is louder (${before.rms.toFixed(0)} -> ${after.rms.toFixed(0)})`);
+  assert.ok(after.pk <= 32767 * 0.95, `peaks held (${after.pk})`);
+  assert.equal(boostWav(wav, 0), wav, 'off: untouched');
+  const mp3 = new Uint8Array([73, 68, 51, 1, 2, 3]); assert.equal(boostWav(mp3, 10), mp3, 'not a WAV: untouched');
+  const f = new Float32Array([0.1, 0.5, -0.9]); new Limiter(dbToGain(16)).process(f);
+  assert.ok(f.every((x) => Math.abs(x) <= 1), 'never past full scale');
+  assert.equal(dbToGain(40), dbToGain(16), 'capped at +16 dB');
+  resetConfig();
 }
 
 console.log('all core tests passed');

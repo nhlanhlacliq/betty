@@ -14,6 +14,8 @@ export type Command =
   | { kind: 'mark'; note: string }
   | { kind: 'remember'; fact: string }
   | { kind: 'forget' }
+  /** "End ride": the same as End ride on the screen (sign-off, then the ride's story) */
+  | { kind: 'end' }
   /** Humour dial: set to a value, or step it */
   | { kind: 'humour'; set?: number; step?: number }
   /** JARVIS/TARS blend: set the TARS share, or step it (+ = more TARS) */
@@ -65,6 +67,8 @@ export function parseCommand(said: string): Command | null {
   const mark = t.match(/^(?:mark|save|pin|bookmark|remember|drop a pin (?:on|at)?|note)\s+(?:this|the|that|my)\s+(?:spot|place|location|point|corner|road|position|here)\b(.*)$/i)
     ?? t.match(/^(?:drop a pin|mark (?:it|here))\b(.*)$/i);
   if (mark) return { kind: 'mark', note: tail(mark[1]) };
+
+  if (n <= 6 && /^((end|finish|stop) (the |this |my |our )?(ride|trip)( now| here)?|(we'?re|we are|i'?m|i am) done( riding)?( for (today|the day|now))?|that'?s (it|a wrap) for (today|the day))$/.test(low)) return { kind: 'end' };
 
   if (n <= 8 && /^(forget (that|it|this|the last (thing|one|note)|what i (just )?said)|scratch that|delete that)$/.test(low)) return { kind: 'forget' };
 

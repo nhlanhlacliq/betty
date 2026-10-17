@@ -88,7 +88,7 @@
           <button class="sheet-handle dock-handle" type="button" data-dock-handle aria-label="Show or hide the panel"></button>
           <div class="ride-stats">
             <div><b id="ridedist">0.0</b><small>km ridden</small></div><span class="stat-separator"></span>
-            <div><b id="ridemin">0</b><small>min out</small></div><span class="stat-separator"></span>
+            <div><b id="ridemin">0</b><small id="rideminlabel">min out</small></div><span class="stat-separator"></span>
             <div><b id="ridespeed">0</b><small>km/h</small></div>
           </div>
           <div class="betty-ride">
@@ -99,6 +99,7 @@
               <button class="voice-button" id="ask" type="button" aria-label="Talk to Betty"><i data-icon="mic"></i></button>
             </div>
             <p id="ridesub" aria-live="polite"></p>
+            <button class="text-button buttons-back" id="buttonsback" type="button" hidden>Give Betty the headset buttons back</button>
             <span class="listening-note" id="asktext" hidden>Listening… tap the microphone when you are done</span>
           </div>
           <div class="ride-actions">
@@ -212,6 +213,7 @@
               </select></div>
             <div class="setting stack"><div><p>Accent</p></div><select id="cloudaccent"></select></div>
             <div class="setting stack"><div><p>Voice</p></div><select id="cloudname"></select></div>
+            <div class="setting"><div><p>Louder voice <b class="val" id="voiceboostval"></b></p><small>For wind noise. Turns up Betty's cloud voice; the phone's backup voice cannot go louder.</small></div><input type="range" id="voiceboost" min="0" max="16" step="2" aria-label="Louder voice" /></div>
             <div class="setting buttons"><button id="cloudtest" class="secondary" type="button">Test</button><button id="cloudsounds" class="secondary" type="button">Test sounds</button></div>
             <div class="setting stack"><div><p>Gemini model</p></div>
               <select id="geminimodel"><option value="full">Full (best sound)</option><option value="lite">Lite (starts about a second sooner)</option></select></div>
@@ -227,13 +229,14 @@
             <div class="setting"><div><p>What she calls you</p></div><input type="text" id="ridername" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
             <div class="setting"><div><p>Your motorcycle</p><small>What she calls the bike.</small></div><input type="text" id="bikename" maxlength="20" autocomplete="off" autocapitalize="off" /></div>
             <div class="setting"><div><p>Fuel range</p><small id="garagefuel">Estimate by distance since the last fill-up.</small></div><button class="secondary small" type="button" data-filled>Filled up</button></div>
+            <div class="setting"><div><p>Count riding time only</p><small>Ride times leave out parking and breaks. Each ride's story still shows riding and stopped time.</small></div><input type="checkbox" id="ridingonly" aria-label="Count riding time only" /></div>
             <div class="setting stack"><div><p>Motorcycle telemetry</p><small>Real OBD2 needs the hardware.</small></div>
               <select id="obdmode"><option value="off">Off: GPS only</option><option value="mock">Simulated (mock)</option><option value="real" disabled>Real OBD2 (needs the hardware)</option></select></div>
           </section>
 
           <section class="settings-card">
             <h2>Talking to Betty</h2>
-            <div class="setting"><div><p>Headset buttons</p><small>Play/pause talks to Betty, next track repeats her. Pauses your music.</small></div><input type="checkbox" id="buttons" aria-label="Headset buttons talk to Betty" /></div>
+            <div class="setting"><div><p>Headset buttons</p><small>Play/pause talks to Betty, next track repeats her, previous track hands the buttons back to your music. Pauses your music.</small></div><input type="checkbox" id="buttons" aria-label="Headset buttons talk to Betty" /></div>
             <div class="setting"><div><p>Your journeys, your business</p><small>Rides, lines and notes stay on this phone.</small></div><i data-icon="shield"></i></div>
             <button class="workshop-link" type="button" data-go="workshop"><span><b>Workshop</b><small>Simulator, tuning, log, voice test, developer chat and what's new.</small></span><i data-icon="wrench"></i></button>
           </section>

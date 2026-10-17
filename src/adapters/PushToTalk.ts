@@ -78,7 +78,7 @@ export class PushToTalk {
   constructor(
     private deps: PttDeps,
     private wanted: () => { id: string; label: string; raw?: boolean },
-    private maxMs = 8000,
+    private maxMs = 12000, // 8 s cut him off mid-question in the wind (ride of 2026-10-17); a pause still ends it sooner
     private now: () => number = Date.now,
   ) {}
 

@@ -2,6 +2,7 @@ import { CONFIG, bettySystemPrompt, cleanRiderName, FLAVOUR_PROMPTS, SILENT_TOKE
 import { clockNote } from './ambient';
 import { BikeState, TriggerEvent, UNPROMPTED_IDS } from './types';
 import { profileNote } from './Profile';
+import { putsOff, wantsSearch } from './Heard';
 
 /** What Betty will say (empty text = say nothing) and where the words came from. */
 export interface Phrase {
@@ -20,7 +21,7 @@ export interface Turn { said: string; answer: string }
 /** How many earlier exchanges she remembers, so a follow-up ("and after that?") makes sense. */
 export const TALK_MEMORY = 6;
 
-type Attempt = { text: string } | { error: string };
+type Attempt = { text: string; searched: boolean } | { error: string };
 
 /**
  * Turns a TriggerEvent into natural speech. Falls back to the event's canned phrase if there is
@@ -30,6 +31,8 @@ type Attempt = { text: string } | { error: string };
 export class ClaudeClient {
   private spoken: string[] = [];
   private talk: Turn[] = [];
+  /** Her lines this ride per kind (time checks, banter), so the next one of that kind does not reuse their jokes. */
+  private byKind = new Map<string, string[]>();
   /** Result of the most recent phrase() call, for the UI. */
   last: Phrase | null = null;
 
@@ -41,8 +44,19 @@ export class ClaudeClient {
 
   async phrase(ev: TriggerEvent, state: BikeState): Promise<Phrase> {
     const t0 = Date.now();
-    const request = buildClaudeRequest(ev, state, this.spoken, this.talk);
-    const r = await this.callClaude(ev, request);
+    const same = this.byKind.get(ev.id) ?? [];
+    // He asked for a search, or for something only a search gets right (a price, reviews, events): search, always.
+    const force = !!ev.riderSaid && wantsSearch(ev.riderSaid);
+    let request = buildClaudeRequest(ev, state, this.spoken, this.talk, { forceSearch: force, same });
+    let r = await this.callClaude(ev, request);
+    let retried = false;
+    // An answer that promised to look it up, or said she does not know, without searching: ask again, searching.
+    // (Ride of 2026-10-17: "I shall search that speed now" seven times, and not one search.)
+    if (ev.riderSaid && !force && 'text' in r && !r.searched && putsOff(r.text)) {
+      request = buildClaudeRequest(ev, state, this.spoken, this.talk, { forceSearch: true, same });
+      const again = await this.callClaude(ev, request);
+      if ('text' in again) { r = again; retried = true; }
+    }
     const latencyMs = Date.now() - t0;
     let out: Phrase;
     if ('text' in r) {
@@ -50,6 +64,8 @@ export class ClaudeClient {
         ambient: UNPROMPTED_IDS.includes(ev.id),
         name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences: sentencesFor(ev.id),
       });
+      if (retried) c.note = c.note ? `${c.note}; searched on the second go` : 'searched on the second go';
+      else if (r.searched) c.note = c.note ? `${c.note}; searched` : 'searched';
       // An alert whose reply turned out unusable still has to be said: use the canned line.
       out = c.text || !ev.fallback
         ? { text: c.text, source: 'claude', detail: c.note, latencyMs, request }
@@ -61,6 +77,7 @@ export class ClaudeClient {
       this.talk = [...this.talk, { said: ev.riderSaid, answer: out.text }].slice(-TALK_MEMORY);
     }
     if (out.text) {
+      if (UNPROMPTED_IDS.includes(ev.id)) this.byKind.set(ev.id, [...same, out.text].slice(-6));
       this.spoken.push(out.text);
       this.spoken = this.spoken.slice(-10);
     }
@@ -69,7 +86,7 @@ export class ClaudeClient {
   }
 
   /** Forget the conversation (a new ride). */
-  forgetTalk() { this.talk = []; }
+  forgetTalk() { this.talk = []; this.byKind.clear(); }
 
   private async callClaude(ev: TriggerEvent, request: ClaudeRequest): Promise<Attempt> {
     if (ev.priority === 1) return { error: 'P1 never waits on the network' };
@@ -97,8 +114,9 @@ export class ClaudeClient {
           method: 'POST', signal: ctrl.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify(request),
         });
       if (!res.ok) return { error: `HTTP ${res.status}` };
-      const text = extractText(await res.json());
-      return text ? { text } : { error: 'empty reply' };
+      const json = await res.json();
+      const text = extractText(json);
+      return text ? { text, searched: searchedIn(json) } : { error: 'empty reply' };
     } catch (e) {
       return { error: (e as Error)?.name === 'AbortError' ? 'timeout' : 'network error' };
     } finally {
@@ -130,7 +148,17 @@ export function voiceTags(text: string, keep: boolean): string {
   return out.replace(/\s+([.,!?;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
 }
 
-export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[], talk: Turn[] = []) {
+/** Whether a reply ran a web search. */
+export const searchedIn = (json: unknown) => Array.isArray((json as any)?.content) && (json as any).content.some((b: any) => b?.type === 'web_search_tool_result');
+
+export interface RequestOptions {
+  /** Make the answer search (he asked for one, or a price/review/event question) */
+  forceSearch?: boolean;
+  /** Her earlier lines of the same kind this ride (time checks, banter) */
+  same?: string[];
+}
+
+export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[], talk: Turn[] = [], o: RequestOptions = {}) {
   const flavour = FLAVOUR_PROMPTS[ev.id];
   const base = bettySystemPrompt(sentencesFor(ev.id));
   const readings = s.obd
@@ -150,15 +178,21 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
     // Room for the configured line length, plus a few words she may say before searching.
     max_tokens: 60 + 60 * sentencesFor(ev.id) + (ev.riderSaid ? 100 : 0),
     ...(ev.riderSaid ? { tools: [WEB_SEARCH] } : {}),
+    ...(ev.riderSaid && o.forceSearch ? { tool_choice: { type: 'tool' as const, name: 'web_search' as const } } : {}),
     // Without this the model thinks first: the thinking block eats max_tokens and blows the timeout.
     thinking: { type: CONFIG.claudeThinkingOff },
     system: flavour ? `${base}\n\n${flavour}` : base,
     messages: [...history, {
       role: 'user' as const,
-      content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}`,
+      content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}${sameKind(o.same)}`,
     }],
   };
 }
+
+/** Her earlier lines of this kind: the next one needs its own joke, not theirs (18 time checks that all "suspected"). */
+const sameKind = (same?: string[]) => same?.length
+  ? `\nYour earlier lines of this same kind this ride: ${JSON.stringify(same)}. Make this one different from all of them: a new joke or angle, a different opening, and none of their phrases or comparisons.`
+  : '';
 
 const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -172,7 +206,7 @@ export interface CleanOptions {
 }
 
 /** Talk about the prompt instead of to the rider: "the notes only say...", "that breaks the word limit". */
-const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b|\bsince he asked\b|\bhe (asked|wants|is asking)\b|\bi'?ll say so plainly\b|\bmake up a story\b|\bthe best story\b|\bso i'?ll keep it (short|brief)\b|\balready said this ride\b|\bto tie (it )?back to\b|\bnothing to call back\b|\bhaving already\b|\bnot repeating it\b|\bi shall say nothing (further|more)\b|\bi have not forgotten\b|\bnot mention the (hour|time)\b|\bthe only thing i can tie\b|\bno earlier (warnings|alerts)\b/i;
+const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b|\bsince he asked\b|\bhe (asked|wants|is asking)\b|\bi'?ll say so plainly\b|\bmake up a story\b|\bthe best story\b|\bso i'?ll keep it (short|brief)\b|\balready said this ride\b|\bto tie (it )?back to\b|\bnothing to call back\b|\bhaving already\b|\bnot repeating it\b|\bi shall say nothing (further|more)\b|\bi have not forgotten\b|\bnot mention the (hour|time)\b|\bthe only thing i can tie\b|\bno earlier (warnings|alerts)\b|\bthe (search|searches|results?|sources?) (give|gives|gave|show|shows|showed|turned up|only|were|are|say|says|did)\b|\bi searched\b|\bi'?ll answer from\b|\bfrom the situation\b/i;
 /** The start of a second thought: everything from here on is the model talking to itself. */
 const SECOND_THOUGHT = /\n\s*\n|\n?\s*(Wait,|Correction:|Corrected:|Revised:|Actually, let me|Let me rephrase)/;
 

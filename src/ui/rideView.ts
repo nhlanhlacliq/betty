@@ -30,7 +30,7 @@ export interface RideInput {
   untoldStories: number;
   showGlance: boolean;
   /** The planned route and where he is on it, if he planned one */
-  route?: { name: string; leftKm: number; leftMin: number; next: { name: string; km: number } | null; offKm: number; doneKm?: number } | null;
+  route?: { name: string; leftKm: number; leftMin: number; next: { name: string; km: number } | null; offKm: number; doneKm?: number; detour?: boolean } | null;
   /** Full-tank range, for the fuel progress bar */
   fuelRangeKm?: number;
 }
@@ -98,7 +98,7 @@ export function glanceCues(i: RideInput): Glance[] {
   if (jam) add({ ...GLANCE.traffic, id: 'traffic', key: `traffic:${jam.id}`, title: `${km(jam.distanceKm)} km`, value: jam.roadName || jam.description,
     short: `Traffic ${km(jam.distanceKm)} km`, action: { kind: 'ask-traffic', label: 'Tell me' } });
   const r = i.route;
-  if (r && r.offKm > 0.4) add({ ...GLANCE.offroute, id: 'offroute', key: 'offroute', title: `${km(r.offKm)} km off`, value: `to ${r.name}`, short: 'Off route',
+  if (r && r.offKm > 0.4) add({ ...GLANCE.offroute, id: 'offroute', key: 'offroute', title: r.detour ? 'On a detour' : `${km(r.offKm)} km off`, value: r.detour ? `${km(r.offKm)} km from the route to ${r.name}` : `to ${r.name}`, short: r.detour ? 'Detour' : 'Off route',
     action: { kind: 'upahead', label: 'Up ahead' } });
   else if (r) {
     const left = r.leftMin >= 60 ? `${Math.floor(r.leftMin / 60)} h ${String(r.leftMin % 60).padStart(2, '0')}` : `${r.leftMin} min`;

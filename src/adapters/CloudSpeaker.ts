@@ -4,6 +4,7 @@ import { quietWav } from './audio';
 import { PcmClip, PcmPlayer } from './PcmPlayer';
 import { voiceTags } from '../core/ClaudeClient';
 import { ClipStore } from './ClipStore';
+import { boostWav } from '../core/Loudness';
 
 export type Engine = 'chirp' | 'gemini';
 
@@ -94,7 +95,7 @@ const within = <T>(p: Promise<T>, ms: number) => new Promise<T>((res, rej) => {
 
 interface Req {
   engine: Engine; stream: boolean; key: string; /** kept on the phone across rides */ kept: boolean;
-  body: { text: string; engine: Engine; voice: string; style?: string; model?: string; stream?: boolean; locale?: string };
+  body: { text: string; engine: Engine; voice: string; style?: string; model?: string; stream?: boolean; locale?: string; gainDb?: number };
 }
 
 /**
@@ -147,7 +148,8 @@ export class CloudSpeaker implements Speaker {
     const chirp = chirpVoice();
     const body = {
       text: voiceTags(text, gemini), engine, voice: gemini ? CONFIG.cloudVoiceName : chirp.name,
-      ...(gemini ? { style: voiceStyle(tag?.id, priority), model: this.geminiModel() } : { locale: chirp.locale }),
+      // Louder voice: Google turns Chirp up (part of the clip's key); Gemini's clips are kept as made and turned up here.
+      ...(gemini ? { style: voiceStyle(tag?.id, priority), model: this.geminiModel() } : { locale: chirp.locale, ...(CONFIG.voiceBoostDb > 0 ? { gainDb: CONFIG.voiceBoostDb } : {}) }),
       ...(stream ? { stream: true } : {}),
     };
     return { engine, stream, kept: gemini && KEPT.has(text), key: JSON.stringify(body), body };
@@ -316,7 +318,10 @@ export class CloudSpeaker implements Speaker {
 
     // A long line (the briefing) takes Chirp longer to make: about 3.5 s was not enough for four sentences.
     const wait = r.engine === 'chirp' ? Math.max(WAIT_MS.chirp, 2000 + text.length * 15) : WAIT_MS[r.engine];
-    within(this.get(r), wait).then((blob) => {
+    within(this.get(r), wait).then(async (raw) => {
+      const blob = r.engine === 'gemini' && CONFIG.voiceBoostDb > 0
+        ? await raw.arrayBuffer().then((b) => new Blob([boostWav(new Uint8Array(b), CONFIG.voiceBoostDb)], { type: raw.type || 'audio/wav' }), () => raw)
+        : raw;
       if (my !== this.token || finished) return;
       this.onAudio(r.engine, false, Date.now() - t0);
       const url = URL.createObjectURL(blob);

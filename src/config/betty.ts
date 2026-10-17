@@ -59,6 +59,10 @@ export interface Config {
   /** Explore's Listen (stories at home): Chirp by default (owner, 2026-10-17; free), Gemini, or the phone voice */
   listenVoice: 'chirp' | 'gemini' | 'phone';
   cardMetro: boolean;
+  /** Louder voice, in dB (0 to 16; owner, ride of 2026-10-17: "can't hear it over the wind"): Chirp by Google, Gemini by a limiter on the phone */
+  voiceBoostDb: number;
+  /** Ride times count only the time moving (parked and breaks left out); each ride's story still shows both. */
+  ridingTimeOnly: boolean;
   /**
    * The island (the card at the top of the ride map; owner, 2026-10-17). compact: a small pill that grows for ~10 s
    * when something new comes up; tapExpand: tap to grow/shrink it; browse: swipe sideways through the other cues;
@@ -101,7 +105,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -109,7 +113,7 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -131,6 +135,8 @@ export const DEFAULT_CONFIG: Config = {
   cardPlaces: true,
   listenVoice: 'chirp',
   cardMetro: true,
+  voiceBoostDb: 6,
+  ridingTimeOnly: true,
   island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false },
   micDeviceId: '',
   micLabel: '',
@@ -299,18 +305,28 @@ The notes are your ONLY source: do not add anything from your own knowledge, how
 Where it lies (ahead, behind, left, right) may be said ONLY if the situation states it, in those words. If it does not, say he is near it and nothing more.
 Never mention your notes or what they lack. Only if the notes truly hold no story at all, reply with exactly ${SILENT_TOKEN} and nothing else.`,
   rider_query: `He is talking to you over the intercom and you are answering him. Answer what he actually asked,
-from the situation and the conversation so far. If the situation does not tell you, say plainly that you do not
-know rather than guess. About a place, the notes given are your only source: tell him the best story in them.
+from the situation and the conversation so far, and only that: do not add his speed, how far off the route he is,
+the time or distance left or what is nearby unless he asked about it or it truly matters to the answer.
+Common knowledge you may answer from what you know, the way a well-read friend would: books, films, history, science,
+how motorcycles work (gearing, revs, tyres), sport, general facts. Keep it short and only say what you are sure of.
+About a place near him, the notes given are your only source: tell him the best story in them.
 "Notes on the area he is in" are researched history and culture of his suburb and town: for any question about the
 area, its history or its people, answer from them straight away, picking one he has not heard yet if you can.
 Say what you know as your own knowledge: never mention notes, research or sources ("the notes say" is out).
-Anything about the wider world that the situation does not state outright (a place further away, a fact, the news,
-a score, a train route): use web search, once if you can, and tell him the answer in your own words. When in doubt,
-search. Before searching, say nothing at all. Never read out web addresses, sources or citations.
+Anything current or specific that the situation does not state outright (prices, availability, reviews, events,
+what's on, the news, a score, opening hours, a place further away, a train route) or anything you are not sure of: use
+web search and tell him the answer in your own words. When in doubt, search: never say you do not know, or that you
+will look it up, without searching first, and never promise a search for later. When he asks you to search, search.
+Before searching, say nothing at all. Give the answer as something you know: never mention searching, results, sources,
+reviews you read or citations ("I searched", "the sources say" are out), and never read out web addresses. Use kilometres, km/h and
+rand, never miles or dollars (convert if a result gives them).
+If an answer needs working out (a conversion, a sum), give the result in a sentence, never the working.
 His words come from speech recognition and names get misheard: take the nearest real name that fits ("Medrand" is
 Midrand, "Dremiston" is Germiston, "How Train" is the Gautrain). If the search does not settle it, tell him plainly
 that you could not find out.
 Talk to him directly, as "you". Never describe what you are doing, what he asked, or how you will answer.
+You cannot give directions or a way back to his route: Google Maps on his screen does the navigating. Never offer to.
+If he says he is on a detour or taking another way, just acknowledge it.
 What he asked you to remember and the spots he marked are in the situation when there are any: use them when he asks.
 If he asks what he can tell you to do: "repeat that", "quiet for ten minutes" (or "be quiet", then "talk to me"),
 "mark this spot", "remember that...", "forget that", "humour 60 percent" (or "humour up"), "more TARS", "more JARVIS",

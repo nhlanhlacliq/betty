@@ -8,6 +8,16 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Web search that actually happens: when you say search, look it up, Google it or the internet (even misheard), or ask about prices, reviews, events or which bike to buy, Betty searches every time. If she ever says she will look something up without doing it, she is asked again and made to search.',
+      'Betty answers common knowledge herself now (books like Animal Farm, how gearing works, history) instead of saying she does not know, and searches when she is not sure. Answers use km/h and rand.',
+      'Answers stick to what you asked: no more speed and "you are off the route" tacked on. Tell her you are on a detour and the off-route reminders stop until you are back on the route. She no longer offers directions back: Google Maps does that.',
+      'Parked: after 10 minutes standing still Betty asks once whether you have parked and goes quiet until you ride off. Say "end ride" to end the ride by voice.',
+      'Riding time: rides now count only the time you were moving (Garage > Count riding time only, on by default). Each ride\'s page shows a bar of riding and stopped time.',
+      'Louder voice: a slider in Garage > Voice & audio turns Betty\'s cloud voice up to +16 dB for wind noise (set to +6 to start). The phone\'s backup voice cannot go louder.',
+      'You can talk for up to 12 seconds before Betty stops listening (was 8). She still stops by herself when you pause.',
+      'Saying "I was just filling up" (or filled up, topped up, got petrol) counts as Filled up.',
+      'Previous track on the headset now lets go: the mic closes (ending call mode) and the buttons go back to your music. Tap "Give Betty the headset buttons back" on the ride screen to take them again.',
+      'Time checks each get their own angle and no longer reuse earlier jokes. Bumps are out of her banter (highway vibration counted thousands), and only big knocks are counted now.',
       'Story of the day: the top of Explore has one story you have not heard yet, from somewhere you have ridden, with Listen and More from that area. A new one each day.',
       'Explore shows a quiet tally under the search (areas, stories heard, spots, new this week), and areas you found this week have a New tag.',
       'Explore has a map: tap Map next to the search. Every area with stories is a dot (yellow with the number you have not heard yet, green once you have heard them all) and your marked spots are dark dots. Drag and pinch to move around; tap a dot for its stories. Areas found before today take a moment to appear the first time.',

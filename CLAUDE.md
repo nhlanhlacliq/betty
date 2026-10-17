@@ -131,6 +131,7 @@ Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `S
 | ambient_banter | P3 | ambient slot rolls banter (see Ambient personality) | 0 (paced by ambient gap) |
 | local_fact | P3 | ambient slot rolls tour guide and an unmentioned place is in range | 0 (paced by ambient gap) |
 | area_story | P3 | the first ambient slot after reaching an area with an untold story (owner, 2026-10-17: "add them to the normal speech"), then when the slot rolls tour guide (half the tour-guide rolls when a place is fresh too); never with tour guide weight 0 | 0 (paced by ambient gap) |
+| ride_parked | P2 | standing still (under 3 km/h) for 10 min (`PARKED_MS`): asks once if he has parked, says "end ride"; then no time checks or ambient until he is back over 10 km/h | 10 min |
 | marked_spot | P2 | a spot he marked is within 400 m, within 50 deg of his course, he is doing 15 km/h or more; each spot at most once in 10 min | 30 s |
 
 All priorities, cooldowns and thresholds are read live from `CONFIG` at call time and can be edited in the TUNING
@@ -399,6 +400,49 @@ has dynamic content, and a smoke test.
 - Story lists fold (2026-10-17, owner: "can be quite long"): `foldList` shows the first 4 moments / 5 lines, the rest
   `li.more` hidden by `.moments.folded`; a full-width `.text-button` "Show all N ..." / "Show less" (chevron turns)
   toggles the class. Lists only one item over the limit are shown whole.
+## Long ride of 2026-10-17 (219 min, 93 km): fixes, owner's answers per item
+
+- **Web search** (owner: "we really need to fix that web search"): she said "I shall search that speed now" seven
+  times without searching. `core/Heard.ts` `wantsSearch` (search / look it up / Google / internet / online, Whisper's
+  "whipserge", "did you look it up?", and current things: price, availability, reviews, events, news, which bike
+  should I get) makes `ClaudeClient` send `tool_choice: {type: 'tool', name: 'web_search'}` (checked live: works with
+  Haiku 5.5 and thinking disabled, ~4 s; api/phrase accepts that tool_choice and nothing else). A reply that did not
+  search and `putsOff` ("I shall search", "let me check", "I cannot confirm", "I don't know the book") is asked AGAIN
+  with the search forced (`detail` says "searched on the second go"). The answer prompt now allows common knowledge
+  (books, history, how bikes work, gearing; owner: Animal Farm), says search rather than "I don't know", km/h and
+  rand, give results not working, never mention searching or sources (`META` drops "the results were...", "I
+  searched"). Weak spot left: Haiku is poor at gearing sums from search snippets (RPM to road speed rambled); Sonnet
+  for searched answers is the owner's option if it matters.
+- **No padding**: answers only what he asked (no speed / off-route / time left unless asked). Never offer directions
+  back to the route (she did: "Shall I give you the way back on track?").
+- **Detour**: `saysDetour` anywhere in his words (before the command parse: "please remember I am on a detour" is
+  also a remember command) -> `engine.setDetour(true)`: no `off_route` until he has left and come back on the route;
+  answers are told it is by choice; the island says "On a detour".
+- **Fill-up said in passing**: `saysFilledUp` ("I was just filling up some fuel", topped up, got petrol, full tank;
+  not "where can I fill up", "I need petrol") clicks Filled up and tells her answer. Logged `[heard]`.
+- **Parked** (~80 min at about 08:45-10:12 with time checks running): `ride_parked` (see Triggers), and an "end ride"
+  voice command (`{kind: 'end'}`: "end ride", "end the ride please", "we're done for today"; runs `stop()`).
+- **Riding vs stopped time** (owner: a setting, default on, and show both): `RideRecord.movingMin` (moving > 3 km/h);
+  `rideMinutes(r, CONFIG.ridingTimeOnly)` for the Journeys list, totals, story, ride card and the live ride screen
+  ("min riding"); the story shows a `.time-split` bar ("2h 19m riding / 1h 20m stopped"). Older rides have no
+  movingMin and show their whole time. Time checks, the debrief and ride memory mention the split.
+- **Time checks**: his 5 min TUNING stays (owner: "my default is fine"). Each gets a `MILESTONE_ANGLES` angle in turn
+  plus distance/weather/area facts, and `ClaudeClient` passes her earlier lines of the same kind this ride
+  (`byKind`, last 6, for every unprompted id) with "make this one different from all of them".
+- **Louder voice** (owner: adjustable): `CONFIG.voiceBoostDb` 0-16, default 6, Garage > Voice & audio slider. Chirp:
+  `volumeGainDb` on Google's side (`gainDb` in the api/speak body, so in the clip key). Gemini: kept clips stay as
+  made; `core/Loudness` `boostWav` (gain + peak limiter, Gemini clips already peak at 0 dB, RMS -16.6) at play time,
+  and the streamed path runs the same `Limiter` in PcmPlayer. The phone voice cannot go above 100%.
+- **Recording cap 12 s** (was 8; many questions hit the cap in wind). Owner asked about "until silence or a button
+  press": silence already ends it (1.2 s pause), and a press during a recording cannot reach the page (call mode).
+- **Bumps**: the `surface` banter topic is gone and `JOLT_MS2` is 20 (about 2 g; was 8, 2,402 "jolts" on this ride).
+- **Previous track = let go** (owner: "make her end call mode when previous track is selected"): `letGo` closes the
+  mic (`ptt.release()`), plays a low tone and stops the button track (`buttons.stop()`), so the next app to play gets
+  the buttons. Betty keeps working (her lines then play on the plain element, which on iPhone may pause his music).
+  `#buttonsback` on the ride screen ("Give Betty the headset buttons back") primes and restarts them inside the tap.
+  Taking them back with a button press is not possible from a web page once another app plays. UNVERIFIED ON A RIDE.
+- Not changed (owner): the repeated Sandton story was his next-track repeat; CAR-BT_9578 was his CarPlay screen.
+
 ## Explore (2026-10-17, owner: "gets very long once you've started traveling"; plan: 1+2, then 4+5, then 3+6)
 
 - 1 Area cards: `core/Explore` `areaCards` groups `AreaStore` entries by plain name (`plainArea` merges "Westonaria
@@ -551,7 +595,7 @@ wake word last / on the Pi.
   prompt view of the exact request (`Phrase.request`, built even without a key) and, with the compare box ticked,
   the canned fallback. `ClaudeClient` keeps the last `TALK_MEMORY` (6) exchanges as real user/assistant turns
   for his questions only; Reset ride forgets them. The `rider_query` flavour prompt says answer what he asked and
-  say "I don't know" rather than guess. Lines she makes up herself are `UNPROMPTED_IDS` (no clock, no readings).
+  say "I don't know" rather than guess (superseded 2026-10-17: common knowledge allowed, search when unsure). Lines she makes up herself are `UNPROMPTED_IDS` (no clock, no readings).
   Checked live: rain, sunset follow-up, traffic, fuel range, engine ("no engine data connected") and "what was
   the first thing I asked" all answered correctly from the state and the conversation.
 
@@ -559,10 +603,10 @@ wake word last / on the Pi.
   page; a button press CAN open the mic with no screen tap; the helmet mic ("V6") records once picked. Taking the
   buttons pauses music from other apps (iPhone gives buttons to the last app to start sound), so it is a per-ride
   switch on the start screen (`CONFIG.headsetButtons`, default off). Mapping (owner): play/pause = talk (press
-  again to finish), next track = repeat her last line, previous track = nothing (owner said no).
+  again to finish), next track = repeat her last line, previous track = nothing (owner said no; since 2026-10-17 previous track = let go, see the long ride of 2026-10-17).
   `HeadsetButtons` (silent loop + Media Session, primed inside the START tap), `PushToTalk` (mic from
   `CONFIG.micDeviceId`, chosen in the VOICE TEST picker; `core/SilenceDetector` stops 1.2 s after speech, gives up
-  after 4 s of nothing, 8 s cap; mic closed straight after), tones at start and end, `AudioQueue.hold` so she does
+  after 4 s of nothing, 8 s cap, 12 s since 2026-10-17; mic closed straight after), tones at start and end, `AudioQueue.hold` so she does
   not talk over him (P1 still goes). Words go to `/api/transcribe` -> Groq `whisper-large-v3-turbo` (open-source
   Whisper; free tier 2,000 requests and 28,800 audio seconds a day, each request billed as at least 10 s; checked
   2026-10-14) with a hint of local names, then into the same `askBetty` path as the chat. The lock screen shows

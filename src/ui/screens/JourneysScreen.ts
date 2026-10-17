@@ -1,5 +1,6 @@
 import type { LogEntry } from '../../core/LineLog';
-import type { RideRecord } from '../../core/RideMemory';
+import { RideRecord, rideMinutes, stoppedMinutes } from '../../core/RideMemory';
+import { CONFIG } from '../../config/betty';
 import type { TrackPoint } from '../../core/Track';
 import { icon } from '../icons';
 import { foldList, toggleFold } from '../fold';
@@ -32,6 +33,16 @@ export interface JourneysContext {
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const date = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
 const longDate = (ms: number) => new Date(ms).toLocaleString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+/** Riding and stopped time as a slim bar under the ride's numbers, when the ride kept its riding time. */
+function timeSplit(r: RideRecord): string {
+  const stopped = stoppedMinutes(r);
+  if (stopped == null || r.minutes <= 0) return '';
+  const riding = r.minutes - stopped;
+  const pct = Math.round((riding / r.minutes) * 100);
+  return `<div class="time-split" aria-label="${riding} minutes riding, ${stopped} stopped"><div class="bar"><i style="width:${pct}%"></i></div>
+    <p><span><b>${duration(riding)}</b> riding</span><span><b>${duration(stopped)}</b> stopped</span></p></div>`;
+}
+
 const duration = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : `${min} min`);
 /** What she said on a ride: her spoken lines only, not silences, drops or diagnostics. */
 const spokenLines = (entries: LogEntry[], rideId: number) =>
@@ -56,11 +67,11 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       return;
     }
     const km = Math.round(rides.reduce((n, r) => n + r.distanceKm, 0));
-    const min = rides.reduce((n, r) => n + r.minutes, 0);
+    const min = rides.reduce((n, r) => n + rideMinutes(r, CONFIG.ridingTimeOnly), 0);
     totals.innerHTML = `<div class="totals"><div><b>${rides.length}</b><small>ride${rides.length === 1 ? '' : 's'}</small></div><div><b>${km} km</b><small>together</small></div><div><b>${duration(min)}</b><small>in the saddle</small></div></div>`;
     list.innerHTML = `<div class="journey-list">${rides.map((r) => `<button class="journey-row" type="button" data-ride="${r.startedAt}">
       <div><p class="eyebrow">${esc(date(r.startedAt))}</p><h2 style="font-size:19px">${esc(rideTitle(r))}</h2><p class="sub" style="margin-top:7px">${esc(r.weather ?? 'Out with Betty')}</p></div>
-      <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(r.minutes)} · ${r.places.length + r.events.length} moments ↗</p></div></button>`).join('')}</div>`;
+      <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))} · ${r.places.length + r.events.length} moments ↗</p></div></button>`).join('')}</div>`;
   };
 
   const renderStory = (rideId: number) => {
@@ -70,7 +81,9 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const track = ctx.track(rideId);
     const places = r.places.length ? `She told you about ${r.places.slice(0, 3).join(', ')}${r.places.length > 3 ? ' and more' : ''}.` : '';
     const flags = r.events.length ? ` On the way she flagged ${r.events.join(', ')}.` : '';
-    const blurb = `${r.distanceKm} km and ${duration(r.minutes)} out${r.weather ? `, ${r.weather}` : ''}. ${places}${flags}`.trim();
+    const shown = rideMinutes(r, CONFIG.ridingTimeOnly);
+    const stopped = stoppedMinutes(r);
+    const blurb = `${r.distanceKm} km and ${duration(shown)} ${CONFIG.ridingTimeOnly && stopped != null ? 'riding' : 'out'}${r.weather ? `, ${r.weather}` : ''}. ${places}${flags}`.trim();
     const moments = [
       ...r.places.map((p) => `<li>${esc(p)}<small>A sense of place</small></li>`),
       ...r.events.map((e) => `<li>${esc(e)}<small>Flagged on the way</small></li>`),
@@ -92,7 +105,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
         <button class="text-button" type="button" data-go="journeys">← My journeys</button></div>
       <div class="summary-hero"><div class="orb resting"></div><p class="eyebrow">Saved privately on this phone</p>
         <h1>${esc(rideTitle(r))}</h1><p>${esc(blurb)}</p>
-        <div class="summary-stats"><div><b>${r.distanceKm}</b><small>Kilometres</small></div><div><b>${r.minutes}</b><small>Minutes</small></div><div><b>${said.length}</b><small>Things she said</small></div></div></div>
+        <div class="summary-stats"><div><b>${r.distanceKm}</b><small>Kilometres</small></div><div><b>${shown}</b><small>${CONFIG.ridingTimeOnly && stopped != null ? 'Minutes riding' : 'Minutes'}</small></div><div><b>${said.length}</b><small>Things she said</small></div></div>
+        ${timeSplit(r)}</div>
       <div class="page-grid">
         <div class="settings-card"><h2>The road you took</h2>
           ${track.length > 1 ? `<div class="story-map">${roadMap()}</div>`
