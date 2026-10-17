@@ -478,7 +478,7 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; }
   }
 
-  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'minititle', 'routeform', 'routeinput', 'routethrilling', 'routeplan', 'routesummary', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'minititle', 'glanceaction', 'glancedots', 'glanceprogress', 'islandcompact', 'islandtap', 'islandbrowse', 'islandactions', 'islandprogress', 'upaheadlist', 'routeform', 'routeinput', 'routethrilling', 'routeplan', 'routesummary', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered

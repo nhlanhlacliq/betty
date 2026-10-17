@@ -54,6 +54,7 @@ import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
+import { stopsAhead } from './core/Route';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
 import { mountEdgeStretch, mountPullToRefresh, mountSheetDrag, mountSwipeBack, rememberSpot, takeSpot } from './ui/gestures';
@@ -495,6 +496,7 @@ paintBrand();
 let rideHooks: RideActions | null = null;
 const rideScreen = mountRideScreen(document, {
   talk: () => rideHooks?.talk(), repeat: () => rideHooks?.repeat(), toggleQuiet: () => rideHooks?.toggleQuiet(), ask: (t) => rideHooks?.ask(t),
+  island: (k, g) => rideHooks?.island(k, g),
 });
 // Chat: a conversation view during a ride (the chat button in the ride dock), and the developer chat in the
 // Workshop, which also works without a ride by starting a desk session behind it.
@@ -541,7 +543,8 @@ function paintRide() {
     distanceKm: snap.distanceKm, minutesOut: snap.minutesOut, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
     rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
     untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
-    route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm } : null,
+    route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm } : null,
+    fuelRangeKm: CONFIG.fuel.rangeKm,
   });
   const moving = s.speedKmh >= 3 ? 'On the road' : 'Parked';
   const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : r.real ? null : CONFIG.feeds.fallbackLocation;
@@ -867,6 +870,35 @@ async function beginRide(desk: boolean) {
     repeat: () => { if (lastLine) sayNow(lastLine); else shell.toast("She hasn't said anything yet."); },
     ask: (text) => { void askBetty(text); },
     toggleQuiet: () => { obey(engine.quietLeftMin() > 0 ? { kind: 'talk' } : { kind: 'quiet', minutes: null }); renderLog(); paintRide(); },
+    // The island's one button per card.
+    island: (kind, g) => {
+      if (kind === 'filled') { (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click(); shell.toast(`Fill-up noted: about ${CONFIG.fuel.rangeKm} km of range.`); paintRide(); }
+      else if (kind === 'ask-rain') void askBetty('Is the rain going to last, and will it catch me on this ride?');
+      else if (kind === 'ask-traffic') void askBetty('Tell me about the traffic on my way.');
+      else if (kind === 'ask-place') void askBetty(`Tell me about ${g.value}.`);
+      else if (kind === 'story') {
+        const ev = engine.force('area_story', agg.current);
+        if (ev.context) void say(ev); else void askBetty('Tell me something about this area.');
+      } else if (kind === 'upahead') { fillUpAhead(); shell.openSheet('upahead'); }
+    },
+  };
+  /** The "Up ahead" sheet: the route's named stops still to come, how far and when he gets there. */
+  const fillUpAhead = () => {
+    const now = engine.routeNow();
+    const list = document.getElementById('upaheadlist')!;
+    if (!now) { list.innerHTML = '<p class="sub">No route planned. Plan one in How are we riding? on the Ride screen.</p>'; return; }
+    const { route, progress } = now;
+    const p = progress;
+    const at = (kmAhead: number) => (p && p.leftKm > 0 ? new Date(Date.now() + (p.leftMin * kmAhead / p.leftKm) * 60_000).toTimeString().slice(0, 5) : '');
+    const esc2 = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    document.getElementById('upaheadtitle')!.textContent = route.name;
+    document.getElementById('upaheadsub')!.textContent = p ? `${Math.round(p.leftKm)} km and about ${p.leftMin >= 60 ? `${Math.floor(p.leftMin / 60)} h ${String(p.leftMin % 60).padStart(2, '0')}` : `${p.leftMin} min`} to go${p.offKm > 0.4 ? ` · ${p.offKm.toFixed(1)} km off the route` : ''}` : `${Math.round(route.km)} km planned`;
+    (document.getElementById('upaheadmaps') as HTMLAnchorElement).href = route.mapsUrl;
+    // Named stops ahead of him, by distance along the route; then the finish.
+    const ahead = p ? stopsAhead(route, p).filter((x) => x.km > 0.2 && x.km < p.leftKm - 0.3) : [];
+    const rows = [...ahead, ...(p ? [{ name: `${route.name} (finish)`, km: p.leftKm }] : [])];
+    list.innerHTML = rows.length ? rows.map((x) => `<div class="sheet-row"><b>${esc2(x.name)}</b><span>${Math.round(x.km)} km${at(x.km) ? ` · ${at(x.km)}` : ''}</span></div>`).join('')
+      : '<p class="sub">Nothing left but the road.</p>';
   };
   lockScreen.setTalk(true);
   if (CONFIG.headsetButtons) {

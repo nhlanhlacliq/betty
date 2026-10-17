@@ -30,10 +30,25 @@ export interface RideInput {
   untoldStories: number;
   showGlance: boolean;
   /** The planned route and where he is on it, if he planned one */
-  route?: { name: string; leftKm: number; leftMin: number; next: { name: string; km: number } | null; offKm: number } | null;
+  route?: { name: string; leftKm: number; leftMin: number; next: { name: string; km: number } | null; offKm: number; doneKm?: number } | null;
+  /** Full-tank range, for the fuel progress bar */
+  fuelRangeKm?: number;
 }
 
-export interface Glance { icon: IconName; label: string; title: string; value: string }
+export type GlanceId = 'range' | 'rain' | 'traffic' | 'route' | 'offroute' | 'sunset' | 'area' | 'place' | 'riding';
+/** What a card's one button does (main.ts carries it out). */
+export type GlanceAction = 'filled' | 'ask-rain' | 'ask-traffic' | 'upahead' | 'story' | 'ask-place';
+export interface Glance {
+  icon: IconName; label: string; title: string; value: string;
+  id?: GlanceId;
+  /** Changes when the news changes ("rain 60%" -> "raining now"): a new key makes the compact island grow */
+  key?: string;
+  /** The pill's few words */
+  short?: string;
+  action?: { kind: GlanceAction; label: string };
+  /** 0 to 1, for the optional progress bar */
+  progress?: number;
+}
 
 export interface RideView {
   orb: OrbMode;
@@ -53,6 +68,8 @@ export interface RideView {
   speed: string;
   temp: string;
   glance: Glance | null;
+  /** All the cues, most pressing first (the island browses them) */
+  glances: Glance[];
 }
 
 const momentFor = (tag?: string) => MOMENTS[(tag ?? 'voice') as keyof typeof MOMENTS] ?? MOMENTS.voice;
@@ -61,33 +78,50 @@ const plain = (t: string) => t.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim
 const hhmm = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
 const km = (n: number) => (n < 10 ? n.toFixed(1) : String(Math.round(n)));
 
-/** The one thing worth a glance, most pressing first. */
-export function pickGlance(i: RideInput): Glance {
+/** Every cue worth a glance, most pressing first (the island shows the first and can browse the rest). */
+export function glanceCues(i: RideInput): Glance[] {
   const s = i.state;
+  const out: Glance[] = [];
+  const add = (g: Glance) => out.push(g);
   if (i.fuelKmLeft !== null && i.fuelKmLeft <= i.fuelWarnKm * 1.5) {
-    return { ...GLANCE.range, title: `${Math.max(0, Math.round(i.fuelKmLeft))} km left`, value: '' };
+    const left = Math.max(0, Math.round(i.fuelKmLeft));
+    add({ ...GLANCE.range, id: 'range', key: `range:${Math.round(left / 10)}`, title: `${left} km left`, value: '', short: `${left} km left`,
+      action: { kind: 'filled', label: 'Filled up' }, progress: i.fuelRangeKm ? Math.min(1, left / i.fuelRangeKm) : undefined });
   }
   const w = s.weather;
   if (w && (w.rainNowMm > 0 || w.rainChanceNextHourPct >= i.rainChancePct)) {
-    return { ...GLANCE.rain, title: w.rainNowMm > 0 ? 'Raining now' : `Rain likely, ${w.rainChanceNextHourPct}%`, value: '' };
+    const now = w.rainNowMm > 0;
+    add({ ...GLANCE.rain, id: 'rain', key: `rain:${now ? 'now' : Math.round(w.rainChanceNextHourPct / 10)}`, title: now ? 'Raining now' : `Rain likely, ${w.rainChanceNextHourPct}%`, value: '',
+      short: now ? 'Raining' : `Rain ${w.rainChanceNextHourPct}%`, action: { kind: 'ask-rain', label: 'Will it last?' } });
   }
   const jam = [...s.incidents].filter((x) => x.distanceKm <= i.trafficRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm)[0];
-  if (jam) return { ...GLANCE.traffic, title: `${km(jam.distanceKm)} km`, value: jam.roadName || jam.description };
+  if (jam) add({ ...GLANCE.traffic, id: 'traffic', key: `traffic:${jam.id}`, title: `${km(jam.distanceKm)} km`, value: jam.roadName || jam.description,
+    short: `Traffic ${km(jam.distanceKm)} km`, action: { kind: 'ask-traffic', label: 'Tell me' } });
   const r = i.route;
-  if (r && r.offKm > 0.4) return { ...GLANCE.offroute, title: `${km(r.offKm)} km off`, value: `to ${r.name}` };
-  if (r) {
+  if (r && r.offKm > 0.4) add({ ...GLANCE.offroute, id: 'offroute', key: 'offroute', title: `${km(r.offKm)} km off`, value: `to ${r.name}`, short: 'Off route',
+    action: { kind: 'upahead', label: 'Up ahead' } });
+  else if (r) {
     const left = r.leftMin >= 60 ? `${Math.floor(r.leftMin / 60)} h ${String(r.leftMin % 60).padStart(2, '0')}` : `${r.leftMin} min`;
-    return { ...GLANCE.route, title: `${Math.round(r.leftKm)} km · ${left}`, value: r.next ? `${r.next.name} in ${km(r.next.km)} km` : `to ${r.name}` };
+    const done = r.doneKm ?? 0;
+    add({ ...GLANCE.route, id: 'route', key: `route:${r.next?.name ?? r.name}`, title: `${Math.round(r.leftKm)} km · ${left}`, value: r.next ? `${r.next.name} in ${km(r.next.km)} km` : `to ${r.name}`,
+      short: `${Math.round(r.leftKm)} km · ${left}`, action: { kind: 'upahead', label: 'Up ahead' }, progress: done + r.leftKm > 0 ? done / (done + r.leftKm) : undefined });
   }
   if (w?.sunsetAt && w.sunsetAt > i.now && w.sunsetAt - i.now <= 60 * 60_000) {
-    return { ...GLANCE.sunset, title: `Sunset ${hhmm(w.sunsetAt)}`, value: '' };
+    add({ ...GLANCE.sunset, id: 'sunset', key: 'sunset', title: `Sunset ${hhmm(w.sunsetAt)}`, value: '', short: `Sunset ${hhmm(w.sunsetAt)}`,
+      progress: 1 - (w.sunsetAt - i.now) / (60 * 60_000) });
   }
   const area = s.area?.suburb || s.area?.town;
-  if (area) return { ...GLANCE.area, title: area, value: i.untoldStories ? `${i.untoldStories} ${i.untoldStories === 1 ? 'story' : 'stories'} to tell` : '' };
+  if (area) add({ ...GLANCE.area, id: 'area', key: `area:${area}`, title: area, value: i.untoldStories ? `${i.untoldStories} ${i.untoldStories === 1 ? 'story' : 'stories'} to tell` : '', short: area,
+    action: i.untoldStories ? { kind: 'story', label: 'Tell me a story' } : undefined });
   const near = [...s.nearbyPlaces].sort((a, b) => a.distanceKm - b.distanceKm)[0];
-  if (near) return { ...GLANCE.place, title: `${km(near.distanceKm)} km`, value: near.name };
-  return { ...GLANCE.riding, title: `${Math.round(s.speedKmh)} km/h`, value: 'Follow your curiosity' };
+  if (near) add({ ...GLANCE.place, id: 'place', key: `place:${near.id}`, title: `${km(near.distanceKm)} km`, value: near.name, short: near.name,
+    action: { kind: 'ask-place', label: "What's that?" } });
+  if (!out.length) add({ ...GLANCE.riding, id: 'riding', key: 'riding', title: `${Math.round(s.speedKmh)} km/h`, value: 'Follow your curiosity', short: `${Math.round(s.speedKmh)} km/h` });
+  return out;
 }
+
+/** The one thing worth a glance, most pressing first. */
+export function pickGlance(i: RideInput): Glance { return glanceCues(i)[0]; }
 
 /** The facts around him, one short line: area, weather, sunset, stories. */
 function factsFor(i: RideInput): string {
@@ -109,6 +143,7 @@ export function rideView(i: RideInput): RideView {
     minutes: String(Math.floor(i.minutesOut)),
     speed: String(Math.round(s.speedKmh)),
     temp: s.weather ? `${Math.round(s.weather.tempC)}°` : '',
+    glances: i.showGlance ? glanceCues(i) : [],
     glance: i.showGlance ? pickGlance(i) : null,
     facts: factsFor(i),
   };

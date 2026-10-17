@@ -72,9 +72,12 @@
             <button class="round-button" id="mute" type="button" aria-label="Ask Betty to be quiet"><span id="muteicon"></span><span class="audio-dot on" id="mutedot"></span></button>
           </div>
         </header>
-        <div class="turn-card" id="glance">
+        <div class="turn-card" id="glance" role="button" tabindex="0" aria-label="The island: tap to grow or shrink, swipe for more">
           <div class="turn-icon" id="glanceicon"></div>
-          <div><span class="turn-label" id="glancelabel"></span><strong id="glancetitle"></strong><p id="glancevalue"></p></div>
+          <div class="island-body"><span class="turn-label" id="glancelabel"></span><strong id="glancetitle"></strong><p id="glancevalue"></p>
+            <div class="island-progress" id="glanceprogress" hidden><i></i></div></div>
+          <button class="island-action" id="glanceaction" type="button" hidden></button>
+          <div class="island-dots" id="glancedots" hidden></div>
         </div>
         <div class="map-controls active-map-controls">
           <button type="button" data-zoom="in" aria-label="Zoom map in"><i data-icon="plus" class="sm"></i></button>
@@ -164,8 +167,17 @@
             <div class="setting"><div><p>Character <b class="val" id="blendval"></b></p><small>JARVIS (polished) → TARS (blunt)</small></div><input type="range" id="blend" min="0" max="100" step="10" aria-label="Character blend" /></div>
             <div class="setting"><div><p>Betty's look</p><small>The yellow companion, or your own picture or GIF, cropped to a circle.</small></div><div class="orb mini resting" id="avatarpreview" aria-hidden="true"></div></div>
             <div class="setting buttons"><label class="secondary file-button">Choose a picture or GIF<input type="file" id="avatarfile" accept="image/*" /></label><button id="avatarreset" class="secondary" type="button" hidden>Use the default</button></div>
-            <div class="setting"><div><p>Visual companion</p><small>One glanceable cue on the ride map.</small></div><input type="checkbox" id="glanceswitch" aria-label="Visual companion" /></div>
             <button class="text-button" id="sample" type="button">Hear Betty's voice <i data-icon="arrow" class="sm"></i></button>
+          </section>
+
+          <section class="settings-card">
+            <h2>The island</h2>
+            <div class="setting"><div><p>Show the island</p><small>The card at the top of the ride map: one thing worth a glance.</small></div><input type="checkbox" id="glanceswitch" aria-label="Show the island" /></div>
+            <div class="setting"><div><p>Compact</p><small>A small pill that grows when something new comes up.</small></div><input type="checkbox" id="islandcompact" aria-label="Compact island" /></div>
+            <div class="setting"><div><p>Tap to grow</p><small>Tap it to open or close the full card.</small></div><input type="checkbox" id="islandtap" aria-label="Tap to grow the island" /></div>
+            <div class="setting"><div><p>Swipe to browse</p><small>Swipe sideways for rain, route, sunset, the area...</small></div><input type="checkbox" id="islandbrowse" aria-label="Swipe to browse" /></div>
+            <div class="setting"><div><p>Card buttons</p><small>Filled up, Tell me a story, Up ahead and more.</small></div><input type="checkbox" id="islandactions" aria-label="Card buttons" /></div>
+            <div class="setting"><div><p>Progress bars</p><small>How far along the route, the fuel range, the light left.</small></div><input type="checkbox" id="islandprogress" aria-label="Progress bars" /></div>
           </section>
 
           <section class="settings-card">
@@ -303,6 +315,17 @@
           <h2>What's new</h2>
           <p class="sheet-note">If the newest entry is missing after an update, pull down to reload.</p>
           <div id="whatsnewlist" class="whatsnew-list"></div>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="upahead" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Up ahead">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <p class="eyebrow">Up ahead</p>
+          <h2 id="upaheadtitle">Your route</h2>
+          <p class="sub" id="upaheadsub"></p>
+          <div id="upaheadlist"></div>
+          <div class="dialog-actions"><a class="secondary" id="upaheadmaps" target="_blank" rel="noopener">Open in Google Maps</a><button class="primary" type="button" data-sheet-close>Back to the road</button></div>
         </section>
       </div>
       <div class="sheet-backdrop" data-sheet="end" hidden>

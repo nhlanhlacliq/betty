@@ -2,7 +2,8 @@ import { icon } from '../icons';
 import { DEFAULT_SPAN_KM, MAP_SPANS, MAX_SPAN_KM, MIN_SPAN_KM, MapInput, mapSvg } from '../mapView';
 import { MapView, attachMapGestures } from '../mapGestures';
 import { mountCollapsibleDock } from '../dockSwipe';
-import type { RideView } from '../rideView';
+import type { GlanceAction, Glance, RideView } from '../rideView';
+import { mountIsland } from '../island';
 import { followDock } from '../Shell';
 
 export interface RideActions {
@@ -14,6 +15,8 @@ export interface RideActions {
   toggleQuiet(): void;
   /** A typed question or a question chip (the chat screen), through the same path as speech. */
   ask(text: string): void;
+  /** The island's card button */
+  island(kind: GlanceAction, g: Glance): void;
 }
 
 export interface RideExtras {
@@ -42,6 +45,7 @@ export function mountRideScreen(doc: Document, actions: RideActions): RideScreen
   $('rideorb').addEventListener('click', () => actions.repeat());
   $('mute').addEventListener('click', () => actions.toggleQuiet());
   followDock(doc.querySelector('[data-screen="ride"]')!, doc.querySelector('.active-dock')!);
+  const island = mountIsland(doc, { action: (kind, g) => actions.island(kind, g) });
   mountCollapsibleDock(doc.querySelector('[data-screen="ride"]')!, doc.querySelector('.active-dock')!, 'ride');
 
   let span = DEFAULT_SPAN_KM;
@@ -86,13 +90,7 @@ export function mountRideScreen(doc: Document, actions: RideActions): RideScreen
       text('ridedist', v.distance);
       text('ridemin', v.minutes);
       text('ridespeed', v.speed);
-      $('glance').hidden = !v.glance;
-      if (v.glance) {
-        html('glanceicon', icon(v.glance.icon));
-        text('glancelabel', v.glance.label);
-        text('glancetitle', v.glance.title);
-        text('glancevalue', v.glance.value);
-      }
+      island.set(v.glances);
       $('asktext').hidden = !x.listening;
       $('ask').classList.toggle('listening', x.listening);
       const mute = $('mute');

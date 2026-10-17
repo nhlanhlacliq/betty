@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'The island (the card at the top of the ride map) is now a small pill that grows when something new comes up. Tap it to open or close it, swipe sideways for the other cues, and use its button: Filled up, Tell me a story, Up ahead (your route\'s stops and arrival times) and more. Each part can be switched off in Garage > The island, where you can also turn on progress bars.',
       'Pull to refresh keeps you on the screen you were on, scrolled to the same place.',
       'Ending a ride now opens its summary straight away, while Betty signs off. A ride too short to keep (under 3 minutes and 1 km) tells you so. The screens also stretch a tiny bit at the top and bottom instead of bouncing.',
       'Swipe the panel down on the Ride and riding screens for more map: home keeps the greeting, Betty, your route and Let\'s ride; riding keeps Betty\'s row with the microphone. Swipe up or tap the bar to bring it all back. It remembers how you left it.',

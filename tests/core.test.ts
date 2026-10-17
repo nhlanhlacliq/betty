@@ -1195,6 +1195,40 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(!e2.evaluate({ ...s, lat: -26.16 }).some((x) => x.id === 'marked_spot'), 'not from a kilometre away');
 }
 
+// ---- the island: compact pill, grows on news, tap to pin, swipe to browse; every part a setting
+{
+  resetConfig();
+  const { islandView, freshIsland, EXPAND_MS, BROWSE_MS } = await import('../src/ui/island');
+  const { glanceCues } = await import('../src/ui/rideView');
+  const cue = (id: string, key: string, extra: any = {}) => ({ icon: 'pin', label: id, title: id.toUpperCase(), value: '', id, key, short: id, ...extra }) as any;
+  let st = freshIsland();
+  let v = islandView([cue('area', 'area:Elmapark')], st, 1000); st = v.next;
+  assert.equal(v.expanded, false, 'compact to start with (the first cue is not news)');
+  v = islandView([cue('rain', 'rain:6'), cue('area', 'area:Elmapark')], st, 2000); st = v.next;
+  assert.equal(v.expanded, true, 'rain is news: it grows'); assert.equal(v.glance!.id, 'rain');
+  v = islandView([cue('rain', 'rain:6')], st, 2000 + EXPAND_MS + 1); st = v.next;
+  assert.equal(v.expanded, false, 'and shrinks back after 10 s');
+  v = islandView([cue('rain', 'rain:6')], { ...st, pinned: true }, 99_999); assert.equal(v.expanded, true, 'tapped open: stays open');
+  // browsing: the second cue shows, grown, then the most pressing comes back
+  const two = [cue('rain', 'rain:6'), cue('area', 'area:Elmapark')];
+  v = islandView(two, { ...st, index: 1, browseUntil: 50_000 }, 40_000);
+  assert.equal(v.glance!.id, 'area'); assert.equal(v.expanded, true); assert.equal(v.count, 2);
+  v = islandView(two, { ...st, index: 1, browseUntil: 50_000 }, 50_000 + 1); assert.equal(v.glance!.id, 'rain', `back after ${BROWSE_MS / 1000} s`);
+  // settings
+  assert.equal(islandView(two, freshIsland(), 0, { ...CONFIG.island, compact: false }).expanded, true, 'compact off: always the full card');
+  assert.equal(islandView(two, { ...freshIsland(), index: 1, browseUntil: 9e9 }, 0, { ...CONFIG.island, browse: false }).glance!.id, 'rain', 'browse off');
+  assert.deepEqual(CONFIG.island, { compact: true, tapExpand: true, browse: true, actions: true, progress: false }, 'the first four on by default, progress off');
+  // the cues: each with its short form, its button and its progress
+  const base: any = { now: 0, speaking: null, lastSaid: null, talk: 'off', quietMin: 0, ending: false, distanceKm: 0, minutesOut: 0, fuelWarnKm: 60, rainChancePct: 60, trafficRadiusKm: 5, untoldStories: 3, showGlance: true, fuelRangeKm: 280 };
+  const state: any = { speedKmh: 40, weather: { tempC: 20, rainNowMm: 0, rainChanceNextHourPct: 70, summary: 'cloudy', windKmh: 5, fetchedAt: 0, sunriseAt: null, sunsetAt: null }, incidents: [], area: { suburb: 'Elmapark', town: 'Ekurhuleni', region: 'Gauteng' }, areaNotes: [], nearbyPlaces: [] };
+  const cues = glanceCues({ ...base, state, fuelKmLeft: 86, route: { name: 'Clarens', leftKm: 200, leftMin: 150, next: { name: 'Villiers', km: 35 }, offKm: 0, doneKm: 100 } });
+  assert.deepEqual(cues.map((c) => c.id), ['range', 'rain', 'route', 'area']);
+  assert.equal(cues[0].short, '86 km left'); assert.deepEqual(cues[0].action, { kind: 'filled', label: 'Filled up' }); assert.ok(Math.abs(cues[0].progress! - 86 / 280) < 1e-9);
+  assert.equal(cues[2].short, '200 km · 2 h 30'); assert.equal(cues[2].action!.kind, 'upahead'); assert.ok(Math.abs(cues[2].progress! - 1 / 3) < 1e-9);
+  assert.deepEqual(cues[3].action, { kind: 'story', label: 'Tell me a story' });
+  resetConfig();
+}
+
 // ---- slim panels: a swipe down slims, up brings it back, sideways or short does nothing
 {
   const { dockSwipe } = await import('../src/ui/dockSwipe');

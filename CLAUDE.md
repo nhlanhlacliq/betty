@@ -362,6 +362,17 @@ has dynamic content, and a smoke test.
   still on the ride screen: "sometimes I don't get the ride summary".) A ride too short to keep (under 3 min and 1 km)
   goes home with a toast saying why. Once no ride runs, the ride screen redirects to home (so back from the story
   does not land on an empty ride).
+- THE ISLAND (owner's name for the dark card at the top of the ride map; built 2026-10-17, `ui/island.ts`): the cues
+  come from `glanceCues` (rideView.ts, pure: fuel range when under 1.5x the warning, rain, traffic, off route / route,
+  sunset within the hour, the area, a nearby place, speed), each with a `key` (changes when the news does), a `short`
+  form, one `action` and a `progress`. Behaviours, each a switch in Garage > The island (`CONFIG.island`; first four on
+  by default, progress off): compact pill that grows for 10 s when the most pressing cue's key changes (the first cue
+  of a ride and plain speed are not news); tap to grow and keep it open, tap to shrink; swipe sideways to browse (dots,
+  back to the most pressing after 20 s); one button per card: Filled up (the data-filled flow), Will it last? (asks
+  her about rain), Tell me (traffic), Up ahead (route: a sheet of the named stops still ahead with km and clock time,
+  `stopsAhead`, and the finish), Tell me a story (forces an untold area_story), What's that? (asks about the place);
+  progress bars for route done, fuel range left of a full tank, and the last hour of light. "Show the island" (the old
+  Visual companion switch, `showGlance`) moved into that card. `islandView` is pure and tested. Not tried on a phone.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

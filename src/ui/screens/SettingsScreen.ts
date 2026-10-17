@@ -6,6 +6,10 @@ import type { Shell } from '../Shell';
 export interface SettingsContext { sample(): void; fuelText(): string }
 
 const CUSTOM = 'custom';
+/** Garage > The island: one switch per behaviour (CONFIG.island). */
+const ISLAND: Array<[string, keyof typeof CONFIG.island]> = [
+  ['islandcompact', 'compact'], ['islandtap', 'tapExpand'], ['islandbrowse', 'browse'], ['islandactions', 'actions'], ['islandprogress', 'progress'],
+];
 
 /**
  * Garage & settings: the personality dials (narration, humour, JARVIS/TARS blend), the visual companion switch and
@@ -32,6 +36,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     preset.value = p ?? CUSTOM;
     $('talkhint').textContent = p ? 'How much company feels right?' : 'A custom mix, set in the Workshop (TUNING).';
     glance.checked = CONFIG.showGlance;
+    for (const [id, key] of ISLAND) { const b = $<HTMLInputElement>(id); b.checked = CONFIG.island[key]; b.disabled = !CONFIG.showGlance; }
     $('garagefuel').textContent = ctx.fuelText();
   };
 
@@ -41,6 +46,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   blend.addEventListener('change', () => { CONFIG.persona.tars = Number(blend.value); changed(); });
   preset.addEventListener('change', () => { if (preset.value !== CUSTOM) { applyTalkPreset(preset.value as TalkPreset); changed(); } });
   glance.addEventListener('change', () => { CONFIG.showGlance = glance.checked; changed(); });
+  for (const [id, key] of ISLAND) $<HTMLInputElement>(id).addEventListener('change', (e) => { CONFIG.island[key] = (e.target as HTMLInputElement).checked; changed(); });
   $('sample').addEventListener('click', () => ctx.sample());
 
   doc.defaultView?.addEventListener('betty-config', paint);

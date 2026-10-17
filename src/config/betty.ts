@@ -50,6 +50,12 @@ export interface Config {
   headsetButtons: boolean;
   /** Ride screen: show the one glanceable cue (rain, range, traffic, the area) under Betty. Off = voice and orb only. */
   showGlance: boolean;
+  /**
+   * The island (the card at the top of the ride map; owner, 2026-10-17). compact: a small pill that grows for ~10 s
+   * when something new comes up; tapExpand: tap to grow/shrink it; browse: swipe sideways through the other cues;
+   * actions: one button per card (Filled up, Tell me a story...); progress: slim progress bars (off by default).
+   */
+  island: { compact: boolean; tapExpand: boolean; browse: boolean; actions: boolean; progress: boolean };
   /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
   micDeviceId: string;
   /** That mic's name, to find it again if the phone gives it a new id */
@@ -111,6 +117,7 @@ export const DEFAULT_CONFIG: Config = {
   chirpStandIn: 'Zephyr', // owner, 2026-10-17: Chirp's default voice
   headsetButtons: false,
   showGlance: true,
+  island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false },
   micDeviceId: '',
   micLabel: '',
   micRaw: false,

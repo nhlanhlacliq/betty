@@ -493,3 +493,20 @@ html, body { overscroll-behavior: none; }
 
 /* Edge stretch replaces the native bounce on every screen (ui/gestures.ts mountEdgeStretch) */
 .screen { overscroll-behavior-y: none; }
+
+/* The island (ui/island.ts): compact pill, the full card, its one button, progress bar and browse dots */
+.turn-card { cursor: pointer; transition: padding .25s ease, border-radius .25s ease, right .25s ease, gap .25s ease; }
+.turn-card .island-body { flex: 1; min-width: 0; }
+.turn-card.compact { right: auto; max-width: calc(100% - 140px); padding: 10px 16px 10px 12px; border-radius: 22px; gap: 10px; }
+.turn-card.compact .turn-icon .ico { width: 20px; height: 20px; }
+.turn-card.compact .turn-label, .turn-card.compact p { display: none; }
+.turn-card.compact strong { font-size: 15px; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.island-action { flex: none; align-self: center; background: #fffdf1; color: var(--ink-deep); border: 0; border-radius: 14px; padding: 9px 13px; font-size: 12px; font-weight: 600; }
+.island-action[hidden] { display: none; }
+.island-progress { height: 4px; border-radius: 2px; background: #ffffff26; margin-top: 10px; overflow: hidden; }
+.island-progress i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s ease; }
+.island-progress[hidden] { display: none; }
+.island-dots { position: absolute; left: 0; right: 0; bottom: 7px; display: flex; justify-content: center; gap: 5px; pointer-events: none; }
+.island-dots i { width: 5px; height: 5px; border-radius: 50%; background: #ffffff40; }
+.island-dots i.on { background: #fffdf1; }
+.island-dots[hidden] { display: none; }

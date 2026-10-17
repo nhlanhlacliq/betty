@@ -81,6 +81,13 @@ export function routeProgress(r: PlannedRoute, here: LatLon, hint = 0): RoutePro
   };
 }
 
+/** The named stops still ahead of him, with the distance to each along the route (the island's "Up ahead"). */
+export function stopsAhead(r: PlannedRoute, p: RouteProgress): Array<{ name: string; km: number }> {
+  const { along, stopAt } = geometry(r);
+  return r.stops.map((s, k) => ({ s, at: stopAt[k] })).filter(({ s, at }) => s.named && at > p.index)
+    .map(({ s, at }) => ({ name: s.name, km: along[at] - p.doneKm }));
+}
+
 /** "2 h 05" / "45 min" */
 export const minutesText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')}` : `${Math.round(m)} min`);
 
