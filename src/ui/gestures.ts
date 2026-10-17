@@ -183,14 +183,15 @@ const RESTORE_KEY = 'betty.restore';
 const RESTORABLE = new Set(['home', 'journeys', 'story', 'explore', 'settings', 'workshop']);
 export interface Spot { screen: string; ride?: number; scroll: number }
 
-export function rememberSpot(spot: Spot, store: Pick<Storage, 'setItem'> = sessionStorage) {
-  try { store.setItem(RESTORE_KEY, JSON.stringify(spot)); } catch { /* storage blocked */ }
+export function rememberSpot(spot: Spot, store?: Pick<Storage, 'setItem'>) {
+  try { (store ?? sessionStorage).setItem(RESTORE_KEY, JSON.stringify(spot)); } catch { /* storage blocked */ }
 }
 /** The spot saved before the reload, once (it is removed as it is read); null if none or not restorable. */
-export function takeSpot(store: Pick<Storage, 'getItem' | 'removeItem'> = sessionStorage): Spot | null {
+export function takeSpot(store?: Pick<Storage, 'getItem' | 'removeItem'>): Spot | null {
   try {
-    const raw = store.getItem(RESTORE_KEY);
-    store.removeItem(RESTORE_KEY);
+    const st = store ?? sessionStorage; // inside the try: blocked storage (or none) must not stop the app loading
+    const raw = st.getItem(RESTORE_KEY);
+    st.removeItem(RESTORE_KEY);
     const s = raw ? JSON.parse(raw) : null;
     return s && RESTORABLE.has(s.screen) && (s.screen !== 'story' || Number.isFinite(s.ride)) ? s : null;
   } catch { return null; }
