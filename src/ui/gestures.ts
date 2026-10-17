@@ -135,3 +135,41 @@ export function mountSwipeBack(doc: Document, shell: Shell) {
   doc.addEventListener('touchend', end);
   doc.addEventListener('touchcancel', end);
 }
+
+/**
+ * Edge stretch (owner, 2026-10-17: "make the top and bottom anchors stretch just a tiny bit"): pulling past the top
+ * or bottom of a screen stretches it slightly, the edge he pulls from staying pinned, and it springs back. Replaces
+ * the iPhone's bounce (which moved the whole screen). The map and the panels have their own gestures.
+ */
+export function edgeStretch(dy: number): number { return 1 + 0.035 * (1 - Math.exp(-Math.abs(dy) / 140)); }
+
+export function mountEdgeStretch(doc: Document) {
+  let screen: HTMLElement | null = null, y0 = 0, x0 = 0, dir: 'top' | 'bottom' | null = null;
+  doc.addEventListener('touchstart', (e) => {
+    const t = e.target as Element | null;
+    screen = t?.closest?.('.screen') as HTMLElement | null;
+    if (!screen || t?.closest?.('[data-sheet], .ride-map, .ride-dock, .active-dock, input, textarea, select, .chat-list')) { screen = null; return; }
+    const p = point(e); y0 = p.clientY; x0 = p.clientX; dir = null;
+  }, { passive: true });
+  doc.addEventListener('touchmove', (e) => {
+    if (!screen) return;
+    const p = point(e); const dy = p.clientY - y0, dx = p.clientX - x0;
+    if (Math.abs(dx) > Math.abs(dy)) return;
+    const atTop = screen.scrollTop <= 0, atBottom = screen.scrollTop + screen.clientHeight >= screen.scrollHeight - 1;
+    dir = dy > 0 && atTop ? 'top' : dy < 0 && atBottom ? 'bottom' : null;
+    if (!dir) { screen.style.transform = ''; return; }
+    screen.style.transition = 'none';
+    screen.style.transformOrigin = dir === 'top' ? '50% 0' : '50% 100%';
+    screen.style.transform = `scaleY(${edgeStretch(dy).toFixed(4)})`;
+  }, { passive: true });
+  const end = () => {
+    if (!screen) return;
+    const s = screen; screen = null;
+    if (!s.style.transform) return;
+    s.style.transition = 'transform .3s cubic-bezier(.2, .9, .3, 1.15)';
+    s.style.transform = '';
+    setTimeout(() => { s.style.transition = ''; s.style.transformOrigin = ''; }, 320);
+  };
+  doc.addEventListener('touchend', end);
+  doc.addEventListener('touchcancel', end);
+}

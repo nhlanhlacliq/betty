@@ -351,6 +351,9 @@ has dynamic content, and a smoke test.
   While pulling, `dockStretch` gives it a little rubber-band give, pinned to the bottom edge (transform-origin bottom):
   full + down slides (the slim preview), up stretches (5% full, 14% slim, easing off), slim + down squashes 6%; it
   springs back with a slight overshoot.
+- Edge stretch (2026-10-17, `mountEdgeStretch`): every screen's native bounce is off (overscroll-behavior-y none);
+  pulling past the top or bottom stretches the screen up to 3.5% (`edgeStretch`, easing off), pinned at the edge he
+  pulls from, springing back. Not on the map, the panels, sheets, fields or the chat list (they have their own).
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

@@ -490,3 +490,6 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
    Only the panel and the map react to the finger there. */
 .map-screen { overflow: hidden; overscroll-behavior: none; }
 html, body { overscroll-behavior: none; }
+
+/* Edge stretch replaces the native bounce on every screen (ui/gestures.ts mountEdgeStretch) */
+.screen { overscroll-behavior-y: none; }
