@@ -482,7 +482,8 @@ mountRoutePlanner(document, {
 /** A ride is running (not just a desk chat session). */
 const riding = () => !!rig && !rig.desk;
 // While a ride runs, "Ride" in the navigation goes to the ride, not the start page.
-shell.setRedirect((id) => (id === 'home' && riding() ? 'ride' : id));
+// ...and once it has ended, nothing goes back to the empty ride screen (back from the ride's story, say).
+shell.setRedirect((id) => (id === 'home' && riding() ? 'ride' : id === 'ride' && !rig ? 'home' : id));
 paintBrand();
 /** Set while a ride runs: what the ride screen's buttons do. */
 let rideHooks: RideActions | null = null;
@@ -902,6 +903,11 @@ async function stop() {
   r.remember();
   r.logSensors();
   r.unsub(); // no new alerts or banter from here on; the queue and speaker stay alive
+  // The story of the ride opens NOW, while she signs off (owner, 2026-10-17: the summary sometimes never came: it
+  // waited up to 45 s for the sign-off, and only opened if he was still on the ride screen by then).
+  const rideId = r.engine.rideSnapshot().startedAt;
+  const kept = !r.desk && RideLog.load().some((x) => x.startedAt === rideId);
+  if (kept) { journeys.renderStory(rideId); shell.show('story'); }
 
   // A sign-off for any ride worth remembering.
   const debrief = !r.desk && toRecord(r.engine.rideSnapshot(), null) ? r.engine.force('ride_debrief', r.agg.current) : null;
@@ -932,10 +938,11 @@ async function stop() {
   chatScreen.setRiding(false);
   workshopChat.refresh();
   paintBrand();
-  // From the ride screen, straight to the story of the ride just finished (when it was long enough to remember).
-  if (shell.current === 'ride' || (shell.current === 'chat' && !r.desk)) {
-    const rideId = r.engine.rideSnapshot().startedAt;
-    if (RideLog.load().some((x) => x.startedAt === rideId)) { journeys.renderStory(rideId); shell.show('story'); } else shell.show('home');
+  // The story again with her sign-off line in it; a ride too short to keep says so instead of vanishing.
+  if (kept) { if (shell.current === 'story') journeys.renderStory(rideId); }
+  else if (!r.desk) {
+    if (shell.current === 'ride' || shell.current === 'chat') shell.show('home');
+    shell.toast('A short one: rides under 3 minutes and 1 km are not kept in My journeys.');
   }
   setStatus('');
 }
