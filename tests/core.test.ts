@@ -1198,6 +1198,11 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
 // ---- slim panels: a swipe down slims, up brings it back, sideways or short does nothing
 {
   const { dockSwipe } = await import('../src/ui/dockSwipe');
+  const { dockStretch } = await import('../src/ui/dockSwipe');
+  assert.equal(dockStretch(50, false), 'translateY(30px)', 'full, pulled down: slides (the slim preview)');
+  assert.match(dockStretch(-60, false), /^scaleY\(1\.0[0-5]\d*\)$/, 'full, pulled up: a small stretch, anchored');
+  assert.ok(Number(dockStretch(-2000, true).slice(7, -1)) <= 1.14, 'never more than 14%');
+  assert.ok(Number(dockStretch(80, true).slice(7, -1)) < 1, 'slim, pulled down: squashes a little');
   assert.equal(dockSwipe(80), 'slim'); assert.equal(dockSwipe(-80), 'full'); assert.equal(dockSwipe(20), null); assert.equal(dockSwipe(60, 120), null, 'mostly sideways');
 }
 

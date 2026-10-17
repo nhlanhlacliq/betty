@@ -472,7 +472,7 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 /* Slim panels (ui/dockSwipe.ts): swipe the home or ride panel down for more map, up or tap the handle for all of it */
 .dock-handle { display: block; border: 0; cursor: pointer; padding: 10px 24px; background-clip: content-box; box-sizing: content-box; margin-top: -10px; } /* a 4 px bar with a finger-sized target */
 .active-dock .dock-handle { margin: -10px auto 14px; }
-.ride-dock, .active-dock { transition: transform .2s ease; }
+.ride-dock, .active-dock { transition: transform .25s cubic-bezier(.2, .9, .3, 1.25); transform-origin: 50% 100%; } /* springs back with a slight overshoot */
 .dock-mini { display: none; }
 .dock-slim .ride-dock { display: flex; align-items: center; gap: 12px; padding-top: 8px; flex-wrap: wrap; }
 .dock-slim .ride-dock .dock-handle { flex-basis: 100%; margin: 0 auto 6px; }

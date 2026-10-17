@@ -348,6 +348,9 @@ has dynamic content, and a smoke test.
   fields, the microphone and her scrolling line are left alone; pull-to-refresh ignores both docks.
   The swipe moved the WHOLE screen on iPhone (the page scrolled/bounced with it): map screens are now overflow hidden
   with no overscroll, html/body overscroll-behavior none, and the dock's vertical touchmove calls preventDefault.
+  While pulling, `dockStretch` gives it a little rubber-band give, pinned to the bottom edge (transform-origin bottom):
+  full + down slides (the slim preview), up stretches (5% full, 14% slim, easing off), slim + down squashes 6%; it
+  springs back with a slight overshoot.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
