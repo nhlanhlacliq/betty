@@ -411,6 +411,16 @@ has dynamic content, and a smoke test.
   Garage > Stories at home. Clips made once and kept in their own IndexedDB store (`betty-stories`, 400), Gemini falls
   back to Chirp, any failure to the phone voice. Heard to the END = told (`ToldStore`), so she will not tell it on a
   ride; stopping early does not count. Leaving the screen stops it.
+- 4 Map (Map/List button `#exploremode`, `#exploremap`, static in index.html): `areaPins` in mapView (yellow with the
+  unheard count, sage when all heard, radius grows with unheard; names placed where they fit, biggest first) plus his
+  marked spots (`markRadius` 12). Pan/zoom with `attachMapGestures`; a tap (not a drag, < 8 px) is hit-tested against
+  the projected dots (within ~14 px of the edge) and opens the `explorepin` sheet with the area card (open, Listen,
+  Ride there) or the spot. `fitView` fits the VISIBLE part (the 660 x 500 sketch is cropped to a tall phone box). The
+  Notes tab has no map (list shown). Search and tabs filter the dots. `.explore-map` is excluded from pull-to-refresh
+  and edge stretch. Areas with no position: `ctx.locate` -> `/api/area?q=<name, region>` (Nominatim search, ZA, a week
+  at the edge), one a second, `AreaStore.place`, repaint on `betty-memory`.
+- 5 Ride there: `ctx.rideThere(name)` shows home, fills `#routeinput`, opens the `mode` sheet (he picks twisty and
+  taps Plan; not auto-planned so he can choose). Areas only; spots have Open map.
 - `AreaStore` now keeps where each area was found (`lat`/`lon`, his rounded position; `at` = first researched). Older
   areas get theirs the next time he rides through, or are looked up for the map (step 4).
 ## Simulator and tuning (dev tools, ship with the app)

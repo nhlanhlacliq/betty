@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Explore has a map: tap Map next to the search. Every area with stories is a dot (yellow with the number you have not heard yet, green once you have heard them all) and your marked spots are dark dots. Drag and pinch to move around; tap a dot for its stories. Areas found before today take a moment to appear the first time.',
+      'Ride there: open an area in Explore (on the list or the map) and tap Ride there. Where to? opens with the place filled in; tick twisty roads if you like and tap Plan.',
       'Explore is tidier: one card per area with a ring showing how many of its stories you have heard. Tap a card to open its stories (3 first, Show all for the rest). Search areas, stories, spots and notes from the box at the top, or pick Not heard yet.',
       'Listen at home: every story in Explore has a play button, and Betty reads it to you in the Chirp voice (change it in Garage > Stories at home). A story you hear to the end counts as told, so she will not repeat it on a ride. Each one is made once, then kept on the phone.',
       'A ride\'s page in My journeys is shorter: The road you took shows 4 moments and The moments in between shows 5 of the things Betty said, with Show all underneath to open the rest (and Show less to fold it again).',

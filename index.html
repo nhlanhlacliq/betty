@@ -147,8 +147,16 @@
       <!-- ============ EXPLORE ============ -->
       <section class="screen page" data-screen="explore" hidden>
         <div class="intro"><div><p class="eyebrow">Follow your curiosity</p><h1>Good roads. New stories.</h1><p class="sub">The stories she knows about the places you ride, spots you marked and things you asked her to remember.</p></div></div>
-        <label class="explore-search"><i data-icon="compass" class="sm"></i><input type="search" id="exploresearch" placeholder="Search areas, stories, spots" aria-label="Search Explore" autocomplete="off" /></label>
+        <div class="explore-tools">
+          <label class="explore-search"><i data-icon="compass" class="sm"></i><input type="search" id="exploresearch" placeholder="Search areas, stories, spots" aria-label="Search Explore" autocomplete="off" /></label>
+          <button class="explore-mode" type="button" id="exploremode" aria-pressed="false"><i data-icon="pin" class="sm"></i><span>Map</span></button>
+        </div>
         <div class="tabs" id="exploretabs"></div>
+        <div class="explore-map" id="exploremap" hidden>
+          <div class="map-art-host" id="exploreart"></div>
+          <div class="map-controls explore-map-controls"><button type="button" id="explorefit" aria-label="Show everything"><i data-icon="target"></i></button></div>
+          <p class="map-hint" id="explorehint"></p>
+        </div>
         <div id="explorelist"></div>
         <div class="detail-section">
           <p class="eyebrow">A little less planning</p>
@@ -326,6 +334,13 @@
           <h2>What's new</h2>
           <p class="sheet-note">If the newest entry is missing after an update, pull down to reload.</p>
           <div id="whatsnewlist" class="whatsnew-list"></div>
+        </section>
+      </div>
+      <div class="sheet-backdrop" data-sheet="explorepin" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="A place">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <div id="explorepinbody"></div>
         </section>
       </div>
       <div class="sheet-backdrop" data-sheet="upahead" hidden>

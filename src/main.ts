@@ -217,6 +217,27 @@ mountExploreScreen(document, shell, {
   stories: () => Object.entries(AreaStore.all()).map(([key, kept]) => ({ key, notes: kept.notes ?? [], at: kept.at ?? 0, lat: kept.lat, lon: kept.lon })),
   told: () => new Set(rig ? rig.engine.toldNoteIds() : ToldStore.load()),
   listen: listenStory,
+  // Areas found before positions were kept: looked up one a second (Nominatim's rule), each kept for good.
+  locate: (areas) => {
+    if (!SERVER) return;
+    void (async () => {
+      for (const a of areas) {
+        try {
+          const region = a.key.split('|')[1] ?? 'South Africa';
+          const res = await fetch(`/api/area?q=${encodeURIComponent(`${a.name}, ${region}`)}`);
+          if (res.ok) { const p = await res.json(); if (Number.isFinite(p?.lat)) { AreaStore.place(a.key, { lat: p.lat, lon: p.lon }); window.dispatchEvent(new Event('betty-memory')); } }
+        } catch { /* tried again next visit */ }
+        await new Promise((r) => setTimeout(r, 1100));
+      }
+    })();
+  },
+  // Ride there: Where to? opens on the Ride tab with the place filled in; he picks twisty roads or not and taps Plan.
+  rideThere: (place) => {
+    shell.show('home');
+    $<HTMLInputElement>('routeinput').value = place;
+    shell.openSheet('mode');
+    shell.toast(`${place} is in Where to? Tap Plan.`);
+  },
 });
 // The ride card's place names and metro line: fetched when a ride's story opens (slow the first time), kept per ride.
 const cardExtras = new CardExtrasSource();

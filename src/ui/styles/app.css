@@ -255,6 +255,20 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .moments .said { display: block; font-size: 12px; color: #55605a; margin-top: 5px; line-height: 1.55; }
 .keep-grid { display: grid; gap: 12px; }
 /* Explore (2026-10-17): search, one card per area with a heard ring, stories with Listen */
+.explore-tools { display: flex; gap: 8px; margin: 0 0 14px; }
+.explore-tools .explore-search { flex: 1; min-width: 0; margin: 0; }
+.explore-mode { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid var(--card-line); border-radius: 22px; background: var(--card); font-size: 12px; font-weight: 600; color: var(--sage-text); }
+.explore-mode[aria-pressed="true"] { background: #314b3f; border-color: #314b3f; color: #fff; }
+.explore-map { position: relative; height: min(62vh, 520px); border-radius: 20px; overflow: hidden; background: var(--map, #e7eadf); border: 1px solid var(--card-line); touch-action: none; cursor: grab; margin-bottom: 14px; }
+.explore-map:active { cursor: grabbing; }
+.explore-map-controls { right: 12px; bottom: 44px; }
+.map-hint { position: absolute; left: 12px; right: 64px; bottom: 10px; z-index: 3; font-size: 11px; color: var(--sage-text); background: #fbfaf5e6; border-radius: 12px; padding: 6px 10px; pointer-events: none; }
+.area-actions { padding: 6px 0 12px; }
+.area-actions .secondary { display: inline-flex; align-items: center; gap: 7px; }
+#explorepinbody .keep-card { border: 0; background: none; }
+#explorepinbody .area-head { padding-left: 0; padding-right: 0; cursor: default; }
+#explorepinbody .area-head > .ico { display: none; }
+#explorepinbody .area-body { padding: 0; }
 .explore-search { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 0 14px; min-height: 44px; border: 1px solid var(--card-line); border-radius: 22px; background: var(--card); color: var(--muted); }
 .explore-search input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 14px; color: var(--ink); outline: none; padding: 10px 0; }
 .area-card { padding: 0; }

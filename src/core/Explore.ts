@@ -65,3 +65,20 @@ export function filterCard(c: AreaCard, q: string, told: ReadonlySet<string>, un
   if (!matchesText(q, c.name)) notes = notes.filter((n) => matchesText(q, n.topic, n.text));
   return notes.length ? { ...c, notes } : null;
 }
+
+/**
+ * A view that shows every point (Explore's map), 3 to 300 km across. The sketch (660 x 500 units) covers its box and
+ * is cropped to it, so on a tall phone box only the middle part of its width shows: the fit uses the visible part
+ * (`boxW` x `boxH`), keeping the points inside 80% of it so the dots and names are not cut at the edge.
+ */
+export function fitView(points: Array<{ lat: number; lon: number }>, boxW = 660, boxH = 500, fallback = { lat: -26.15, lon: 28.05 }): { center: { lat: number; lon: number }; spanKm: number } {
+  if (!points.length) return { center: fallback, spanKm: 40 };
+  const lats = points.map((p) => p.lat), lons = points.map((p) => p.lon);
+  const center = { lat: (Math.max(...lats) + Math.min(...lats)) / 2, lon: (Math.max(...lons) + Math.min(...lons)) / 2 };
+  const wKm = (Math.max(...lons) - Math.min(...lons)) * 111.32 * Math.cos((center.lat * Math.PI) / 180);
+  const hKm = (Math.max(...lats) - Math.min(...lats)) * 110.57;
+  const k = Math.max(boxW / 660, boxH / 500) || 1;
+  const visW = Math.min(660, boxW / k || 660), visH = Math.min(500, boxH / k || 500); // map units that show
+  const span = Math.max((wKm * 660) / (visW * 0.8), (hKm * 660) / (visH * 0.8));
+  return { center, spanKm: Math.min(300, Math.max(3, span + 1)) };
+}

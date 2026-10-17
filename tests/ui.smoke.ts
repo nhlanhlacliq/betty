@@ -930,6 +930,50 @@ resetConfig();
   assert.ok(!/chain lube/.test(list.textContent!), 'not heard yet: stories only');
   assert.ok(!lis().some((l) => l.classList.contains('heard')), 'and none already heard');
 }
+// ---- Explore's map: dots for areas and spots, tap one for its sheet, Ride there, areas without a place get located
+{
+  const { mountExploreScreen } = await import('../src/ui/screens/ExploreScreen');
+  const { projector } = await import('../src/ui/mapView');
+  const j = new JSDOM(`<!doctype html><input id="exploresearch" /><button id="exploremode"><span>Map</span></button><div id="exploretabs"></div>
+    <div id="exploremap" hidden><div id="exploreart"></div><button id="explorefit"></button><p id="explorehint"></p></div><div id="explorelist"></div><div id="explorepinbody"></div>`);
+  const d = j.window.document; const ev = (el: Element, type = 'click') => el.dispatchEvent(new j.window.Event(type, { bubbles: true }));
+  const opened: string[] = []; const rides: string[] = []; const located: string[][] = [];
+  const kept = [
+    { key: 'Sandton|G', at: 3, lat: -26.1, lon: 28.05, notes: [{ id: 's1', area: 'Sandton', topic: 'Horses', text: '15,000 horses' }] },
+    { key: 'Soweto|G', at: 2, lat: -26.25, lon: 27.86, notes: [{ id: 'w1', area: 'Soweto', topic: 'Name', text: 'South Western Townships' }] },
+    { key: 'Lenasia|G', at: 1, notes: [{ id: 'l1', area: 'Lenasia', topic: 'Name', text: 'Lenz and Asia' }] },
+  ];
+  const shell: any = { show() {}, onShow() {}, openSheet: (id: string) => opened.push(id), closeSheet() {} };
+  mountExploreScreen(d, shell, {
+    load: () => ({ notes: [], marks: [{ at: 1, lat: -26.2, lon: 28.0, note: 'pothole', near: 'Edenvale' }] }), save() {},
+    stories: () => kept, told: () => new Set(['w1']), listen: () => () => {},
+    locate: (a) => located.push(a.map((x) => x.name)), rideThere: (p) => rides.push(p),
+  });
+  ev(d.getElementById('exploremode')!);
+  assert.equal(d.getElementById('exploremap')!.hidden, false); assert.equal(d.getElementById('explorelist')!.hidden, true, 'map instead of the list');
+  assert.equal(d.getElementById('exploremode')!.textContent, 'List', 'the button now goes back to the list');
+  const svg = d.getElementById('exploreart')!.innerHTML;
+  assert.match(svg, />Sandton</); assert.match(svg, />Soweto</); assert.ok(!svg.includes('Lenasia'), 'no place yet: no dot');
+  assert.match(svg, /fill="#f4dc7b"/, 'yellow for unheard'); assert.match(svg, /fill="#cfdcc6"/, 'sage when all heard');
+  assert.deepEqual(located, [['Lenasia']], 'areas without a place are looked up once');
+  assert.match(d.getElementById('explorehint')!.textContent!, /Finding 1 more area/);
+  // Tap Sandton's dot: jsdom boxes are 0 x 0, so a map unit is a pixel and the map's middle is at (0, 0).
+  const { fitView } = await import('../src/core/Explore');
+  const v = fitView([{ lat: -26.1, lon: 28.05 }, { lat: -26.25, lon: 27.86 }, { lat: -26.2, lon: 28.0 }]);
+  const at = projector(v.center, v.spanKm)({ lat: -26.1, lon: 28.05 });
+  d.getElementById('exploremap')!.dispatchEvent(new j.window.MouseEvent('click', { bubbles: true, clientX: at.x - 330, clientY: at.y - 250 }));
+  assert.deepEqual(opened, ['explorepin']); assert.match(d.getElementById('explorepinbody')!.textContent!, /Sandton.*15,000 horses/s, 'the sheet shows its stories');
+  ev(d.querySelector('#explorepinbody [data-ridethere]')!);
+  assert.deepEqual(rides, ['Sandton'], 'Ride there plans to the area');
+  const far = projector(v.center, v.spanKm)({ lat: -25.0, lon: 29.0 });
+  d.getElementById('exploremap')!.dispatchEvent(new j.window.MouseEvent('click', { bubbles: true, clientX: far.x - 330, clientY: far.y - 250 }));
+  assert.equal(opened.length, 1, 'a tap on nothing opens nothing');
+  const spot = projector(v.center, v.spanKm)({ lat: -26.2, lon: 28.0 });
+  d.getElementById('exploremap')!.dispatchEvent(new j.window.MouseEvent('click', { bubbles: true, clientX: spot.x - 330, clientY: spot.y - 250 }));
+  assert.match(d.getElementById('explorepinbody')!.textContent!, /pothole/, 'a spot opens too');
+  ev(d.querySelector('[data-tab="notes"]')!);
+  assert.equal(d.getElementById('exploremap')!.hidden, true, 'notes have no place: the list shows');
+}
 // ---- Where to? plans through Betty's server, keeps the route, clears it
 {
   const { mountRoutePlanner, routeRequest, RouteStore } = await import('../src/ui/RoutePlanner');

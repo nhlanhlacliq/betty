@@ -8,6 +8,22 @@ import { fromBetty, json } from './_shared.js';
 export async function GET(req: Request): Promise<Response> {
   if (!fromBetty(req)) return json({ error: 'not allowed' }, 403);
   const u = new URL(req.url);
+  // GET /api/area?q=<area, region> -> {lat, lon}: where an area is, for areas Explore's map has no position for yet
+  // (found before positions were kept, 2026-10-17). Nominatim search, South Africa only, cached a week.
+  const q = u.searchParams.get('q')?.trim();
+  if (q) {
+    if (q.length > 120) return json({ error: 'too long' }, 400);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=za&q=${encodeURIComponent(q)}`, {
+      headers: { 'user-agent': 'Betty motorcycle co-pilot (https://github.com/nhlanhlacliq/betty)', 'accept-language': 'en' },
+    });
+    if (!res.ok) return json({ error: `map service said HTTP ${res.status}` }, 502);
+    const hit: any = ((await res.json().catch(() => [])) as any[])[0];
+    if (!hit) return json({ error: 'not found' }, 404);
+    const r3 = (n: number) => Math.round(n * 1000) / 1000;
+    return new Response(JSON.stringify({ lat: r3(Number(hit.lat)), lon: r3(Number(hit.lon)) }), {
+      headers: { 'content-type': 'application/json', 'cache-control': 'public, s-maxage=604800' },
+    });
+  }
   const lat = Number(u.searchParams.get('lat')), lon = Number(u.searchParams.get('lon'));
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return json({ error: 'bad position' }, 400);
   const r2 = (n: number) => Math.round(n * 100) / 100;

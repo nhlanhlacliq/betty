@@ -32,7 +32,15 @@ export interface MapInput {
   avoid?: Array<{ x0: number; y0: number; x1: number; y1: number }>;
   /** Size of those names in map units (15 on the card; a small map on the phone needs bigger) */
   labelSize?: number;
+  /** Explore's map: one dot per area with stories, bigger with more not heard yet; yellow until all are heard */
+  areaPins?: AreaPin[];
+  /** Radius of his marked spots in map units (6; Explore's smaller-scale map uses more) */
+  markRadius?: number;
 }
+export interface AreaPin { id: string; lat: number; lon: number; label: string; unheard: number; total: number }
+
+/** An area dot's radius in map units (Explore's map is ~0.55 px per unit on a phone). */
+export const areaPinRadius = (p: AreaPin) => 11 + Math.min(9, 2.2 * Math.sqrt(p.unheard));
 
 export const MAP_W = 660;
 export const MAP_H = 500;
@@ -40,6 +48,8 @@ export const MAP_H = 500;
 export const MAP_SPANS = [1.5, 3, 6, 12, 25, 50];
 export const DEFAULT_SPAN_KM = 6;
 
+/** The app's font, for text drawn into the sketches (an SVG drawn as an image does not inherit the page's). */
+const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -122,9 +132,31 @@ function labelsSvg(labels: MapPin[], at: (p: LatLon) => { x: number; y: number }
     if (!box) continue;
     taken.push(box);
     out.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="${r1(4.5 * k)}" fill="#fffdf3" stroke="#4f6a4a" stroke-width="${r1(2.2 * k)}"/>`
-      + `<text x="${r1(q.x)}" y="${r1(box.y1 - 6 * k)}" font-size="${size}" font-weight="600" fill="#3d5239" text-anchor="middle" stroke="#f4f5ec" stroke-width="${r1(4 * k)}" stroke-linejoin="round" paint-order="stroke" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">${esc(name)}</text>`);
+      + `<text x="${r1(q.x)}" y="${r1(box.y1 - 6 * k)}" font-size="${size}" font-weight="600" fill="#3d5239" text-anchor="middle" stroke="#f4f5ec" stroke-width="${r1(4 * k)}" stroke-linejoin="round" paint-order="stroke" font-family="${SANS}">${esc(name)}</text>`);
   }
   return `<g class="labels">${out.join('')}</g>`;
+}
+
+/**
+ * Explore's area dots: biggest (most unheard) drawn last so they sit on top; each name under its dot where it fits.
+ * Dots are always drawn (they are what he taps); a name that would overlap another is left out until he zooms in.
+ */
+function areaPinsSvg(pins: AreaPin[], at: (p: LatLon) => { x: number; y: number }): string {
+  const placed = pins.map((p) => ({ p, q: at(p), r: areaPinRadius(p) })).filter(({ q }) => q.x > -30 && q.x < MAP_W + 30 && q.y > -30 && q.y < MAP_H + 30)
+    .sort((a, b) => a.p.unheard - b.p.unheard);
+  const dots = placed.map(({ p, q, r }) => `<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="${r1(r)}" fill="${p.unheard ? '#f4dc7b' : '#cfdcc6'}" stroke="#fffef4" stroke-width="3" opacity=".95"/>`
+    + (p.unheard ? `<text x="${r1(q.x)}" y="${r1(q.y + 6)}" font-size="16" font-weight="700" fill="#5d5330" text-anchor="middle" font-family="${SANS}">${p.unheard}</text>` : ''));
+  const taken: Array<{ x0: number; y0: number; x1: number; y1: number }> = placed.map(({ q, r }) => ({ x0: q.x - r, y0: q.y - r, x1: q.x + r, y1: q.y + r }));
+  const names: string[] = [];
+  for (const { p, q, r } of [...placed].reverse()) {
+    const name = p.label.length > 20 ? `${p.label.slice(0, 19)}…` : p.label;
+    const w = name.length * 11.5 + 8;
+    const b = { x0: q.x - w / 2, y0: q.y + r + 3, x1: q.x + w / 2, y1: q.y + r + 29 };
+    if (b.x0 < 2 || b.x1 > MAP_W - 2 || b.y1 > MAP_H - 2 || taken.some((t) => b.x0 < t.x1 && b.x1 > t.x0 && b.y0 < t.y1 && b.y1 > t.y0)) continue;
+    taken.push(b);
+    names.push(`<text x="${r1(q.x)}" y="${r1(b.y1 - 6)}" font-size="20" font-weight="600" fill="#3d5239" text-anchor="middle" stroke="#f4f5ec" stroke-width="5" stroke-linejoin="round" paint-order="stroke" font-family="${SANS}">${esc(name)}</text>`);
+  }
+  return `<g class="area-pins">${dots.join('')}${names.join('')}</g>`;
 }
 
 /** The map position (in map units, 660 x 500) back to a place: the inverse of `projector`. */
@@ -188,6 +220,7 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
       const s = at({ lat: m.track[0][0], lon: m.track[0][1] });
       if (onMap(s)) parts.push(`<circle cx="${r1(s.x)}" cy="${r1(s.y)}" r="7" fill="#faf9ee" stroke="#7e9674" stroke-width="3"/>`);
     }
+    if (m.areaPins?.length) parts.push(areaPinsSvg(m.areaPins, at));
     if (m.labels?.length) parts.push(labelsSvg(m.labels, at, m.avoid ?? [], m.labelSize ?? 15));
     for (const p of m.places) {
       const q = at(p); if (!onMap(q, 0)) continue;
@@ -196,7 +229,8 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
     }
     for (const p of m.marks) {
       const q = at(p); if (!onMap(q, 0)) continue;
-      parts.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="6" fill="#2f4741" stroke="#fffef4" stroke-width="2.5"/>`);
+      const mr = m.markRadius ?? 6;
+      parts.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="${mr}" fill="#2f4741" stroke="#fffef4" stroke-width="${r1(mr * 0.42)}"/>`);
     }
     for (const p of m.incidents) {
       if (!p.lat && !p.lon) continue; // simulator incidents have no position
