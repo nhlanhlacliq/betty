@@ -8,6 +8,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Story of the day: the top of Explore has one story you have not heard yet, from somewhere you have ridden, with Listen and More from that area. A new one each day.',
+      'Explore shows a quiet tally under the search (areas, stories heard, spots, new this week), and areas you found this week have a New tag.',
       'Explore has a map: tap Map next to the search. Every area with stories is a dot (yellow with the number you have not heard yet, green once you have heard them all) and your marked spots are dark dots. Drag and pinch to move around; tap a dot for its stories. Areas found before today take a moment to appear the first time.',
       'Ride there: open an area in Explore (on the list or the map) and tap Ride there. Where to? opens with the place filled in; tick twisty roads if you like and tap Plan.',
       'Explore is tidier: one card per area with a ring showing how many of its stories you have heard. Tap a card to open its stories (3 first, Show all for the rest). Search areas, stories, spots and notes from the box at the top, or pick Not heard yet.',

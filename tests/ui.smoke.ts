@@ -930,6 +930,34 @@ resetConfig();
   assert.ok(!/chain lube/.test(list.textContent!), 'not heard yet: stories only');
   assert.ok(!lis().some((l) => l.classList.contains('heard')), 'and none already heard');
 }
+// ---- Explore: story of the day on top (Listen, More from), the tally, New tags
+{
+  const { mountExploreScreen } = await import('../src/ui/screens/ExploreScreen');
+  const j = new JSDOM(`<!doctype html><input id="exploresearch" /><p id="explorestats" hidden></p><div id="exploretabs"></div><div id="explorelist"></div>`);
+  const d = j.window.document; const ev = (el: Element, type = 'click') => el.dispatchEvent(new j.window.Event(type, { bubbles: true }));
+  const told = new Set<string>();
+  const now = new Date(2026, 9, 17, 9).getTime();
+  const listens: string[] = [];
+  mountExploreScreen(d, { show() {}, onShow() {} } as any, {
+    load: () => ({ notes: [], marks: [{ at: 1, lat: 0, lon: 0, note: 'x', near: null }] }), save() {}, told: () => told, now: () => now,
+    stories: () => [{ key: 'Soweto|G', at: now - 86_400_000, notes: [{ id: 'so1', area: 'Soweto', topic: 'Name', text: 'South Western Townships' }] },
+      { key: 'Old|G', at: now - 30 * 86_400_000, notes: [{ id: 'o1', area: 'Old', topic: 'T', text: 'old story' }] }],
+    listen: (note, end) => { listens.push(note.id); told.add(note.id); end(true); return () => {}; },
+  });
+  const list = d.getElementById('explorelist')!;
+  const dayCard = () => list.querySelector('.day-card');
+  assert.ok(dayCard(), 'story of the day on top'); const id = dayCard()!.querySelector<HTMLElement>('[data-listen]')!.dataset.listen!;
+  assert.match(d.getElementById('explorestats')!.textContent!, /2 areas · 0 of 2 stories heard · 1 spot · 1 new this week/);
+  assert.equal(list.querySelectorAll('.new').length, 1, 'New on the area found this week only');
+  ev(dayCard()!.querySelector('[data-listen]')!);
+  assert.deepEqual(listens, [id]); assert.equal(dayCard()!.querySelector<HTMLElement>('[data-listen]')!.dataset.listen, id, 'heard: the same story stays for the day');
+  assert.match(dayCard()!.textContent!, /Hear it again/); assert.match(d.getElementById('explorestats')!.textContent!, /1 of 2 stories heard/);
+  const area = dayCard()!.querySelector<HTMLElement>('[data-more]')!.dataset.more!;
+  ev(dayCard()!.querySelector('[data-more]')!);
+  assert.ok([...list.querySelectorAll<HTMLElement>('.area-card')].find((c) => c.dataset.area === area)!.classList.contains('open'), 'More from opens that area');
+  const s = d.getElementById('exploresearch') as HTMLInputElement; s.value = 'old'; ev(s, 'input');
+  assert.ok(!dayCard(), 'not while searching');
+}
 // ---- Explore's map: dots for areas and spots, tap one for its sheet, Ride there, areas without a place get located
 {
   const { mountExploreScreen } = await import('../src/ui/screens/ExploreScreen');

@@ -264,6 +264,15 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .explore-map-controls { right: 12px; bottom: 44px; }
 .map-hint { position: absolute; left: 12px; right: 64px; bottom: 10px; z-index: 3; font-size: 11px; color: var(--sage-text); background: #fbfaf5e6; border-radius: 12px; padding: 6px 10px; pointer-events: none; }
 .area-actions { padding: 6px 0 12px; }
+.explore-stats { font-size: 12px; color: var(--muted); margin: -4px 0 14px; }
+.explore-stats b { color: var(--ink); font-weight: 700; }
+.area-head .new { font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #6b5a1e; background: var(--yellow); border-radius: 8px; padding: 2px 7px; margin-left: 8px; vertical-align: 2px; }
+.day-card { background: linear-gradient(160deg, #fff8dc, var(--card) 70%); border-color: #efe3b4; }
+.day-card h3 { font-size: 17px; margin: 2px 0 6px; }
+.day-card p { line-height: 1.55; }
+.day-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 12px; }
+.day-actions .primary { display: inline-flex; align-items: center; gap: 8px; }
+.day-actions .stop { width: 10px; height: 10px; border-radius: 2px; background: currentColor; display: inline-block; }
 .area-actions .secondary { display: inline-flex; align-items: center; gap: 7px; }
 #explorepinbody .keep-card { border: 0; background: none; }
 #explorepinbody .area-head { padding-left: 0; padding-right: 0; cursor: default; }

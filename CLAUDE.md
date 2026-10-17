@@ -421,6 +421,12 @@ has dynamic content, and a smoke test.
   at the edge), one a second, `AreaStore.place`, repaint on `betty-memory`.
 - 5 Ride there: `ctx.rideThere(name)` shows home, fills `#routeinput`, opens the `mode` sheet (he picks twisty and
   taps Plan; not auto-planned so he can choose). Areas only; spots have Open map.
+- 3 Story of the day (`storyOfDay`): an unheard story picked by a hash of the local date (stable order by note id,
+  no storage); the screen keeps the day's pick in memory so hearing it shows "Hear it again" instead of swapping it.
+  On top of Everything / Area stories / Not heard yet, not while searching; Listen and "More from <area>" (opens and
+  scrolls to the card).
+- 6 Tally (`exploreStats`, `#explorestats`): areas, stories heard of all, spots, areas new this week (`NEW_FOR_MS`,
+  from `at` = first researched), plus a New tag on those cards. Counts everything, not just the current filter.
 - `AreaStore` now keeps where each area was found (`lat`/`lon`, his rounded position; `at` = first researched). Older
   areas get theirs the next time he rides through, or are looked up for the map (step 4).
 ## Simulator and tuning (dev tools, ship with the app)

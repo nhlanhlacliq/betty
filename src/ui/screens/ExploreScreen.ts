@@ -1,5 +1,5 @@
 import type { RiderMemory } from '../../core/Commands';
-import { AreaCard, KeptArea, areaCards, filterCard, fitView, matchesText } from '../../core/Explore';
+import { AreaCard, KeptArea, NEW_FOR_MS, areaCards, dayKey, exploreStats, filterCard, fitView, matchesText, storyOfDay } from '../../core/Explore';
 import type { AreaNote } from '../../core/types';
 import { foldList, toggleFold } from '../fold';
 import { icon } from '../icons';
@@ -23,6 +23,8 @@ export interface ExploreContext {
   locate?(areas: Array<{ key: string; name: string }>): void;
   /** Plan a route there (opens Where to? with the place filled in) */
   rideThere?(place: string): void;
+  /** The time (tests set it) */
+  now?(): number;
 }
 
 type Tab = 'all' | 'stories' | 'unheard' | 'spots' | 'notes';
@@ -57,6 +59,10 @@ export function mountExploreScreen(doc: Document, shell: Shell, ctx: ExploreCont
   const art = doc.getElementById('exploreart');
   const hint = doc.getElementById('explorehint');
   const pinBody = doc.getElementById('explorepinbody');
+  const stats = doc.getElementById('explorestats');
+  const now = () => ctx.now?.() ?? Date.now();
+  /** Today's story, kept for the day once picked (so hearing it does not swap it for another under his eyes) */
+  let today: { day: string; area: string; id: string } | null = null;
   let tab: Tab = 'all';
   let mode: 'list' | 'map' = 'list';
   /** Areas he has opened (kept across re-renders) */
@@ -84,7 +90,7 @@ export function mountExploreScreen(doc: Document, shell: Shell, ctx: ExploreCont
     const ride = ctx.rideThere ? `<div class="area-actions"><button class="secondary" type="button" data-ridethere="${esc(c.name)}">${icon('route', 'ico sm')} Ride there</button></div>` : '';
     return `<div class="keep-card area-card${isOpen ? ' open' : ''}" data-area="${esc(c.name)}">
       <button class="area-head" type="button" data-areaopen="${esc(c.name)}" aria-expanded="${isOpen}">${ring(all.heard, all.notes.length)}
-        <span><b>${esc(c.name)}</b><small>${all.notes.length} ${all.notes.length === 1 ? 'story' : 'stories'} · ${left ? `${left} not heard yet` : 'all heard'}</small></span>${icon('chev', 'ico sm')}</button>
+        <span><b>${esc(c.name)}${all.at && now() - all.at < NEW_FOR_MS ? '<em class="new">New</em>' : ''}</b><small>${all.notes.length} ${all.notes.length === 1 ? 'story' : 'stories'} · ${left ? `${left} not heard yet` : 'all heard'}</small></span>${icon('chev', 'ico sm')}</button>
       ${isOpen ? `<div class="area-body">${foldList(c.notes.map((n) => storyLi(n, told)), KEEP_STORIES, 'stories', 'stories', unfolded.has(c.name))}${ride}</div>` : ''}</div>`;
   };
 
@@ -113,9 +119,23 @@ export function mountExploreScreen(doc: Document, shell: Shell, ctx: ExploreCont
       <h3>${esc(n.text)}</h3><button class="forget" type="button" data-forget="note:${i}">Forget</button></div>` })),
     ].sort((a, b) => b.at - a.at);
     const cards = areas.map(({ all, card }) => areaHtml(card, all, told, q.length > 0 && !matchesText(q, all.name)));
+    // Story of the day: one he has not heard, on top of Everything / Area stories / Not heard yet (not while searching).
+    let day = '';
+    if (!q && (tab === 'all' || tab === 'stories' || tab === 'unheard')) {
+      const all = areaCards(ctx.stories(), told);
+      const key = dayKey(now());
+      if (today?.day !== key) { const p = storyOfDay(all, told, key); today = p ? { day: key, area: p.area, id: p.note.id } : null; }
+      const note = today && all.find((c) => c.name === today!.area)?.notes.find((n) => n.id === today!.id);
+      if (today && note) {
+        const on = playing?.id === note.id, heard = told.has(note.id);
+        day = `<div class="keep-card day-card"><p class="eyebrow">Story of the day · ${esc(today.area)}</p><h3>${esc(note.topic || 'A story')}</h3><p>${esc(note.text)}</p>
+          <div class="day-actions"><button class="primary" type="button" data-listen="${esc(note.id)}">${on ? '<span class="stop"></span> Stop' : `${icon('volume', 'ico sm')} ${heard ? 'Hear it again' : 'Listen'}`}</button>
+          <button class="text-button" type="button" data-more="${esc(today.area)}">More from ${esc(today.area)} ${icon('arrow', 'ico sm')}</button></div></div>`;
+      }
+    }
     const empty = q ? `Nothing matches “${esc(q)}”.` : tab === 'unheard' ? 'You have heard every story so far.' : 'Nothing here yet.';
     list.innerHTML = keeps.length || cards.length
-      ? `<div class="keep-grid">${keeps.map((c) => c.html).join('')}${cards.join('')}</div>`
+      ? `<div class="keep-grid">${day}${keeps.map((c) => c.html).join('')}${cards.join('')}</div>`
       : `<div class="empty"><p>${empty}</p></div>`;
   };
 
@@ -160,7 +180,21 @@ export function mountExploreScreen(doc: Document, shell: Shell, ctx: ExploreCont
     }
   };
 
+  /** The quiet tally: areas, stories heard, spots, new this week (everything, not just what the filter shows). */
+  const renderStats = () => {
+    if (!stats) return;
+    const s = exploreStats(areaCards(ctx.stories(), ctx.told()), ctx.load().marks.length, now());
+    stats.hidden = !s.areas && !s.spots;
+    stats.innerHTML = [
+      `<b>${s.areas}</b> ${s.areas === 1 ? 'area' : 'areas'}`,
+      `<b>${s.heard}</b> of ${s.stories} stories heard`,
+      ...(s.spots ? [`<b>${s.spots}</b> ${s.spots === 1 ? 'spot' : 'spots'}`] : []),
+      ...(s.fresh ? [`<b>${s.fresh}</b> new this week`] : []),
+    ].join('<span aria-hidden="true"> · </span>');
+  };
+
   const render = () => {
+    renderStats();
     tabs.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     const map = mode === 'map' && tab !== 'notes'; // notes have no place
     modeBtn?.setAttribute('aria-pressed', String(mode === 'map'));
@@ -219,6 +253,14 @@ export function mountExploreScreen(doc: Document, shell: Shell, ctx: ExploreCont
       const name = head.dataset.areaopen!;
       if (!open.delete(name)) open.add(name);
       render();
+      return;
+    }
+    const more = t.closest<HTMLElement>('[data-more]');
+    if (more) {
+      const name = more.dataset.more!;
+      open.add(name);
+      render();
+      [...list.querySelectorAll<HTMLElement>('[data-area]')].find((c) => c.dataset.area === name)?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
       return;
     }
     const go = t.closest<HTMLElement>('[data-ridethere]');

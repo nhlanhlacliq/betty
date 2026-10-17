@@ -82,3 +82,29 @@ export function fitView(points: Array<{ lat: number; lon: number }>, boxW = 660,
   const span = Math.max((wKm * 660) / (visW * 0.8), (hKm * 660) / (visH * 0.8));
   return { center, spanKm: Math.min(300, Math.max(3, span + 1)) };
 }
+
+/** "2026-10-17" in local time: the story of the day changes at midnight. */
+export const dayKey = (now: number) => { const d = new Date(now); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+/**
+ * Story of the day: one story he has not heard, the same all day, a different one tomorrow (a hash of the date picks
+ * it, so it needs no storage). Once he has heard it, the next unheard one shows. Null when every story is heard.
+ */
+export function storyOfDay(cards: AreaCard[], told: ReadonlySet<string>, day: string): { area: string; note: AreaNote } | null {
+  const pool = cards.flatMap((c) => c.notes.filter((n) => !told.has(n.id)).map((note) => ({ area: c.name, note })))
+    .sort((a, b) => a.note.id.localeCompare(b.note.id)); // a stable order, whatever order the areas come in
+  if (!pool.length) return null;
+  let h = 0;
+  for (const ch of day) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return pool[h % pool.length];
+}
+
+/** Areas first researched within this long count as new. */
+export const NEW_FOR_MS = 7 * 86_400_000;
+
+/** The quiet tally at the top of Explore: areas, stories heard of all, spots, and how many areas are new this week. */
+export function exploreStats(cards: AreaCard[], spots: number, now: number) {
+  const stories = cards.reduce((n, c) => n + c.notes.length, 0);
+  const heard = cards.reduce((n, c) => n + c.heard, 0);
+  return { areas: cards.length, stories, heard, spots, fresh: cards.filter((c) => c.at && now - c.at < NEW_FOR_MS).length };
+}

@@ -1901,4 +1901,19 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(filterCard({ ...cards[1], notes: [cards[1].notes[1]] }, '', told, true), null, 'all heard: nothing for that filter');
 }
 
+// Explore: story of the day and the tally
+{
+  const { areaCards, storyOfDay, exploreStats, dayKey, NEW_FOR_MS } = await import('../src/core/Explore');
+  const n = (id: string) => ({ id, area: 'A', topic: id, text: id });
+  const cards = areaCards([{ key: 'A|x', at: 1000, notes: [n('a1'), n('a2'), n('a3')] }, { key: 'B|x', at: 10, notes: [{ ...n('b1'), area: 'B' }] }], new Set(['a1']));
+  const d1 = storyOfDay(cards, new Set(['a1']), '2026-10-17');
+  assert.ok(d1 && d1.note.id !== 'a1', 'never one he has heard');
+  assert.deepEqual(storyOfDay([...cards].reverse(), new Set(['a1']), '2026-10-17'), d1, 'the same all day, whatever the order');
+  const days = new Set(Array.from({ length: 12 }, (_, i) => storyOfDay(cards, new Set(['a1']), `2026-10-${10 + i}`)!.note.id));
+  assert.ok(days.size > 1, 'it changes from day to day');
+  assert.equal(storyOfDay(cards, new Set(['a1', 'a2', 'a3', 'b1']), '2026-10-17'), null, 'all heard: none');
+  assert.equal(dayKey(new Date(2026, 9, 7, 23, 59).getTime()), '2026-10-07');
+  assert.deepEqual(exploreStats(cards, 2, 1000 + NEW_FOR_MS - 1), { areas: 2, stories: 4, heard: 1, spots: 2, fresh: 1 }, 'A is new this week, B is not');
+}
+
 console.log('all core tests passed');
