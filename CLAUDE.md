@@ -333,6 +333,13 @@ has dynamic content, and a smoke test.
 - No sideways scrolling: Explore and Garage scrolled left/right (Explore's tabs reach past the page padding; Garage's
   dropdowns had a fixed width). `.screen` clips sideways and cards/controls shrink to fit; Explore's tab row still
   scrolls on its own. Not measured on a phone here (no browser): if a screen still moves sideways, find what is wide.
+- Map pan and zoom (2026-10-17, `ui/mapGestures.ts`) on home and ride: one finger / mouse drags, two fingers pinch,
+  double tap or double click zooms in 2x, wheel zooms; spans 0.4 to 300 km. During the gesture only the drawn SVG is
+  translated/scaled (CSS transform); on release `viewAfter` (pure, tested) turns it into a new centre and span and the
+  sketch is drawn again. Ride: the first move stops "follow me" (`manual` view; zoom buttons then zoom that view); the
+  target button lights up and brings back following. Home: the target resets to the fitted view (route or last ride).
+  The terrain pattern is pinned to a ground point so it moves with a pan. `.ride-map` has touch-action none and
+  pull-to-refresh ignores it. Not tried on a phone yet.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
@@ -815,7 +822,7 @@ stage 3 command path (`parseCommand` -> carried out on the phone -> instant repl
 
 Where to? lives in the ride-mode sheet ("How are we riding?"): one box takes places separated by commas ("Clarens",
 "Heidelberg, Villiers, Clarens", "... then ...") or his shared Google Maps directions link, a "Twisty roads (thrilling
-route)" tick, Plan. `ui/RoutePlanner.ts` posts to `api/route.ts` with his position (the ride's, or one GPS read):
+route)" tick, Plan. A quiet tip under the box (owner asked, "not too loud"): plan it in Google Maps, Share, paste. `ui/RoutePlanner.ts` posts to `api/route.ts` with his position (the ride's, or one GPS read):
 - Link: only maps.app.goo.gl/goo.gl short links are fetched (redirect: manual, SSRF guard) and only Google Maps
   /maps/dir/ URLs parsed (`parseGoogleMapsDir`: "lat,lon" segments = dragged-through points, `named: false`; names
   get their coordinates from the !3d/!4d pairs in order). The link itself is kept as the "Open in Google Maps" link.

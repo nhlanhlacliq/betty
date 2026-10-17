@@ -3,7 +3,8 @@ import type { TrackPoint } from '../../core/Track';
 import { scenery, sceneryFor } from '../art';
 import { HOME } from '../copy';
 import { IconName, icon } from '../icons';
-import { DEFAULT_SPAN_KM, mapSvg, spanFor, trackCenter } from '../mapView';
+import { DEFAULT_SPAN_KM, MapInput, mapSvg, spanFor, trackCenter } from '../mapView';
+import { MapView, attachMapGestures } from '../mapGestures';
 import { followDock, type Shell } from '../Shell';
 
 /** One line of the readiness sheet ("GPS: phone sensors", "Voice: Gemini, Aoede"...). */
@@ -78,6 +79,9 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
   };
 
   let lastMap = '';
+  /** The view that fits what is shown, and his own once he pans or pinches (until the target button). */
+  let fitted: MapView | null = null;
+  let manual: MapView | null = null;
   const paint = () => {
     const mode = real.checked ? 'real' : 'sim';
     const plannedName = ctx.route?.()?.name;
@@ -95,14 +99,17 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
     const planned = ctx.route?.() ?? null;
     // A planned route takes the map (dotted, with its named stops); otherwise the last ride's road.
     const track = planned ? [] : last ? ctx.track(last.startedAt) : [];
-    const svg = planned ? mapSvg({
+    const input: MapInput = planned ? {
       center: trackCenter(planned.points), here: null, headingDeg: null, track: [], route: planned.points,
       routeStops: planned.stops.filter((s) => s.named).map((s) => ({ lat: s.lat, lon: s.lon, label: s.name })),
       places: [], incidents: [], marks: [], spanKm: spanFor(planned.points),
-    }, `Your route to ${planned.name}: not for navigation`, 'home') : mapSvg({
+    } : {
       center: trackCenter(track) ?? ctx.home(), here: track.length ? null : ctx.home(), headingDeg: null, track,
       places: [], incidents: [], marks: [], spanKm: track.length ? spanFor(track) : DEFAULT_SPAN_KM,
-    }, 'Sketch of your last ride: not for navigation', 'home');
+    };
+    fitted = input.center ? { center: input.center, spanKm: input.spanKm } : null;
+    const svg = mapSvg(manual ? { ...input, center: manual.center, spanKm: manual.spanKm } : input,
+      planned ? `Your route to ${planned.name}: not for navigation` : 'Sketch of your last ride: not for navigation', 'home');
     if (svg !== lastMap) { lastMap = svg; $('homemap').innerHTML = svg; }
     $('hometemp').textContent = last?.weather?.match(/-?\d+\s*C/)?.[0].replace(/\s*C/, '°') ?? '';
     $('homecondition').textContent = last ? HOME.conditionLast(last.distanceKm, date(last.startedAt)) : HOME.conditionFirst;
@@ -117,7 +124,8 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
   shell.onShow((id) => { if (id === 'home') paint(); });
   doc.defaultView?.addEventListener('betty-config', paint);
   $('helloorb').addEventListener('click', () => ctx.hello());
-  $('homerecenter').addEventListener('click', () => { lastMap = ''; paint(); });
+  $('homerecenter').addEventListener('click', () => { manual = null; lastMap = ''; paint(); });
+  attachMapGestures(doc.querySelector('[data-screen="home"] .ride-map') as HTMLElement, $('homemap'), () => manual ?? fitted, (v) => { manual = v; paint(); });
 
   paint();
   return {

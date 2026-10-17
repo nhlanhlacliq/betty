@@ -461,3 +461,10 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 /* Swipe from the left edge to go back (ui/gestures.ts): the screen follows the finger */
 .screen.swiping { transition: none; box-shadow: -8px 0 24px #20302a22; }
 .screen.swipe-settle { transition: transform .2s ease; }
+
+/* Pan and zoom on the maps (ui/mapGestures.ts): the map takes the fingers; the sketch moves while they do */
+.ride-map { touch-action: none; cursor: grab; }
+.ride-map:active { cursor: grabbing; }
+.map-art-host { will-change: transform; }
+.map-controls button.lit { background: var(--accent); border-color: var(--accent); }
+.route-tip { font-size: 12px; color: #8a9287; line-height: 1.45; margin-top: -2px; }

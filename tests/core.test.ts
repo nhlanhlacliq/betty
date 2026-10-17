@@ -1193,6 +1193,27 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(!e2.evaluate({ ...s, lat: -26.16 }).some((x) => x.id === 'marked_spot'), 'not from a kilometre away');
 }
 
+// ---- map pan and zoom: the view after a gesture
+{
+  const { viewAfter } = await import('../src/ui/mapGestures');
+  const v = { center: { lat: -26.15, lon: 28.15 }, spanKm: 6 };
+  const same = viewAfter(v, 660, 500, { x: 330, y: 250 }, 1, { x: 0, y: 0 });
+  assert.ok(Math.abs(same.center.lat - v.center.lat) < 1e-9 && same.spanKm === 6, 'no gesture, no change');
+  // dragging the map right by a quarter of its width shows what was to the west: the centre moves 1.5 km west
+  const panned = viewAfter(v, 660, 500, { x: 0, y: 0 }, 1, { x: 165, y: 0 });
+  const kmWest = (v.center.lon - panned.center.lon) * 111.32 * Math.cos((v.center.lat * Math.PI) / 180);
+  assert.ok(Math.abs(kmWest - 1.5) < 0.01, String(kmWest)); assert.ok(Math.abs(panned.center.lat - v.center.lat) < 1e-9);
+  // dragging down shows what was north
+  assert.ok(viewAfter(v, 660, 500, { x: 0, y: 0 }, 1, { x: 0, y: 100 }).center.lat > v.center.lat);
+  // pinching out 2x about the middle halves the span and keeps the centre
+  const z = viewAfter(v, 660, 500, { x: 330, y: 250 }, 2, { x: 0, y: 0 });
+  assert.equal(z.spanKm, 3); assert.ok(Math.abs(z.center.lon - v.center.lon) < 1e-9);
+  // zooming in about a point to the east moves the centre towards it
+  assert.ok(viewAfter(v, 660, 500, { x: 600, y: 250 }, 2, { x: 0, y: 0 }).center.lon > v.center.lon);
+  assert.equal(viewAfter(v, 660, 500, { x: 330, y: 250 }, 1000, { x: 0, y: 0 }).spanKm, 0.4, 'not closer than 400 m across');
+  assert.equal(viewAfter(v, 660, 500, { x: 330, y: 250 }, 0.001, { x: 0, y: 0 }).spanKm, 300, 'not wider than 300 km');
+}
+
 // ---- gestures: pull to refresh, drag a sheet down to close
 {
   const { pullState, shouldClose, REFRESH_AT } = await import('../src/ui/gestures');

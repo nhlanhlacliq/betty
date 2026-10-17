@@ -1,5 +1,6 @@
 import { icon } from '../icons';
-import { DEFAULT_SPAN_KM, MAP_SPANS, MapInput, mapSvg } from '../mapView';
+import { DEFAULT_SPAN_KM, MAP_SPANS, MAX_SPAN_KM, MIN_SPAN_KM, MapInput, mapSvg } from '../mapView';
+import { MapView, attachMapGestures } from '../mapGestures';
 import type { RideView } from '../rideView';
 import { followDock } from '../Shell';
 
@@ -43,15 +44,27 @@ export function mountRideScreen(doc: Document, actions: RideActions): RideScreen
 
   let span = DEFAULT_SPAN_KM;
   let lastMap: Omit<MapInput, 'spanKm'> | null = null;
+  /** Set once he pans or pinches: the map stops following him until the target button. */
+  let manual: MapView | null = null;
   const last = new Map<string, string>();
   const text = (id: string, value: string) => { if (last.get(id) !== value) { last.set(id, value); $(id).textContent = value; } };
   const html = (id: string, value: string) => { if (last.get(id) !== value) { last.set(id, value); $(id).innerHTML = value; } };
-  const paintMap = () => { if (lastMap) html('ridemap', mapSvg({ ...lastMap, spanKm: span }, undefined, 'ride')); };
+  const paintMap = () => {
+    if (!lastMap) return;
+    html('ridemap', mapSvg(manual ? { ...lastMap, center: manual.center, spanKm: manual.spanKm } : { ...lastMap, spanKm: span }, undefined, 'ride'));
+    doc.querySelector('[data-zoom="reset"]')?.classList.toggle('lit', manual !== null);
+  };
   doc.querySelectorAll<HTMLElement>('[data-zoom]').forEach((b) => b.addEventListener('click', () => {
-    const i = MAP_SPANS.indexOf(span);
-    span = b.dataset.zoom === 'in' ? MAP_SPANS[Math.max(0, i - 1)] : b.dataset.zoom === 'out' ? MAP_SPANS[Math.min(MAP_SPANS.length - 1, i + 1)] : DEFAULT_SPAN_KM;
+    if (b.dataset.zoom === 'reset') { manual = null; span = DEFAULT_SPAN_KM; paintMap(); return; }
+    const factor = b.dataset.zoom === 'in' ? 0.5 : 2;
+    if (manual) manual = { ...manual, spanKm: Math.min(MAX_SPAN_KM, Math.max(MIN_SPAN_KM, manual.spanKm * factor)) };
+    else { const i = MAP_SPANS.indexOf(span); span = b.dataset.zoom === 'in' ? MAP_SPANS[Math.max(0, i - 1)] : MAP_SPANS[Math.min(MAP_SPANS.length - 1, i + 1)]; }
     paintMap();
   }));
+  // Pan, pinch, double tap, wheel. The first move takes the map off "follow me".
+  attachMapGestures(doc.querySelector('.active-map') as HTMLElement, $('ridemap'),
+    () => manual ?? (lastMap?.center ? { center: lastMap.center, spanKm: span } : null),
+    (v) => { manual = v; paintMap(); });
 
   return {
     paint(v, x, map) {

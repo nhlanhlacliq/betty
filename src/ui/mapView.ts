@@ -42,6 +42,16 @@ export function projector(center: LatLon, spanKm: number) {
   return (p: LatLon) => ({ x: MAP_W / 2 + (p.lon - center.lon) * kx * pxPerKm, y: MAP_H / 2 - (p.lat - center.lat) * 110.57 * pxPerKm });
 }
 
+/** The map position (in map units, 660 x 500) back to a place: the inverse of `projector`. */
+export function unproject(center: LatLon, spanKm: number, x: number, y: number): LatLon {
+  const pxPerKm = MAP_W / spanKm;
+  const kx = 111.32 * Math.cos((center.lat * Math.PI) / 180);
+  return { lat: center.lat - (y - MAP_H / 2) / (110.57 * pxPerKm), lon: center.lon + (x - MAP_W / 2) / (kx * pxPerKm) };
+}
+/** How close and how far the map may zoom (km across). */
+export const MIN_SPAN_KM = 0.4;
+export const MAX_SPAN_KM = 300;
+
 /** The span that fits a whole track (for a past ride's map), from the zoom steps. */
 export function spanFor(track: TrackPoint[]): number {
   if (track.length < 2) return DEFAULT_SPAN_KM;
@@ -64,12 +74,14 @@ export function trackCenter(track: TrackPoint[]): LatLon | null {
  * Quiet background shapes, the same every time so the map does not flicker as he moves. Ids are per map: a page can
  * hold several maps, and a url(#id) that resolves into a hidden one draws nothing.
  */
-const terrain = (id: string) => `<defs><pattern id="${id}-terrain" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M-20 65Q40 0 100 30T160 0M-10 80Q40 20 100 45T160 10M-10 95Q45 40 100 60T160 30" fill="none" stroke="#aebda2" stroke-width=".7" opacity=".3"/></pattern><filter id="${id}-shadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity=".18"/></filter></defs>
+const terrain = (id: string, ox = 0, oy = 0) => `<defs><pattern id="${id}-terrain" width="100" height="100" patternUnits="userSpaceOnUse" patternTransform="translate(${r1(((ox % 100) + 100) % 100)} ${r1(((oy % 100) + 100) % 100)})"><path d="M-20 65Q40 0 100 30T160 0M-10 80Q40 20 100 45T160 10M-10 95Q45 40 100 60T160 30" fill="none" stroke="#aebda2" stroke-width=".7" opacity=".3"/></pattern><filter id="${id}-shadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity=".18"/></filter></defs>
 <rect width="${MAP_W}" height="${MAP_H}" fill="#e7eadf"/><path d="M458 0 449 60 482 87 465 128 501 176 470 209 486 250 465 289 489 345 453 384 480 425 439 500H660V0Z" fill="#d9e2cb"/><path d="M0 330Q90 300 160 340T300 360 420 420 500 500H0Z" fill="#dde6d3"/><rect width="${MAP_W}" height="${MAP_H}" fill="url(#${id}-terrain)"/>`;
 
 export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigation', id = 'map'): string {
-  const parts: string[] = [terrain(id)];
   const center = m.center ?? (m.track.length ? { lat: m.track[m.track.length - 1][0], lon: m.track[m.track.length - 1][1] } : null);
+  // The scenery's fine pattern is pinned to the ground (a fixed point projected), so it moves when he pans.
+  const ref = center ? projector(center, m.spanKm)({ lat: -26, lon: 28 }) : { x: 0, y: 0 };
+  const parts: string[] = [terrain(id, ref.x, ref.y)];
   if (center) {
     const at = projector(center, m.spanKm);
     const onMap = (p: { x: number; y: number }, pad = 40) => p.x > -pad && p.x < MAP_W + pad && p.y > -pad && p.y < MAP_H + pad;
