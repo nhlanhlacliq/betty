@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Ride cards show the weather of the ride in a small pill on the map, like the app does.',
       'Share a ride: open a ride in My journeys and tap Share this ride for a picture with the road you took, the numbers and the best thing Betty said. Where you start and finish is hidden unless you untick it.',
       'Pull down at the top of any screen to refresh the app (not during a ride). Drag any open panel down to close it.',
       'What\'s new now lives in Garage, with a count of new updates on the Garage tab. Opening it marks them read.',

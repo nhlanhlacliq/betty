@@ -1218,6 +1218,11 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(shorten('One sentence here. Then a much longer second one that goes on.', 30), 'One sentence here.');
   assert.equal(shorten('Ekurhuleni is a Tsonga word meaning "place of peace". It was chosen when the municipality was formed in 2000, partly as a sign.', 90),
     'Ekurhuleni is a Tsonga word meaning "place of peace".', 'a quote mark after the full stop still ends the sentence');
+  const { weatherPill } = await import('../src/core/RideCard');
+  assert.deepEqual(weatherPill('partly cloudy, 22 C'), { text: 'Partly cloudy · 22°C', icon: 'cloud' });
+  assert.deepEqual(weatherPill('clear, 21.4 C'), { text: 'Clear · 21°C', icon: 'sun' });
+  assert.equal(weatherPill('light rain, 14 C')!.icon, 'rain'); assert.equal(weatherPill('thunderstorm, 19 C')!.icon, 'storm');
+  assert.equal(weatherPill(null), null);
   assert.equal(shorten('No sentence end anywhere in this rather long line of words', 30), 'No sentence end anywhere in…');
   // a 3 km straight track north: trimming 0.5 km off each end leaves the middle 2 km
   const track: Array<[number, number]> = Array.from({ length: 31 }, (_, i) => [-26.2 + i * 0.0009, 28.1]);

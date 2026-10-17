@@ -1,4 +1,4 @@
-import { bestLine, trimEnds } from '../core/RideCard';
+import { bestLine, trimEnds, weatherPill } from '../core/RideCard';
 import type { RideRecord } from '../core/RideMemory';
 import type { TrackPoint } from '../core/Track';
 import { MAP_H, MAP_W, mapSvg, spanFor, trackCenter } from './mapView';
@@ -35,6 +35,28 @@ function wrap(g: CanvasRenderingContext2D, text: string, maxW: number): string[]
 
 function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+
+/** A small weather glyph in the app's ink colours, centred on (x, y). */
+function drawWeatherIcon(g: CanvasRenderingContext2D, kind: string, x: number, y: number) {
+  g.save(); g.lineWidth = 3; g.lineCap = 'round'; g.strokeStyle = '#c9a43c'; g.fillStyle = '#f0cf5a';
+  const cloud = (cx: number, cy: number) => {
+    g.fillStyle = '#9fb0a3'; g.beginPath();
+    g.arc(cx - 7, cy + 2, 7, 0, Math.PI * 2); g.arc(cx + 2, cy - 3, 9, 0, Math.PI * 2); g.arc(cx + 10, cy + 3, 6, 0, Math.PI * 2); g.fill();
+  };
+  if (kind === 'sun') {
+    g.beginPath(); g.arc(x, y, 8, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4; g.beginPath(); g.moveTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12); g.lineTo(x + Math.cos(a) * 16, y + Math.sin(a) * 16); g.stroke(); }
+  } else {
+    if (kind === 'cloud') { g.beginPath(); g.arc(x + 6, y - 6, 7, 0, Math.PI * 2); g.fill(); }
+    cloud(x, y);
+    if (kind === 'rain' || kind === 'storm') {
+      g.strokeStyle = kind === 'storm' ? '#c9a43c' : '#6f9fb5';
+      for (const dx of [-7, 1, 9]) { g.beginPath(); g.moveTo(x + dx, y + 11); g.lineTo(x + dx - 3, y + 17); g.stroke(); }
+    }
+    if (kind === 'fog') { g.strokeStyle = '#9fb0a3'; for (const dy of [12, 17]) { g.beginPath(); g.moveTo(x - 12, y + dy); g.lineTo(x + 14, y + dy); g.stroke(); } }
+  }
+  g.restore();
 }
 
 /** Her orb (the yellow companion) or his picture, as a circle. */
@@ -101,6 +123,16 @@ export async function drawRideCard(doc: Document, c: CardInput): Promise<Blob> {
   }
   g.restore();
   void MAP_H; void MAP_W;
+
+  // The weather of the ride, as the app's screens show it: a small pill in the map's top corner.
+  const wx = weatherPill(c.ride.weather);
+  if (wx) {
+    g.font = `500 26px ${FONT}`;
+    const tw = g.measureText(wx.text).width, pw = tw + 90, px = PAD + 22, py = mapY + 22;
+    g.fillStyle = '#fbfaf5f0'; roundRect(g, px, py, pw, 56, 28); g.fill();
+    drawWeatherIcon(g, wx.icon, px + 34, py + 28);
+    g.fillStyle = C.ink; g.fillText(wx.text, px + 62, py + 37);
+  }
 
   // Numbers
   const statsY = mapY + mapH + 68;

@@ -326,6 +326,8 @@ has dynamic content, and a smoke test.
   downloaded where there is none. Layout: the quote is measured first and gets the room it needs, the map takes the
   rest (first render on his phone had the quote box squeezed to nothing and the date placed for a two-line title);
   with no road (rides before tracks were kept, or too short once trimmed) the map scenery shows with a note.
+  The ride's weather (`RideRecord.weather`, "partly cloudy, 22 C") is a pill in the map's top corner like the app's
+  condition pill: `weatherPill` -> "Partly cloudy · 22°C" with a drawn sun/cloud/rain/storm/fog glyph.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

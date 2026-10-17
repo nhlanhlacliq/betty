@@ -19,6 +19,17 @@ export function bestLine(lines: Array<{ trigger: string; text: string }>): strin
   return shorten(usable[0].text, 260);
 }
 
+/** A ride's saved weather ("partly cloudy, 22 C") as the card shows it: "Partly cloudy · 22°C", and which icon. */
+export function weatherPill(weather: string | null): { text: string; icon: 'sun' | 'cloud' | 'rain' | 'storm' | 'fog' } | null {
+  if (!weather) return null;
+  const m = weather.match(/^(.*?),\s*(-?\d+(?:\.\d+)?)\s*C$/i);
+  const summary = (m ? m[1] : weather).trim();
+  const text = `${summary[0]?.toUpperCase() ?? ''}${summary.slice(1)}${m ? ` · ${Math.round(Number(m[2]))}°C` : ''}`;
+  const s = summary.toLowerCase();
+  const icon = /thunder|storm/.test(s) ? 'storm' : /rain|drizzle|shower/.test(s) ? 'rain' : /fog|mist/.test(s) ? 'fog' : /cloud|overcast|snow/.test(s) ? 'cloud' : 'sun';
+  return { text, icon };
+}
+
 /** Cut at a sentence end within `max` characters (or a word, with an ellipsis). */
 export function shorten(t: string, max: number): string {
   if (t.length <= max) return t;
