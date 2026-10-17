@@ -354,6 +354,11 @@ has dynamic content, and a smoke test.
 - Edge stretch (2026-10-17, `mountEdgeStretch`): every screen's native bounce is off (overscroll-behavior-y none);
   pulling past the top or bottom stretches the screen up to 3.5% (`edgeStretch`, easing off), pinned at the edge he
   pulls from, springing back. Not on the map, the panels, sheets, fields or the chat list (they have their own).
+- Ending a ride (2026-10-17): a remembered ride's story opens AT ONCE on End & see my story, while she signs off, and
+  is re-rendered with her sign-off line after. (It used to wait up to 45 s for the sign-off and only open if he was
+  still on the ride screen: "sometimes I don't get the ride summary".) A ride too short to keep (under 3 min and 1 km)
+  goes home with a toast saying why. Once no ride runs, the ride screen redirects to home (so back from the story
+  does not land on an empty ride).
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
