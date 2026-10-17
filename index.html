@@ -40,7 +40,8 @@
         </div>
         <div class="map-controls home-map-controls"><button type="button" id="homerecenter" aria-label="Recentre map"><i data-icon="target"></i></button></div>
         <section class="ride-dock">
-          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="sheet-handle dock-handle" type="button" data-dock-handle aria-label="Show or hide the panel"></button>
+          <button class="dock-mini" type="button" data-dock-handle aria-label="Show the panel"><span class="orb mini resting"></span><span><small>Ready when you are</small><b id="minititle"></b></span></button>
           <div class="ready-row">
             <button class="orb resting" id="helloorb" type="button" aria-label="Hear Betty's voice"></button>
             <div><p class="eyebrow">Your riding companion</p><h2 id="homemessage"></h2><p class="sub" id="homecaption"></p></div>
@@ -81,6 +82,7 @@
           <button type="button" data-zoom="reset" aria-label="Recentre map"><i data-icon="target"></i></button>
         </div>
         <div class="active-dock">
+          <button class="sheet-handle dock-handle" type="button" data-dock-handle aria-label="Show or hide the panel"></button>
           <div class="ride-stats">
             <div><b id="ridedist">0.0</b><small>km ridden</small></div><span class="stat-separator"></span>
             <div><b id="ridemin">0</b><small>min out</small></div><span class="stat-separator"></span>

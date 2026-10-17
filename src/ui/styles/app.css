@@ -468,3 +468,22 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .map-art-host { will-change: transform; }
 .map-controls button.lit { background: var(--accent); border-color: var(--accent); }
 .route-tip { font-size: 12px; color: #8a9287; line-height: 1.45; margin-top: -2px; }
+
+/* Slim panels (ui/dockSwipe.ts): swipe the home or ride panel down for more map, up or tap the handle for all of it */
+.dock-handle { display: block; border: 0; cursor: pointer; padding: 10px 24px; background-clip: content-box; box-sizing: content-box; margin-top: -10px; } /* a 4 px bar with a finger-sized target */
+.active-dock .dock-handle { margin: -10px auto 14px; }
+.ride-dock, .active-dock { transition: transform .2s ease; }
+.dock-mini { display: none; }
+.dock-slim .ride-dock { display: flex; align-items: center; gap: 12px; padding-top: 8px; flex-wrap: wrap; }
+.dock-slim .ride-dock .dock-handle { flex-basis: 100%; margin: 0 auto 6px; }
+.dock-slim .ride-dock .ready-row, .dock-slim .ride-dock .destination-button, .dock-slim .ride-dock .free-button, .dock-slim .ride-dock .readiness { display: none; }
+.dock-slim .ride-dock .dock-mini { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; color: inherit; }
+.dock-mini > span:last-child { display: grid; min-width: 0; }
+.dock-mini small { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #8a9287; }
+.dock-mini b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-slim .ride-dock #start { width: auto; flex: none; min-height: 48px; padding: 0 18px; gap: 10px; margin: 0; }
+.dock-slim .map-greeting { opacity: 0; transition: opacity .2s; }
+.map-greeting { transition: opacity .2s; }
+.dock-slim .active-dock .ride-stats, .dock-slim .active-dock #ridesub, .dock-slim .active-dock .ride-actions, .dock-slim .active-dock .simulation-note { display: none; }
+.dock-slim .active-dock .betty-ride-heading { margin-bottom: 0; }
+.dock-slim .active-dock { padding-top: 18px; }

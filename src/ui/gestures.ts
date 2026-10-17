@@ -35,7 +35,7 @@ export function mountPullToRefresh(doc: Document, ctx: { canRefresh(): boolean; 
     screen = t?.closest?.('.screen') as HTMLElement | null;
     // Not inside a sheet, a scrolled list, or anywhere while riding.
     // Not inside a sheet, a scrolled list, a field or a map (dragging a map pans it), or anywhere while riding.
-    if (!screen || screen.hidden || t?.closest?.('[data-sheet], .chat-list, input, textarea, select, .ride-map') || !ctx.canRefresh() || screen.scrollTop > 0) { screen = null; return; }
+    if (!screen || screen.hidden || t?.closest?.('[data-sheet], .chat-list, input, textarea, select, .ride-map, .ride-dock, .active-dock') || !ctx.canRefresh() || screen.scrollTop > 0) { screen = null; return; }
     const p = point(e); startY = p.clientY; startX = p.clientX; pulling = false;
   }, { passive: true });
   doc.addEventListener('touchmove', (e) => {

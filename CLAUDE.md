@@ -340,6 +340,12 @@ has dynamic content, and a smoke test.
   target button lights up and brings back following. Home: the target resets to the fitted view (route or last ride).
   The terrain pattern is pinned to a ground point so it moves with a pan. `.ride-map` has touch-action none and
   pull-to-refresh ignores it. Not tried on a phone yet.
+- Slim panels (2026-10-17, `ui/dockSwipe.ts`): the home dock and the ride dock slide down to a slim bar (swipe down
+  over 40 px) and back (swipe up, or tap the handle, now a button with a finger-sized target). Slim home: the
+  orb, the route or mode name (`#minititle`) and a compact Let's ride; the greeting fades. Slim ride: only Betty's
+  row (orb, state, chat, microphone); stats, her line, Lock/End ride come back with the panel. `.dock-slim` on the
+  screen; remembered per screen in `betty.dock.v1`. The map re-frames by itself (followDock's --dock-h). Swipes on
+  fields, the microphone and her scrolling line are left alone; pull-to-refresh ignores both docks.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

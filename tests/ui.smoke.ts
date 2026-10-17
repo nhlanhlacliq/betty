@@ -478,7 +478,7 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; }
   }
 
-  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'routeform', 'routeinput', 'routethrilling', 'routeplan', 'routesummary', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'whatsnewopen', 'whatsnewbadge', 'garagebadge', 'whatsnewlist', 'exportdata', 'importdata', 'minititle', 'routeform', 'routeinput', 'routethrilling', 'routeplan', 'routesummary', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered
@@ -493,6 +493,15 @@ resetConfig();
   cn.value = 'Sulafat'; cn.dispatchEvent(new page.window.Event('change'));
   cv.value = 'off'; cv.dispatchEvent(new page.window.Event('change'));
   assert.equal(CONFIG.cloudVoiceName, 'Sulafat'); assert.equal(CONFIG.cloudVoice, 'off'); assert.equal(cn.disabled, true);
+  // the home panel slims and comes back with a tap on its handle, and remembers it
+  const homeScreen = doc.querySelector('[data-screen="home"]')!;
+  const handle = doc.querySelector('[data-screen="home"] .dock-handle') as HTMLElement;
+  const slimBefore = homeScreen.classList.contains('dock-slim');
+  handle.dispatchEvent(new page.window.Event('click', { bubbles: true }));
+  assert.equal(homeScreen.classList.contains('dock-slim'), !slimBefore);
+  assert.equal(JSON.parse(page.window.localStorage.getItem('betty.dock.v1')!).home, !slimBefore);
+  handle.dispatchEvent(new page.window.Event('click', { bubbles: true }));
+  assert.equal(homeScreen.classList.contains('dock-slim'), slimBefore);
   assert.match(doc.getElementById('whatsnewversion')!.textContent!, /Development build/);
   assert.match(doc.getElementById('whatsnewlist')!.textContent!, /mark this spot/);
   resetConfig();

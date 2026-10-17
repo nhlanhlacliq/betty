@@ -1,6 +1,7 @@
 import { icon } from '../icons';
 import { DEFAULT_SPAN_KM, MAP_SPANS, MAX_SPAN_KM, MIN_SPAN_KM, MapInput, mapSvg } from '../mapView';
 import { MapView, attachMapGestures } from '../mapGestures';
+import { mountCollapsibleDock } from '../dockSwipe';
 import type { RideView } from '../rideView';
 import { followDock } from '../Shell';
 
@@ -41,6 +42,7 @@ export function mountRideScreen(doc: Document, actions: RideActions): RideScreen
   $('rideorb').addEventListener('click', () => actions.repeat());
   $('mute').addEventListener('click', () => actions.toggleQuiet());
   followDock(doc.querySelector('[data-screen="ride"]')!, doc.querySelector('.active-dock')!);
+  mountCollapsibleDock(doc.querySelector('[data-screen="ride"]')!, doc.querySelector('.active-dock')!, 'ride');
 
   let span = DEFAULT_SPAN_KM;
   let lastMap: Omit<MapInput, 'spanKm'> | null = null;

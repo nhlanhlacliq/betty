@@ -6,6 +6,7 @@ import { IconName, icon } from '../icons';
 import { DEFAULT_SPAN_KM, MapInput, mapSvg, spanFor, trackCenter } from '../mapView';
 import { MapView, attachMapGestures } from '../mapGestures';
 import { followDock, type Shell } from '../Shell';
+import { mountCollapsibleDock } from '../dockSwipe';
 
 /** One line of the readiness sheet ("GPS: phone sensors", "Voice: Gemini, Aoede"...). */
 export interface ReadyRow { icon: IconName; label: string; value: string; ok: boolean }
@@ -53,6 +54,7 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
   $('homecaption').textContent = HOME.companionCaption;
   $('pickerlabel').textContent = HOME.pickerLabel;
   followDock(doc.querySelector('[data-screen="home"]')!, doc.querySelector('[data-screen="home"] .ride-dock')!);
+  mountCollapsibleDock(doc.querySelector('[data-screen="home"]')!, doc.querySelector('[data-screen="home"] .ride-dock')!, 'home');
 
   const real = $('real') as HTMLInputElement;
   const tiles = [...doc.querySelectorAll<HTMLButtonElement>('[data-mode]')];
@@ -86,6 +88,7 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
     const mode = real.checked ? 'real' : 'sim';
     const plannedName = ctx.route?.()?.name;
     $('modetitle').textContent = plannedName ? `${HOME.modes[mode].title} · ${plannedName}` : HOME.modes[mode].title;
+    $('minititle').textContent = plannedName ?? HOME.modes[mode].title; // the slim panel's line
     $('modeicon').innerHTML = icon(mode === 'real' ? 'ride' : 'wrench');
     for (const t of tiles) {
       const on = t.dataset.mode === mode;

@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Swipe the panel down on the Ride and riding screens for more map: home keeps Betty, your route and Let\'s ride; riding keeps Betty\'s row with the microphone. Swipe up or tap the bar to bring it all back. It remembers how you left it.',
       'Chirp\'s alert voice is Zephyr by default when you use an accent voice like Veda.',
       'The maps move: drag to pan, pinch or double tap to zoom (wheel and double click on a computer). On the ride the map stops following you until you tap the target button.',
       'Routes: in How are we riding?, type where to ("Clarens", or stops: "Heidelberg, Villiers, Clarens") or paste a Google Maps directions link, tick twisty roads if you like, and Plan. Betty follows it: time and distance left, your next stop, telling you if you leave it, and welcoming you in. Google Maps still gives the turns.',

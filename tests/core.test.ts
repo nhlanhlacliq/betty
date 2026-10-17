@@ -1195,6 +1195,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(!e2.evaluate({ ...s, lat: -26.16 }).some((x) => x.id === 'marked_spot'), 'not from a kilometre away');
 }
 
+// ---- slim panels: a swipe down slims, up brings it back, sideways or short does nothing
+{
+  const { dockSwipe } = await import('../src/ui/dockSwipe');
+  assert.equal(dockSwipe(80), 'slim'); assert.equal(dockSwipe(-80), 'full'); assert.equal(dockSwipe(20), null); assert.equal(dockSwipe(60, 120), null, 'mostly sideways');
+}
+
 // ---- map pan and zoom: the view after a gesture
 {
   const { viewAfter } = await import('../src/ui/mapGestures');
