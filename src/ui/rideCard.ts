@@ -63,31 +63,47 @@ export async function drawRideCard(doc: Document, c: CardInput): Promise<Blob> {
   if (!g) throw new Error('This phone cannot draw the card.');
   g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
 
-  // Heading
+  // Heading: everything below follows the title's real height (one line or two).
   g.fillStyle = C.soft; g.font = `600 26px ${FONT}`;
   g.fillText('RIDDEN WITH BETTY', PAD, PAD + 26);
   g.fillStyle = C.ink; g.font = `700 58px ${FONT}`;
-  wrap(g, c.title, W - PAD * 2).slice(0, 2).forEach((l, i) => g.fillText(l, PAD, PAD + 100 + i * 66));
+  const titleLines = wrap(g, c.title, W - PAD * 2).slice(0, 2);
+  titleLines.forEach((l, i) => g.fillText(l, PAD, PAD + 98 + i * 66));
+  const dateY = PAD + 98 + (titleLines.length - 1) * 66 + 52;
   g.fillStyle = C.soft; g.font = `400 28px ${FONT}`;
-  g.fillText(new Date(c.ride.startedAt).toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), PAD, PAD + 100 + 66 + 50);
+  g.fillText(new Date(c.ride.startedAt).toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), PAD, dateY);
 
-  // The road
-  const mapY = 330, mapW = W - PAD * 2, mapH = Math.round((mapW * MAP_H) / MAP_W);
+  // Her best line is measured first: it gets the room it needs, and the map takes the rest (at least 380 px).
+  const quote = bestLine(c.lines);
+  const text = quote ? `“${quote}”` : `“${c.ride.weather ? `${c.ride.weather}, and a good ride.` : 'A quiet ride is a good ride, too.'}”`;
+  g.font = `italic 400 31px ${FONT}`;
+  let lines = wrap(g, text, W - PAD * 2 - 170);
+  const mapY = dateY + 38, mapW = W - PAD * 2;
+  const fixed = 68 + 74 + 56; // stats, gap to the quote box, bottom margin
+  const room = (n: number) => 108 + n * 42 + 8; // the quote box's height for n lines
+  const fit = Math.max(1, Math.floor((H - mapY - 380 - fixed - 116) / 42));
+  if (lines.length > fit) { lines = lines.slice(0, fit); lines[fit - 1] = `${lines[fit - 1].replace(/[,;:.]?\s*\S*$/, '')}…”`; }
+  const qH = Math.max(150, room(lines.length));
+  const mapH = H - mapY - fixed - qH;
   const track = c.hideEnds ? trimEnds(c.track) : c.track;
+  const hasRoad = track.length > 1;
   g.save(); roundRect(g, PAD, mapY, mapW, mapH, 34); g.clip();
-  if (track.length > 1) {
-    const svg = mapSvg({ center: trackCenter(track), here: null, headingDeg: null, track, places: [], incidents: [], marks: [], spanKm: spanFor(track) }, 'The road', 'card')
-      .replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="${mapW}" height="${mapH}" `);
-    try { g.drawImage(await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`), PAD, mapY, mapW, mapH); }
-    catch { g.fillStyle = '#e7eadf'; g.fillRect(PAD, mapY, mapW, mapH); }
-  } else {
-    g.fillStyle = '#e7eadf'; g.fillRect(PAD, mapY, mapW, mapH);
-    g.fillStyle = C.soft; g.font = `400 30px ${FONT}`; g.textAlign = 'center'; g.fillText('A ride without a map, but not without a story.', W / 2, mapY + mapH / 2); g.textAlign = 'left';
+  g.fillStyle = '#e7eadf'; g.fillRect(PAD, mapY, mapW, mapH);
+  // With no road (an older ride, or one too short once home is trimmed) the scenery alone still looks like Betty.
+  const svg = mapSvg({ center: hasRoad ? trackCenter(track) : null, here: null, headingDeg: null, track: hasRoad ? track : [], places: [], incidents: [], marks: [], spanKm: hasRoad ? spanFor(track) : 6 }, 'The road', 'card')
+    .replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="${mapW}" height="${mapH}" `);
+  try { g.drawImage(await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`), PAD, mapY, mapW, mapH); } catch { /* plain background */ }
+  if (!hasRoad) {
+    const msg = 'A ride without a map, but not without a story.';
+    g.font = `400 28px ${FONT}`; const w = g.measureText(msg).width + 48;
+    g.fillStyle = '#fbfaf5ee'; roundRect(g, (W - w) / 2, mapY + mapH / 2 - 34, w, 60, 30); g.fill();
+    g.fillStyle = C.soft; g.textAlign = 'center'; g.fillText(msg, W / 2, mapY + mapH / 2 + 6); g.textAlign = 'left';
   }
   g.restore();
+  void MAP_H; void MAP_W;
 
   // Numbers
-  const statsY = mapY + mapH + 70;
+  const statsY = mapY + mapH + 68;
   const min = c.ride.minutes;
   const stats: Array<[string, string]> = [
     [`${c.ride.distanceKm}`, 'kilometres'],
@@ -101,15 +117,13 @@ export async function drawRideCard(doc: Document, c: CardInput): Promise<Blob> {
   });
 
   // Her best line
-  const quote = bestLine(c.lines);
-  const qY = statsY + 80, qH = H - qY - PAD;
+  const qY = statsY + 74;
   g.fillStyle = C.card; roundRect(g, PAD, qY, W - PAD * 2, qH, 30); g.fill();
   g.strokeStyle = C.line; g.lineWidth = 2; g.stroke();
   await drawOrb(g, PAD + 70, qY + 72, 40, c.avatar);
   g.fillStyle = C.soft; g.font = `600 22px ${FONT}`; g.fillText('BETTY SAID', PAD + 130, qY + 64);
   g.fillStyle = C.ink; g.font = `italic 400 31px ${FONT}`;
-  const text = quote ? `“${quote}”` : `“${c.ride.weather ? `${c.ride.weather}, and a good ride.` : 'A quiet ride is a good ride, too.'}”`;
-  wrap(g, text, W - PAD * 2 - 170).slice(0, Math.floor((qH - 70) / 42)).forEach((l, i) => g.fillText(l, PAD + 130, qY + 108 + i * 42));
+  lines.forEach((l, i) => g.fillText(l, PAD + 130, qY + 108 + i * 42));
 
   return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('Could not make the picture.'))), 'image/png'));
 }

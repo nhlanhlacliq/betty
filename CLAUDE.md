@@ -323,7 +323,9 @@ has dynamic content, and a smoke test.
   by `core/RideCard.trimEnds` so home is not on it), km / time / places, and "Betty said" with `bestLine` (area story
   > place > banter > time check > answer > sign-off > briefing; alerts never; voice tags removed; ~140 chars best) next
   to her orb or his picture (a GIF gives its first frame). Shared with the share sheet (WhatsApp, Instagram, Photos),
-  downloaded where there is none. NOT SEEN RENDERED YET (no browser here): check on the phone.
+  downloaded where there is none. Layout: the quote is measured first and gets the room it needs, the map takes the
+  rest (first render on his phone had the quote box squeezed to nothing and the date placed for a two-line title);
+  with no road (rides before tracks were kept, or too short once trimmed) the map scenery shows with a note.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
