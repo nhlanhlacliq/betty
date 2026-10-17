@@ -298,6 +298,16 @@ has dynamic content, and a smoke test.
   then shows the picture in every orb as a true circle with the same sway/breathing (`breathe-round`: the companion's
   rotate/scale without the blob reshaping), speaking pace, quiet fade and listening ring; the eyes are hidden.
 
+- Installable app (2026-10-17): `public/manifest.webmanifest` (standalone, portrait, the app's cream colours), icons
+  in `public/icons/` drawn by `scripts/make-icons.ts` (no dependencies; rerun it to change them), `public/favicon.svg`,
+  apple-touch-icon and title for the iPhone home screen. `public/sw.js` (registered in main.ts, not on localhost):
+  pages network-first with the last good copy offline, `/assets/*` and icons cache-first (hashed names, trimmed to
+  40), `/api/*` and other origins never touched. So the app now OPENS WITHOUT SIGNAL (the offline-loading backlog item;
+  Claude, voices, weather and traffic still need signal). UNVERIFIED: headset buttons and mic from the installed app.
+- Your data (2026-10-17): Garage > Export all data / Import a backup (`ui/backup.ts`): every `betty.*` localStorage
+  entry plus her picture (base64) in one JSON file, shared through the share sheet (or downloaded); import validates,
+  shows what is in it, asks, REPLACES all betty.* entries (other keys untouched), then reloads. Voice clips are not in
+  it (made again on demand). Refused during a ride.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

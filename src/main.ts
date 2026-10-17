@@ -52,6 +52,7 @@ import { mountJourneysScreen } from './ui/screens/JourneysScreen';
 import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
+import { mountBackup } from './ui/backup';
 import { SaidLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 
@@ -369,7 +370,17 @@ const sayOutsideRide = (text: string) => {
 };
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
 // Betty's look: the default companion or his own picture/GIF, kept on the phone.
-mountAvatarSetting(document, new IdbAvatarStore(), (m, err) => shell.toast(m, err));
+const avatarStore = new IdbAvatarStore();
+mountAvatarSetting(document, avatarStore, (m, err) => shell.toast(m, err));
+// Your data: everything in one file, to move to a new phone.
+mountBackup(document, localStorage, avatarStore, {
+  busy: () => rig !== null, toast: (m, err) => shell.toast(m, err),
+  confirm: (m) => window.confirm(m), reload: () => setTimeout(() => location.reload(), 600),
+});
+// Installable app, and it opens with no signal (public/sw.js). Not on localhost, where it would cache dev builds.
+if ('serviceWorker' in navigator && !/^(localhost|127\.)/.test(location.hostname)) {
+  window.addEventListener('load', () => { void navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+}
 
 let wakeOk = true;
 const wakeEl = $('wake');

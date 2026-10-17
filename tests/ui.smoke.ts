@@ -478,7 +478,7 @@ resetConfig();
     } finally { globalThis.fetch = realFetch; }
   }
 
-  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
+  for (const id of ['start', 'end', 'endconfirm', 'lock', 'chat', 'voicetestpanel', 'voice', 'voicetest', 'cloudvoice', 'cloudname', 'cloudtest', 'cloudsounds', 'cloudaccent', 'chirpstandin', 'geminimodel', 'chirplocale', 'filled', 'range', 'rangesrc', 'logpanel', 'memorypanel', 'changelogpanel', 'exportdata', 'importdata', 'alt', 'dir', 'dirsrc', 'jolts', 'real', 'status', 'wake', 'log', 'sim', 'speed', 'lean', 'rpm', 'temp', 'fuel', 'rain', 'feeds']) {
     assert.ok(doc.getElementById(id), `#${id} exists`);
   }
   // cloud voice: mode and voice name are saved, and the name list is offered
@@ -760,5 +760,29 @@ resetConfig();
   const css = (await import('node:fs')).readFileSync(new URL('../src/ui/styles/app.css', import.meta.url), 'utf8');
   assert.match(css, /\.has-avatar \.orb, \.has-avatar \.orb\.speaking, \.has-avatar \.orb\.quiet \{ animation-name: breathe-round; \}/);
   assert.match(css, /@keyframes breathe-round/);
+}
+// ---- moving phones: everything Betty keeps, out to one file and back in
+{
+  const { makeBackup, parseBackup, restoreBackup, describeBackup } = await import('../src/ui/backup');
+  const { MemoryAvatarStore } = await import('../src/ui/avatar');
+  const fakeStorage = (init: Record<string, string>) => {
+    const m = new Map(Object.entries(init));
+    return { get length() { return m.size; }, key: (i: number) => [...m.keys()][i] ?? null, getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); }, clear: () => m.clear(), m } as any;
+  };
+  const oldPhone = fakeStorage({ 'betty.rides.v1': JSON.stringify([{}, {}]), 'betty.memory.v1': JSON.stringify({ notes: [{}], marks: [{}, {}] }), 'betty.config.v1': '{"riderName":"Nhlanhla"}', 'other.app': 'not ours' });
+  const pic = new MemoryAvatarStore(); await pic.put(new Blob(['GIF89a'], { type: 'image/gif' }));
+  const b = await makeBackup(oldPhone, pic, new Date('2026-10-17T10:00:00Z'));
+  assert.deepEqual(Object.keys(b.storage).sort(), ['betty.config.v1', 'betty.memory.v1', 'betty.rides.v1'], 'only Betty\'s own entries');
+  const text = JSON.stringify(b);
+  const parsed = parseBackup(text);
+  assert.equal(describeBackup(parsed), '2 rides, 0 lines, 1 notes, 2 marked spots, her picture, from 2026-10-17');
+  const newPhone = fakeStorage({ 'betty.log.v1': '[1]', 'other.app': 'keep me' }); const newPic = new MemoryAvatarStore();
+  await restoreBackup(parsed, newPhone, newPic);
+  assert.equal(newPhone.getItem('betty.config.v1'), '{"riderName":"Nhlanhla"}'); assert.equal(newPhone.getItem('betty.log.v1'), null, 'replaced, not merged');
+  assert.equal(newPhone.getItem('other.app'), 'keep me', 'other sites\' data untouched');
+  assert.equal(await newPic.blob!.text(), 'GIF89a'); assert.equal(newPic.blob!.type, 'image/gif');
+  assert.throws(() => parseBackup('{"hello":1}'), /not a Betty backup/); assert.throws(() => parseBackup('nope'), /not a Betty backup/);
+  assert.throws(() => parseBackup(JSON.stringify({ ...b, storage: { 'evil.key': 'x' } })), /damaged/);
 }
 console.log('ui smoke tests passed');

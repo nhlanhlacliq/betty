@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f6f0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Betty" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="description" content="Betty, your riding companion. A quieter mind. A better ride." />
   <title>Betty</title>
@@ -197,6 +202,11 @@
             <div class="setting"><div><p>Headset buttons</p><small>Play/pause talks to Betty, next track repeats her. Pauses your music.</small></div><input type="checkbox" id="buttons" aria-label="Headset buttons talk to Betty" /></div>
             <div class="setting"><div><p>Your journeys, your business</p><small>Rides, lines and notes stay on this phone.</small></div><i data-icon="shield"></i></div>
             <button class="workshop-link" type="button" data-go="workshop"><span><b>Workshop</b><small>Simulator, tuning, log, voice test, developer chat and what's new.</small></span><i data-icon="wrench"></i></button>
+          </section>
+          <section class="settings-card">
+            <h2>Your data</h2>
+            <div class="setting"><div><p>Moving to a new phone?</p><small>One file with your rides, logs, memory, area stories, settings and Betty's look. Import it on the new phone.</small></div></div>
+            <div class="setting buttons"><button id="exportdata" class="secondary" type="button">Export all data</button><label class="secondary file-button">Import a backup<input type="file" id="importdata" accept=".json,application/json" /></label></div>
           </section>
         </div>
         <p class="footer-note" id="footer"></p>
