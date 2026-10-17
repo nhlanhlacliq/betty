@@ -382,6 +382,16 @@ has dynamic content, and a smoke test.
   ~20 s a tile and rate-limits (HTTP 429 with two at once), so `adapters/BorderTiles` fetches one tile at a time, only
   for views up to 12 km across, keeps tiles in `betty.borders.v1` for good, and repaints both maps as they arrive.
   0.05 degree tiles needed ~16 for one view (minutes): hence 0.1.
+- Ride card place names and metro line (2026-10-17, owner: "labels and line", each a Garage > The map switch,
+  `CONFIG.cardPlaces`/`cardMetro`, ON by default). The suburb borders were never on the card (hidden past 30 km
+  across). `adapters/CardExtras` starts when a ride's story opens: `/api/area` at the ride's first and last point
+  (their suburb, or town, is left off while "Hide where I start and finish" is ticked) and at 8 points spread along
+  the trimmed road (`samplesAlong`), one a second (Nominatim); `/api/borders?box=` (whole 0.1 degrees, max 1.5 a side,
+  ~30 s on Overpass for a 90 km ride) gives only the admin_level 6 lines. Kept per ride in `betty.cardmap.v1` (12,
+  only when every lookup worked). Share waits up to 40 s for it. `pickLabels`: towns at 25 km across and up, suburbs
+  below, each once at the middle of its run, at most 6 spread along; `labelsSvg` puts each name above or below its dot,
+  drops overlaps and anything under the weather pill (`avoid`). `api/area` now strips "City of" / "Local
+  Municipality" from every name (Westonaria was read out as "Westonaria Local Municipality").
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

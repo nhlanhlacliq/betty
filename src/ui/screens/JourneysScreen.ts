@@ -12,6 +12,8 @@ export interface JourneysContext {
   /** Every saved line */
   entries(): LogEntry[];
   track(rideId: number): TrackPoint[];
+  /** Start fetching what the ride card adds (place names, metro line), so Share is quick */
+  prepareCard?(rideId: number): void;
   /** Copy one ride's log as plain text; resolves with whether it worked */
   copyRide(rideId: number): Promise<boolean>;
   /** Save one ride's log as a file */
@@ -68,6 +70,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       ...r.events.map((e) => `<li>${esc(e)}<small>Flagged on the way</small></li>`),
     ];
     story.dataset.ride = String(rideId); // which ride is showing (a refresh reopens it)
+    ctx.prepareCard?.(rideId);
     story.innerHTML = `<div class="intro"><div><p class="eyebrow">A ride worth remembering</p><h1>Your little escape.</h1></div>
         <button class="text-button" type="button" data-go="journeys">← My journeys</button></div>
       <div class="summary-hero"><div class="orb resting"></div><p class="eyebrow">Saved privately on this phone</p>

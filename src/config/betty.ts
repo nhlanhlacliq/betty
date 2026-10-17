@@ -54,6 +54,9 @@ export interface Config {
   useProfile: boolean;
   /** Map: estimated suburb borders and the metro boundary (adapters/BorderTiles.ts). Off by default (owner). */
   mapBorders: boolean;
+  /** Ride card: names of the towns/suburbs along the road, and the real metro boundary (adapters/CardExtras.ts). On by default. */
+  cardPlaces: boolean;
+  cardMetro: boolean;
   /**
    * The island (the card at the top of the ride map; owner, 2026-10-17). compact: a small pill that grows for ~10 s
    * when something new comes up; tapExpand: tap to grow/shrink it; browse: swipe sideways through the other cues;
@@ -123,6 +126,8 @@ export const DEFAULT_CONFIG: Config = {
   showGlance: true,
   useProfile: true,
   mapBorders: false,
+  cardPlaces: true,
+  cardMetro: true,
   island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false },
   micDeviceId: '',
   micLabel: '',

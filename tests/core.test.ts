@@ -1821,4 +1821,59 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.match(mapSvg({ center: null, here: null, headingDeg: null, track: [], places: [], incidents: [], marks: [], spanKm: 6 }), /<svg/, 'no fix: just the background');
 }
 
+// Ride card: place names along the road and the metro line (owner, 2026-10-17: "labels and line")
+{
+  const { samplesAlong, pickLabels } = await import('../src/core/RideCard');
+  const { boxFor, CardExtrasSource } = await import('../src/adapters/CardExtras');
+  const { mapSvg } = await import('../src/ui/mapView');
+  const { GET: bordersApi } = await import('../api/borders');
+  const line: Array<[number, number]> = Array.from({ length: 101 }, (_, i) => [-26.1, 28.0 + i * 0.004]); // ~40 km west to east
+  const ss = samplesAlong(line, 4);
+  assert.equal(ss.length, 4); assert.deepEqual(ss.map((x) => Math.round(x.frac * 8)), [1, 3, 5, 7], 'spread evenly by distance');
+  assert.ok(Math.abs(ss[0].lon - 28.05) < 0.002 && Math.abs(ss[3].lon - 28.35) < 0.002, 'at 1/8 and 7/8 of the way');
+  assert.deepEqual(samplesAlong([[-26, 28]], 4), [], 'no road, no samples');
+  const sm = (frac: number, suburb: string | null, town: string | null) => ({ lat: -26.1, lon: 28 + frac, frac, suburb, town });
+  const samples = [sm(0.1, 'Eastleigh', 'Edenvale'), sm(0.3, 'Melrose', 'Sandton'), sm(0.4, 'Illovo', 'Sandton'), sm(0.5, 'Bryanston', 'Sandton'),
+    sm(0.7, 'Florida', 'Roodepoort'), sm(0.9, 'Venterspost', 'Westonaria Local Municipality')];
+  assert.deepEqual(pickLabels(samples, 50, []).map((l) => l.name), ['Edenvale', 'Sandton', 'Roodepoort', 'Westonaria'], 'a long ride: towns, once each, municipality wording dropped');
+  assert.equal(pickLabels(samples, 50, []).find((l) => l.name === 'Sandton')!.lon, 28.4, 'a name sits in the middle of its run');
+  assert.deepEqual(pickLabels(samples, 12, [], 6).map((l) => l.name).slice(0, 3), ['Eastleigh', 'Melrose', 'Illovo'], 'a short ride: suburbs');
+  assert.deepEqual(pickLabels(samples, 12, [], 5).map((l) => l.name), ['Eastleigh', 'Melrose', 'Bryanston', 'Florida', 'Venterspost'], 'too many: spread out, first and last kept');
+  assert.ok(!pickLabels(samples, 12, ['Eastleigh']).some((l) => l.name === 'Eastleigh'), 'his start suburb stays off');
+  assert.equal(pickLabels(samples, 12, [], 3).length, 3, 'at most max');
+  assert.deepEqual(pickLabels([sm(0.5, null, null)], 50, []), [], 'no name, no label');
+  assert.equal(boxFor([[-26.13, 28.05], [-26.02, 28.31]]), '-26.2,28.0,-26.0,28.4', 'box out to whole 0.1 degrees');
+  assert.equal(boxFor([[-26, 28], [-28, 28]]), null, 'too long a ride: no line');
+  const svg = mapSvg({ center: { lat: -26.1, lon: 28.2 }, here: null, headingDeg: null, track: line, places: [], incidents: [], marks: [], spanKm: 50,
+    labels: [{ lat: -26.1, lon: 28.1, label: 'Sandton' }, { lat: -26.1, lon: 28.1005, label: 'Squashed' }, { lat: -26.1, lon: 28.36, label: 'Rood<e>' }],
+    avoid: [{ x0: 500, y0: 0, x1: 660, y1: 500 }] });
+  assert.match(svg, />Sandton</); assert.ok(svg.includes('>Squashed<'), 'room below when above is taken');
+  assert.ok(!svg.includes('Rood'), 'nothing under the avoided box');
+  const third = mapSvg({ center: { lat: -26.1, lon: 28.2 }, here: null, headingDeg: null, track: line, places: [], incidents: [], marks: [], spanKm: 50,
+    labels: [1, 2, 3].map(() => ({ lat: -26.1, lon: 28.1, label: 'Same spot' })) });
+  assert.equal(third.split('>Same spot<').length - 1, 2, 'a third name on the same spot is left out');
+  const req = (q: string) => new Request(`https://betty.app/api/borders?${q}`, { headers: { origin: 'https://betty.app', host: 'betty.app' } });
+  for (const bad of ['box=-26.15,28,-26,28.3', 'box=-26,28,-26.2,28.3', 'box=-28,28,-26,28.3', 'box=1,2,3']) assert.equal((await bordersApi(req(bad))).status, 400, bad);
+  // The source: ends then samples, one at a time; kept only when everything came through
+  const asked: string[] = [];
+  const store = new Map<string, string>();
+  const st = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } };
+  let fail = true;
+  const fake = (async (u: string) => {
+    asked.push(u);
+    if (u.startsWith('/api/borders')) return new Response(JSON.stringify({ metro: [[[-26.1, 28.1], [-26.0, 28.1]]] }));
+    if (fail && asked.length === 5) return new Response('{}', { status: 502 });
+    return new Response(JSON.stringify({ suburb: u.includes('lon=28.00') ? 'Home Park' : 'Midway', town: 'Townsville' }));
+  }) as typeof fetch;
+  const src = new CardExtrasSource(fake, st, 0);
+  const first = await src.prepare(1, line);
+  assert.equal(asked[0], '/api/borders?box=-26.2,27.9,-26.0,28.5');
+  assert.deepEqual(first.ends, ['Home Park', 'Midway']); assert.equal(first.metro?.length, 1);
+  assert.equal(src.kept(1), null, 'a failed lookup is not kept'); assert.equal(asked.filter((u) => u.startsWith('/api/area')).length, 10);
+  fail = false;
+  await src.prepare(1, line);
+  assert.equal(src.kept(1)?.samples.length, 8, 'kept once complete');
+  const n = asked.length; await src.prepare(1, line); assert.equal(asked.length, n, 'kept: no more requests');
+}
+
 console.log('all core tests passed');

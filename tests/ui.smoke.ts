@@ -247,6 +247,10 @@ resetConfig();
     talk.value = 'balanced'; ev(talk, 'change'); assert.equal(CONFIG.ambient.banterWeight, 40);
     const gs = doc.getElementById('glanceswitch') as HTMLInputElement;
     assert.equal(gs.checked, true); gs.checked = false; ev(gs, 'change'); assert.equal(CONFIG.showGlance, false); gs.checked = true; ev(gs, 'change');
+    for (const [id, key] of [['cardplaces', 'cardPlaces'], ['cardmetro', 'cardMetro']] as const) {
+      const box = doc.getElementById(id) as HTMLInputElement;
+      assert.equal(box.checked, true, `${id} on by default`); box.checked = false; ev(box, 'change'); assert.equal(CONFIG[key], false); box.checked = true; ev(box, 'change');
+    }
     CONFIG.persona.humour = 75; CONFIG.persona.tars = 50;
 
     // explore: notes and marked spots, with Forget

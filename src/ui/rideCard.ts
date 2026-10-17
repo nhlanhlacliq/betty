@@ -1,4 +1,5 @@
-import { bestLine, trimEnds, weatherPill } from '../core/RideCard';
+import { bestLine, pickLabels, trimEnds, weatherPill } from '../core/RideCard';
+import type { CardExtras } from '../adapters/CardExtras';
 import type { RideRecord } from '../core/RideMemory';
 import type { TrackPoint } from '../core/Track';
 import { MAP_H, MAP_W, mapSvg, spanFor, trackCenter } from './mapView';
@@ -15,6 +16,8 @@ export interface CardInput {
   lines: Array<{ trigger: string; text: string }>;
   avatar: Blob | null;
   hideEnds: boolean;
+  /** Place names along the road and the metro line (null: none, or switched off in Garage > The map) */
+  extras?: { samples: CardExtras['samples']; ends: string[]; metro: CardExtras['metro']; places: boolean; metroLine: boolean } | null;
 }
 
 const W = 1080, H = 1350, PAD = 72;
@@ -112,7 +115,17 @@ export async function drawRideCard(doc: Document, c: CardInput): Promise<Blob> {
   g.save(); roundRect(g, PAD, mapY, mapW, mapH, 34); g.clip();
   g.fillStyle = '#e7eadf'; g.fillRect(PAD, mapY, mapW, mapH);
   // With no road (an older ride, or one too short once home is trimmed) the scenery alone still looks like Betty.
-  const svg = mapSvg({ center: hasRoad ? trackCenter(track) : null, here: null, headingDeg: null, track: hasRoad ? track : [], places: [], incidents: [], marks: [], spanKm: hasRoad ? spanFor(track) : 6 }, 'The road', 'card')
+  const spanKm = hasRoad ? spanFor(track) : 6;
+  const x = hasRoad ? c.extras : null;
+  // The weather pill sits over the map's top-left corner: keep names out from under it. The SVG is drawn with
+  // "slice" (scaled to cover, centred), so the pill's box is turned back into map units.
+  const sc = Math.max(mapW / MAP_W, mapH / MAP_H), ox = (mapW - MAP_W * sc) / 2, oy = (mapH - MAP_H * sc) / 2;
+  const pill = { x0: (0 - ox) / sc, y0: (0 - oy) / sc, x1: (22 + 330 - ox) / sc, y1: (22 + 66 - oy) / sc };
+  const labels = x?.places ? pickLabels(x.samples, spanKm, c.hideEnds ? x.ends : []).map((l) => ({ lat: l.lat, lon: l.lon, label: l.name })) : [];
+  const svg = mapSvg({
+    center: hasRoad ? trackCenter(track) : null, here: null, headingDeg: null, track: hasRoad ? track : [], places: [], incidents: [], marks: [], spanKm,
+    borders: x?.metroLine && x.metro?.length ? { suburbs: [], metro: x.metro } : null, labels, avoid: [pill],
+  }, 'The road', 'card')
     .replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="${mapW}" height="${mapH}" `);
   try { g.drawImage(await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`), PAD, mapY, mapW, mapH); } catch { /* plain background */ }
   if (!hasRoad) {
@@ -122,7 +135,6 @@ export async function drawRideCard(doc: Document, c: CardInput): Promise<Blob> {
     g.fillStyle = C.soft; g.textAlign = 'center'; g.fillText(msg, W / 2, mapY + mapH / 2 + 6); g.textAlign = 'left';
   }
   g.restore();
-  void MAP_H; void MAP_W;
 
   // The weather of the ride, as the app's screens show it: a small pill in the map's top corner.
   const wx = weatherPill(c.ride.weather);

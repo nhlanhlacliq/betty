@@ -58,3 +58,45 @@ export function trimEnds(track: TrackPoint[], km = 0.5): TrackPoint[] {
   const to = track.length - along([...track].reverse());
   return from < to ? track.slice(from, to) : [];
 }
+
+/** `n` points spread evenly along a track by distance (at 1/2n, 3/2n, ...), with how far along each is (0 to 1). */
+export function samplesAlong(track: TrackPoint[], n: number): Array<{ lat: number; lon: number; frac: number }> {
+  if (track.length < 2 || n < 1) return [];
+  const cum = [0];
+  for (let i = 1; i < track.length; i++) cum.push(cum[i - 1] + haversineKm({ lat: track[i - 1][0], lon: track[i - 1][1] }, { lat: track[i][0], lon: track[i][1] }));
+  const total = cum[cum.length - 1];
+  if (!total) return [];
+  const out: Array<{ lat: number; lon: number; frac: number }> = [];
+  let i = 1;
+  for (let k = 0; k < n; k++) {
+    const want = ((k + 0.5) / n) * total;
+    while (i < cum.length - 1 && cum[i] < want) i++;
+    const t = cum[i] > cum[i - 1] ? (want - cum[i - 1]) / (cum[i] - cum[i - 1]) : 0;
+    out.push({ lat: track[i - 1][0] + (track[i][0] - track[i - 1][0]) * t, lon: track[i - 1][1] + (track[i][1] - track[i - 1][1]) * t, frac: want / total });
+  }
+  return out;
+}
+
+/** What /api/area said at one point along the ride. */
+export interface AreaSample { lat: number; lon: number; frac: number; suburb: string | null; town: string | null }
+
+/**
+ * The names to write along the road on a ride card: towns on a long ride (suburbs are too small to mean anything at
+ * 50 km across), suburbs on a short one; each name once, at the sample in the middle of its run; never a name in
+ * `exclude` (where he starts and finishes, when those are hidden); at most `max`, spread along the ride.
+ */
+export function pickLabels(samples: AreaSample[], spanKm: number, exclude: string[], max = 6): Array<{ name: string; lat: number; lon: number }> {
+  const plain = (x: string | null) => (x ? x.replace(/^City of\s+/i, '').replace(/\s+(Metropolitan|Local|District)\s+Municipality$/i, '').trim() || null : null);
+  const no = new Set(exclude.map((x) => plain(x)?.toLowerCase()).filter(Boolean));
+  const runs = new Map<string, AreaSample[]>();
+  for (const s of [...samples].sort((a, b) => a.frac - b.frac)) {
+    const town = plain(s.town), suburb = plain(s.suburb);
+    const name = spanKm >= 25 ? town ?? suburb : suburb ?? town;
+    if (!name || no.has(name.toLowerCase())) continue;
+    runs.set(name, [...(runs.get(name) ?? []), s]);
+  }
+  let picks = [...runs.entries()].map(([name, ss]) => ({ name, at: ss[Math.floor((ss.length - 1) / 2)] }))
+    .sort((a, b) => a.at.frac - b.at.frac);
+  if (picks.length > max) picks = Array.from({ length: max }, (_, k) => picks[Math.round((k * (picks.length - 1)) / (max - 1 || 1))]);
+  return picks.map((p) => ({ name: p.name, lat: p.at.lat, lon: p.at.lon }));
+}

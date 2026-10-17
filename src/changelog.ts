@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Ride cards show the towns you rode through along the road, and the real boundary between metros as a dashed line. Both can be switched off in Garage > The map. Where you start and finish stays off while that is hidden. The names load when you open a ride (a few seconds the first time), then they are kept. Area names no longer end in "Local Municipality".',
       'Suburb borders on the maps (Garage > The map, off by default): light lines and names like a property map. They are approximate, drawn between suburb centres, because OpenStreetMap has no exact suburb lines here; the metro boundary is exact. A new area takes a little while the first time, then it is kept.',
       'Let Betty know me (Garage): ask ChatGPT or Claude what they know about you, paste it in (or load a file), and Betty distils it into a short profile you can read and edit. She uses it lightly: now and then in a remark, to pick stories you would like, and when you ask her something. Never in alerts.',
       'Google Maps links shared from an iPhone work now (they use an older link style), and a route ending at a dropped pin is named after the place.',
