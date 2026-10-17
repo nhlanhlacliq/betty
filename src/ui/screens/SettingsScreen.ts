@@ -36,6 +36,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     preset.value = p ?? CUSTOM;
     $('talkhint').textContent = p ? 'How much company feels right?' : 'A custom mix, set in the Workshop (TUNING).';
     glance.checked = CONFIG.showGlance;
+    $<HTMLInputElement>('mapborders').checked = CONFIG.mapBorders;
     for (const [id, key] of ISLAND) { const b = $<HTMLInputElement>(id); b.checked = CONFIG.island[key]; b.disabled = !CONFIG.showGlance; }
     $('garagefuel').textContent = ctx.fuelText();
   };
@@ -46,6 +47,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   blend.addEventListener('change', () => { CONFIG.persona.tars = Number(blend.value); changed(); });
   preset.addEventListener('change', () => { if (preset.value !== CUSTOM) { applyTalkPreset(preset.value as TalkPreset); changed(); } });
   glance.addEventListener('change', () => { CONFIG.showGlance = glance.checked; changed(); });
+  $<HTMLInputElement>('mapborders').addEventListener('change', (e) => { CONFIG.mapBorders = (e.target as HTMLInputElement).checked; changed(); });
   for (const [id, key] of ISLAND) $<HTMLInputElement>(id).addEventListener('change', (e) => { CONFIG.island[key] = (e.target as HTMLInputElement).checked; changed(); });
   $('sample').addEventListener('click', () => ctx.sample());
 

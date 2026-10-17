@@ -32,6 +32,8 @@ export interface RideExtras {
 
 export interface RideScreen {
   paint(v: RideView, x: RideExtras, map: Omit<MapInput, 'spanKm'>): void;
+  /** Repaint the map (borders arrived) */
+  repaintMap(): void;
 }
 
 /**
@@ -39,7 +41,7 @@ export interface RideScreen {
  * (orb, state, what she says, chat and microphone) and Lock / End ride. What to show is decided by rideView (pure,
  * tested); this paints it, touching the DOM only where something changed.
  */
-export function mountRideScreen(doc: Document, actions: RideActions): RideScreen {
+export function mountRideScreen(doc: Document, actions: RideActions, borders?: (center: { lat: number; lon: number }, spanKm: number) => MapInput['borders']): RideScreen {
   const $ = (id: string) => doc.getElementById(id)!;
   $('ask').addEventListener('click', () => actions.talk());
   $('rideorb').addEventListener('click', () => actions.repeat());
@@ -57,7 +59,9 @@ export function mountRideScreen(doc: Document, actions: RideActions): RideScreen
   const html = (id: string, value: string) => { if (last.get(id) !== value) { last.set(id, value); $(id).innerHTML = value; } };
   const paintMap = () => {
     if (!lastMap) return;
-    html('ridemap', mapSvg(manual ? { ...lastMap, center: manual.center, spanKm: manual.spanKm } : { ...lastMap, spanKm: span }, undefined, 'ride'));
+    const view: MapInput = manual ? { ...lastMap, center: manual.center, spanKm: manual.spanKm } : { ...lastMap, spanKm: span };
+    if (view.center) view.borders = borders?.(view.center, view.spanKm) ?? null;
+    html('ridemap', mapSvg(view, undefined, 'ride'));
     doc.querySelector('[data-zoom="reset"]')?.classList.toggle('lit', manual !== null);
   };
   doc.querySelectorAll<HTMLElement>('[data-zoom]').forEach((b) => b.addEventListener('click', () => {
@@ -73,6 +77,7 @@ export function mountRideScreen(doc: Document, actions: RideActions): RideScreen
     (v) => { manual = v; paintMap(); });
 
   return {
+    repaintMap() { last.delete('ridemap'); paintMap(); },
     paint(v, x, map) {
       lastMap = map;
       paintMap();

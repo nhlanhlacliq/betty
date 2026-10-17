@@ -373,6 +373,15 @@ has dynamic content, and a smoke test.
   `stopsAhead`, and the finish), Tell me a story (forces an untold area_story), What's that? (asks about the place);
   progress bars for route done, fuel range left of a full tank, and the last hour of light. "Show the island" (the old
   Visual companion switch, `showGlance`) moved into that card. `islandView` is pure and tested. Not tried on a phone.
+- Suburb borders (2026-10-17, owner chose option A, OFF by default: Garage > The map > Suburb borders). OpenStreetMap
+  has NO suburb boundaries around Gauteng (only suburb centre points, 26 around Edenvale, plus council wards; checked
+  with Overpass), Property24's are proprietary. So borders are ESTIMATED: `voronoiCells` (mapView.ts) gives each suburb
+  the area closer to its centre than to any other, drawn faint sage (1.1 px, 50%), names only at 8 km across or
+  closer, nothing beyond 30 km. The metro boundary (admin_level 6, real) is a darker dashed line. Data: `api/borders`
+  per 0.1 degree tile (one Overpass query, mirror overpass.kumi.systems on failure, edge cache a week); Overpass takes
+  ~20 s a tile and rate-limits (HTTP 429 with two at once), so `adapters/BorderTiles` fetches one tile at a time, only
+  for views up to 12 km across, keeps tiles in `betty.borders.v1` for good, and repaints both maps as they arrive.
+  0.05 degree tiles needed ~16 for one view (minutes): hence 0.1.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

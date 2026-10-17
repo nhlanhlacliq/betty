@@ -54,6 +54,7 @@ import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
+import { BorderTiles } from './adapters/BorderTiles';
 import { ProfileStore, mountKnowMe } from './ui/KnowMe';
 import { stopsAhead } from './core/Route';
 import { rideTitle } from './ui/screens/HomeScreen';
@@ -471,11 +472,18 @@ const readiness = (): ReadyRow[] => {
     { icon: 'lock', label: 'Screen', value: nav && 'wakeLock' in nav ? 'Kept awake while riding' : 'Set Auto-Lock to Never', ok: !!nav && 'wakeLock' in nav },
   ];
 };
+// Map suburb borders (Garage > The map, off by default): tiles kept on the phone, both maps repaint as they arrive.
+const borderTiles = new BorderTiles(() => { homeRef?.repaintMap(); rideRef?.repaintMap(); });
+let homeRef: { repaintMap(): void } | null = null;
+let rideRef: { repaintMap(): void } | null = null;
+const bordersFor = (center: { lat: number; lon: number }, spanKm: number) => (CONFIG.mapBorders && SERVER ? borderTiles.forView(center, spanKm) : null);
 const home = mountHomeScreen(document, shell, {
+  borders: bordersFor,
   hello: () => sayOutsideRide(HOME.hello(cleanRiderName(CONFIG.riderName))), readiness, fuelText,
   rides: () => RideLog.load(), track: (rideId) => TrackStore.get(rideId), home: () => CONFIG.feeds.fallbackLocation,
   route: () => RouteStore.get(),
 });
+homeRef = home;
 // Let Betty know me: his rider profile (Garage), passed to a running ride whenever it changes.
 mountKnowMe(document, {
   enabled: () => CONFIG.useProfile,
@@ -506,7 +514,8 @@ let rideHooks: RideActions | null = null;
 const rideScreen = mountRideScreen(document, {
   talk: () => rideHooks?.talk(), repeat: () => rideHooks?.repeat(), toggleQuiet: () => rideHooks?.toggleQuiet(), ask: (t) => rideHooks?.ask(t),
   island: (k, g) => rideHooks?.island(k, g),
-});
+}, bordersFor);
+rideRef = rideScreen;
 // Chat: a conversation view during a ride (the chat button in the ride dock), and the developer chat in the
 // Workshop, which also works without a ride by starting a desk session behind it.
 const chatListen = (fn: (e: ChatEntry) => void) => { chatListeners.add(fn); return () => { chatListeners.delete(fn); }; };

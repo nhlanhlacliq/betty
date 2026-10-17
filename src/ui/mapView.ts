@@ -21,6 +21,8 @@ export interface MapInput {
   marks: MapPin[];
   /** Width of the map in km */
   spanKm: number;
+  /** Optional suburb borders (estimated between suburb centres) and the real metro boundary */
+  borders?: { suburbs: Array<{ name: string; lat: number; lon: number }>; metro: Array<Array<[number, number]>> } | null;
   /** The planned route (dotted, under the ridden track) and its named stops */
   route?: TrackPoint[];
   routeStops?: MapPin[];
@@ -40,6 +42,57 @@ export function projector(center: LatLon, spanKm: number) {
   const pxPerKm = MAP_W / spanKm;
   const kx = 111.32 * Math.cos((center.lat * Math.PI) / 180);
   return (p: LatLon) => ({ x: MAP_W / 2 + (p.lon - center.lon) * kx * pxPerKm, y: MAP_H / 2 - (p.lat - center.lat) * 110.57 * pxPerKm });
+}
+
+/**
+ * Suburb borders, ESTIMATED: OpenStreetMap has only suburb centre points in Gauteng (no boundaries), so each suburb
+ * gets the area closer to its centre than to any other (a Voronoi cell, clipped to the map). Drawn faint in the
+ * texture's sage so the sketch stays the main look; names only when zoomed in. The metro boundary is real (dashed).
+ */
+export function voronoiCells(pts: Array<{ x: number; y: number }>, box: { x0: number; y0: number; x1: number; y1: number }): Array<Array<{ x: number; y: number }>> {
+  return pts.map((p, i) => {
+    let poly = [{ x: box.x0, y: box.y0 }, { x: box.x1, y: box.y0 }, { x: box.x1, y: box.y1 }, { x: box.x0, y: box.y1 }];
+    for (let j = 0; j < pts.length && poly.length; j++) {
+      if (j === i) continue;
+      const q = pts[j];
+      // Keep the half of the plane closer to p than to q: (v - mid) . (q - p) <= 0
+      const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2, nx = q.x - p.x, ny = q.y - p.y;
+      if (!nx && !ny) continue;
+      const side = (v: { x: number; y: number }) => (v.x - mx) * nx + (v.y - my) * ny;
+      const out: Array<{ x: number; y: number }> = [];
+      for (let k = 0; k < poly.length; k++) {
+        const a = poly[k], b = poly[(k + 1) % poly.length];
+        const sa = side(a), sb = side(b);
+        if (sa <= 0) out.push(a);
+        if ((sa < 0 && sb > 0) || (sa > 0 && sb < 0)) { const t = sa / (sa - sb); out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); }
+      }
+      poly = out;
+    }
+    return poly;
+  });
+}
+
+function bordersSvg(b: NonNullable<MapInput['borders']>, at: (p: LatLon) => { x: number; y: number }, spanKm: number): string {
+  const pad = 200;
+  const seen = new Set<string>();
+  const pts = b.suburbs.map((s) => ({ ...at(s), name: s.name })).filter((p) => {
+    const k = `${Math.round(p.x)},${Math.round(p.y)}`;
+    if (seen.has(k) || p.x < -pad * 3 || p.x > MAP_W + pad * 3 || p.y < -pad * 3 || p.y > MAP_H + pad * 3) return false;
+    seen.add(k); return true;
+  });
+  const cells = voronoiCells(pts, { x0: -pad, y0: -pad, x1: MAP_W + pad, y1: MAP_H + pad });
+  const out: string[] = [];
+  for (const c of cells) if (c.length > 2) out.push(`<path d="${c.map((v, i) => `${i ? 'L' : 'M'}${r1(v.x)} ${r1(v.y)}`).join('')}Z" fill="none" stroke="#8fa587" stroke-width="1.1" stroke-linejoin="round" opacity=".5"/>`);
+  for (const line of b.metro) {
+    const d = line.map((t, i) => { const p = at({ lat: t[0], lon: t[1] }); return `${i ? 'L' : 'M'}${r1(p.x)} ${r1(p.y)}`; }).join('');
+    out.push(`<path d="${d}" fill="none" stroke="#6f8a68" stroke-width="1.8" stroke-dasharray="7 6" opacity=".6"/>`);
+  }
+  if (spanKm <= 8) {
+    for (const p of pts) if (p.x > 10 && p.x < MAP_W - 10 && p.y > 14 && p.y < MAP_H - 6) {
+      out.push(`<text x="${r1(p.x)}" y="${r1(p.y)}" font-size="${spanKm <= 4 ? 12 : 10.5}" fill="#6f7f6c" opacity=".75" text-anchor="middle" letter-spacing=".3">${esc(p.name.length > 22 ? p.name.slice(0, 21) + '…' : p.name)}</text>`);
+    }
+  }
+  return `<g class="borders">${out.join('')}</g>`;
 }
 
 /** The map position (in map units, 660 x 500) back to a place: the inverse of `projector`. */
@@ -85,6 +138,7 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
   if (center) {
     const at = projector(center, m.spanKm);
     const onMap = (p: { x: number; y: number }, pad = 40) => p.x > -pad && p.x < MAP_W + pad && p.y > -pad && p.y < MAP_H + pad;
+    if (m.borders) parts.push(bordersSvg(m.borders, at, m.spanKm));
     if (m.route && m.route.length > 1) {
       const d = m.route.map((t, i) => { const p = at({ lat: t[0], lon: t[1] }); return `${i ? 'L' : 'M'}${r1(p.x)} ${r1(p.y)}`; }).join('');
       parts.push(`<path d="${d}" fill="none" stroke="#fffdf3" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>`

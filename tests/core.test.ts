@@ -1256,6 +1256,31 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(ownWords('Just some notes about me.'), 'Just some notes about me.');
 }
 
+// ---- map suburb borders: tiles, estimated cells, one request at a time, kept
+{
+  const { voronoiCells } = await import('../src/ui/mapView');
+  const { tileOf, tilesFor, BorderTiles, SHOW_SPAN_KM } = await import('../src/adapters/BorderTiles');
+  const cells = voronoiCells([{ x: 100, y: 100 }, { x: 300, y: 100 }], { x0: 0, y0: 0, x1: 400, y1: 200 });
+  assert.deepEqual(cells[0].map((v) => v.x).sort((a, b) => a - b), [0, 0, 200, 200], 'the border runs halfway between the two centres');
+  assert.deepEqual(cells[1].map((v) => v.x).sort((a, b) => a - b), [200, 200, 400, 400]);
+  assert.equal(tileOf(-26.13, 28.17), '-26.20,28.10'); assert.equal(tileOf(-26.1, 28.1), '-26.10,28.10');
+  const vt = tilesFor({ lat: -26.14, lon: 28.15 }, 6);
+  assert.ok(vt.length >= 1 && vt.length <= 9, `a 6 km view needs a few tiles (more only on a corner): ${vt}`);
+  const asked: string[] = []; let updates = 0;
+  const mem = new Map<string, string>();
+  const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); } };
+  const bt = new BorderTiles(() => { updates++; }, (async (u: any) => { asked.push(String(u)); return new Response(JSON.stringify({ suburbs: [{ name: 'Elmapark', lat: -26.13, lon: 28.16 }], metro: [] })); }) as typeof fetch, store);
+  assert.equal(bt.forView({ lat: -26.14, lon: 28.15 }, 3), null, 'nothing known yet');
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(asked.length >= 1 && updates === asked.length, 'one tile after another'); assert.match(asked[0], /^\/api\/borders\?tile=-26\.\d\d,28\.\d\d$/);
+  assert.ok(bt.forView({ lat: -26.14, lon: 28.15 }, 3)!.suburbs.length >= 1);
+  const later = new BorderTiles(() => {}, (async () => { throw new Error('not needed'); }) as unknown as typeof fetch, store);
+  assert.ok(later.forView({ lat: -26.14, lon: 28.15 }, 3), 'kept on the phone: the next visit needs no requests');
+  assert.equal(bt.forView({ lat: -26.14, lon: 28.15 }, SHOW_SPAN_KM + 1), null, 'zoomed far out: no borders');
+  const { GET: bordersApi } = await import('../api/borders');
+  assert.equal((await bordersApi(new Request('https://betty-zeta.vercel.app/api/borders?tile=-26.15,28.15', { headers: { host: 'betty-zeta.vercel.app', origin: 'https://betty-zeta.vercel.app' } }))).status, 400, 'only whole tiles');
+}
+
 // ---- slim panels: a swipe down slims, up brings it back, sideways or short does nothing
 {
   const { dockSwipe } = await import('../src/ui/dockSwipe');

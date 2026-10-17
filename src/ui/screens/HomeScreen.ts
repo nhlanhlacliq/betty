@@ -20,11 +20,14 @@ export interface HomeContext {
   track(rideId: number): TrackPoint[];
   /** Where to centre the map with no ride to show */
   home(): { lat: number; lon: number };
+  /** Suburb borders for a view (null when switched off or not known yet) */
+  borders?(center: { lat: number; lon: number }, spanKm: number): MapInput['borders'];
   /** The planned route, if any: shown on the map instead of the last ride */
   route?(): { name: string; points: TrackPoint[]; stops: Array<{ lat: number; lon: number; name: string; named: boolean }> } | null;
 }
 
 export interface HomeScreen {
+  repaintMap(): void;
   /** While a ride runs the button goes back to it, and the ride mode cannot change. */
   setRiding(on: boolean): void;
 }
@@ -111,7 +114,9 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
       places: [], incidents: [], marks: [], spanKm: track.length ? spanFor(track) : DEFAULT_SPAN_KM,
     };
     fitted = input.center ? { center: input.center, spanKm: input.spanKm } : null;
-    const svg = mapSvg(manual ? { ...input, center: manual.center, spanKm: manual.spanKm } : input,
+    const view = manual ? { ...input, center: manual.center, spanKm: manual.spanKm } : input;
+    if (view.center) view.borders = ctx.borders?.(view.center, view.spanKm) ?? null;
+    const svg = mapSvg(view,
       planned ? `Your route to ${planned.name}: not for navigation` : 'Sketch of your last ride: not for navigation', 'home');
     if (svg !== lastMap) { lastMap = svg; $('homemap').innerHTML = svg; }
     $('hometemp').textContent = last?.weather?.match(/-?\d+\s*C/)?.[0].replace(/\s*C/, '°') ?? '';
@@ -132,6 +137,8 @@ export function mountHomeScreen(doc: Document, shell: Shell, ctx: HomeContext): 
 
   paint();
   return {
+    /** Repaint the map (borders arrived) */
+    repaintMap() { lastMap = ''; paint(); },
     setRiding(on) {
       $('starttext').textContent = on ? 'Back to the ride' : "Let's ride";
       paint();

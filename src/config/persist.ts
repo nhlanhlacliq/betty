@@ -7,7 +7,7 @@ const pick = () => ({
   safeWindow: CONFIG.safeWindow, thresholds: CONFIG.thresholds, priorities: CONFIG.priorities,
   cooldownsMs: CONFIG.cooldownsMs, ambientCooldownMs: CONFIG.ambientCooldownMs,
   ambientMaxAgeMs: CONFIG.ambientMaxAgeMs, milestoneEveryMin: CONFIG.milestoneEveryMin,
-  ambient: CONFIG.ambient, maxSpokenSentences: CONFIG.maxSpokenSentences, persona: CONFIG.persona, fuel: CONFIG.fuel, obdMode: CONFIG.obdMode, riderName: CONFIG.riderName, bikeName: CONFIG.bikeName, voiceURI: CONFIG.voiceURI, headsetButtons: CONFIG.headsetButtons, showGlance: CONFIG.showGlance, useProfile: CONFIG.useProfile, island: CONFIG.island, micDeviceId: CONFIG.micDeviceId, micLabel: CONFIG.micLabel, micRaw: CONFIG.micRaw, cloudVoice: CONFIG.cloudVoice, cloudVoiceName: CONFIG.cloudVoiceName, geminiModel: CONFIG.geminiModel, chirpLocale: CONFIG.chirpLocale, chirpStandIn: CONFIG.chirpStandIn,
+  ambient: CONFIG.ambient, maxSpokenSentences: CONFIG.maxSpokenSentences, persona: CONFIG.persona, fuel: CONFIG.fuel, obdMode: CONFIG.obdMode, riderName: CONFIG.riderName, bikeName: CONFIG.bikeName, voiceURI: CONFIG.voiceURI, headsetButtons: CONFIG.headsetButtons, showGlance: CONFIG.showGlance, useProfile: CONFIG.useProfile, mapBorders: CONFIG.mapBorders, island: CONFIG.island, micDeviceId: CONFIG.micDeviceId, micLabel: CONFIG.micLabel, micRaw: CONFIG.micRaw, cloudVoice: CONFIG.cloudVoice, cloudVoiceName: CONFIG.cloudVoiceName, geminiModel: CONFIG.geminiModel, chirpLocale: CONFIG.chirpLocale, chirpStandIn: CONFIG.chirpStandIn,
 });
 
 export function loadConfig() {
