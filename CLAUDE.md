@@ -312,6 +312,11 @@ has dynamic content, and a smoke test.
   same count as a badge on the Garage tab, and a sheet listing `src/changelog.ts` with the unread items marked. Seen =
   how many items he has seen (`betty.seen.v1`; entries are only added at the top); opening the sheet marks all read;
   a first visit counts only the newest day. Keep writing changelog entries: they now show as a badge.
+- Gestures (2026-10-17, `ui/gestures.ts`): screens scroll inside the fixed frame (and the installed app has no
+  browser refresh), so pull-to-refresh is our own: pull down at the top of any screen, a pill follows ("Release to
+  refresh" past 64 px damped), letting go saves the log and reloads. Disabled while a ride or desk session runs (a
+  reload would end it), inside sheets, lists and fields. Every sheet can be dragged down to close: from its handle,
+  or from its body when scrolled to the top; past 110 px or a quick flick it closes, otherwise it snaps back.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or
@@ -845,8 +850,14 @@ arrival time and weather, fuel in range and stories waiting; her voice carries m
   and asks TomTom for the route through them. Shared links are short (maps.app.goo.gl/...) and redirect to the full
   /maps/dir/A/B/C... URL, so a server function must follow the redirect (the browser cannot, CORS); the full URL may
   carry names, coordinates or both (check real links). Turn-by-turn stays in Google Maps (a link takes about 9 stops).
-- To check before building: TomTom's stop limit per route, its option to follow a given line (supporting points),
-  and a few of his real shared links (with and without stops).
+- HIS REAL LINK (2026-10-17), maps.app.goo.gl/udizMiFvko6vS6ka8: a 302 redirect (followed server side, no key) to
+  /maps/dir/BMW+Motorrad+Fourways/-25.943222,27.879599/.../-25.8701221,27.8771522/BMW+Motorrad+Fourways/data=...
+  i.e. path segments = stops in order: named places as text (their coordinates are in the data blob as
+  !3d<lat>!4d<lon>, here -26.0208531, 28.0022658) and his added stops as plain "lat,lon". A loop ride: start and end
+  at the dealership, 8 coordinate stops. `!3e0` = driving. TomTom routed all 10 points as one motorcycle route:
+  230 km, about 179 min, 9 legs (19, 12, 35, 39, 20, 41, 7, 32, 24 km), 2,613 shape points. So: parse path segments,
+  take coordinates as they are, take a name's coordinates from the !3d/!4d pairs in order (or TomTom Search), route.
+- To check before building: TomTom's stop limit per route (10 worked), and its option to follow a given line.
 
 ## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
 

@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-17',
     items: [
+      'Pull down at the top of any screen to refresh the app (not during a ride). Drag any open panel down to close it.',
       'What\'s new now lives in Garage, with a count of new updates on the Garage tab. Opening it marks them read.',
       'Live traffic is checked every 5 minutes, only on a real ride and only while you are moving (it saves the free TomTom allowance).',
       'Install Betty as an app: on iPhone, Share then Add to Home Screen; on Android, Install app from the browser menu. She has her own icon now, and the app opens even with no signal.',

@@ -1193,6 +1193,15 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(!e2.evaluate({ ...s, lat: -26.16 }).some((x) => x.id === 'marked_spot'), 'not from a kilometre away');
 }
 
+// ---- gestures: pull to refresh, drag a sheet down to close
+{
+  const { pullState, shouldClose, REFRESH_AT } = await import('../src/ui/gestures');
+  assert.deepEqual(pullState(40), { offset: 20, armed: false }); assert.equal(pullState(REFRESH_AT * 2).armed, true, 'armed at 128 px of pull');
+  assert.equal(pullState(1000).offset, 90, 'the pill stops following'); assert.equal(pullState(-30).offset, 0);
+  assert.equal(shouldClose(120, 600), true, 'dragged far'); assert.equal(shouldClose(60, 600), false, 'not far, slow: snaps back');
+  assert.equal(shouldClose(60, 80), true, 'a quick flick'); assert.equal(shouldClose(30, 10), false, 'a twitch');
+}
+
 // ---- cloud voice: server function
 {
   const realFetch = globalThis.fetch; const saved = { ...process.env };

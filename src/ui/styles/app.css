@@ -426,3 +426,9 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .whatsnew-list .changes { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
 .whatsnew-list li { margin: 4px 0; }
 .whatsnew-list li.new::marker { color: var(--accent); content: '● '; }
+
+/* Pull to refresh (ui/gestures.ts): a pill that follows the finger down from the top */
+.ptr { position: absolute; top: calc(var(--status-h) + 4px); left: 50%; transform: translate(-50%, -60px); z-index: 60; padding: 8px 14px; border-radius: 16px;
+  background: #2e483f; color: #fffbed; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.ptr.show { opacity: .92; }
+.ptr.armed { background: var(--accent); color: #3d3618; }

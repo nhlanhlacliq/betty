@@ -53,6 +53,7 @@ import { mountExploreScreen } from './ui/screens/ExploreScreen';
 import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
 import { mountBackup } from './ui/backup';
+import { mountPullToRefresh, mountSheetDrag } from './ui/gestures';
 import { SaidLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 
@@ -370,6 +371,9 @@ const sayOutsideRide = (text: string) => {
 };
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
 // Betty's look: the default companion or his own picture/GIF, kept on the phone.
+// Pull down to refresh (never while a ride or desk session runs: a reload would end it); drag a sheet down to close.
+mountPullToRefresh(document, { canRefresh: () => rig === null, reload: () => { saveLog(); location.reload(); } });
+mountSheetDrag(document, shell);
 const avatarStore = new IdbAvatarStore();
 mountAvatarSetting(document, avatarStore, (m, err) => shell.toast(m, err));
 // Your data: everything in one file, to move to a new phone.
