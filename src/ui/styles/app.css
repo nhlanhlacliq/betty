@@ -485,3 +485,8 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .dock-slim .active-dock .ride-stats, .dock-slim .active-dock #ridesub, .dock-slim .active-dock .ride-actions, .dock-slim .active-dock .simulation-note { display: none; }
 .dock-slim .active-dock .betty-ride-heading { margin-bottom: 0; }
 .dock-slim .active-dock { padding-top: 18px; }
+
+/* The map screens never scroll or bounce: swiping the panel moved the whole screen with it on iPhone (2026-10-17).
+   Only the panel and the map react to the finger there. */
+.map-screen { overflow: hidden; overscroll-behavior: none; }
+html, body { overscroll-behavior: none; }

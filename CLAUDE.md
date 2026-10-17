@@ -346,6 +346,8 @@ has dynamic content, and a smoke test.
   row (orb, state, chat, microphone); stats, her line, Lock/End ride come back with the panel. `.dock-slim` on the
   screen; remembered per screen in `betty.dock.v1`. The map re-frames by itself (followDock's --dock-h). Swipes on
   fields, the microphone and her scrolling line are left alone; pull-to-refresh ignores both docks.
+  The swipe moved the WHOLE screen on iPhone (the page scrolled/bounced with it): map screens are now overflow hidden
+  with no overscroll, html/body overscroll-behavior none, and the dock's vertical touchmove calls preventDefault.
 ## Simulator and tuning (dev tools, ship with the app)
 
 START RIDE has a "Use real phone sensors" checkbox. Untick it on desktop for a fully simulated session (no GPS or

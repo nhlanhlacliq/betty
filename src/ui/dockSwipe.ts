@@ -32,9 +32,11 @@ export function mountCollapsibleDock(screen: HTMLElement, dock: HTMLElement, whi
   dock.addEventListener('touchmove', (e) => {
     if (!on) return;
     const p = e.touches[0]; dy = p.clientY - y0; dx = p.clientX - x0;
+    // A vertical swipe belongs to the panel: stop iPhone from scrolling or bouncing the page under it.
+    if (Math.abs(dy) > Math.abs(dx) && e.cancelable) e.preventDefault();
     // Follow the finger a little on the way down, so it feels attached.
     if (dy > 0 && Math.abs(dy) > Math.abs(dx) && !screen.classList.contains('dock-slim')) dock.style.transform = `translateY(${Math.min(dy, 120) * 0.6}px)`;
-  }, { passive: true });
+  }, { passive: false });
   const end = () => {
     if (!on) return;
     on = false; dock.style.transform = '';
