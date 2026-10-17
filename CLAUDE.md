@@ -840,11 +840,13 @@ arrival time and weather, fuel in range and stories waiting; her voice carries m
 - His own route with stops: an ordered list of stops ("Heidelberg, Villiers, Clarens", typed or said), pass-through
   points vs real stops (breakfast, fuel) that she counts in the arrival time; re-ride a past ride's stored track;
   saved routes in Journeys.
-- Import from other software: GPX (Calimoto, Kurviger, Scenic, Komoot, REVER, Garmin; Google My Maps via KML). Betty
-  uses the imported line as it is (no re-routing). A shared Google Maps directions link could be parsed for its stops
-  (his planning tool). Turn-by-turn stays with Google Maps (a link takes about 9 stops) or a GPX-following app.
+- Import: ONLY a shared Google Maps directions link (owner, 2026-10-17: he uses no other riding apps, so no GPX for
+  now). He plans in Google Maps, shares the directions, pastes the link into "Where to?"; Betty reads the stops from it
+  and asks TomTom for the route through them. Shared links are short (maps.app.goo.gl/...) and redirect to the full
+  /maps/dir/A/B/C... URL, so a server function must follow the redirect (the browser cannot, CORS); the full URL may
+  carry names, coordinates or both (check real links). Turn-by-turn stays in Google Maps (a link takes about 9 stops).
 - To check before building: TomTom's stop limit per route, its option to follow a given line (supporting points),
-  and real files from his apps.
+  and a few of his real shared links (with and without stops).
 
 ## Ideas backlog (owner asked for these to be recorded, 2026-10-10; none built unless marked)
 
