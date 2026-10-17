@@ -13,7 +13,7 @@ import { describeFuelPlan, fuelLeft, kmToReserve, routeFuelPlan } from './core/F
 import { StationSource } from './adapters/StationSource';
 import { refreshFuelPrice } from './adapters/FuelPrice';
 import { ServiceStore } from './adapters/ServiceStore';
-import { dueInfo, dueText, findReminder, markDone, undoDone } from './core/Reminders';
+import { canUndo, dueInfo, dueText, findReminder, markDone, undoDone } from './core/Reminders';
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
@@ -968,7 +968,7 @@ async function beginRide(desk: boolean) {
       case 'undone': {
         const book = ServiceStore.load();
         const r = findReminder(book.items, c.what);
-        if (!r?.prev) { reply(r ? `${r.name} wasn't marked done, so there's nothing to take back.` : "I don't have a reminder for that.", 'undone'); return; }
+        if (!r || !canUndo(r)) { reply(r ? `${r.name} wasn't marked done, so there's nothing to take back.` : "I don't have a reminder for that.", 'undone'); return; }
         const next = undoDone(book, r.id);
         ServiceStore.save(next);
         engine.setServiceBook(next);

@@ -2189,6 +2189,13 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(R.undoDone(undone, 'oil').items.find((r) => r.id === 'oil'), back, 'nothing left to undo: unchanged');
   for (const [said, what] of [['Chain not done', 'chain'], ['Mark the oil as not done', 'oil'], ['Undo the brake fluid', 'brake fluid']] as const) assert.deepEqual(parseCommand(said), { kind: 'undone', what }, said);
   assert.equal(parseCommand('Undo that'), null, '"that" is no reminder');
+  // Done before Undo existed (no prev): a handbook item goes back to the schedule's guess
+  const early = { ...book, odoKm: 29_584, items: book.items.map((r) => (r.id === 'oil' ? { ...r, lastKm: 29_584, lastAt: t0, assumed: false, prev: undefined } : r)) };
+  const oilEarly = early.items.find((r) => r.id === 'oil')!;
+  assert.ok(R.canUndo(oilEarly));
+  const fixed = R.undoDone(early, 'oil').items.find((r) => r.id === 'oil')!;
+  assert.deepEqual([fixed.lastKm, fixed.assumed], [20_000, true]); assert.equal(R.dueInfo(fixed, 29_584, t0).kmLeft, 416, 'his 416 km back');
+  assert.equal(R.canUndo(early.items.find((r) => r.id === 'chain')!), false, 'rider care with no Done to take back: nothing to go back to');
   assert.match(R.describeDue(book, t0 + 15 * DAY), /^Maintenance: Chain clean and lube is due \(50 km overdue\); Tyre pressures is due \(1 day overdue\)\.$/);
   assert.equal(R.describeDue(R.starterBook(0, t0), t0), '', 'nothing due: nothing to say');
   assert.match(R.describeDue(R.starterBook(0, t0), t0, true), /Engine oil and filter in 10,000 km or in 12 months/);

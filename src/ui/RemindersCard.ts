@@ -1,4 +1,4 @@
-import { BIKES, Reminder, ServiceBook, alignToOdometer, dueList, dueText, markDone, undoDone } from '../core/Reminders';
+import { BIKES, Reminder, ServiceBook, alignToOdometer, canUndo, dueList, dueText, markDone, undoDone } from '../core/Reminders';
 import type { Shell } from './Shell';
 
 export interface RemindersContext {
@@ -73,8 +73,9 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
     $('reminderdelete').hidden = !r;
     // Mark as not done: back to before the last Done (the date it goes back to, so he knows what he is choosing).
     const back = $<HTMLButtonElement>('reminderundo');
-    back.hidden = !r?.prev;
+    back.hidden = !r || !canUndo(r);
     if (r?.prev) back.textContent = `Mark as not done (back to ${new Date(r.prev.lastAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })})`;
+    else if (r && canUndo(r)) back.textContent = `Mark as not done (back to the handbook: last done at ${(Math.floor(book.odoKm / r.everyKm!) * r.everyKm!).toLocaleString('en-US')} km)`;
     shell.openSheet('reminder');
   };
 

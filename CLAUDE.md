@@ -444,7 +444,8 @@ starter set from that day, odometer 0). Betty's odometer = km of REAL rides (not
 date; Delete), Done, Add. NOT DONE (owner, 2026-10-17): `markDone` keeps `prev` (lastKm, lastAt, assumed) and
 `undoDone` restores it; right after Done the row's button reads Undo (until he leaves the Garage), later the edit
 sheet offers "Mark as not done (back to <date>)" while `prev` exists; voice `{kind: 'undone'}` ("chain not done",
-"undo the oil"). Voice: `{kind: 'done', what}` ("chain done", "I lubed the chain", "the bike was serviced",
+"undo the oil"). `canUndo`: also a handbook item with no `prev` (his oil was marked Done before Undo shipped): back to
+the milestone below the odometer, `assumed` again. Voice: `{kind: 'done', what}` ("chain done", "I lubed the chain", "the bike was serviced",
 "mark tyre pressures as done"; after `end`, so "I'm done" still ends the ride); a "done" that matches no reminder is
 passed to her as a question. She mentions due/soon items in the briefing and the sign-off, answers get them (all of
 them when he asks about service/maintenance/chain/tyres), the home Details sheet has a Maintenance row.

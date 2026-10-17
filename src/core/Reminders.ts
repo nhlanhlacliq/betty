@@ -69,10 +69,18 @@ export function dueText(d: DueInfo): string {
 export const markDone = (book: ServiceBook, id: string, now: number): ServiceBook =>
   ({ ...book, items: book.items.map((r) => (r.id === id ? { ...r, lastKm: book.odoKm, lastAt: now, assumed: false, prev: { lastKm: r.lastKm, lastAt: r.lastAt, assumed: r.assumed } } : r)) });
 
+/**
+ * A handbook item with no Done to take back (done before Undo existed, 2026-10-17: the owner's oil showed 416 km to go,
+ * then Done by mistake) can still go back to the schedule's guess: last done at the milestone below the odometer.
+ */
+export const canUndo = (r: Reminder) => !!r.prev || (!!r.schedule && !r.assumed && r.everyKm != null);
+const scheduleGuess = (r: Reminder, odoKm: number) => Math.floor(odoKm / r.everyKm!) * r.everyKm!;
+
 /** Not done after all (tapped by mistake, or "chain not done"): back to how it stood before the last Done. */
 export const undoDone = (book: ServiceBook, id: string): ServiceBook =>
   ({ ...book, items: book.items.map((r) => {
-    if (r.id !== id || !r.prev) return r;
+    if (r.id !== id || !canUndo(r)) return r;
+    if (!r.prev) return { ...r, lastKm: scheduleGuess(r, book.odoKm), assumed: true };
     const { prev, ...rest } = r;
     return { ...rest, lastKm: prev.lastKm, lastAt: prev.lastAt, ...(prev.assumed ? { assumed: true } : { assumed: false }) };
   }) });
