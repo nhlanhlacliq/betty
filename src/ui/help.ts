@@ -34,6 +34,7 @@ export const VOICE_COMMANDS: CommandGroup[] = [
     { say: ['Switch to stories', 'Minimal', 'Balanced'], does: 'The talk presets from Garage: mostly stories, mostly quiet, or a mix.', kind: 'preset' },
     { say: ['More banter', 'Fewer stories', 'Less chatty', 'Talk more'], does: 'Nudges the mix of banter, stories and silence, or how often she speaks.', kind: 'mix' },
     { say: ['Banter 70 percent', 'Set stories to 50 percent', 'Silence 30 percent'], does: 'Sets that part of the mix exactly; the other two share the rest as before.', kind: 'mixset' },
+    { say: ['Louder', 'Speak up', 'Softer', 'Max volume', 'Normal volume'], does: 'Her voice over the wind: 4 dB a step, 0 to 16 (the Louder voice slider in Garage). The phone\'s backup voice cannot go louder.', kind: 'volume' },
     { say: ['Shorter answers', 'Longer answers'], does: 'How many sentences she uses a line (1 to 5).', kind: 'length' },
     { say: ['Save this as weekend mode', 'Switch to weekend mode', 'What mode are you in?'], does: 'Your own modes: the mix, how often she talks, line length and personality, kept under a name (also in Garage > Narration).', kind: 'mode' },
   ] },
@@ -165,7 +166,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     ])}` },
   { id: 'trouble', title: 'Troubleshooting', keywords: 'problem not working cannot hear sound quiet volume buttons stopped mic signal offline locked wrong',
     html: `${li([
-      '<b>Can\'t hear her over the wind:</b> Garage &gt; Voice &amp; audio &gt; Louder voice. Check the helmet is connected before you start the ride.',
+      '<b>Can\'t hear her over the wind:</b> say "louder" (or "max volume") on the ride, or Garage &gt; Voice &amp; audio &gt; Louder voice. Check the helmet is connected before you start the ride.',
       '<b>The headset buttons stopped working:</b> another app may have started playing (it takes the buttons), or you pressed previous track. Tap <i>Give Betty the headset buttons back</i> on the ride screen.',
       '<b>She didn\'t hear you:</b> wait for the tone, then speak. In strong wind say it a little louder; she stops after a pause or 12 seconds.',
       '<b>No signal:</b> the app still opens, commands still work and she keeps the GPS and fuel count. Alerts use lines she wrote earlier in her own words (refreshed once a day while you have signal), and area stories are read as written; answers and the cloud voice need signal, so she falls back to the phone\'s voice.',

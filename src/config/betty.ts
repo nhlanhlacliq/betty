@@ -68,7 +68,7 @@ export interface Config {
    * for in words, and it wants thinking "between_tools" (it rejects "disabled").
    */
   smartSearch: boolean;
-  /** His own named modes (voice: "save this as weekend mode", "switch to weekend mode"), by name */
+/** His own named modes (voice: "save this as weekend mode", "switch to weekend mode"), by name */
   modes: Record<string, SavedMode>;
   /** My journeys: a little drawing of each ride's road on its row (Garage switch, owner 2026-10-18) */
   journeyThumbs: boolean;
@@ -231,6 +231,14 @@ export function setMixShare(what: 'banter' | 'stories' | 'silence', pct: number)
 }
 /** "Shorter answers" / "longer answers": how many sentences a line may have, 1 to 5. */
 export const nudgeLength = (step: 1 | -1) => { CONFIG.maxSpokenSentences = Math.max(1, Math.min(5, CONFIG.maxSpokenSentences + step)); return CONFIG.maxSpokenSentences; };
+
+/** "Louder" / "softer": the Louder voice dial in 4 dB steps, 0 to 16 (the Garage slider's range); "normal" = the default. */
+export const VOICE_STEP_DB = 4;
+export const nudgeVoice = (c: { step?: 1 | -1; set?: 'max' | 'normal' }) => {
+  CONFIG.voiceBoostDb = c.set === 'max' ? 16 : c.set === 'normal' ? DEFAULT_CONFIG.voiceBoostDb
+    : Math.max(0, Math.min(16, CONFIG.voiceBoostDb + (c.step ?? 0) * VOICE_STEP_DB));
+  return CONFIG.voiceBoostDb;
+};
 
 /** His own named modes ("save this as weekend mode"): the talk mix, gap, line length and personality, kept by name. */
 export interface SavedMode { ambient: Pick<Config['ambient'], 'banterWeight' | 'tourGuideWeight' | 'silenceWeight'>; gapMs: number; maxSpokenSentences: number; persona: { tars: number; humour: number } }

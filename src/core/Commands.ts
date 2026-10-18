@@ -18,6 +18,8 @@ export type Command =
   | { kind: 'end' }
   /** "Anything ahead?": Horizon read out, from the phone */
   | { kind: 'ahead' }
+  /** "Louder" / "softer" / "max volume" / "normal volume": the Louder voice dial (dB), a step or a set value */
+  | { kind: 'volume'; step?: 1 | -1; set?: 'max' | 'normal' }
   /** "Shorter answers" / "longer answers" */
   | { kind: 'length'; step: 1 | -1 }
   /** "Banter 70 percent", "set stories to 50 percent", "silence 30 percent" */
@@ -111,6 +113,12 @@ export function parseCommand(said: string): Command | null {
   if (n <= 8 && /^(repeat( that| it| yourself| the last (thing|line|one))?( again)?( please)?|say (that|it) again|say again|come again|what did you (just )?say|pardon( me)?|sorry,? what|what was that)$/.test(low)) {
     return { kind: 'repeat' };
   }
+
+  // Volume before quiet ("quieter" is not "quiet": a softer voice, not silence)
+  if (n <= 6 && /^((max(imum)?|full) volume|(as )?loud as (you can|possible)|loudest)$/.test(low)) return { kind: 'volume', set: 'max' };
+  if (n <= 6 && /^(normal|default|usual) (volume|loudness)$/.test(low)) return { kind: 'volume', set: 'normal' };
+  if (n <= 7 && /^((a bit |a little )?louder|speak up|(talk|speak) (a bit |a little )?(louder|up)|turn (it |yourself |your voice |the volume )?up|volume up|more volume|(i )?can'?t hear you( well)?|i can barely hear you)$/.test(low)) return { kind: 'volume', step: 1 };
+  if (n <= 7 && /^((a bit |a little )?(softer|quieter)|(talk|speak) (a bit |a little )?(softer|quieter|more softly)|turn (it |yourself |your voice |the volume )?down|volume down|less volume|not so loud|(you'?re |that'?s )?too loud|lower your voice)$/.test(low)) return { kind: 'volume', step: -1 };
 
   if (n <= 12 && /^(be quiet|quiet|keep quiet|go quiet|stay quiet|shut up|hush|shh+|stop talking|stop chatting|silence(?! (?:to |at )?\d)|mute|mute yourself|give me (some )?(peace|quiet|silence)|no (more )?(talking|chatting|chatter|banter)|less talking|enough talking|not now)\b/.test(low)) {
     return { kind: 'quiet', minutes: minutesIn(low) };

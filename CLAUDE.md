@@ -11,7 +11,7 @@ She calls the rider by `CONFIG.riderName` (default "sir") and the motorcycle by 
 "the bike"). Both are editable on the main screen and persisted. The system prompt is built per request by
 `bettySystemPrompt()`, so a change applies to the next line.
 
-The rider can also speak to her ("Hey Betty, how's the bike?"). That voice-input path is not built yet.
+The rider can also speak to her: push-to-talk from the headset button or the screen (see Voice input). No wake word yet.
 
 ## Owner preferences
 
@@ -29,6 +29,9 @@ is wrong or risky, say so.
 
 History: Phase 1 was first scaffolded as Expo/React Native, then converted to a Vite web app on request
 ("just make it a webapp for now"). The Expo code is deleted. Do not reintroduce React Native unless asked.
+2026-10-18: the owner CHOSE React Native + Expo (dev builds, not Expo Go) for the native app, iOS and Android, reusing
+`src/core` as is. His ELM327 "mini" is Bluetooth CLASSIC ("not compatible with Apple devices"): Android only; iPhone
+OBD needs a BLE or Wi-Fi reader. He builds Android APKs and sideloads to his iPhone from Xcode (free Apple ID = 7 days).
 
 ## Stack
 
@@ -911,7 +914,9 @@ wake word last / on the Pi.
     answer's situation (newest first, with distance from here), so "where was that pothole I marked?" works.
     Checked live: pothole spot, chain note, and "what can I tell you to do?" all answered correctly.
   - MEMORY panel (under LOG) lists notes and spots, with a map link and Forget for each.
-  Not built yet: louder/softer.
+  Louder/softer BUILT 2026-10-18: `{kind: 'volume'}` ("louder", "speak up", "I can't hear you", "softer", "a bit
+  quieter" (NOT the quiet command), "turn it down", "max volume", "normal volume") -> `nudgeVoice`, 4 dB steps on
+  `voiceBoostDb` 0 to 16.
   ADDED 2026-10-17: "switch to stories/minimal/balanced" (the Settings presets), "banter up/down", "more/fewer stories"
   ("tour guide up/down"), "more/less chatty" ("talk more/less": silence weight -/+10 and the gap -/+30 s, 30 s to 10
   min); she replies with `mixSummary()`. A trailing "please" no longer stops a command matching.
@@ -972,39 +977,11 @@ wake word last / on the Pi.
 
 The original spec is kept below for reference.
 
-## Backlog: offline line bank (NOT BUILT, spec for a later session)
+## Offline line bank (BUILT 2026-10-18)
 
-Goal: when the phone has no signal (or Claude is slow), Betty should still sound like Claude wrote the line, not
-fall back to one fixed sentence or go silent. Owner agreed the approach on 2026-10-10 and asked for it to be parked.
-
-**Do not build a replay cache** (store lines she has said, play them back). Her lines carry specifics ("fuel's at 55
-percent", "thirty-six minutes in") that are wrong when replayed, and replaying repeats lines the rider has heard.
-
-**Build a line bank instead**: while online, ask Claude in the background for lines likely to be needed soon, store
-them on the device, use each at most once.
-- **Alerts with placeholders.** A few variants per alert id with blanks, e.g. "Fuel's down to {fuel} percent, {rider},
-  time to find a station." Fill the live value at speak time, so the wording is Claude's and the fact is current.
-  This also upgrades P1, which today always speaks the one canned fallback because it never waits on the network.
-  P1/P2 variants must stay straight (no jokes), same as the live rule.
-- **Tour-guide lines ahead of time.** Place facts do not change: fetch places in a wider radius (about 10 km) and
-  generate the `local_fact` line per place straight away. When the rider gets near, the line is already there.
-  Strongest case; also removes the roughly 1 s latency. Direction ("ahead on his left") cannot be pre-written:
-  generate without it, or leave a `{where}` placeholder.
-- **Banter.** Weakest fit (the best banter reacts to what just happened). Pre-generate for slow-changing topics
-  (time of day, weather as last fetched, last ride, totals) and numeric topics via placeholders.
-- **Validity check before speaking**: a banked line is used only if what it was written for still holds (weather
-  bucket unchanged, same part of day, place still unmentioned). Reuse the topic `bucket` ids in `core/ambient.ts`.
-- **Shape**: pure `core/LineBank.ts` (store, take-once, validity, placeholder fill, refill policy) with tests; an
-  adapter persists it in localStorage; `ClaudeClient.phrase` tries live Claude first and takes from the bank on
-  `no API key`/`network error`/`timeout`/HTTP error, before the canned fallback. Report it in `Phrase.source` as a
-  third value (`bank`) so the log shows it. Refill when online and the bank for an id runs low; cap the size.
-- **Costs/limits**: a bank of 30 to 40 short Haiku lines per ride is a few cents, some unused. Banked lines cannot
-  refer to what she said two minutes ago, so offline she is a little more generic.
-- **Two things the bank does not cover**: (1) if Safari reloads the tab with no signal the app does not load at all;
-  that needs a service worker caching the app shell, and is arguably more important. (2) Weather and traffic go
-  stale offline regardless. GPS and the on-device speech voice keep working.
-- **Order**: first measure (the saved LOG tags every line `claude` or `fallback: network error/timeout`, so a few
-  real rides show how often it happens), then service worker, alert variants, tour-guide pre-generation, banter last.
+Built from the spec agreed on 2026-10-10 (alert variants with blanks; no replay cache). How it works: see "The longer
+list" section above (`core/LineBank`, `adapters/LineBankStore`, `source: 'bank'`). Not built from that spec: tour-guide
+lines written ahead per place, and banked banter. The service worker covers loading without signal.
 
 ## Personality dials: JARVIS/TARS blend and humour (BUILT 2026-10-16)
 
@@ -1043,8 +1020,7 @@ how far off the line he is. TriggerEngine: `off_route` P2 (over 0.4 km off for 2
 under 0.15 km; she must not give directions, Google Maps does), `route_stop` P2 (a named stop within 1 km, once
 each), `route_arrived` P2 (under 0.3 km left and past halfway). The briefing and his answers get `describeRoute`. Ride
 map: the route dotted under the track; glance card "Your route: 212 km · 2 h 40, Villiers in 35 km" or "Off your
-route". Not built yet from the plan: weather along the route at arrival time, fuel stops in range, stories fetched
-ahead for towns on the route.
+route". Weather along the route, fuel stops and stories ahead: built since (see "Route: what is ahead" and Fuel).
 
 ## Let Betty know me: rider profile (BUILT 2026-10-17; UNVERIFIED ON A RIDE)
 
@@ -1063,85 +1039,58 @@ find interesting ("interests"); alerts and time checks never. `profileNote` adds
 say you were told this, never quote it, never list it". Checked live: a sample distilled well; "where should I stop
 for coffee out west" used it naturally.
 
-## Backlog (open items only; consolidated 2026-10-17, built items removed)
+## Backlog (open items only; cleaned 2026-10-18)
 
-Built and taken off: chat test mode, ambient personality, settings by voice (status, humour, TARS/JARVIS, presets,
-mix nudges), shareable ride card, Explore map + Listen + Not heard yet (was "stories you missed"), route planning and
-following, fuel stations ahead, service reminders, offline loading (service worker), home-screen install, fuel range
-without OBD, sunset warnings, the spoken sign-off and the ride story page with its map.
+Everything buildable in the web app is built (see the sections above), except the planning map. Next: THE NATIVE APP.
 
-**Next up (owner has asked, design agreed or proposed):**
-1. **A garage of bikes** (owner, 2026-10-18: "garage of several bikes... but not now, save for a future iteration").
-   His vision: SEVERAL bikes, swipe left/right to pick the active one; each bike shown as a MODEL of the actual bike;
-   AI looks the model up online and fills in its specs (tank, reserve, consumption, schedule...); optionally a PHOTO of
-   his bike mapped onto the model so it looks like his; animations app-wide. Earlier design notes still apply:
-   - Garage > In your garage: a "Your bike" picker (BMW G 310 GS, or Another bike). The bike carries its tank and
-     reserve (fuel range follows the bike) and its maintenance schedule (`BIKES` in core/Reminders.ts;
-     `ServiceBook.bike` already stores the id).
+**Next up:**
+1. **Native app, iOS and Android** (owner, 2026-10-18: React Native + Expo, dev builds). Reuse `src/core` unchanged;
+   rebuild the screens and the adapters. First milestone: Android with GPS, her voice and OBD over Bluetooth Classic
+   (his ELM327 mini). Then the iPhone build from Xcode, background running, music ducking, local notifications.
+   CarPlay "voice-based conversational apps" (iOS 26.4+, `CPVoiceControlTemplate`, entitlement requested from Apple:
+   needs the paid developer account; verify the key in Apple's docs) and Siri App Intents last. The free Apple ID
+   build expires every 7 days (re-run from Xcode), max 3 apps. Android Auto has no equivalent category (unverified).
+2. **Comes with the native app:** reminder notifications (local, no push server), staying quiet during a phone call,
+   group rides (two Bettys sharing position live: also needs a realtime server), crash detection (hard impact then
+   no movement, countdown, message to an emergency contact), audio ducking instead of pausing his music, background
+   running without the silent track, real call-mode control.
+3. **Real OBD2** (Phase 4 item, now via the phone): the mini (Bluetooth Classic, Android only) for development; he
+   plans a Vgate iCar Pro BLE 4.0 (iPhone and Android) next week. Not a Wi-Fi reader: the iPhone joins its network
+   and may lose mobile data. First a 10-minute check with Car Scanner on Android: socket, protocol, which PIDs answer.
+   Expected value: fault codes explained, real coolant temp (overtemp), battery/charging voltage (`ATRV`), RPM,
+   throttle, load; gear from RPM/speed; fuel level only if the bike reports it. Alerts are built, they read mock data.
+4. **A garage of bikes** (owner, 2026-10-18: "not now, save for a future iteration"). His vision: SEVERAL bikes, swipe
+   left/right to pick the active one; each bike shown as a MODEL of the actual bike; AI looks the model up online and
+   fills in its specs (tank, reserve, consumption, schedule...); optionally a PHOTO of his bike mapped onto the model;
+   animations app-wide. Design notes:
+   - The bike carries its tank and reserve (fuel range follows the bike) and its maintenance schedule (`BIKES` in
+     core/Reminders.ts; `ServiceBook.bike` already stores the id).
    - Another bike's schedule, three ways: (a) RECOMMENDED: a photo of the handbook's maintenance page (what the owner
-     did for the G 310 GS): a server function sends it to Claude (vision), which returns the items as JSON
-     ({name, everyKm, everyDays, note}); he reviews and edits the list before saving; a photo of the spec page can
-     fill the tank size the same way. (b) Type the model: Betty looks it up with web search, marked "from the web,
-     check it". (c) Start blank: rider care (chain, tyres) only, add your own.
-   - Switching: his own reminders and the rider care items stay, the handbook items are swapped, the odometer is
-     asked again. Each bike's book is kept separately (keyed by bike), so switching back restores it.
-   - Rides record which bike (`RideRecord.bike`) so My journeys can total per bike. Her name for the bike stays
-     `CONFIG.bikeName`.
-2. **Reminder notifications**: a phone notification when something falls due while Betty is not open. Needs web
-   push (a push server, VAPID keys, the installed app; iPhone allows it for home-screen apps). Until then reminders
-   surface in the briefing, sign-off, Garage and the Details sheet.
-3. **Route: what is ahead**: BUILT 2026-10-18 (see its section). Still open: a planning map (Mapbox was the owner's
-   direction, drawn in the sketch style).
-4. **Native app** (owner, 2026-10-17: "we will move to a native app pretty soon"): CarPlay "voice-based
-   conversational apps" category since iOS 26.4 (entitlement requested from Apple per app, `CPVoiceControlTemplate`;
-   verify the key in Apple's docs) gives Betty a talk button on the CarPlay screen, so the headset buttons stay with
-   the music app; his aftermarket CarPlay screen's handlebar remote (if it has one) can press it; Siri App Intents
-   ("Hey Siri, ask Betty...") are hands-free. Native also gives audio ducking instead of pausing music, background
-   running without the silent track, and real call-mode control. Android Auto has no equivalent category (unverified).
+     did for the G 310 GS) sent to Claude (vision), which returns the items as JSON ({name, everyKm, everyDays,
+     note}); he reviews and edits before saving; a spec-page photo can fill the tank the same way. (b) Type the
+     model: web search, marked "from the web, check it". (c) Start blank: rider care (chain, tyres) only.
+   - Switching: his own reminders and rider care stay, handbook items are swapped, the odometer is asked again. Each
+     bike's book is kept separately (keyed by bike), so switching back restores it.
+   - Rides record which bike (`RideRecord.bike`) so My journeys can total per bike. `CONFIG.bikeName` stays.
+5. **A planning map in Where to?** (Mapbox was the owner's direction, drawn in the sketch style): see and adjust the
+   route while planning. Left for the native app (a native map library there).
 
-**From the stored rides and the map:**
-- New road vs usual road: she notices a road never ridden before ("first time on this one") or his most-ridden
-  stretch (track points on a ~100 m grid; pure core logic).
-- Rough patches / road-hazard memory: plot hard braking and big jolts on each ride's map (needs positions logged
-  with those events); spots that recur across rides become automatic marked-spot warnings. Jolts need a better
-  signal first (2,402 from vibration on 2026-10-17; threshold now 2 g).
-- Personal records: longest ride, highest point, most cornering; shown in Journeys, called out live.
-- Memory across rides: "what did we talk about on Saturday?", "last time we came through here it rained", from the
-  saved logs; favourite roads, places visited.
-
-**At home:**
-- Plan a ride with her ("a breakfast run, two hours, twisty roads"): web search plus his past tracks, turned into a
-  route with the planner.
-- Share spots, stories or a ride with a friend's Betty (export a subset, import it): a first step to group rides.
-
-**On the ride:**
-- Offline line bank (spec in its own section above; measure first how often the logs show `fallback: network error/timeout`).
-- Fatigue nudges from time in the saddle and time of day, naming the next stop.
-- Wind and cold: crosswind relative to heading, wind-chill at speed.
-- Music: stay silent during a phone call (ducking needs the native app).
-- Group rides: two riders running Betty share position ("your mate has dropped back").
-- Crash detection: hard impact then no movement, a countdown, then a message to an emergency contact with the
-  location. A web page cannot send an SMS: native app or Pi.
-- Voice: "shorter/longer answers", "set banter to 70 percent", his own named personalities ("weekend mode", "what mode
-  are you in") on top of the minimal/balanced/stories presets.
-- Searched answers on Sonnet (owner's option if Haiku keeps muddling search snippets, e.g. RPM to road speed).
-- Workshop: scenario scripts for the simulator ("overheat on the N3", "rain front") as plain data.
+**Hardware (Phase 4):** tyre pressure sensors (TPMS BLE), Raspberry Pi, Piper TTS, Porcupine wake word, a physical
+handlebar button, camera clips on a hard brake or a "mark this" press. Hardware BOM was estimated around R2,180.
 
 **Housekeeping:**
-- Old deployments DELETED 2026-10-18 (owner's OK; `vercel rm betty --safe --yes` keeps only the one the live alias
-  points at). Pages from before 2026-10-14 had the Claude/TomTom keys inside; rotating them is still wise (someone may
-  have copied a page) but no longer urgent. Re-run the safe remove now and then: every deploy leaves a new URL (no
-  keys in them since the keys moved to the server).
-- TomTom quota: Search is 2,500 a month free and now serves routes, place names and petrol stations; watch it.
-
-**Hardware (Phase 4):** Raspberry Pi with real OBD2 (ELM327), tyre pressure sensors (TPMS BLE: Web Bluetooth is
-Android Chrome only), Piper TTS, Porcupine wake word, a physical handlebar button, camera clips on a hard brake or a
-"mark this" press. Hardware BOM was estimated around R2,180.
+- Every deploy leaves a new deployment URL: re-run `npx vercel rm betty --safe --yes` now and then (keeps the one the
+  live alias points at). Pages from before 2026-10-14 had the Claude/TomTom keys inside (all deleted 2026-10-18);
+  rotating those keys is still wise, not urgent.
+- TomTom quota: Search is 2,500 a month free and serves routes, place names and petrol stations; watch it.
+- Haiku weak spots to watch in logs: lines over 2 sentences, dull Wikipedia places, muddled search snippets (the
+  Smarter web answers switch is the fix for the last).
 
 **Unverified on a ride (check on the next rides, from the shared log):** forced web search, parked mode and "end
-ride", detour, fill-up by voice, previous track letting go, Louder voice, 12 s recordings, riding time, fuel range
-from consumption and stations ahead, reminders in the briefing/sign-off, the island, route following, marked-spot
-warnings, map gestures, slim panels.
+ride", detour, fill-up by voice, previous track letting go, louder voice (and "louder"/"softer"), 12 s recordings,
+riding time, fuel range from consumption and stations ahead, reminders in the briefing/sign-off, Horizon (card,
+"anything ahead?", lock-screen line), route following, route weather and stories ahead, marked-spot warnings, rough
+patches, new roads, fatigue/wind/cold, records called out live, the offline line bank, map gestures, slim panels.
 
 ### Notes: a personal voice
 1. Free first: iOS "Enhanced"/"Premium" voices (Settings > Accessibility > Spoken Content > Voices). BUILT: the

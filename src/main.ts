@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyMode, applyTalkPreset, cleanBikeName, currentDials, currentMode, currentTalkPreset, nudgeLength, setMixShare, cleanRiderName, chirpVoice, libraryVoice, mixSummary, nudgeMix, voiceStyle } from './config/betty';
+import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyMode, applyTalkPreset, cleanBikeName, currentDials, currentMode, currentTalkPreset, nudgeLength, nudgeVoice, setMixShare, cleanRiderName, chirpVoice, libraryVoice, mixSummary, nudgeMix, voiceStyle } from './config/betty';
 import { LIBRARY_ACCENTS, LIBRARY_VOICES } from './config/voiceLibrary';
 import { CloudSpeaker, ElementPlayer, SOUND_TEST_LINES, STOCK_LINES } from './adapters/CloudSpeaker';
 import { IdbClipStore } from './adapters/ClipStore';
@@ -1115,6 +1115,15 @@ async function beginRide(desk: boolean) {
         ServiceStore.save(next);
         engine.setServiceBook(next);
         reply(`${r.name}: not done after all. Back to ${dueText(dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now()))}.`, 'undone');
+        return;
+      }
+      case 'volume': {
+        const was = CONFIG.voiceBoostDb;
+        const db = nudgeVoice(c);
+        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+        const phone = CONFIG.cloudVoice === 'off' ? ' The phone voice cannot go louder, though.' : '';
+        reply(db === was ? (db >= 16 ? "That's as loud as I go." : "That's as soft as I go.")
+          : db === 0 ? 'Back to my plain level.' : `${db > was ? 'Louder' : 'Softer'}: plus ${db} decibels. Better?${db > was ? phone : ''}`, 'volume');
         return;
       }
       case 'length': {

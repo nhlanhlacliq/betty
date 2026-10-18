@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      { id: 'louder-by-voice', kind: 'better', title: 'Louder by voice.', text: 'Say "louder", "softer", "max volume" or "normal volume" on the ride; it moves the Louder voice slider in Garage.', help: 'commands' },
       { id: 'plan-with-betty', kind: 'new', title: 'Let Betty plan the ride.', text: 'Describe it in Where to? ("a two-hour breakfast run, twisty roads") and she picks the stops, says why, and plans the route.', help: 'routes' },
       { id: 'new-roads', kind: 'new', title: 'New roads.', text: 'She notices when you are on a road you have never ridden with her, and knows how often you have ridden the one you are on.', help: 'unprompted' },
       { id: 'past-rides', kind: 'new', title: 'Memory across rides.', text: 'Ask "what did we talk about on Saturday?" or "what did you tell me about Sandton last time?" and she answers from that ride\'s log.', help: 'questions' },

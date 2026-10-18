@@ -2139,7 +2139,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(parseCommand(said)?.kind, c.kind, `Help says "${said}" does ${c.kind}`);
   }
   const kinds = new Set(VOICE_COMMANDS.flatMap((g) => g.items.map((c) => c.kind)));
-  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done', 'undone', 'ahead', 'length', 'mixset', 'mode']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
+  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done', 'undone', 'ahead', 'length', 'mixset', 'mode', 'volume']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
   assert.equal(searchHelp('headset buttons')[0].id, 'talk');
   assert.equal(searchHelp('petrol')[0].id, 'fuel');
   assert.ok(searchHelp('quiet').some((t) => t.id === 'commands'), 'commands are searchable');
@@ -2406,6 +2406,15 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(parseCommand('Banter 70 percent'), { kind: 'mixset', what: 'banter', pct: 70 });
   assert.deepEqual(parseCommand('set stories to 50%'), { kind: 'mixset', what: 'stories', pct: 50 });
   assert.deepEqual(parseCommand('Shorter answers please'), { kind: 'length', step: -1 }); assert.deepEqual(parseCommand('Longer answers'), { kind: 'length', step: 1 });
+  assert.deepEqual(parseCommand('Louder please'), { kind: 'volume', step: 1 });
+  assert.deepEqual(parseCommand("Hey Betty, I can't hear you"), { kind: 'volume', step: 1 });
+  assert.deepEqual(parseCommand('A bit quieter'), { kind: 'volume', step: -1 }, 'quieter = softer, not silence');
+  assert.deepEqual(parseCommand('Turn it down'), { kind: 'volume', step: -1 });
+  assert.deepEqual(parseCommand('Max volume'), { kind: 'volume', set: 'max' });
+  assert.equal(parseCommand('Be quiet')?.kind, 'quiet');
+  assert.equal(parseCommand('Is it louder on the N3 at night?'), null, 'a question stays a question');
+  assert.equal(B.nudgeVoice({ step: 1 }), 10); assert.equal(B.nudgeVoice({ set: 'max' }), 16); assert.equal(B.nudgeVoice({ step: 1 }), 16, 'never over 16');
+  assert.equal(B.nudgeVoice({ set: 'normal' }), 6); B.nudgeVoice({ step: -1 }); assert.equal(B.nudgeVoice({ step: -1 }), 0, 'never under 0');
   assert.deepEqual(parseCommand('Save this as weekend mode'), { kind: 'mode', action: 'save', name: 'weekend' });
   assert.deepEqual(parseCommand('Hey Betty, switch to weekend mode'), { kind: 'mode', action: 'use', name: 'weekend' });
   assert.deepEqual(parseCommand('What mode are you in?'), { kind: 'mode', action: 'which' });
