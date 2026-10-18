@@ -14,7 +14,17 @@ export interface Phrase {
   latencyMs: number;
   /** Exactly what was (or, without a key, would have been) sent to Claude: shown by the chat panel's Show prompt */
   request: ClaudeRequest;
+  /** The first sentence, already handed over to be spoken while the rest was still being written (see `early`) */
+  early?: string;
 }
+
+/**
+ * Options for one phrase() call. `early`: called with the answer's first sentence (cleaned like a whole line) as soon
+ * as it is complete, while Claude is still writing the rest, so she can start speaking ~1-2 s sooner (owner,
+ * 2026-10-19: faster spoken answers). Only for his questions; the returned Phrase then carries `early`, and
+ * `restAfter(text, early)` is what is left to say.
+ */
+export interface PhraseOptions { early?: (sentence: string) => void }
 
 export type ClaudeRequest = ReturnType<typeof buildClaudeRequest>;
 /** One exchange of the conversation with the rider. */
@@ -23,6 +33,7 @@ export interface Turn { said: string; answer: string }
 export const TALK_MEMORY = 6;
 
 type Attempt = { text: string; searched: boolean } | { error: string };
+type OnPartial = (content: any[]) => void;
 
 /**
  * Turns a TriggerEvent into natural speech. Falls back to the event's canned phrase if there is
@@ -50,13 +61,26 @@ export class ClaudeClient {
     private proxyHeaders: Record<string, string> = {},
   ) {}
 
-  async phrase(ev: TriggerEvent, state: BikeState): Promise<Phrase> {
+  async phrase(ev: TriggerEvent, state: BikeState, opt: PhraseOptions = {}): Promise<Phrase> {
     const t0 = Date.now();
     const same = this.byKind.get(ev.id) ?? [];
     // He asked for a search, or for something only a search gets right (a price, reviews, events): search, always.
     const force = !!ev.riderSaid && wantsSearch(ev.riderSaid);
     let request = buildClaudeRequest(ev, state, this.spoken, this.talk, { forceSearch: force, same });
-    let r = await this.callClaude(ev, request);
+    const clean = (t: string, maxSentences = sentencesFor(ev.id)) => cleanSpoken(t, {
+      ambient: UNPROMPTED_IDS.includes(ev.id), name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences,
+    });
+    // The first sentence of an answer goes ahead while the rest is written: not a "let me check" before a search, not
+    // talk about her instructions, and only once.
+    let early: string | undefined;
+    const onPartial: OnPartial | undefined = opt.early && ev.riderSaid ? (content) => {
+      if (early !== undefined) return;
+      const first = firstSentence(answerSoFar(content));
+      if (!first || putsOff(first) || META.test(first)) return;
+      const c = clean(first, 1).text;
+      if (c) { early = c; opt.early!(c); }
+    } : undefined;
+    let r = await this.callClaude(ev, request, onPartial);
     let retried = false;
     // An answer that promised to look it up, or said she does not know, without searching: ask again, searching.
     // (Ride of 2026-10-17: "I shall search that speed now" seven times, and not one search.)
@@ -68,16 +92,13 @@ export class ClaudeClient {
     const latencyMs = Date.now() - t0;
     let out: Phrase;
     if ('text' in r) {
-      const c = cleanSpoken(r.text, {
-        ambient: UNPROMPTED_IDS.includes(ev.id),
-        name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences: sentencesFor(ev.id),
-      });
+      const c = clean(r.text);
       if (retried) c.note = c.note ? `${c.note}; searched on the second go` : 'searched on the second go';
       else if (r.searched) c.note = c.note ? `${c.note}; searched` : 'searched';
       // An alert whose reply turned out unusable still has to be said: use the canned line. A line she chose to keep
       // to herself (an ambient SILENT) stays silent, even when it has a fallback.
       out = c.text || !ev.fallback || UNPROMPTED_IDS.includes(ev.id)
-        ? { text: c.text, source: 'claude', detail: c.note, latencyMs, request }
+        ? { text: c.text, source: 'claude', detail: early ? (c.note ? `${c.note}; first sentence early` : 'first sentence early') : c.note, latencyMs, request, ...(early ? { early } : {}) }
         : { text: ev.fallback, source: 'fallback', detail: 'unusable reply', latencyMs, request };
     } else {
       // No Claude (no signal, a timeout, or a P1 that never waits): one of her banked lines if there is one for it.
@@ -101,7 +122,7 @@ export class ClaudeClient {
   /** Forget the conversation (a new ride). */
   forgetTalk() { this.talk = []; this.byKind.clear(); }
 
-  private async callClaude(ev: TriggerEvent, request: ClaudeRequest): Promise<Attempt> {
+  private async callClaude(ev: TriggerEvent, request: ClaudeRequest, onPartial?: OnPartial): Promise<Attempt> {
     if (ev.priority === 1) return { error: 'P1 never waits on the network' };
     if (!ev.context) return { error: 'nothing to go on' };
     if (!this.apiKey && !this.proxyUrl) return { error: 'no API key' };
@@ -121,13 +142,29 @@ export class ClaudeClient {
             'anthropic-version': '2023-06-01',
             'anthropic-dangerous-direct-browser-access': 'true',
           },
-          body: JSON.stringify(request),
+          body: JSON.stringify(wire(request, !!onPartial)),
         })
         : await fetch(this.proxyUrl!, {
-          method: 'POST', signal: ctrl.signal, headers: { 'content-type': 'application/json', ...this.proxyHeaders }, body: JSON.stringify(request),
+          method: 'POST', signal: ctrl.signal, headers: { 'content-type': 'application/json', ...this.proxyHeaders }, body: JSON.stringify(wire(request, !!onPartial)),
         });
       if (!res.ok) return { error: `HTTP ${res.status}` };
-      const json = await res.json();
+      let json: unknown;
+      if (onPartial) {
+        // Streamed: rebuild the message as it arrives and let the caller look at it after every piece.
+        const msg = new StreamedMessage();
+        const reader = (res.body as ReadableStream<Uint8Array> | null)?.getReader?.();
+        if (reader) {
+          const dec = new TextDecoder();
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            msg.feed(dec.decode(value, { stream: true }));
+            onPartial(msg.content);
+          }
+        } else { msg.feed(await res.text()); onPartial(msg.content); } // no stream reader (React Native's fetch): all at once
+        if (msg.error) return { error: `stream: ${msg.error}` };
+        json = { content: msg.content };
+      } else json = await res.json();
       const text = extractText(json);
       return text ? { text, searched: searchedIn(json) } : { error: 'empty reply' };
     } catch (e) {
@@ -253,6 +290,64 @@ export function cleanSpoken(raw: string, o: CleanOptions): { text: string; note:
   }
   if (!text) return { text: '', note: o.ambient ? 'chose silence' : 'empty reply' };
   return { text, note };
+}
+
+/**
+ * The request as sent: her instructions (`system`, the same for every line of a kind all ride) marked for Claude's
+ * prompt cache, so it does not re-read them each time (Haiku 5.5 caches from 512 tokens; hers are ~860), and `stream`
+ * when the caller wants the answer as it is written. The request itself keeps `system` as plain text (logs, tests).
+ */
+export function wire(r: ClaudeRequest, stream = false) {
+  return { ...r, system: [{ type: 'text' as const, text: r.system, cache_control: { type: 'ephemeral' as const } }], ...(stream ? { stream: true } : {}) };
+}
+
+/**
+ * A streamed Messages response (server-sent events) rebuilt piece by piece into the same `content` blocks the whole
+ * response would have, so extractText/searchedIn work on it unchanged. Pure, so it is tested.
+ */
+export class StreamedMessage {
+  content: any[] = [];
+  error = '';
+  private buf = '';
+  feed(chunk: string) {
+    this.buf += chunk;
+    const lines = this.buf.split('\n');
+    this.buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      let ev: any;
+      try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+      if (ev.type === 'content_block_start') this.content[ev.index] = { ...ev.content_block, ...(ev.content_block?.type === 'text' ? { text: ev.content_block.text ?? '' } : {}) };
+      else if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && this.content[ev.index]) this.content[ev.index].text += ev.delta.text;
+      else if (ev.type === 'error') this.error = ev.error?.message ?? 'error';
+    }
+  }
+}
+
+/** The answer written so far: the text after the last search result, or, before any search, the text so far. */
+export function answerSoFar(content: any[]): string {
+  const blocks = content.filter(Boolean);
+  const lastSearch = blocks.map((b) => b?.type).lastIndexOf('web_search_tool_result');
+  return blocks.slice(lastSearch + 1).filter((b) => b?.type === 'text').map((b) => b.text ?? '').join('');
+}
+
+/** The first COMPLETE sentence (its full stop followed by more text, so "23.5" or a sentence still being written is not cut), or null. */
+export function firstSentence(text: string): string | null {
+  const m = text.replace(/^\s+/, '').match(/^(.+?[.!?])\s+\S/s);
+  if (!m || m[1].split(/\s+/).length < 2) return null;
+  return m[1].trim();
+}
+
+/** What is left to say after the first sentence already went ahead. If the final answer does not start with it (she
+ *  was asked again, say), all of it is said. */
+export function restAfter(full: string, early?: string): string {
+  if (!early) return full;
+  const norm = (t: string) => t.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (norm(full).startsWith(norm(early))) {
+    const words = early.trim().split(/\s+/).length;
+    return full.trim().split(/\s+/).slice(words).join(' ').trim();
+  }
+  return full;
 }
 
 /**

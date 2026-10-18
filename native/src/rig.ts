@@ -1,6 +1,6 @@
 import { CONFIG } from '../../src/config/betty';
 import { AudioQueue, QueueItem } from '../../src/core/AudioQueue';
-import { ClaudeClient, voiceTags } from '../../src/core/ClaudeClient';
+import { ClaudeClient, restAfter, voiceTags } from '../../src/core/ClaudeClient';
 import type { LatLon } from '../../src/core/geo';
 import { StateAggregator } from '../../src/core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from '../../src/core/TriggerEngine';
@@ -44,8 +44,12 @@ export async function startRide(h: RideHooks) {
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current));
 
   const say = async (ev: TriggerEvent) => {
-    const p = await claude.phrase(ev, agg.current);
-    const item = queue.enqueue(p.text, ev.priority, ev.id);
+    // His answers: the first sentence is queued as soon as it is written (see ClaudeClient PhraseOptions). React
+    // Native's fetch cannot stream yet, so for now it arrives with the whole answer; expo/fetch streams (next step).
+    let early: QueueItem | null = null;
+    const p = await claude.phrase(ev, agg.current, ev.riderSaid ? { early: (t) => { early = queue.enqueue(t, ev.priority, ev.id); } } : {});
+    const rest = early && p.early ? restAfter(p.text, p.early) : p.text;
+    const item = (rest ? queue.enqueue(rest, ev.priority, ev.id) : null) ?? early;
     h.line({ at: Date.now(), head: `[P${ev.priority}] ${ev.id} (${p.source}${p.detail ? `: ${p.detail}` : ''}, ${p.latencyMs} ms)`, text: voiceTags(p.text, false) || '(silent)', item });
     return item;
   };

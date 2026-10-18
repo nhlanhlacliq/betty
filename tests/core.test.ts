@@ -2710,4 +2710,75 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(back.fate, 'speaking');
 }
 
+// ---- faster spoken answers: the stream, the first sentence ahead, the rest after it, her instructions cached
+{
+  const { StreamedMessage, answerSoFar, firstSentence, restAfter, wire, ClaudeClient: CC } = await import('../src/core/ClaudeClient');
+  const ev = (o: any) => `event: ${o.type}\ndata: ${JSON.stringify(o)}\n\n`;
+  const sse = [
+    ev({ type: 'message_start', message: { content: [] } }),
+    ev({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
+    ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'It is 23.5 degrees' } }),
+    ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: ' and dry. Rain comes after four.' } }),
+    ev({ type: 'content_block_stop', index: 0 }), ev({ type: 'message_stop' }),
+  ].join('');
+  const m = new StreamedMessage();
+  m.feed(sse.slice(0, 137)); m.feed(sse.slice(137)); // split mid-line: still rebuilt
+  assert.equal(m.content[0].text, 'It is 23.5 degrees and dry. Rain comes after four.');
+  assert.equal(firstSentence('It is 23.5 degrees and dr'), null, 'no full stop yet (23.5 is not one)');
+  assert.equal(firstSentence('It is 23.5 degrees and dry.'), null, 'a sentence may still be going on');
+  assert.equal(firstSentence('It is 23.5 degrees and dry. Rain'), 'It is 23.5 degrees and dry.');
+  assert.equal(firstSentence('Yes. And'), null, 'one word is not worth sending ahead');
+  // Before a search the text so far is a preface; after it, only what follows the results counts.
+  assert.equal(answerSoFar([{ type: 'text', text: 'Let me look.' }, { type: 'server_tool_use' }, { type: 'web_search_tool_result' }, { type: 'text', text: 'Midrand is' }]), 'Midrand is');
+  assert.equal(restAfter('It is dry. Rain comes after four.', 'It is dry.'), 'Rain comes after four.');
+  assert.equal(restAfter('It is dry.', 'It is dry.'), '', 'nothing left to say');
+  assert.equal(restAfter('Something else entirely.', 'It is dry.'), 'Something else entirely.', 'a different answer is said whole');
+  const w: any = wire({ system: 'You are Betty.', model: 'x', max_tokens: 1, messages: [] } as any, true);
+  assert.deepEqual(w.system, [{ type: 'text', text: 'You are Betty.', cache_control: { type: 'ephemeral' } }]); assert.equal(w.stream, true);
+  // A whole answer through the client: the first sentence is handed over before the answer is complete.
+  resetConfig();
+  const realFetch = globalThis.fetch;
+  const order: string[] = [];
+  let sent: any = null;
+  let releaseEarly = () => {};
+  globalThis.fetch = (async (_u: any, init: any) => {
+    sent = JSON.parse(init.body);
+    const enc = new TextEncoder();
+    // Everything up to the end of the second delta, then the rest only once the first sentence was handed over (or
+    // after 1 s, which would fail the test): proves she starts before the answer is complete.
+    const cut = sse.indexOf('event: content_block_stop');
+    let release: () => void = () => {};
+    const released = new Promise<void>((r) => { release = r; setTimeout(() => { order.push('timed out'); r(); }, 1000); });
+    releaseEarly = () => release();
+    const parts = [sse.slice(0, cut), sse.slice(cut)];
+    return new Response(new ReadableStream({ async pull(c) {
+      const p = parts.shift();
+      if (p === undefined) { c.close(); return; }
+      if (!parts.length) { await released; order.push('end of answer'); }
+      c.enqueue(enc.encode(p));
+    } }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const client = new CC(undefined, 2500, 6000, '/api/phrase');
+    const e = new TriggerEngine(() => 1_000);
+    const p = await client.phrase(e.ask('weather?', initialState()), initialState(), { early: (t) => { order.push(`early: ${t}`); releaseEarly(); } });
+    assert.equal(sent.stream, true); assert.ok(Array.isArray(sent.system), 'sent with the cache mark');
+    assert.equal(p.text, 'It is 23.5 degrees and dry. Rain comes after four.');
+    assert.equal(p.early, 'It is 23.5 degrees and dry.'); assert.match(p.detail, /first sentence early/);
+    assert.deepEqual(order, ['early: It is 23.5 degrees and dry.', 'end of answer'], 'the first sentence went ahead before the answer was complete');
+    // Without `early` (her own lines) nothing is streamed.
+    await client.phrase(e.force('rain_soon', initialState()), initialState());
+    assert.equal(sent.stream, undefined);
+  } finally { globalThis.fetch = realFetch; }
+  // The server passes a stream straight through.
+  const { POST: phrase } = await import('../api/phrase');
+  process.env.ANTHROPIC_API_KEY = 'sk-test';
+  globalThis.fetch = (async () => new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } })) as typeof fetch;
+  try {
+    const res = await phrase(new Request('https://betty-zeta.vercel.app/api/phrase', { method: 'POST', headers: { host: 'betty-zeta.vercel.app', origin: 'https://betty-zeta.vercel.app' },
+      body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 100, stream: true, messages: [{ role: 'user', content: 'hi' }] }) }));
+    assert.equal(res.headers.get('content-type'), 'text/event-stream'); assert.equal(await res.text(), sse);
+  } finally { globalThis.fetch = realFetch; }
+}
+
 console.log('all core tests passed');

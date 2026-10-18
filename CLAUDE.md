@@ -1141,6 +1141,10 @@ Everything buildable in the web app is built (see the sections above), except th
      calling, evals, human-in-the-loop, context management; uses OpenAI, ideas carry over).
    - EVALS: a fixed set of situations ("parked in Heidelberg, raining, asks about fuel") that score her answers on every
      prompt/model change, to catch regressions like "I shall search" before a ride. Same course (v2).
+   - Speech-to-speech for live chat (owner, 2026-10-19, after asking how ChatGPT/Claude voice are so fast): one model
+     that hears and speaks (OpenAI Realtime API, Gemini Live; ~0.3 s), interruptible, over one open connection. Cost:
+     her conversation would not be Claude (personality, ride context, search and tools rebuilt there), dearer per
+     minute, needs signal. Middle path: speech-to-speech only for back-and-forth chat, Claude for alerts and stories.
    - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
      no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
      asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact

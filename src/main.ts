@@ -17,7 +17,7 @@ import { ServiceBook, canUndo, dueInfo, dueText, findReminder, islandReminder, m
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
-import { ClaudeClient, voiceTags } from './core/ClaudeClient';
+import { ClaudeClient, restAfter, voiceTags } from './core/ClaudeClient';
 import { LatLon } from './core/geo';
 import { AMBIENT_IDS, AreaNote, TriggerEvent } from './core/types';
 import { MockObdSource } from './adapters/MockObdSource';
@@ -978,10 +978,21 @@ async function beginRide(desk: boolean) {
   const speaker = new SwitchableSpeaker(cloud);
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => { onFate(item, fate); renderLog(); saveLogSoon(); }, onHeard);
 
-  /** `now`: cut off whatever she is saying (AudioQueue.interrupt; never a P1), e.g. the sign-off. */
-  const say = async (ev: TriggerEvent, now = false) => {
-    const p = await claude.phrase(ev, agg.current);
+  /**
+   * `now`: cut off whatever she is saying (AudioQueue.interrupt; never a P1), e.g. the sign-off. His questions are
+   * streamed: the answer's first sentence is queued the moment it is written (`onFirst` is told, to cancel "Hang on"),
+   * and only the rest once the answer is complete.
+   */
+  const say = async (ev: TriggerEvent, now = false, onFirst?: () => void) => {
     const tag = { priority: ev.priority, id: ev.id };
+    let earlyItem: QueueItem | null = null;
+    const early = ev.riderSaid ? (sentence: string) => {
+      onFirst?.();
+      if (speaker.aloud) cloud.prefetch(sentence, tag);
+      earlyItem = now ? queue.interrupt(sentence, ev.priority, ev.id) : queue.enqueue(sentence, ev.priority, ev.id);
+      lastLine = sentence; showLocked(agg.current.speedKmh);
+    } : undefined;
+    const p = await claude.phrase(ev, agg.current, { early });
     // Her own lines (Gemini, 5 to 7 s) are queued only once their audio is in, so they never block an answer.
     if (p.text && speaker.aloud && ev.priority === 3) await cloud.ready(p.text, tag);
     // Safety stays serious: an ambient line that comes back while a critical condition is active is dropped. So is
@@ -991,8 +1002,12 @@ async function beginRide(desk: boolean) {
     const text = critical || hushed ? '' : p.text;
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
     const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : '(silent)'));
-    if (text && speaker.aloud) cloud.prefetch(text, tag); // fetch the audio while it waits its turn
-    line.item = now ? queue.interrupt(text, ev.priority, ev.id) : queue.enqueue(text, ev.priority, ev.id); // the item carries its fate: waiting, speaking, spoken, or why not
+    // What is still to be said: all of it, or what follows the first sentence that already went ahead.
+    const toSay = p.early && earlyItem ? restAfter(text, p.early) : text;
+    if (toSay && speaker.aloud) cloud.prefetch(toSay, tag); // fetch the audio while it waits its turn
+    // The item carries its fate: waiting, speaking, spoken, or why not (the first sentence's, when that is all there is).
+    const rest = !toSay ? null : now && !earlyItem ? queue.interrupt(toSay, ev.priority, ev.id) : queue.enqueue(toSay, ev.priority, ev.id);
+    line.item = rest ?? earlyItem;
     toChat({ from: 'betty', text: line.text, at: Date.now(), ev, phrase: p });
     renderLog();
     if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
@@ -1234,7 +1249,7 @@ async function beginRide(desk: boolean) {
     }
     // A web search takes a few seconds: rather than silence, she says she is on it.
     const slow = window.setTimeout(() => sayNow(HANG_ON), HANG_ON_AFTER_MS);
-    try { return await say(engine.ask(text, agg.current, noted)); } finally { window.clearTimeout(slow); }
+    try { return await say(engine.ask(text, agg.current, noted), false, () => window.clearTimeout(slow)); } finally { window.clearTimeout(slow); }
   };
 
   // ---- talking to her: headset play/pause (if switched on) or the lock screen's talk button
