@@ -1165,6 +1165,14 @@ Everything buildable in the web app is built (see the sections above), except th
      and an 8B model is weaker than Claude. Hosted pieces instead (Deepgram STT, Groq LLM, Cartesia/ElevenLabs Flash
      TTS): ~0.8-1.2 s, pay per use. Cheap perceived wins either way: instant on-phone acknowledgement, pre-answered
      likely questions, interruptible speech, one persistent connection instead of several SA<->US requests.
+     PIPECAT (owner interested, 2026-10-19): open source (BSD-2), Python server, supports Anthropic so Claude stays her
+     brain; gives streaming STT while he talks, an open turn-detection model, sentence-streamed TTS, barge-in, one
+     WebRTC link, swappable providers, function calling, React Native + JS clients. ~0.8-1.2 s with Claude. Costs: a
+     long-running server (not Vercel functions; Pipecat Cloud or a VPS near SA), the conversation moves server-side
+     (phone sends the ride situation over the link), reconnects on a ride. KEY RISK: always-on listening keeps a
+     Bluetooth helmet in CALL MODE (what broke the headset button on 2026-10-16), so on the bike it is probably still
+     push-to-talk: test on his V6 first. Suggested learning path: Pipecat quickstart on the Mac with Claude, then her
+     personality prompt, then decide.
    - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
      no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
      asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact
