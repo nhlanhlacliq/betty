@@ -36,6 +36,7 @@ import { liveRecords } from './core/Records';
 import { RoadMemory } from './core/RoadMemory';
 import { pastRecall } from './core/PastRides';
 import { roughSpots } from './core/RoughSpots';
+import { SharePack, makePack, mergeSpots, mergeStories, rideAsRoute } from './core/Share';
 import { RoadCells } from './adapters/RoadCells';
 import { checkpoints, rideAgainStops, weatherLine } from './core/RouteAhead';
 import { fetchRouteWeather } from './adapters/RouteWeather';
@@ -43,7 +44,7 @@ import { groupByMonth } from './core/Journeys';
 import { drawMonthCard } from './ui/monthCard';
 import { TrackPoint, addTrackPoint } from './core/Track';
 import { RideLog } from './adapters/RideLog';
-import { toRecord } from './core/RideMemory';
+import { rideMinutes, toRecord } from './core/RideMemory';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
 import { WakeLock, WakeStatus } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
@@ -71,7 +72,7 @@ import { mountSettingsScreen } from './ui/screens/SettingsScreen';
 import { mountHelpScreen } from './ui/screens/HelpScreen';
 import { mountReminders, readinessRow } from './ui/RemindersCard';
 import { IdbAvatarStore, mountAvatarSetting } from './ui/avatar';
-import { mountBackup } from './ui/backup';
+import { mountBackup, shareJson } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
 import { BorderTiles } from './adapters/BorderTiles';
 import { ProfileStore, mountKnowMe } from './ui/KnowMe';
@@ -325,6 +326,17 @@ const journeys = mountJourneysScreen(document, shell, {
       shell.toast(`Planned: ${Math.round(route.km)} km. Save it to keep it.`);
     } catch (e) { shell.toast(`Could not plan it: ${(e as Error).message}`, true); }
   },
+  // Send this ride to a friend's Betty: its road as a route to ride, and the stories of the places on it.
+  shareToFriend: async (rideId) => {
+    const r = RideLog.load().find((x) => x.startedAt === rideId);
+    const detailed = TrackStore.get(rideId);
+    const road = detailed.length > 1 ? detailed : RoadStore.get(rideId);
+    if (!r) return;
+    const route = rideAsRoute(r, road, rideTitle(r), sharer(), rideMinutes(r, true));
+    const all = AreaStore.all();
+    const stories = Object.fromEntries(Object.entries(all).filter(([k]) => r.places.some((p) => k.split('|')[0] === p)).map(([k, a]) => [k, { notes: a.notes, lat: a.lat, lon: a.lon }]));
+    await shareWithFriend(makePack(sharer(), new Date(), { routes: route ? [route] : [], stories }), 'A ride');
+  },
   // Delete a ride (owner, 2026-10-18): the record, its lines, both copies of its road, its card extras, star and name.
   deleteRide: (rideId) => {
     if (rig && !rig.desk && rig.engine.rideSnapshot().startedAt === rideId) return false;
@@ -575,6 +587,31 @@ mountAvatarSetting(document, avatarStore, (m, err) => shell.toast(m, err));
 mountBackup(document, localStorage, avatarStore, {
   busy: () => rig !== null, toast: (m, err) => shell.toast(m, err),
   confirm: (m) => window.confirm(m), reload: () => setTimeout(() => location.reload(), 600),
+  // A friend's Betty shared routes, spots or stories: add them to hers (owner's backlog, 2026-10-18).
+  mergeShare: (p) => {
+    for (const r of p.routes) RouteStore.save(r);
+    const mem = RiderMemoryStore.load();
+    const marks = mergeSpots(mem.marks, p.spots, p.from);
+    const spotsAdded = marks.length - mem.marks.length;
+    if (spotsAdded) { RiderMemoryStore.save({ ...mem, marks }); rig?.engine.setMemory({ ...mem, marks }); }
+    const { merged, added } = mergeStories(AreaStore.all(), p.stories);
+    for (const [k, a] of Object.entries(merged)) if (p.stories[k]) AreaStore.put(k, a.notes, a.lat != null && a.lon != null ? { lat: a.lat, lon: a.lon } : undefined);
+    window.dispatchEvent(new window.Event('betty-memory'));
+    planner.paint();
+    return `Added from ${p.from}: ${[p.routes.length && `${p.routes.length} route${p.routes.length === 1 ? '' : 's'} (in Where to?)`, spotsAdded && `${spotsAdded} spot${spotsAdded === 1 ? '' : 's'}`, added && `${added} stor${added === 1 ? 'y' : 'ies'}`].filter(Boolean).join(', ') || 'nothing new'}.`;
+  },
+});
+/** The name a shared file goes out under ("sir" is Betty's default for him, not a name). */
+const sharer = () => (cleanRiderName(CONFIG.riderName).toLowerCase() === 'sir' ? 'A friend' : cleanRiderName(CONFIG.riderName));
+/** Send something to a friend's Betty: a file through the share sheet (core/Share). */
+const shareWithFriend = async (pack: SharePack, what: string) => {
+  const how = await shareJson(document, pack, `betty-share-${new Date().toISOString().slice(0, 10)}.json`, `${what} from ${pack.from}'s Betty`);
+  if (how === 'saved') shell.toast('Saved to your downloads: send it to your friend, who imports it in Garage > Your data.');
+};
+// Explore: send all his marked spots and area stories to a friend's Betty.
+document.getElementById('exploreshare')?.addEventListener('click', () => {
+  const stories = Object.fromEntries(Object.entries(AreaStore.all()).map(([k, a]) => [k, { notes: a.notes, lat: a.lat, lon: a.lon }]));
+  void shareWithFriend(makePack(sharer(), new Date(), { spots: RiderMemoryStore.load().marks, stories }), 'Spots and stories');
 });
 // Installable app, and it opens with no signal (public/sw.js). Not on localhost, where it would cache dev builds.
 if ('serviceWorker' in navigator && !/^(localhost|127\.)/.test(location.hostname)) {

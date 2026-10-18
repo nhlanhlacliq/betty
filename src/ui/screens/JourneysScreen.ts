@@ -36,6 +36,8 @@ export interface JourneysContext {
   /** Make and share a picture of the ride (ui/rideCard.ts) */
   /** `status` puts each step on the Share button ("Finding places...", "Making your card...") */
   shareRide(rideId: number, hideEnds: boolean, status: (text: string) => void): Promise<void>;
+  /** Send this ride (its road as a route, the stories of its places) to a friend's Betty */
+  shareToFriend?(rideId: number): Promise<void>;
   /** Plan this ride's road as a route to ride it again (Route: what is ahead) */
   rideAgain?(rideId: number, status: (text: string) => void): Promise<void>;
   /** The month's recap card (Journeys 8): km, rides, places, her best line, every road of the month */
@@ -410,7 +412,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
           ${said.length ? foldList(said.map((e) => `<li>${esc(triggerOf(e.head).replace(/_/g, ' '))}<small>${new Date(e.at).toTimeString().slice(0, 5)}</small><span class="said">${esc(e.text.replace(/<[^>]+>/g, ''))}</span></li>`), 5, 'things she said')
             : '<ul class="moments"><li>A moment for yourself<small>No saved lines for this ride</small></li></ul>'}
           <div class="share-ride"><button class="primary wide" type="button" data-share="${rideId}">${icon('share', 'ico sm')} Share this ride</button>
-            <label class="check-row"><input type="checkbox" data-hideends checked /> Hide where I start and finish</label></div>
+            <label class="check-row"><input type="checkbox" data-hideends checked /> Hide where I start and finish</label>
+            ${ctx.shareToFriend && track.length > 1 ? `<button class="text-button" type="button" data-friend="${rideId}">Send it to a friend's Betty, to ride it too</button>` : ''}</div>
           <div class="dialog-actions"><button class="secondary" type="button" data-copy="${rideId}">${icon('share', 'ico sm')} Copy the log</button>
             <button class="secondary" type="button" data-save="${rideId}">Save as a file</button>${ctx.rideAgain && track.length > 1 ? `<button class="primary" type="button" data-again="${rideId}">Ride this again →</button>` : '<button class="primary" type="button" data-go="home">Ride again →</button>'}</div>
           ${ctx.deleteRide ? `<div class="delete-ride" data-delete-box><button class="text-button danger" type="button" data-delete="${rideId}">Delete this ride</button></div>` : ''}
@@ -468,6 +471,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     if (c) void ctx.copyRide(Number(c.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
     const s = t.closest<HTMLElement>('[data-save]');
     if (s) ctx.saveRide(Number(s.dataset.save));
+    const friend = t.closest<HTMLElement>('[data-friend]');
+    if (friend) { void ctx.shareToFriend?.(Number(friend.dataset.friend)); return; }
     const again = t.closest<HTMLButtonElement>('[data-again]');
     if (again && !again.disabled && ctx.rideAgain) {
       const label = again.innerHTML; again.disabled = true;

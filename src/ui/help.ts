@@ -177,6 +177,7 @@ export const HELP_TOPICS: HelpTopic[] = [
   { id: 'privacy', title: 'Your data and privacy', keywords: 'privacy data backup export import new phone location',
     html: `${li([
       'Rides, logs, notes, stories and settings stay on this phone. Garage &gt; Your data exports one file to move to a new phone.',
+      '<b>Share with a friend\'s Betty:</b> on a ride\'s page, <i>Send it to a friend\'s Betty</i>, or in Explore, <i>Share your spots and stories</i>, makes a small file to send (WhatsApp, AirDrop...). Your friend opens Garage &gt; Your data &gt; Import a backup and picks it: Betty asks, then ADDS it (a ride arrives as a route to ride, spots are marked "from" you, stories she did not have are added). Nothing of theirs is replaced, and your rides do not mix into their journeys.',
       'To answer you she sends what is needed to the services she uses: your words and the ride situation to Claude, your voice to the transcription service (Whisper), her lines to Google\'s voices, your rounded position (about 1 km) for weather, traffic, places and petrol stations.',
     ])}` },
 ];

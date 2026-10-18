@@ -1385,6 +1385,22 @@ resetConfig();
   assert.equal(RouteStore.get()!.name, 'Twisty breakfast loop'); assert.equal(d.getElementById('routewhy')!.textContent, 'Suikerbosrand hills, back by lunch.');
   delete (globalThis as any).localStorage;
 }
+// ---- Garage > Your data: a friend's shared file is ADDED (asks first), not restored as a backup
+{
+  const { mountBackup } = await import('../src/ui/backup');
+  const { makePack } = await import('../src/core/Share');
+  const w = new JSDOM(`<!doctype html><input type="file" id="importdata" />`, { url: "https://betty.test/" });
+  const d = w.window.document; const toasts: string[] = []; const merged: any[] = []; const asked: string[] = []; let reloaded = false;
+  mountBackup(d, w.window.localStorage as any, { get: async () => null, set: async () => {}, clear: async () => {} } as any, {
+    busy: () => false, toast: (m) => toasts.push(m), confirm: (m) => { asked.push(m); return true; }, reload: () => { reloaded = true; },
+    mergeShare: (p) => { merged.push(p); return 'Added from Thabo: 1 route (in Where to?).'; } });
+  const input = d.getElementById('importdata') as HTMLInputElement;
+  const pack = makePack('Thabo', new Date(), { routes: [{ name: "Thabo's ride", stops: [], km: 50, minutes: 60, delayMin: 0, legs: [], points: [[1, 2], [3, 4]], mapsUrl: '', thrilling: false, plannedAt: 1 }] });
+  Object.defineProperty(input, 'files', { value: [{ text: async () => JSON.stringify(pack) }], configurable: true });
+  input.dispatchEvent(new w.window.Event('change')); await new Promise((r) => setTimeout(r, 10));
+  assert.match(asked[0], /^Add what Thabo shared \(1 route\)\? Nothing of yours is replaced\./);
+  assert.equal(merged.length, 1); assert.equal(reloaded, false, 'no reload, nothing replaced'); assert.deepEqual(toasts, ['Added from Thabo: 1 route (in Where to?).']);
+}
 // ---- Let Betty know me: paste, distil, read, save; switch it off; forget
 {
   const { mountKnowMe, ProfileStore } = await import('../src/ui/KnowMe');

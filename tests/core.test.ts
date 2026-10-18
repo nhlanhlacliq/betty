@@ -2541,4 +2541,24 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.match(planPrompt('breakfast run', 'Edenvale', ['Sandton']), /starts near Edenvale[\s\S]*end with exactly HOME[\s\S]*vary from them unless he asks for the usual\): Sandton/);
 }
 
+// ---- share with a friend's Betty (2026-10-18): a ride as a route, spots and stories ADDED, never replaced
+{
+  const S = await import('../src/core/Share');
+  const ride: RideRecord = { startedAt: 1_760_000_000_000, minutes: 90, distanceKm: 93.4, weather: null, places: ['Sandton'], events: [] };
+  const track: Array<[number, number]> = Array.from({ length: 50 }, (_, i) => [-26.1 - i * 0.01, 28.0]);
+  const route = S.rideAsRoute(ride, track, 'Saturday near Sandton', 'Nhlanhla', 80)!;
+  assert.equal(route.name, "Nhlanhla's ride: Saturday near Sandton"); assert.equal(route.km, 93.4); assert.equal(route.minutes, 80);
+  assert.match(route.mapsUrl, /^https:\/\/www\.google\.com\/maps\/dir\/(-?\d+\.\d{5},-?\d+\.\d{5}\/){9}-?\d+\.\d{5},-?\d+\.\d{5}$/, 'ten points: a link Google Maps takes');
+  assert.equal(S.rideAsRoute(ride, [], 'x', 'y', 1), null);
+  const note = (id: string, text: string) => ({ id, area: 'Sandton', topic: 't', text });
+  const pack = S.makePack('Nhlanhla', new Date(2026, 9, 18), { routes: [route], spots: [{ at: 1, lat: -26.2, lon: 28.1, note: 'pothole', near: null }], stories: { 'Sandton|Gauteng': { notes: [note('a', 'Horses'), note('b', 'Mall')] } } });
+  const back = S.parsePack(JSON.stringify(pack))!;
+  assert.equal(back.from, 'Nhlanhla'); assert.equal(S.describePack(back), '1 route, 1 marked spot, 2 area stories');
+  assert.equal(S.parsePack(JSON.stringify({ app: 'betty', version: 1, storage: {} })), null, 'a backup is not a share');
+  const spots = S.mergeSpots([{ at: 0, lat: -26.20001, lon: 28.10001, note: 'mine', near: null }, { at: 2, lat: -26.5, lon: 28.5, note: 'x', near: null }], [...back.spots, { at: 3, lat: -27, lon: 28, note: '', near: null }], 'Thabo');
+  assert.equal(spots.length, 3, 'the same spot is not added twice'); assert.equal(spots[2].note, '(from Thabo)');
+  const m = S.mergeStories({ 'Sandton|Gauteng': { notes: [note('x', 'Horses')] } }, back.stories);
+  assert.equal(m.added, 1, 'only the story she did not have'); assert.equal(m.merged['Sandton|Gauteng'].notes.length, 2);
+}
+
 console.log('all core tests passed');

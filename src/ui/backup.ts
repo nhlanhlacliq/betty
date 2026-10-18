@@ -1,3 +1,4 @@
+import { SharePack, describePack, parsePack } from '../core/Share';
 import type { AvatarStore } from './avatar';
 
 /**
@@ -71,7 +72,23 @@ export function describeBackup(b: Backup): string {
   return `${rides} rides, ${lines} lines, ${notes} notes, ${spots} marked spots${b.avatar ? ', her picture' : ''}, from ${b.exportedAt.slice(0, 10)}`;
 }
 
-export interface BackupContext { busy(): boolean; toast(msg: string, err?: boolean): void; confirm(msg: string): boolean; reload(): void }
+export interface BackupContext {
+  busy(): boolean; toast(msg: string, err?: boolean): void; confirm(msg: string): boolean; reload(): void;
+  /** A file a friend's Betty shared (core/Share): add it; returns what was added, in words */
+  mergeShare?(p: SharePack): string;
+}
+
+/** Send a JSON file with the share sheet (WhatsApp, AirDrop, Files...), or download it where there is none. */
+export async function shareJson(doc: Document, obj: unknown, name: string, title: string): Promise<'shared' | 'saved' | 'cancelled'> {
+  const file = new File([JSON.stringify(obj)], name, { type: 'application/json' });
+  const nav = doc.defaultView?.navigator as Navigator | undefined;
+  if (nav?.canShare?.({ files: [file] })) {
+    try { await nav.share({ files: [file], title }); return 'shared'; } catch { return 'cancelled'; }
+  }
+  const a = doc.createElement('a'); a.href = URL.createObjectURL(file); a.download = name;
+  doc.body.append(a); a.click(); a.remove();
+  return 'saved';
+}
 
 /** Garage > Your data: Export all data (share sheet or download) and Import a backup (replaces, then reloads). */
 export function mountBackup(doc: Document, ls: Storage, avatars: AvatarStore, ctx: BackupContext) {
@@ -96,7 +113,15 @@ export function mountBackup(doc: Document, ls: Storage, avatars: AvatarStore, ct
     if (!f) return;
     if (ctx.busy()) { ctx.toast('End the ride first, then import.', true); return; }
     try {
-      const b = parseBackup(await f.text());
+      const text = await f.text();
+      // A friend's share (routes, spots, stories): ADDED, nothing replaced, no reload.
+      const pack = parsePack(text);
+      if (pack && ctx.mergeShare) {
+        if (!ctx.confirm(`Add what ${pack.from} shared (${describePack(pack)})? Nothing of yours is replaced.`)) return;
+        ctx.toast(ctx.mergeShare(pack));
+        return;
+      }
+      const b = parseBackup(text);
       if (!ctx.confirm(`Replace everything Betty has on this phone with this backup (${describeBackup(b)})?`)) return;
       await restoreBackup(b, ls, avatars);
       ctx.toast('Backup restored. Reloading...');
