@@ -137,6 +137,12 @@
       <section class="screen page" data-screen="journeys" hidden>
         <div class="intro"><div><p class="eyebrow">The roads stay with you</p><h1>My journeys</h1><p class="sub">Little escapes. Good roads. Stories worth keeping.</p></div><span class="demo-pill">Private · on this phone</span></div>
         <div id="journeytotals"></div>
+        <section class="roads-card" id="roadscard" hidden>
+          <div class="roads-head"><h2>Your roads</h2><small id="roadshint">Every ride you have kept. Darker roads are the ones you ride most. Tap one to open it.</small></div>
+          <div class="explore-map roads-map" id="roadsmap"><div class="map-art-host" id="roadsart"></div>
+            <div class="map-controls explore-map-controls"><button type="button" id="roadsfit" aria-label="Show all your roads"><i data-icon="target"></i></button></div></div>
+        </section>
+        <div id="journeyrecords"></div>
         <div id="journeylist"></div>
       </section>
 
@@ -240,6 +246,7 @@
             <div class="setting"><div><p>Tank</p><small>Litres, of which reserve.</small></div><div class="pair"><input type="text" class="num" id="tankl" inputmode="decimal" autocomplete="off" aria-label="Tank size in litres" /><input type="text" class="num" id="reservel" inputmode="decimal" autocomplete="off" aria-label="Reserve in litres" /></div></div>
             <div class="setting"><div><p>Average consumption</p><small>L/100 km, from the dash. Or say "consumption 4.6".</small></div><input type="text" class="num" id="lper100" inputmode="decimal" autocomplete="off" aria-label="Average consumption in litres per 100 km" /></div>
             <div class="setting"><div><p>Petrol price</p><small id="pricesub">Rand a litre.</small></div><input type="text" class="num" id="fuelprice" inputmode="decimal" autocomplete="off" aria-label="Petrol price in rand per litre" /></div>
+            <div class="setting"><div><p>Road drawings in My journeys</p><small>A little drawing of each ride's road beside it.</small></div><input type="checkbox" id="journeythumbs" aria-label="Road drawings in My journeys" /></div>
             <div class="setting"><div><p>Count riding time only</p><small>Ride times leave out parking and breaks. Each ride's story still shows riding and stopped time.</small></div><input type="checkbox" id="ridingonly" aria-label="Count riding time only" /></div>
             <div class="setting stack"><div><p>Motorcycle telemetry</p><small>Real OBD2 needs the hardware.</small></div>
               <select id="obdmode"><option value="off">Off: GPS only</option><option value="mock">Simulated (mock)</option><option value="real" disabled>Real OBD2 (needs the hardware)</option></select></div>

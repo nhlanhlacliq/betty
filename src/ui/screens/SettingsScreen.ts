@@ -44,6 +44,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     $<HTMLInputElement>('voiceboost').value = String(CONFIG.voiceBoostDb);
     $('voiceboostval').textContent = boostText(CONFIG.voiceBoostDb);
     $<HTMLInputElement>('ridingonly').checked = CONFIG.ridingTimeOnly;
+    $<HTMLInputElement>('journeythumbs').checked = CONFIG.journeyThumbs;
     const f = CONFIG.fuel;
     for (const [id, v] of [['tankl', f.tankL], ['reservel', f.reserveL], ['lper100', f.lPer100], ['fuelprice', f.pricePerL]] as const) {
       const box = $<HTMLInputElement>(id); if (doc.activeElement !== box) box.value = String(v);
@@ -76,6 +77,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   num('reservel', 0, 10, (v) => { CONFIG.fuel.reserveL = Math.min(v, CONFIG.fuel.tankL); });
   num('lper100', 2, 15, (v) => { CONFIG.fuel.lPer100 = v; });
   num('fuelprice', 5, 100, (v) => { CONFIG.fuel.pricePerL = v; CONFIG.fuel.priceSource = 'manual'; CONFIG.fuel.priceAt = Date.now(); });
+  $<HTMLInputElement>('journeythumbs').addEventListener('change', (e) => { CONFIG.journeyThumbs = (e.target as HTMLInputElement).checked; changed(); });
   $<HTMLInputElement>('ridingonly').addEventListener('change', (e) => { CONFIG.ridingTimeOnly = (e.target as HTMLInputElement).checked; changed(); });
   for (const [id, key] of ISLAND) $<HTMLInputElement>(id).addEventListener('change', (e) => { CONFIG.island[key] = (e.target as HTMLInputElement).checked; changed(); });
   $('sample').addEventListener('click', () => ctx.sample());

@@ -8,6 +8,8 @@ export interface RideRecord {
   /** Of those, the minutes moving (rides from before 2026-10-17 do not have it) */
   movingMin?: number;
   distanceKm: number;
+  /** Highest point of the ride, GPS metres (rides from 2026-10-18 on) */
+  highM?: number;
   /** Fuel used (km x his average consumption) and what it cost at the price of the day, rand */
   fuelL?: number;
   costR?: number;
@@ -27,6 +29,7 @@ export function toRecord(snap: RideSnapshot, weather: string | null, fuel?: Fuel
     minutes: Math.round(snap.minutesOut),
     movingMin: Math.min(Math.round(snap.minutesOut), Math.round(snap.movingMin)),
     distanceKm: snap.distanceKm,
+    ...(snap.highM != null ? { highM: snap.highM } : {}),
     ...(fuel ? { fuelL: Math.round(litresFor(snap.distanceKm, fuel) * 10) / 10, costR: costOf(snap.distanceKm, fuel) } : {}),
     weather,
     places: snap.places.slice(0, 8),

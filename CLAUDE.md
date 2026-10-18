@@ -465,6 +465,25 @@ the installed app); for now reminders surface when he opens or rides with Betty.
 iPhone zoom (same day): Safari zooms into any field under 16px when tapped (the search boxes were 14px); every field
 is 16px on iOS (`@supports (-webkit-touch-callout: none)`). Android does not zoom.
 
+## My journeys, improved (2026-10-18, owner's order 1+2, 3+4, 5-8)
+
+Storage first: `MAX_REMEMBERED_RIDES` 30 -> 500, `TrackStore` 12 -> 30 detailed tracks, and `adapters/RoadStore`
+(`betty.roads.v1`): a ROUGH copy of every ride's road (60 points, 4 decimals, ~1 KB, 500 rides), saved with the track
+(real rides only) and seeded once from TrackStore. Rows and maps read `ctx.roads()` ONCE per render (not per row).
+1. `core/Journeys` `groupByMonth` (newest month first, km, riding minutes, fuel): newest month open, older months one
+   header line (`.month-head`, `data-month-toggle`); his open/closed choice survives repaints.
+2. `ui/miniMap` `miniTrackSvg`: the road fitted into 56 px, map colours, start dot; `CONFIG.journeyThumbs` (Garage >
+   In your garage > Road drawings in My journeys, owner asked for the switch).
+3. Your roads: static `#roadscard` in index.html; `mapSvg` `roads` draws every rough road faint (opacity .38, so
+   overlaps darken); `fitView` over all points; `attachMapGestures`; a tap (< 8 px move) is hit-tested against every
+   road's segments (nearest within ~14 px) and opens that ride.
+4. `core/Records` `rideRecords`: longest (km), longest in the saddle (riding time), furthest from the ride's own start
+   (no home known), highest (`RideRecord.highM`, from `RideStats.highM`, max GPS altitude while moving, rides from
+   2026-10-18 on), best month, weeks in a row (Monday weeks, counted back from this or last week) and best run, next km
+   milestone (`KM_MILESTONES`) and ride count. Speed is deliberately not a record. Live: `ride_record` (P3, unprompted,
+   flavour: celebrate, never suggest riding further/faster): passing his longest ride (>= 3 rides behind him, longest
+   >= 10 km), once a ride; crossing a total-km milestone. Not while quiet or parked. `liveRecords(RideLog)` at start.
+
 ## Garage search and Help (2026-10-17, owner)
 
 `ui/help.ts` is the content as data: `VOICE_COMMANDS` (groups of {say[], does, kind}; a core test runs EVERY phrase

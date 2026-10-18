@@ -638,3 +638,20 @@ html, body { overscroll-behavior: none; }
 .reminder-row [data-done] { grid-area: done; }
 #reminderform .setting input[type=date] { font-size: 16px; color: var(--ink); background: #f1f4e9; border: 0; border-radius: 9px; padding: 8px 10px; min-height: 38px; }
 .reminder-bike { margin: 2px 0 6px; font-size: 12px; }
+
+/* My journeys: Your roads and Records (2026-10-18) */
+.roads-card, .records-card { background: var(--card); border: 1px solid var(--card-line); border-radius: 20px; padding: 14px; margin: 0 0 14px; }
+.roads-head h2, .records-card h2 { font-size: 17px; margin: 0 0 3px; }
+.roads-head small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.4; }
+.roads-map { height: 260px; margin: 0; }
+.record-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.record-tile { display: grid; gap: 2px; text-align: left; padding: 11px 12px; border-radius: 14px; background: var(--sage-soft); border: 0; color: var(--ink); font: inherit; }
+.record-tile small { font-size: 11px; color: var(--sage-text); letter-spacing: .2px; }
+.record-tile b { font-size: 19px; font-weight: 600; letter-spacing: -.4px; }
+.record-tile span { font-size: 11px; color: var(--muted); }
+.milestone { margin-top: 14px; }
+.milestone p { display: flex; justify-content: space-between; margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.milestone p b { color: var(--ink); font-weight: 600; }
+.milestone .bar { height: 6px; border-radius: 3px; background: var(--butter); overflow: hidden; }
+.milestone .bar i { display: block; height: 100%; background: var(--sage); border-radius: 3px; }
+.milestone-rides { margin: 8px 0 0; font-size: 12px; }

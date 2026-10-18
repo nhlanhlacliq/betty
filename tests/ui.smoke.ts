@@ -269,6 +269,8 @@ resetConfig();
     assert.equal(boost.value, '6'); assert.equal(doc.getElementById('voiceboostval')!.textContent, '+6 dB');
     boost.value = '12'; ev(boost, 'change'); assert.equal(CONFIG.voiceBoostDb, 12); assert.match(page.window.localStorage.getItem('betty.config.v1')!, /"voiceBoostDb":12/);
     boost.value = '0'; ev(boost, 'input'); assert.equal(doc.getElementById('voiceboostval')!.textContent, 'Off'); boost.value = '6'; ev(boost, 'change');
+    const jt = doc.getElementById('journeythumbs') as HTMLInputElement;
+    assert.equal(jt.checked, true, 'road drawings on by default'); jt.checked = false; ev(jt, 'change'); assert.equal(CONFIG.journeyThumbs, false); jt.checked = true; ev(jt, 'change');
     const ro = doc.getElementById('ridingonly') as HTMLInputElement;
     assert.equal(ro.checked, true, 'riding time only by default'); ro.checked = false; ev(ro, 'change'); assert.equal(CONFIG.ridingTimeOnly, false); ro.checked = true; ev(ro, 'change');
     assert.equal((doc.getElementById('buttonsback') as HTMLButtonElement).hidden, true, 'nothing to take back before a ride');
@@ -925,7 +927,7 @@ resetConfig();
 // ---- My journeys: months (newest open, older ones a header), a little map on every ride
 {
   const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
-  const j = new JSDOM(`<!doctype html><div id="journeylist"></div><div id="journeytotals"></div><div id="story"></div>`);
+  const j = new JSDOM(`<!doctype html><div id="journeytotals"></div><section id="roadscard" hidden><div id="roadsmap"><div id="roadsart"></div><button id="roadsfit"></button></div></section><div id="journeyrecords"></div><div id="journeylist"></div><div id="story"></div>`);
   const d = j.window.document;
   const at = (m: number, day: number) => new Date(2026, m - 1, day, 9).getTime();
   const rides = [at(9, 5), at(9, 20), at(10, 2), at(10, 17)].map((t, i) => ({ startedAt: t, minutes: 60, movingMin: 50, distanceKm: 20 + i, weather: 'clear, 20 C', places: [`Place ${i}`], events: [], costR: 30 }));
@@ -943,6 +945,16 @@ resetConfig();
   L.querySelector<HTMLElement>('[data-month-toggle="2026-10"]')!.click();
   assert.equal(L.querySelectorAll('.journey-row').length, 2, 'October closed'); assert.match(L.querySelector('.journey-row')!.textContent!, /Place 1/);
   view.renderList(); assert.equal(L.querySelectorAll('.journey-row').length, 2, 'his choice survives a repaint');
+  // Your roads: shown once a road is kept, drawn faint; Records: tiles that open their ride, the next milestone
+  assert.equal((d.getElementById('roadscard') as HTMLElement).hidden, false);
+  assert.equal((d.getElementById('roadsart')!.innerHTML.match(/opacity=".38"/g) ?? []).length, 1, 'one road drawn');
+  const rec = d.getElementById('journeyrecords')!;
+  assert.match(rec.textContent!, /Longest ride\s*23 km/); assert.match(rec.textContent!, /Best month\s*45 km\s*October 2026/);
+  assert.match(rec.textContent!, /100 km with Betty\s*14 to go/);
+  assert.ok(rec.querySelector('.record-tile[data-ride]'), 'a record opens its ride');
+  const { CONFIG } = await import('../src/config/betty');
+  CONFIG.journeyThumbs = false; view.renderList();
+  assert.equal(L.querySelectorAll('.journey-thumb').length, 0, 'road drawings switched off'); CONFIG.journeyThumbs = true;
 }
 
 // ---- a ride's story: riding and stopped time (ride of 2026-10-17: 80 minutes parked made a 3 h 39 ride)

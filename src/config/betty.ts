@@ -62,6 +62,8 @@ export interface Config {
   cardMetro: boolean;
   /** Louder voice, in dB (0 to 16; owner, ride of 2026-10-17: "can't hear it over the wind"): Chirp by Google, Gemini by a limiter on the phone */
   voiceBoostDb: number;
+  /** My journeys: a little drawing of each ride's road on its row (Garage switch, owner 2026-10-18) */
+  journeyThumbs: boolean;
   /** Ride times count only the time moving (parked and breaks left out); each ride's story still shows both. */
   ridingTimeOnly: boolean;
   /**
@@ -108,7 +110,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -116,7 +118,7 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -140,6 +142,7 @@ export const DEFAULT_CONFIG: Config = {
   cardMetro: true,
   voiceBoostDb: 6,
   ridingTimeOnly: true,
+  journeyThumbs: true,
   island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false, lockLine: true },
   micDeviceId: '',
   micLabel: '',
@@ -350,6 +353,9 @@ through Germiston, which..."). The note is your only source: add no facts to it,
 Never mention notes, research, sources or websites. If the note truly has no story in it, reply with exactly ${SILENT_TOKEN}.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
+  ride_record: `This is a small celebration, not an alert: a personal record or milestone has just happened on this ride
+(the situation says which). Mark it in one or two lines, warmly, in character, with a touch of pride in him. Use only the
+numbers given. Never suggest riding further, faster or longer to beat it again.`,
   ride_milestone: `This is an ambient time check, not an alert. Note how long he has been out, with a dry touch, and nothing else.
 Do not recite bike readings. Do not reuse jokes or phrasing from what you already said this ride:
 if an earlier time check used a turn of phrase ("suspects", "the road", "the clock", "the scenery"), find a different one.`,

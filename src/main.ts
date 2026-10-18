@@ -31,6 +31,7 @@ import { PlaceSource } from './adapters/PlaceSource';
 import { AreaSource, AreaStore, ToldStore } from './adapters/AreaSource';
 import { TrackStore } from './adapters/TrackStore';
 import { RoadStore } from './adapters/RoadStore';
+import { liveRecords } from './core/Records';
 import { TrackPoint, addTrackPoint } from './core/Track';
 import { RideLog } from './adapters/RideLog';
 import { toRecord } from './core/RideMemory';
@@ -774,6 +775,7 @@ async function beginRide(desk: boolean) {
 
   const engine = new TriggerEngine();
   engine.setHistory(RideLog.load());
+  if (!desk && real) engine.setRecords(liveRecords(RideLog.load())); // "your longest ride yet", "1,000 km together"
   engine.setKnownIncidents(IncidentMemory.load());
   currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
   engine.setFuelKm(FuelStore.load());

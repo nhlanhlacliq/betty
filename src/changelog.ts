@@ -8,6 +8,9 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      'Your roads in My journeys: every ride you have kept on one map, your most-ridden roads darker. Tap a road to open the ride.',
+      'Records in My journeys: longest ride, longest in the saddle, furthest out, highest point, best month, weeks in a row, and your next milestone. Betty tells you on the ride when you pass your longest ride or a km milestone.',
+      'The road drawings beside each ride can be switched off in Garage > In your garage.',
       'My journeys is grouped by month: this month open, older months one line each (rides, km, riding time, fuel). Every ride has a little drawing of its road beside it, and Betty now keeps your last 500 rides instead of 30.',
       'The island is now called Horizon (Garage > Horizon).',
       'Say "anything ahead?" (or "what\'s on the horizon?") and Betty reads out Horizon: fuel, rain, traffic, your route, sunset, maintenance, where you are. Instant, and it works without signal.',

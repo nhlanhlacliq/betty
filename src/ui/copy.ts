@@ -25,6 +25,7 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
   rain_soon: { kicker: 'Heads up', headline: 'Rain about.' },
   sunset_soon: { kicker: 'Heads up', headline: 'The light is going.' },
   ride_parked: { kicker: 'Parked?', headline: "I'll keep quiet." },
+  ride_record: { kicker: 'A first', headline: 'A new record.' },
   traffic_incident: { kicker: 'Heads up', headline: 'Traffic on your way.' },
   ride_milestone: { kicker: 'Time check', headline: 'Still rolling.' },
   rider_query: { kicker: 'You asked', headline: "Here's what I know." },

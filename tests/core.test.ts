@@ -2265,4 +2265,37 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.match(miniTrackSvg([]), /class="mini-map empty"/);
 }
 
+// ---- records and milestones, and her live callouts (Journeys 4)
+{
+  const R = await import('../src/core/Records');
+  const r = (y: number, m: number, d: number, km: number, extra: Partial<RideRecord> = {}): RideRecord => ({ startedAt: new Date(y, m - 1, d, 8).getTime(), minutes: 60, movingMin: 50, distanceKm: km, weather: null, places: [], events: [], ...extra });
+  const rides = [r(2026, 9, 28, 40), r(2026, 10, 6, 30, { highM: 1820 }), r(2026, 10, 13, 93.4, { minutes: 219, movingMin: 139, highM: 1700 }), r(2026, 10, 17, 55)];
+  const roads = { [String(rides[0].startedAt)]: [[-26.0, 28.0], [-26.5, 28.0], [-26.0, 28.01]] as Array<[number, number]> };
+  const v = R.rideRecords(rides, roads, true, new Date(2026, 9, 18).getTime());
+  assert.equal(v.longest?.km, 93.4); assert.equal(v.longestTime?.minutes, 139); assert.equal(v.highest?.m, 1820);
+  assert.ok(v.furthest && Math.abs(v.furthest.km - 56) <= 1, 'furthest from where it started');
+  assert.deepEqual([v.bestMonth?.key, v.bestMonth?.km], ['2026-10', 178]);
+  assert.deepEqual([v.streak, v.bestStreak], [3, 3], 'three weeks in a row up to this one (13 and 17 Oct share a week)');
+  assert.equal(v.totalKm, 218); assert.deepEqual(v.nextKm, { at: 250, left: 32, from: 100 }); assert.deepEqual(v.nextRides, { at: 10, left: 6 });
+  assert.equal(R.rideRecords([], {}, true, 0).longest, null);
+  assert.equal(R.kmMilestoneCrossed(990, 1004), 1000); assert.equal(R.kmMilestoneCrossed(1001, 1050), null);
+  const live = R.liveRecords(rides);
+  assert.deepEqual([live.longestKm, live.rides, Math.round(live.totalKm)], [93.4, 4, 218]);
+
+  // live: passes his longest once; crosses 250 km in total once; quiet holds them back
+  resetConfig(); clock = 120_000_000; CONFIG.milestoneEveryMin = 600;
+  const e = new TriggerEngine(now, () => 0.99); e.setRecords(live);
+  const fired: TriggerEvent[] = [];
+  for (let i = 0; i < 60 * 70; i++) { clock += 1000; fired.push(...e.evaluate({ ...initialState(), speedKmh: 100 }).filter((x) => x.id === 'ride_record')); } // 70 min at 100 km/h
+  assert.equal(fired.length, 2, String(fired.map((x) => x.context)));
+  assert.match(fired[0].context, /He has just passed 250 km of riding with you in total, over 5 rides/);
+  assert.match(fired[1].context, /This is now his longest ride with you: 9\d km so far, past his previous longest of 93 km/);
+  assert.equal(fired[1].priority, 3); assert.equal(fired[1].fallback, "That's your longest ride with me yet.");
+  assert.match((await import('../src/config/betty')).FLAVOUR_PROMPTS.ride_record!, /Never suggest riding further, faster/);
+  const q = new TriggerEngine(now); q.setRecords(live); q.setQuiet(Infinity);
+  let quietFired = 0; for (let i = 0; i < 60 * 70; i++) { clock += 1000; quietFired += q.evaluate({ ...initialState(), speedKmh: 100 }).filter((x) => x.id === 'ride_record').length; }
+  assert.equal(quietFired, 0, 'quiet: no callouts');
+  resetConfig();
+}
+
 console.log('all core tests passed');

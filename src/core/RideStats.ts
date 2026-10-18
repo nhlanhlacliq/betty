@@ -15,6 +15,8 @@ export interface RideSnapshot {
   /** Metres gained and lost this ride (GPS altitude, small wobbles ignored) */
   climbM: number;
   descentM: number;
+  /** Highest GPS altitude this ride (m), null without one */
+  highM: number | null;
   /** Times speed dropped or rose by about 0.35 g or more */
   hardBrakes: number;
   hardAccels: number;
@@ -58,6 +60,7 @@ export class RideStats {
   private fuelStart: number | null = null;
   private altAnchor: number | null = null;
   private climb = 0;
+  private high: number | null = null;
   private descent = 0;
   private speedRef: { kmh: number; at: number } | null = null;
   private hardBrakes = 0;
@@ -91,6 +94,7 @@ export class RideStats {
     }
 
     if (s.altitudeM != null) {
+      if (moving) this.high = Math.max(this.high ?? -Infinity, s.altitudeM); // moving: a parked phone's GPS height wanders
       if (this.altAnchor === null) this.altAnchor = s.altitudeM;
       const d = s.altitudeM - this.altAnchor;
       if (Math.abs(d) >= ALT_STEP_M) { if (d > 0) this.climb += d; else this.descent -= d; this.altAnchor = s.altitudeM; }
@@ -129,6 +133,7 @@ export class RideStats {
       corneringPct: this.movingMs ? Math.round((this.corneringMs / this.movingMs) * 100) : 0,
       climbM: Math.round(this.climb),
       descentM: Math.round(this.descent),
+      highM: this.high === null ? null : Math.round(this.high),
       hardBrakes: this.hardBrakes,
       hardAccels: this.hardAccels,
       jolts: this.jolts,

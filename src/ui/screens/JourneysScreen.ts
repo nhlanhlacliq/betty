@@ -9,6 +9,10 @@ import type { Shell } from '../Shell';
 import { rideTitle } from './HomeScreen';
 import { groupByMonth, monthKey } from '../../core/Journeys';
 import { miniTrackSvg } from '../miniMap';
+import { rideRecords } from '../../core/Records';
+import { fitView } from '../../core/Explore';
+import { MapView, attachMapGestures } from '../mapGestures';
+import { MAP_H, MAP_W, projector } from '../mapView';
 
 export interface JourneysContext {
   /** Remembered rides (oldest first, as RideLog keeps them) */
@@ -77,15 +81,82 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   const row = (r: RideRecord) => {
     const road = roads[String(r.startedAt)] ?? [];
     return `<button class="journey-row" type="button" data-ride="${r.startedAt}">
-      <span class="journey-thumb">${miniTrackSvg(road)}</span>
+      ${CONFIG.journeyThumbs ? `<span class="journey-thumb">${miniTrackSvg(road)}</span>` : ''}
       <div class="journey-main"><p class="eyebrow">${esc(date(r.startedAt))}</p><h2>${esc(rideTitle(r))}</h2><p class="sub">${esc(r.weather ?? 'Out with Betty')}</p></div>
       <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))}</p></div></button>`;
+  };
+
+  // ---- Your roads (Journeys 3): every ride's rough road on one map, pan and zoom, tap a road to open its ride.
+  const roadsCard = doc.getElementById('roadscard');
+  const roadsHost = doc.getElementById('roadsmap');
+  const roadsArt = doc.getElementById('roadsart');
+  let roadsView: MapView | null = null;
+  const roadList = () => Object.entries(roads).filter(([id, t]) => t.length > 1 && ctx.rides().some((r) => String(r.startedAt) === id));
+  const renderRoads = () => {
+    if (!roadsCard || !roadsHost || !roadsArt) return;
+    const list = roadList();
+    roadsCard.hidden = !list.length;
+    if (!list.length) return;
+    const box = roadsHost.getBoundingClientRect();
+    roadsView ??= fitView(list.flatMap(([, t]) => t.map(([lat, lon]) => ({ lat, lon }))), box.width || 660, box.height || 300);
+    roadsArt.innerHTML = mapSvg({ center: roadsView.center, here: null, headingDeg: null, track: [], places: [], incidents: [], marks: [], spanKm: roadsView.spanKm,
+      roads: list.map(([, t]) => t) }, 'Your roads: every ride you have kept', 'roads');
+  };
+  if (roadsHost && roadsArt) {
+    attachMapGestures(roadsHost, roadsArt, () => roadsView, (v) => { roadsView = v; renderRoads(); });
+    doc.getElementById('roadsfit')?.addEventListener('click', () => { roadsView = null; renderRoads(); });
+    let down: { x: number; y: number } | null = null;
+    roadsHost.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+    roadsHost.addEventListener('click', (e) => {
+      if ((e.target as Element).closest('button') || !roadsView) return;
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
+      const r = roadsHost.getBoundingClientRect();
+      const k = Math.max(r.width / MAP_W, r.height / MAP_H) || 1;
+      const tap = { x: (e.clientX - r.left - (r.width - MAP_W * k) / 2) / k, y: (e.clientY - r.top - (r.height - MAP_H * k) / 2) / k };
+      const at = projector(roadsView.center, roadsView.spanKm);
+      // Distance from the tap to each road's line segments, in map units; the nearest within ~14 px opens its ride.
+      const seg = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
+        const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy;
+        const t = l ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l)) : 0;
+        return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+      };
+      let best: { id: string; d: number } | null = null;
+      for (const [id, t] of roadList()) {
+        const q = t.map(([lat, lon]) => at({ lat, lon }));
+        for (let i = 1; i < q.length; i++) { const d = seg(tap, q[i - 1], q[i]); if (!best || d < best.d) best = { id, d }; }
+      }
+      if (best && best.d * k < 14) open(Number(best.id));
+    });
+  }
+
+  // ---- Records and milestones (Journeys 4)
+  const recordsBox = doc.getElementById('journeyrecords');
+  const renderRecords = (rides: RideRecord[]) => {
+    if (!recordsBox) return;
+    if (!rides.length) { recordsBox.innerHTML = ''; return; }
+    const rec = rideRecords(rides, roads, CONFIG.ridingTimeOnly, Date.now());
+    const tile = (label: string, value: string, sub: string, ride?: number) => `<${ride ? `button type="button" data-ride="${ride}"` : 'div'} class="record-tile"><small>${esc(label)}</small><b>${esc(value)}</b><span>${esc(sub)}</span></${ride ? 'button' : 'div'}>`;
+    const tiles = [
+      rec.longest && tile('Longest ride', `${rec.longest.km} km`, date(rec.longest.ride.startedAt), rec.longest.ride.startedAt),
+      rec.longestTime && tile('Longest in the saddle', duration(rec.longestTime.minutes), date(rec.longestTime.ride.startedAt), rec.longestTime.ride.startedAt),
+      rec.furthest && rec.furthest.km >= 1 && tile('Furthest out', `${rec.furthest.km} km`, 'from where you set off', rec.furthest.ride.startedAt),
+      rec.highest && tile('Highest point', `${rec.highest.m.toLocaleString('en-US')} m`, date(rec.highest.ride.startedAt), rec.highest.ride.startedAt),
+      rec.bestMonth && tile('Best month', `${rec.bestMonth.km} km`, rec.bestMonth.label),
+      rec.streak || rec.bestStreak ? tile('Weeks in a row', `${rec.streak}`, rec.bestStreak > rec.streak ? `best ${rec.bestStreak}` : rec.streak ? 'with a ride every week' : 'ride this week to start one') : '',
+    ].filter(Boolean).join('');
+    const next = rec.nextKm;
+    const pct = next ? Math.round(((rec.totalKm - next.from) / (next.at - next.from)) * 100) : 100;
+    recordsBox.innerHTML = `<section class="records-card"><h2>Records</h2><div class="record-grid">${tiles}</div>
+      ${next ? `<div class="milestone"><p><b>${next.at.toLocaleString('en-US')} km with Betty</b><span>${next.left.toLocaleString('en-US')} to go</span></p><div class="bar"><i style="width:${pct}%"></i></div></div>` : ''}
+      ${rec.nextRides ? `<p class="sub milestone-rides">${rec.nextRides.left} ride${rec.nextRides.left === 1 ? '' : 's'} to your ${rec.nextRides.at}th.</p>` : ''}</section>`;
   };
 
   const renderList = () => {
     const rides = [...ctx.rides()].reverse();
     if (!rides.length) {
       totals.innerHTML = '';
+      if (roadsCard) roadsCard.hidden = true;
+      if (recordsBox) recordsBox.innerHTML = '';
       list.innerHTML = `<div class="empty"><button class="orb resting" type="button" tabindex="-1" aria-hidden="true"></button><h2>Your story starts on the road.</h2>
         <p>Rides of three minutes or a kilometre and up land here, quietly organised by journey.</p>
         <button class="text-button" type="button" data-help="start">How Betty works</button></div>`;
@@ -97,6 +168,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     // By month (owner, 2026-10-18: "just a long scrolling list"): the newest month open, older ones a header line.
     const months = groupByMonth(rides, CONFIG.ridingTimeOnly);
     roads = ctx.roads?.() ?? {};
+    renderRoads();
+    renderRecords(rides);
     if (!touched) { openMonths.clear(); openMonths.add(months[0].key); }
     const thisMonth = monthKey(Date.now());
     list.innerHTML = months.map((m) => {
@@ -159,6 +232,10 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       </div>`;
   };
 
+  recordsBox?.addEventListener('click', (e) => {
+    const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
+    if (b) open(Number(b.dataset.ride));
+  });
   list.addEventListener('click', (e) => {
     const mt = (e.target as Element).closest<HTMLElement>('[data-month-toggle]');
     if (mt) {

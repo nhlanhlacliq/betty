@@ -36,6 +36,8 @@ export interface MapInput {
   areaPins?: AreaPin[];
   /** Radius of his marked spots in map units (6; Explore's smaller-scale map uses more) */
   markRadius?: number;
+  /** Your roads (My journeys): every ride's rough road, drawn faint so roads ridden often come out darker */
+  roads?: TrackPoint[][];
 }
 export interface AreaPin { id: string; lat: number; lon: number; label: string; unheard: number; total: number }
 
@@ -203,6 +205,11 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
     const at = projector(center, m.spanKm);
     const onMap = (p: { x: number; y: number }, pad = 40) => p.x > -pad && p.x < MAP_W + pad && p.y > -pad && p.y < MAP_H + pad;
     if (m.borders) parts.push(bordersSvg(m.borders, at, m.spanKm));
+    if (m.roads?.length) {
+      const ds = m.roads.filter((t) => t.length > 1).map((t) => t.map((p, i) => { const q = at({ lat: p[0], lon: p[1] }); return `${i ? 'L' : 'M'}${r1(q.x)} ${r1(q.y)}`; }).join(''));
+      parts.push(ds.map((d) => `<path d="${d}" fill="none" stroke="#fffdf3" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>`).join('')
+        + ds.map((d) => `<path d="${d}" fill="none" stroke="#5d7a55" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity=".38"/>`).join(''));
+    }
     if (m.route && m.route.length > 1) {
       const d = m.route.map((t, i) => { const p = at({ lat: t[0], lon: t[1] }); return `${i ? 'L' : 'M'}${r1(p.x)} ${r1(p.y)}`; }).join('');
       parts.push(`<path d="${d}" fill="none" stroke="#fffdf3" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>`

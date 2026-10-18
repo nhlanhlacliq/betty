@@ -3,6 +3,7 @@ import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from 
 import { PlannedRoute, RouteProgress, describeRoute, minutesText, routeProgress } from './Route';
 import { profileUse } from './Profile';
 import { ServiceBook, describeDue } from './Reminders';
+import { LiveRecords, kmMilestoneCrossed } from './Records';
 import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
@@ -104,7 +105,7 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
-    this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false;
+    this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.saidLongest = false; this.lastDistance = 0;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
     this.fuelBaseKm = carried; this.fuelOffsetKm = 0;
@@ -186,6 +187,12 @@ export class TriggerEngine {
   }
   setDetour(on: boolean) { this.detour = on; this.detourLeft = false; if (on) this.offWarned = true; }
   onDetour() { return this.detour; }
+  /** His records before this ride (longest, total km), for "your longest ride yet" and "1,000 km together". */
+  private live: LiveRecords | null = null;
+  private saidLongest = false;
+  private lastDistance = 0;
+  private recordNow: { kind: 'longest' | 'total'; km: number } | null = null;
+  setRecords(r: LiveRecords | null) { this.live = r; this.saidLongest = false; }
   /** Since when he has been standing still, and whether she has gone quiet for it. */
   private stillSince: number | null = null;
   private parked = false;
@@ -343,6 +350,24 @@ export class TriggerEngine {
       this.lastAmbientSlot = this.now();
       return out;
     }
+    // Records (P3, so not while quiet or parked): his longest ride passed (with a few rides behind him, and a ride of
+    // some length), and a total-km milestone crossed. Once each per ride.
+    if (this.live) {
+      const before = this.lastDistance, dist = this.stats.snapshot().distanceKm;
+      this.lastDistance = dist;
+      const crossed = kmMilestoneCrossed(this.live.totalKm + before, this.live.totalKm + dist);
+      if (!this.saidLongest && this.live.rides >= 3 && this.live.longestKm >= 10 && dist > this.live.longestKm) {
+        this.saidLongest = true;
+        this.recordNow = { kind: 'longest', km: this.live.longestKm };
+        try { out.push(this.force('ride_record', s)); } finally { this.recordNow = null; }
+        return out;
+      }
+      if (crossed && this.live.rides >= 1) {
+        this.recordNow = { kind: 'total', km: crossed };
+        try { out.push(this.force('ride_record', s)); } finally { this.recordNow = null; }
+        return out;
+      }
+    }
     if (due > this.milestonesHit && this.ready('ride_milestone')) {
       this.milestonesHit = due;
       this.lastAmbientSlot = this.now();
@@ -450,6 +475,21 @@ export class TriggerEngine {
         return {
           context: `The rider has been out for ${mins} minutes${split}. For this time check, hang the line on ${angle}. Facts you may use: ${facts}.`,
           fallback: `You've been out ${mins} minute${mins === 1 ? '' : 's'}. Good ride so far.`,
+        };
+      }
+      case 'ride_record': {
+        const r = this.recordNow, dist = this.stats.snapshot().distanceKm;
+        if (!r) return { context: '', fallback: '' };
+        if (r.kind === 'longest') {
+          const when = this.live?.longestWhen ? whenSaid(this.live.longestWhen, this.now()) : 'before';
+          return {
+            context: `This is now his longest ride with you: ${Math.round(dist)} km so far, past his previous longest of ${Math.round(r.km)} km (${when}).`,
+            fallback: "That's your longest ride with me yet.",
+          };
+        }
+        return {
+          context: `He has just passed ${r.km.toLocaleString('en-US')} km of riding with you in total, over ${(this.live?.rides ?? 0) + 1} rides.`,
+          fallback: `That's ${r.km.toLocaleString('en-US')} kilometres together.`,
         };
       }
       case 'ride_parked': {
