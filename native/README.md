@@ -32,6 +32,12 @@ cloud voices with ducking -> reminder notifications (local, expo-notifications) 
 design) -> CarPlay voice template and Siri App Intents (needs the paid Apple account) -> quiet during calls, crash
 detection, group rides.
 
+First run on the owner's iPhone 12 (2026-10-18): signing works with his free Personal Team (`ios.appleTeamId`
+6DHA6234P3 in app.json, so a regenerated ios/ keeps it); the dev build installed, then CRASHED at launch in
+`RNBluetoothClassic.init()` (assertion). Fix: `react-native.config.js` keeps that library out of the iOS build, and
+`ElmClassicTransport` only `require`s it on Android. Crash reports: `xcrun devicectl device info files --device <id>
+--domain-type systemCrashLogs`, then `devicectl device copy from ...` (the .ips JSON has the faulting thread).
+
 Known risks:
 - `react-native-bluetooth-classic` (1.73.0-rc.17) is a legacy native module, "untested on New Architecture"
   (expo-doctor). If it fails on RN 0.88, replace it with a small local Expo module in Kotlin (`npx create-expo-module

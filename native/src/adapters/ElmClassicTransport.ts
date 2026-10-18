@@ -1,4 +1,5 @@
-import RNBluetoothClassic, { BluetoothDevice } from 'react-native-bluetooth-classic';
+import type { BluetoothDevice } from 'react-native-bluetooth-classic';
+import { Platform } from 'react-native';
 import type { ObdTransport } from '../../../src/core/Elm327';
 
 /**
@@ -6,7 +7,12 @@ import type { ObdTransport } from '../../../src/core/Elm327';
  * accessories outside Apple's MFi programme, so an iPhone needs a BLE or Wi-Fi reader (a different transport).
  * The reader must be paired in Android's Bluetooth settings first (PIN 1234 or 0000).
  * UNVERIFIED on the owner's reader and on React Native 0.88 (the library is a legacy native module).
+ * The library is loaded only on Android: it is not linked into the iOS build (react-native.config.js), and on iPhone
+ * merely loading it crashed the app at launch.
  */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const bt = () => (Platform.OS === 'android' ? require('react-native-bluetooth-classic').default : null) as typeof import('react-native-bluetooth-classic').default | null;
+
 export class ElmClassicTransport implements ObdTransport {
   private device: BluetoothDevice | null = null;
   private buffer = '';
@@ -15,15 +21,19 @@ export class ElmClassicTransport implements ObdTransport {
 
   /** Readers paired with the phone whose name looks like an OBD reader (all paired devices when none does). */
   static async paired(): Promise<{ name: string; address: string }[]> {
-    if (!(await RNBluetoothClassic.isBluetoothEnabled())) await RNBluetoothClassic.requestBluetoothEnabled();
-    const all = await RNBluetoothClassic.getBondedDevices();
+    const BT = bt();
+    if (!BT) throw new Error('classic Bluetooth readers work on Android only');
+    if (!(await BT.isBluetoothEnabled())) await BT.requestBluetoothEnabled();
+    const all = await BT.getBondedDevices();
     const obd = all.filter((d) => /obd|elm|v-?link|scan/i.test(d.name ?? ''));
     return (obd.length ? obd : all).map((d) => ({ name: d.name, address: d.address }));
   }
 
   async connect(address: string): Promise<void> {
     // The reader ends every answer with its ">" prompt, so that is the message delimiter.
-    this.device = await RNBluetoothClassic.connectToDevice(address, { delimiter: '>' });
+    const BT = bt();
+    if (!BT) throw new Error('classic Bluetooth readers work on Android only');
+    this.device = await BT.connectToDevice(address, { delimiter: '>' });
     this.sub = this.device.onDataReceived((ev) => {
       this.buffer += String(ev.data);
       const w = this.waiting;

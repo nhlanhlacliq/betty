@@ -11,7 +11,8 @@
       "bundleIdentifier": "com.nhlanhla.betty",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Betty uses your location for your speed, the weather and the places on your ride."
-      }
+      },
+      "appleTeamId": "6DHA6234P3"
     },
     "android": {
       "adaptiveIcon": {
