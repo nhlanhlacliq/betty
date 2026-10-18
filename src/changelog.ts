@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      'My journeys: "this month so far" with km a week for the last 8 weeks and how it compares with last month; On this day (rides a month, three months, six months and a year ago today); find a ride by place, month or day; star favourites and rename rides; and share a month as a picture with all its roads.',
       'Your roads in My journeys: every ride you have kept on one map, your most-ridden roads darker. Tap a road to open the ride.',
       'Records in My journeys: longest ride, longest in the saddle, furthest out, highest point, best month, weeks in a row, and your next milestone. Betty tells you on the ride when you pass your longest ride or a km milestone.',
       'The road drawings beside each ride can be switched off in Garage > In your garage.',

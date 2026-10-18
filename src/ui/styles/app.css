@@ -655,3 +655,28 @@ html, body { overscroll-behavior: none; }
 .milestone .bar { height: 6px; border-radius: 3px; background: var(--butter); overflow: hidden; }
 .milestone .bar i { display: block; height: 100%; background: var(--sage); border-radius: 3px; }
 .milestone-rides { margin: 8px 0 0; font-size: 12px; }
+
+/* My journeys 5-8 (2026-10-18) */
+.journey-tools { margin: 0 0 12px; }
+.star-filter { flex: none; min-height: 44px; border-radius: 22px; padding: 0 14px; }
+.star-filter[aria-pressed="true"] { background: var(--yellow); border-color: var(--yellow); color: var(--ink); }
+.found-count { margin: 0 2px 8px; }
+.star-on { color: #c9a43c; }
+.month-nums { display: flex; justify-content: space-between; gap: 8px; margin: 10px 0 2px; }
+.month-nums b { display: block; font-size: 20px; font-weight: 600; letter-spacing: -.4px; }
+.month-nums small { font-size: 11px; color: var(--muted); }
+.month-change { margin: 8px 0 0; font-size: 13px; color: var(--sage-text); }
+.week-bars { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; align-items: end; height: 84px; margin-top: 14px; }
+.week-bars > div { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 3px; }
+.week-bars i { display: block; width: 100%; max-width: 26px; border-radius: 5px 5px 2px 2px; background: #cfdcc6; }
+.week-bars .now i { background: var(--sage); }
+.week-bars small { font-size: 10px; color: var(--muted); min-height: 12px; }
+.week-note { margin: 6px 0 0; font-size: 11px; }
+.share-month { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; }
+.day-back-row { display: grid; gap: 2px; width: 100%; text-align: left; padding: 11px 0; border: 0; border-top: 1px solid var(--line-soft); background: none; color: var(--ink); font: inherit; }
+.day-back-row:first-of-type { border-top: 0; }
+.day-back-row small { font-size: 11px; color: var(--sage-text); letter-spacing: .2px; }
+.day-back-row b { font-size: 16px; font-weight: 600; }
+.day-back-row span { font-size: 12px; color: var(--muted); }
+.story-tools { display: flex; justify-content: center; gap: 18px; margin: 4px 0 6px; }
+.rename-field { width: 100%; font: inherit; font-size: 22px; font-weight: 600; text-align: center; color: var(--ink); background: #f1f4e9; border: 0; border-radius: 12px; padding: 8px 10px; }

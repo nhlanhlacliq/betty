@@ -1,3 +1,4 @@
+import { JourneyStore } from '../../adapters/JourneyStore';
 import type { RideRecord } from '../../core/RideMemory';
 import type { TrackPoint } from '../../core/Track';
 import { scenery, sceneryFor } from '../art';
@@ -36,7 +37,8 @@ const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const day = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { weekday: 'long' });
 const date = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
 const duration = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : `${min} min`);
-export const rideTitle = (r: RideRecord) => r.places[0] ? `${day(r.startedAt)} near ${r.places[0]}` : `${day(r.startedAt)} ride`;
+/** His name for the ride if he gave it one (My journeys > Rename), otherwise "Sunday near Sandton". */
+export const rideTitle = (r: RideRecord) => JourneyStore.name(r.startedAt) ?? (r.places[0] ? `${day(r.startedAt)} near ${r.places[0]}` : `${day(r.startedAt)} ride`);
 
 /** A past ride as a card with a landscape (My journeys). */
 export const rideCard = (r: RideRecord) => `<button class="route-card" type="button" data-ride="${r.startedAt}"><div class="route-image">${scenery(sceneryFor(r.startedAt))}

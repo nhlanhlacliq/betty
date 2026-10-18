@@ -136,7 +136,12 @@
       <!-- ============ JOURNEYS ============ -->
       <section class="screen page" data-screen="journeys" hidden>
         <div class="intro"><div><p class="eyebrow">The roads stay with you</p><h1>My journeys</h1><p class="sub">Little escapes. Good roads. Stories worth keeping.</p></div><span class="demo-pill">Private · on this phone</span></div>
+        <div class="explore-tools journey-tools"><label class="explore-search"><i data-icon="compass" class="sm"></i><input type="search" id="journeysearch" placeholder="Find a ride: a place, a month" aria-label="Find a ride" autocomplete="off" /></label>
+          <button class="secondary small star-filter" type="button" id="journeystarred" aria-pressed="false">★ Starred</button></div>
+        <div id="journeyfound"></div>
         <div id="journeytotals"></div>
+        <div id="journeyday"></div>
+        <div id="journeymonth"></div>
         <section class="roads-card" id="roadscard" hidden>
           <div class="roads-head"><h2>Your roads</h2><small id="roadshint">Every ride you have kept. Darker roads are the ones you ride most. Tap one to open it.</small></div>
           <div class="explore-map roads-map" id="roadsmap"><div class="map-art-host" id="roadsart"></div>

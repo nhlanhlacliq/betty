@@ -7,7 +7,8 @@ import { foldList, toggleFold } from '../fold';
 import { MapPin, mapSvg, spanFor, trackCenter } from '../mapView';
 import type { Shell } from '../Shell';
 import { rideTitle } from './HomeScreen';
-import { groupByMonth, monthKey } from '../../core/Journeys';
+import { findRides, groupByMonth, monthKey, monthLabel, monthNumbers, onThisDay } from '../../core/Journeys';
+import { JourneyStore } from '../../adapters/JourneyStore';
 import { miniTrackSvg } from '../miniMap';
 import { rideRecords } from '../../core/Records';
 import { fitView } from '../../core/Explore';
@@ -35,6 +36,8 @@ export interface JourneysContext {
   /** Make and share a picture of the ride (ui/rideCard.ts) */
   /** `status` puts each step on the Share button ("Finding places...", "Making your card...") */
   shareRide(rideId: number, hideEnds: boolean, status: (text: string) => void): Promise<void>;
+  /** The month's recap card (Journeys 8): km, rides, places, her best line, every road of the month */
+  shareMonth?(key: string, status: (text: string) => void): Promise<void>;
   toast(msg: string): void;
 }
 
@@ -82,7 +85,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const road = roads[String(r.startedAt)] ?? [];
     return `<button class="journey-row" type="button" data-ride="${r.startedAt}">
       ${CONFIG.journeyThumbs ? `<span class="journey-thumb">${miniTrackSvg(road)}</span>` : ''}
-      <div class="journey-main"><p class="eyebrow">${esc(date(r.startedAt))}</p><h2>${esc(rideTitle(r))}</h2><p class="sub">${esc(r.weather ?? 'Out with Betty')}</p></div>
+      <div class="journey-main"><p class="eyebrow">${JourneyStore.starred(r.startedAt) ? '<span class="star-on" aria-label="Starred">★</span> ' : ''}${esc(date(r.startedAt))}</p><h2>${esc(rideTitle(r))}</h2><p class="sub">${esc(r.weather ?? 'Out with Betty')}</p></div>
       <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))}</p></div></button>`;
   };
 
@@ -151,10 +154,59 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       ${rec.nextRides ? `<p class="sub milestone-rides">${rec.nextRides.left} ride${rec.nextRides.left === 1 ? '' : 's'} to your ${rec.nextRides.at}th.</p>` : ''}</section>`;
   };
 
+  // ---- Find a ride, starred (Journeys 7)
+  const searchBox = doc.getElementById('journeysearch') as HTMLInputElement | null;
+  const starBtn = doc.getElementById('journeystarred');
+  const found = doc.getElementById('journeyfound');
+  let starredOnly = false;
+  const dayBox = doc.getElementById('journeyday');
+  const monthBox = doc.getElementById('journeymonth');
+  const shareMonthBtn = (key: string, label: string) => ctx.shareMonth ? `<button class="text-button share-month" type="button" data-share-month="${key}">${icon('share', 'ico sm')} ${esc(label)}</button>` : '';
+
+  /** Month in numbers (Journeys 5): this month so far against last month at the same point, km a week. */
+  const renderMonth = (rides: RideRecord[]) => {
+    if (!monthBox) return;
+    const m = monthNumbers(rides, CONFIG.ridingTimeOnly, Date.now());
+    if (!rides.length) { monthBox.innerHTML = ''; return; }
+    const top = Math.max(1, ...m.weeks.map((w) => w.km));
+    const change = m.change == null ? '' : m.change === 0 ? `Level with ${m.lastLabel} so far` : `${m.change > 0 ? '+' : ''}${m.change}% on ${m.lastLabel} at this point`;
+    const name = monthLabel(m.key).split(' ')[0];
+    monthBox.innerHTML = `<section class="records-card month-card"><h2>${esc(name)} so far</h2>
+      <div class="month-nums"><div><b>${m.thisMonth.km}</b><small>km</small></div><div><b>${m.thisMonth.rides}</b><small>ride${m.thisMonth.rides === 1 ? '' : 's'}</small></div><div><b>${duration(m.thisMonth.minutes)}</b><small>riding</small></div>${m.thisMonth.costR != null ? `<div><b>R${m.thisMonth.costR}</b><small>fuel</small></div>` : ''}</div>
+      ${change ? `<p class="sub month-change">${esc(change)}</p>` : ''}
+      <div class="week-bars" aria-label="Km a week, the last 8 weeks">${m.weeks.map((w, i) => `<div class="${i === m.weeks.length - 1 ? 'now' : ''}" title="${w.km} km"><i style="height:${Math.max(3, Math.round((w.km / top) * 100))}%"></i><small>${w.km || ''}</small></div>`).join('')}</div>
+      <p class="sub week-note">Km a week, the last 8 weeks</p>
+      ${m.thisMonth.rides ? shareMonthBtn(m.key, `Share ${name}`) : ''}</section>`;
+  };
+
+  /** On this day (Journeys 6): rides on this date 1, 3, 6 and 12 months ago. */
+  const renderDay = (rides: RideRecord[]) => {
+    if (!dayBox) return;
+    const hits = onThisDay(rides, Date.now());
+    dayBox.innerHTML = hits.length ? `<section class="records-card day-back"><h2>On this day</h2>${hits.map((h) => `<button class="day-back-row" type="button" data-ride="${h.ride.startedAt}"><small>${esc(h.label)}</small><b>${esc(rideTitle(h.ride))}</b><span>${h.ride.distanceKm} km${h.ride.places.length ? ` · ${esc(h.ride.places.slice(0, 2).join(', '))}` : ''}</span></button>`).join('')}</section>` : '';
+  };
+
   const renderList = () => {
     const rides = [...ctx.rides()].reverse();
+    // Searching or starred: just the rides that match, no months, no cards.
+    const q = searchBox?.value.trim() ?? '';
+    const finding = !!q || starredOnly;
+    starBtn?.setAttribute('aria-pressed', String(starredOnly));
+    for (const el of [totals, dayBox, monthBox, doc.getElementById('roadscard'), doc.getElementById('journeyrecords')]) el?.classList.toggle('search-hide', finding);
+    list.classList.toggle('search-hide', finding);
+    if (found) {
+      found.hidden = !finding;
+      if (finding) {
+        roads = ctx.roads?.() ?? {};
+        const hits = findRides(rides, q, rideTitle).filter((r) => !starredOnly || JourneyStore.starred(r.startedAt));
+        found.innerHTML = `<p class="sub found-count">${hits.length ? `${hits.length} ride${hits.length === 1 ? '' : 's'}` : starredOnly && !q ? 'No starred rides yet. Open a ride and tap Star.' : 'No ride matches that.'}</p><div class="journey-list">${hits.map(row).join('')}</div>`;
+        return;
+      }
+    }
     if (!rides.length) {
       totals.innerHTML = '';
+      if (dayBox) dayBox.innerHTML = '';
+      if (monthBox) monthBox.innerHTML = '';
       if (roadsCard) roadsCard.hidden = true;
       if (recordsBox) recordsBox.innerHTML = '';
       list.innerHTML = `<div class="empty"><button class="orb resting" type="button" tabindex="-1" aria-hidden="true"></button><h2>Your story starts on the road.</h2>
@@ -168,6 +220,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     // By month (owner, 2026-10-18: "just a long scrolling list"): the newest month open, older ones a header line.
     const months = groupByMonth(rides, CONFIG.ridingTimeOnly);
     roads = ctx.roads?.() ?? {};
+    renderDay(rides);
+    renderMonth(rides);
     renderRoads();
     renderRecords(rides);
     if (!touched) { openMonths.clear(); openMonths.add(months[0].key); }
@@ -177,7 +231,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       const bits = [`${m.rides.length} ride${m.rides.length === 1 ? '' : 's'}`, `${Math.round(m.km)} km`, duration(m.minutes), m.costR != null ? `R${m.costR} fuel` : ''].filter(Boolean).join(' · ');
       return `<section class="journey-month${open ? ' open' : ''}" data-month="${m.key}">
         <button class="month-head" type="button" data-month-toggle="${m.key}" aria-expanded="${open}"><span><b>${m.key === thisMonth ? 'This month' : esc(m.label)}</b><small>${esc(bits)}</small></span><i class="chev" aria-hidden="true"></i></button>
-        ${open ? `<div class="journey-list">${m.rides.map(row).join('')}</div>` : ''}</section>`;
+        ${open ? `<div class="journey-list">${m.rides.map(row).join('')}</div>${m.key !== thisMonth ? shareMonthBtn(m.key, `Share ${m.label.split(' ')[0]}`) : ''}` : ''}</section>`;
     }).join('');
   };
 
@@ -211,7 +265,9 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     story.innerHTML = `<div class="intro"><div><p class="eyebrow">A ride worth remembering</p><h1>Your little escape.</h1></div>
         <button class="text-button" type="button" data-go="journeys">← My journeys</button></div>
       <div class="summary-hero"><div class="orb resting"></div><p class="eyebrow">Saved privately on this phone</p>
-        <h1>${esc(rideTitle(r))}</h1><p>${esc(blurb)}</p>
+        <h1 data-title>${esc(rideTitle(r))}</h1>
+        <div class="story-tools"><button class="text-button" type="button" data-star="${rideId}" aria-pressed="${JourneyStore.starred(rideId)}">${JourneyStore.starred(rideId) ? '★ Starred' : '☆ Star'}</button><button class="text-button" type="button" data-rename="${rideId}">Rename</button></div>
+        <p>${esc(blurb)}</p>
         <div class="summary-stats"><div><b>${r.distanceKm}</b><small>Kilometres</small></div><div><b>${shown}</b><small>${CONFIG.ridingTimeOnly && stopped != null ? 'Minutes riding' : 'Minutes'}</small></div><div><b>${said.length}</b><small>Things she said</small></div>${r.costR != null ? `<div><b>R${r.costR}</b><small>Fuel, ${r.fuelL} L</small></div>` : ''}</div>
         ${timeSplit(r)}</div>
       <div class="page-grid">
@@ -232,11 +288,28 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       </div>`;
   };
 
+  const shareMonth = (b: HTMLButtonElement) => {
+    if (b.disabled || !ctx.shareMonth) return;
+    const label = b.innerHTML;
+    b.disabled = true; b.setAttribute('aria-busy', 'true');
+    void ctx.shareMonth(b.dataset.shareMonth!, (text) => { b.textContent = text; })
+      .finally(() => { b.disabled = false; b.removeAttribute('aria-busy'); b.innerHTML = label; });
+  };
+  for (const box of [dayBox, monthBox, found]) box?.addEventListener('click', (e) => {
+    const sm = (e.target as Element).closest<HTMLButtonElement>('[data-share-month]');
+    if (sm) { shareMonth(sm); return; }
+    const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
+    if (b) open(Number(b.dataset.ride));
+  });
+  searchBox?.addEventListener('input', () => renderList());
+  starBtn?.addEventListener('click', () => { starredOnly = !starredOnly; renderList(); });
   recordsBox?.addEventListener('click', (e) => {
     const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
     if (b) open(Number(b.dataset.ride));
   });
   list.addEventListener('click', (e) => {
+    const sm = (e.target as Element).closest<HTMLButtonElement>('[data-share-month]');
+    if (sm) { shareMonth(sm); return; }
     const mt = (e.target as Element).closest<HTMLElement>('[data-month-toggle]');
     if (mt) {
       const k = mt.dataset.monthToggle!;
@@ -255,6 +328,33 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     if (c) void ctx.copyRide(Number(c.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
     const s = t.closest<HTMLElement>('[data-save]');
     if (s) ctx.saveRide(Number(s.dataset.save));
+    const star = t.closest<HTMLElement>('[data-star]');
+    if (star) {
+      const id = Number(star.dataset.star), on = !JourneyStore.starred(id);
+      JourneyStore.setStar(id, on);
+      star.textContent = on ? '★ Starred' : '☆ Star'; star.setAttribute('aria-pressed', String(on));
+      return;
+    }
+    const rn = t.closest<HTMLElement>('[data-rename]');
+    if (rn) {
+      // In place: the title becomes a field; Enter or leaving it saves, empty goes back to the automatic name.
+      const id = Number(rn.dataset.rename);
+      const h = story.querySelector<HTMLElement>('[data-title]');
+      if (!h || h.querySelector('input')) return;
+      const r0 = ctx.rides().find((x) => x.startedAt === id);
+      h.innerHTML = `<input class="rename-field" type="text" maxlength="60" aria-label="Name this ride" value="${esc(rideTitle(r0!))}" />`;
+      const f = h.querySelector('input')!;
+      f.focus(); f.select?.();
+      let done = false;
+      const finish = (keep: boolean) => {
+        if (done) return; done = true;
+        if (keep) JourneyStore.rename(id, f.value);
+        h.textContent = rideTitle(r0!);
+      };
+      f.addEventListener('keydown', (k) => { if (k.key === 'Enter') finish(true); if (k.key === 'Escape') finish(false); });
+      f.addEventListener('blur', () => finish(true));
+      return;
+    }
     const sh = t.closest<HTMLButtonElement>('[data-share]');
     if (sh && !sh.disabled) {
       const hide = story.querySelector<HTMLInputElement>('[data-hideends]')?.checked ?? true;

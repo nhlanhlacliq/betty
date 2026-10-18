@@ -2298,4 +2298,27 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- Journeys 5-7: month in numbers, on this day (1, 3, 6, 12 months), find a ride
+{
+  const J = await import('../src/core/Journeys');
+  const r = (y: number, m: number, d: number, km: number, extra: Partial<RideRecord> = {}): RideRecord => ({ startedAt: new Date(y, m - 1, d, 8).getTime(), minutes: 60, movingMin: 50, distanceKm: km, weather: 'clear, 20 C', places: [], events: [], ...extra });
+  const now = new Date(2026, 9, 18, 12).getTime(); // Sunday 18 October
+  const rides = [r(2026, 9, 5, 40), r(2026, 9, 25, 100), r(2026, 10, 6, 30, { costR: 40 }), r(2026, 10, 17, 93.4, { costR: 124, places: ['Sandton', 'Rosebank'] }),
+    r(2026, 9, 18, 60, { places: ['Clarens'] }), r(2026, 7, 18, 20), r(2026, 4, 18, 15), r(2025, 10, 18, 120, { places: ['Parys'] })];
+  const m = J.monthNumbers(rides, true, now);
+  assert.deepEqual([m.thisMonth.km, m.thisMonth.rides, m.thisMonth.minutes, m.thisMonth.costR], [123, 2, 100, 164]);
+  assert.deepEqual([m.lastSoFar.km, m.lastSoFar.rides], [100, 2], 'September up to the 18th only (not the 25th)');
+  assert.equal(m.change, 23); assert.equal(m.lastLabel, 'September');
+  assert.equal(m.weeks.length, 8); assert.equal(m.weeks[7].km, 93, 'this week: the 17th'); assert.equal(m.weeks[6].km, 30);
+  const days = J.onThisDay(rides, now);
+  assert.deepEqual(days.map((d) => [d.label, d.ride.distanceKm]), [['A month ago today', 60], ['Three months ago today', 20], ['Six months ago today', 15], ['A year ago today', 120]]);
+  assert.deepEqual(J.onThisDay(rides, new Date(2026, 9, 31).getTime()).map((d) => d.label), [], '31 October: no 31 September or 31 June, nothing on 31 July');
+  const title = (x: RideRecord) => `${x.places[0] ?? 'ride'}`;
+  assert.deepEqual(J.findRides(rides, 'clarens', title).map((x) => x.distanceKm), [60]);
+  assert.deepEqual(J.findRides(rides, 'october 2026', title).map((x) => x.distanceKm), [30, 93.4]);
+  assert.deepEqual(J.findRides(rides, 'sunday rosebank', title).map((x) => x.distanceKm), [], '17 Oct 2026 was a Saturday');
+  assert.deepEqual(J.findRides(rides, 'saturday rosebank', title).map((x) => x.distanceKm), [93.4]);
+  assert.equal(J.findRides(rides, '', title).length, rides.length);
+}
+
 console.log('all core tests passed');

@@ -32,6 +32,8 @@ import { AreaSource, AreaStore, ToldStore } from './adapters/AreaSource';
 import { TrackStore } from './adapters/TrackStore';
 import { RoadStore } from './adapters/RoadStore';
 import { liveRecords } from './core/Records';
+import { groupByMonth } from './core/Journeys';
+import { drawMonthCard } from './ui/monthCard';
 import { TrackPoint, addTrackPoint } from './core/Track';
 import { RideLog } from './adapters/RideLog';
 import { toRecord } from './core/RideMemory';
@@ -298,6 +300,24 @@ const journeys = mountJourneysScreen(document, shell, {
       const how = await shareRideCard(document, png, `betty-ride-${new Date(rideId).toISOString().slice(0, 10)}.png`);
       if (how === 'saved') shell.toast('Ride card saved to your downloads.');
     } catch (e) { shell.toast(`Could not make the ride card: ${(e as Error).message}`, true); }
+  },
+  // The month's recap card (Journeys 8): every road of the month, the numbers, her best line of the month.
+  shareMonth: async (key, status) => {
+    const month = groupByMonth(RideLog.load(), CONFIG.ridingTimeOnly).find((g) => g.key === key);
+    if (!month) return;
+    saveLog();
+    status('Making your month card...');
+    const ids = new Set(month.rides.map((r) => r.startedAt));
+    const roads = RoadStore.all();
+    const lines = LineLogStore.load().filter((e) => e.rideId != null && ids.has(e.rideId) && /^\[P\d\]/.test(e.head) && e.text && !e.text.startsWith('('))
+      .map((e) => ({ trigger: e.head.match(/^\[P\d\] (\w+)/)?.[1] ?? '', text: e.text }));
+    try {
+      const png = await drawMonthCard(document, { month, roads: month.rides.map((r) => roads[String(r.startedAt)] ?? []).filter((t) => t.length > 1), lines,
+        avatar: await avatarStore.get().catch(() => null), duration: (min) => (min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}` : `${min} min`) });
+      status('Opening share...');
+      const how = await shareRideCard(document, png, `betty-${key}.png`);
+      if (how === 'saved') shell.toast('Month card saved to your downloads.');
+    } catch (e) { shell.toast(`Could not make the month card: ${(e as Error).message}`, true); }
   },
 });
 mountWhatsNew(document); // Garage > What's new, with the unread count on the card and the Garage tab

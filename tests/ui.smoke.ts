@@ -957,6 +957,47 @@ resetConfig();
   assert.equal(L.querySelectorAll('.journey-thumb').length, 0, 'road drawings switched off'); CONFIG.journeyThumbs = true;
 }
 
+// ---- My journeys 5-8: this month's numbers, on this day, find and star, rename, share a month
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const { JourneyStore } = await import('../src/adapters/JourneyStore');
+  const j = new JSDOM(`<!doctype html><input id="journeysearch" /><button id="journeystarred"></button><div id="journeyfound"></div><div id="journeytotals"></div><div id="journeyday"></div><div id="journeymonth"></div><div id="journeyrecords"></div><div id="journeylist"></div><div id="story"></div>`, { url: 'https://betty.test/' });
+  const d = j.window.document;
+  (globalThis as any).localStorage = j.window.localStorage; JourneyStore.reset();
+  const now = new Date(); const day = (monthsAgo: number, dd = now.getDate()) => new Date(now.getFullYear(), now.getMonth() - monthsAgo, dd, 8).getTime();
+  const rides = [day(1), day(0, 1), day(0)].filter((t, i, a) => a.indexOf(t) === i).map((t, i) => ({ startedAt: t, minutes: 60, movingMin: 50, distanceKm: 30 + i, weather: 'clear, 20 C', places: [i === 0 ? 'Clarens' : 'Sandton'], events: [], costR: 40 }));
+  const months: string[] = [];
+  const view = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => rides, entries: () => [], track: () => [], roads: () => ({}), copyRide: async () => true, saveRide() {}, toast() {},
+    shareRide: async () => {}, shareMonth: async (k: string, status: (t: string) => void) => { months.push(k); status('Making your month card...'); } });
+  view.renderList();
+  if (now.getDate() <= 28) assert.match(d.getElementById('journeyday')!.textContent!, /On this day\s*A month ago today.*Clarens/s);
+  const mc = d.getElementById('journeymonth')!;
+  assert.match(mc.textContent!, /so far/); assert.equal(mc.querySelectorAll('.week-bars > div').length, 8);
+  const share = mc.querySelector<HTMLButtonElement>('[data-share-month]')!;
+  share.click(); await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(months, [`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`]); assert.equal(share.disabled, false, 'button back after sharing');
+  // find
+  const q = d.getElementById('journeysearch') as HTMLInputElement;
+  q.value = 'clarens'; q.dispatchEvent(new j.window.Event('input'));
+  assert.match(d.getElementById('journeyfound')!.textContent!, /1 ride/); assert.ok(d.getElementById('journeymonth')!.classList.contains('search-hide'), 'cards step aside while finding');
+  q.value = ''; q.dispatchEvent(new j.window.Event('input'));
+  assert.ok(!d.getElementById('journeymonth')!.classList.contains('search-hide'));
+  // star and rename on the story
+  view.open(rides[0].startedAt);
+  const story = d.getElementById('story')!;
+  story.querySelector<HTMLElement>('[data-star]')!.click();
+  assert.equal(JourneyStore.starred(rides[0].startedAt), true); assert.match(story.querySelector('[data-star]')!.textContent!, /Starred/);
+  d.getElementById('journeystarred')!.click();
+  assert.match(d.getElementById('journeyfound')!.textContent!, /1 ride.*Clarens/s, 'Starred shows only starred rides');
+  d.getElementById('journeystarred')!.click();
+  story.querySelector<HTMLElement>('[data-rename]')!.click();
+  const f = story.querySelector<HTMLInputElement>('.rename-field')!;
+  f.value = 'The Clarens breakfast run'; f.dispatchEvent(new j.window.KeyboardEvent('keydown', { key: 'Enter' }));
+  assert.equal(story.querySelector('[data-title]')!.textContent, 'The Clarens breakfast run');
+  view.renderList(); assert.match(d.getElementById('journeylist')!.textContent! + d.getElementById('journeyday')!.textContent!, /The Clarens breakfast run/, 'the name shows everywhere');
+  JourneyStore.rename(rides[0].startedAt, ''); JourneyStore.setStar(rides[0].startedAt, false);
+}
+
 // ---- a ride's story: riding and stopped time (ride of 2026-10-17: 80 minutes parked made a 3 h 39 ride)
 {
   const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');

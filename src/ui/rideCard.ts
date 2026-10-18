@@ -21,13 +21,13 @@ export interface CardInput {
   extras?: { samples: CardExtras['samples']; ends: string[]; metro: CardExtras['metro']; places: boolean; metroLine: boolean } | null;
 }
 
-const W = 1080, H = 1350, PAD = 72;
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-const C = { bg: '#f7f6f0', ink: '#273f39', soft: '#7d857b', card: '#ffffff', accent: '#e8c95c', line: '#e3e8da' };
+export const W = 1080, H = 1350, PAD = 72;
+export const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+export const C = { bg: '#f7f6f0', ink: '#273f39', soft: '#7d857b', card: '#ffffff', accent: '#e8c95c', line: '#e3e8da' };
 
-const loadImage = (src: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('image')); i.src = src; });
+export const loadImage = (src: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('image')); i.src = src; });
 
-function wrap(g: CanvasRenderingContext2D, text: string, maxW: number): string[] {
+export function wrap(g: CanvasRenderingContext2D, text: string, maxW: number): string[] {
   const out: string[] = []; let line = '';
   for (const w of text.split(' ')) {
     const next = line ? `${line} ${w}` : w;
@@ -37,7 +37,7 @@ function wrap(g: CanvasRenderingContext2D, text: string, maxW: number): string[]
   return out;
 }
 
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
 }
 
@@ -64,7 +64,7 @@ function drawWeatherIcon(g: CanvasRenderingContext2D, kind: string, x: number, y
 }
 
 /** Her orb (the yellow companion) or his picture, as a circle. */
-async function drawOrb(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, avatar: Blob | null) {
+export async function drawOrb(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, avatar: Blob | null) {
   if (avatar) {
     try {
       const url = URL.createObjectURL(avatar);

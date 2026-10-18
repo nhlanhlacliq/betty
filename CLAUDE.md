@@ -484,6 +484,17 @@ Storage first: `MAX_REMEMBERED_RIDES` 30 -> 500, `TrackStore` 12 -> 30 detailed 
    flavour: celebrate, never suggest riding further/faster): passing his longest ride (>= 3 rides behind him, longest
    >= 10 km), once a ride; crossing a total-km milestone. Not while quiet or parked. `liveRecords(RideLog)` at start.
 
+5-8 (same day): `monthNumbers` (this month so far vs last month at the SAME day of the month; 8 Monday weeks, i = 7 is
+this week) -> `#journeymonth` card with week bars and Share <month>. `onThisDay`: owner asked for 1, 3, 6 and 12 months
+ago (`LOOK_BACK`), not only a year; a month without the date is skipped; the longest ride that day. `findRides` (every
+word in name, places, weather or the long date, so "Saturday", "October 2026" work) + `#journeystarred`; while finding,
+the cards and months get `.search-hide` and `#journeyfound` lists the hits. `adapters/JourneyStore` (`betty.journeys.v1`,
+starred ids and his names, cached in memory); `rideTitle` (HomeScreen) returns his name first, so it shows everywhere,
+the ride card included. Story: Star / Rename (in-place field; Enter or blur saves, Escape cancels, empty = automatic).
+`ui/monthCard.ts` `drawMonthCard` (reuses rideCard's exported canvas helpers): month, places, every rough road of the
+month on one map (`fitView`), km / rides / riding / fuel, best line of the month (`bestLine`), shared like the ride card;
+`ctx.shareMonth`, button on the month card and at the bottom of an opened older month.
+
 ## Garage search and Help (2026-10-17, owner)
 
 `ui/help.ts` is the content as data: `VOICE_COMMANDS` (groups of {say[], does, kind}; a core test runs EVERY phrase
