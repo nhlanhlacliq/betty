@@ -71,7 +71,7 @@ import { CardExtras, CardExtrasSource } from './adapters/CardExtras';
 import { pickLabels } from './core/RideCard';
 import { spanFor } from './ui/mapView';
 import { mountEdgeStretch, mountPullToRefresh, mountSheetDrag, mountSwipeBack, rememberSpot, takeSpot } from './ui/gestures';
-import { SaidLine, rideView } from './ui/rideView';
+import { Glance, RideInput, SaidLine, glanceCues, horizonLine, horizonSpoken, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 
 loadConfig();
@@ -658,6 +658,8 @@ window.addEventListener('betty-memory', () => { markPins = RiderMemoryStore.load
 let speakingNow: SaidLine | null = null;
 let lastSaid: SaidLine | null = null;
 let talkState: 'off' | 'listening' | 'thinking' = 'off';
+/** Horizon's cards as last painted, for "anything ahead?" */
+let horizonNow: Glance[] = [];
 const onFate = (item: QueueItem, fate: Fate) => {
   const said: SaidLine = { text: item.text, tag: item.tag, priority: item.priority, at: Date.now() };
   if (fate === 'speaking') speakingNow = said;
@@ -672,7 +674,7 @@ function paintRide() {
   const quietMin = r.engine.quietLeftMin();
   const snap = r.engine.rideSnapshot();
   const routeNow = r.engine.routeNow();
-  const view = rideView({
+  const input: RideInput = {
     now: Date.now(), state: s, speaking: speakingNow, lastSaid, talk: talkState, quietMin, ending: endNow !== null,
     distanceKm: snap.distanceKm, minutesOut: CONFIG.ridingTimeOnly ? snap.movingMin : snap.minutesOut, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
     rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
@@ -680,7 +682,14 @@ function paintRide() {
     route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm, detour: r.engine.onDetour() } : null,
     fuelRangeKm: Math.round(kmToReserve(CONFIG.fuel)),
     service: islandService(r.engine.serviceBook()),
-  });
+  };
+  const view = rideView(input);
+  // Read out and on the lock screens even with the card hidden (a phone in the pocket).
+  horizonNow = glanceCues(input);
+  // Horizon's top card on Betty's Lock screen and the phone's (Now Playing), unless switched off in Garage.
+  const top = CONFIG.island.lockLine ? horizonLine(horizonNow) : '';
+  lockScreen.setHorizon(top);
+  r.buttons.setNowPlaying(top);
   const minLabel = document.getElementById('rideminlabel');
   if (minLabel) minLabel.textContent = CONFIG.ridingTimeOnly ? 'min riding' : 'min out';
   const moving = s.speedKmh >= 3 ? 'On the road' : 'Parked';
@@ -979,6 +988,10 @@ async function beginRide(desk: boolean) {
         ServiceStore.save(next);
         engine.setServiceBook(next);
         reply(`${r.name}: not done after all. Back to ${dueText(dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now()))}.`, 'undone');
+        return;
+      }
+      case 'ahead': {
+        reply(rig?.engine === engine ? horizonSpoken(horizonNow) : 'No ride running, so nothing on the horizon yet.', 'ahead');
         return;
       }
       case 'end': {

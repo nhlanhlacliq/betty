@@ -69,7 +69,8 @@ export interface Config {
    * when something new comes up; tapExpand: tap to grow/shrink it; browse: swipe sideways through the other cues;
    * actions: one button per card (Filled up, Tell me a story...); progress: slim progress bars (off by default).
    */
-  island: { compact: boolean; tapExpand: boolean; browse: boolean; actions: boolean; progress: boolean };
+  /** lockLine: the top card on Betty's Lock screen and in the phone's Now Playing (lock screen) while she holds the buttons */
+  island: { compact: boolean; tapExpand: boolean; browse: boolean; actions: boolean; progress: boolean; lockLine: boolean };
   /** Mic to use for talking to her (a deviceId from the VOICE TEST picker). Empty = the phone's choice. */
   micDeviceId: string;
   /** That mic's name, to find it again if the phone gives it a new id */
@@ -139,7 +140,7 @@ export const DEFAULT_CONFIG: Config = {
   cardMetro: true,
   voiceBoostDb: 6,
   ridingTimeOnly: true,
-  island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false },
+  island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false, lockLine: true },
   micDeviceId: '',
   micLabel: '',
   micRaw: false,
@@ -332,7 +333,8 @@ If he says he is on a detour or taking another way, just acknowledge it.
 What he asked you to remember and the spots he marked are in the situation when there are any: use them when he asks.
 If he asks what he can tell you to do: "repeat that", "quiet for ten minutes" (or "be quiet", then "talk to me"),
 "mark this spot", "remember that...", "forget that", "humour 60 percent" (or "humour up"), "more TARS", "more JARVIS",
-"status" (you read out your settings), "switch to stories" (or minimal, balanced), "banter up", "more stories", "less chatty".
+"status" (you read out your settings), "switch to stories" (or minimal, balanced), "banter up", "more stories", "less chatty",
+"anything ahead?" (Horizon read out), "end ride", "chain done", "consumption 4.6".
 Those work at once, even without signal.
 You cannot change your own settings by saying so: only those commands do. If he asks for a change in other words
 ("dial it back", "be less polite"), do not claim it is done; tell him the command to say.

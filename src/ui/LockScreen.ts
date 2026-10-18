@@ -6,6 +6,8 @@ export interface LockScreen {
   readonly locked: boolean;
   /** What the locked screen shows: current speed and Betty's latest line. */
   setInfo(speed: string, line: string): void;
+  /** Horizon's top card, under her line ('' hides it). */
+  setHorizon(text: string): void;
   /** Show the talk button (only while a ride is running). */
   setTalk(on: boolean, listening?: boolean): void;
 }
@@ -21,6 +23,8 @@ export function mountLockScreen(root: HTMLElement, holdMs = 1000, onTalk: () => 
   const speed = el('div', 'lockspeed', '0');
   const unit = el('div', 'lockunit', 'km/h');
   const line = el('div', 'lockline');
+  const horizon = el('div', 'lockhorizon');
+  horizon.hidden = true;
   const btn = el('button', 'lockbtn', 'HOLD TO UNLOCK');
   btn.type = 'button';
   // The one other control on the locked screen: a big target, for when the headset buttons are not Betty's.
@@ -28,7 +32,7 @@ export function mountLockScreen(root: HTMLElement, holdMs = 1000, onTalk: () => 
   talk.type = 'button';
   talk.hidden = true;
   talk.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); onTalk(); });
-  cover.append(el('div', 'locktitle', 'LOCKED'), speed, unit, line, talk, btn);
+  cover.append(el('div', 'locktitle', 'LOCKED'), speed, unit, horizon, line, talk, btn);
   root.append(cover);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -37,6 +41,7 @@ export function mountLockScreen(root: HTMLElement, holdMs = 1000, onTalk: () => 
     lock() { cover.hidden = false; },
     unlock() { cancel(); cover.hidden = true; },
     setInfo(s, l) { speed.textContent = s; line.textContent = l; },
+    setHorizon(t) { horizon.textContent = t; horizon.hidden = !t; },
     setTalk(on, listening = false) { talk.hidden = !on; talk.textContent = listening ? 'LISTENING... TAP TO FINISH' : 'TAP TO TALK'; },
   };
   const cancel = () => { clearTimeout(timer); timer = undefined; btn.classList.remove('holding'); };

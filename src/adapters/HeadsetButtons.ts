@@ -97,6 +97,20 @@ export class HeadsetButtons {
     return back;
   }
 
+  private nowPlaying = '';
+  /**
+   * What the phone's lock screen (Now Playing) shows while Betty holds the buttons: Horizon's top card, so a glance at
+   * a stop shows it without unlocking. '' = the plain title.
+   */
+  setNowPlaying(line: string) {
+    if (!this.held || line === this.nowPlaying || !('mediaSession' in navigator)) return;
+    this.nowPlaying = line;
+    try {
+      const MM = (window as any).MediaMetadata;
+      if (MM) navigator.mediaSession.metadata = new MM({ title: line || 'Betty is listening for your buttons', artist: line ? 'Betty · Horizon' : 'Betty' });
+    } catch { /* cosmetic */ }
+  }
+
   /** Make sure the loop is playing, so the next press still reaches Betty. Call it after the mic closes. */
   resume() {
     if (!this.held || !this.audio) return;
@@ -114,6 +128,7 @@ export class HeadsetButtons {
       }
     }
     this.held = false; // before pause(), so the pause listener leaves it stopped
+    this.nowPlaying = '';
     this.audio?.pause();
     this.audio = null;
   }

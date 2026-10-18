@@ -1217,7 +1217,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   // settings
   assert.equal(islandView(two, freshIsland(), 0, { ...CONFIG.island, compact: false }).expanded, true, 'compact off: always the full card');
   assert.equal(islandView(two, { ...freshIsland(), index: 1, browseUntil: 9e9 }, 0, { ...CONFIG.island, browse: false }).glance!.id, 'rain', 'browse off');
-  assert.deepEqual(CONFIG.island, { compact: true, tapExpand: true, browse: true, actions: true, progress: false }, 'the first four on by default, progress off');
+  assert.deepEqual(CONFIG.island, { compact: true, tapExpand: true, browse: true, actions: true, progress: false, lockLine: true }, 'the first four on by default, progress off, the lock line on');
   // the cues: each with its short form, its button and its progress
   const base: any = { now: 0, speaking: null, lastSaid: null, talk: 'off', quietMin: 0, ending: false, distanceKm: 0, minutesOut: 0, fuelWarnKm: 60, rainChancePct: 60, trafficRadiusKm: 5, untoldStories: 3, showGlance: true, fuelRangeKm: 280 };
   const state: any = { speedKmh: 40, weather: { tempC: 20, rainNowMm: 0, rainChanceNextHourPct: 70, summary: 'cloudy', windKmh: 5, fetchedAt: 0, sunriseAt: null, sunsetAt: null }, incidents: [], area: { suburb: 'Elmapark', town: 'Ekurhuleni', region: 'Gauteng' }, areaNotes: [], nearbyPlaces: [] };
@@ -2139,7 +2139,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(parseCommand(said)?.kind, c.kind, `Help says "${said}" does ${c.kind}`);
   }
   const kinds = new Set(VOICE_COMMANDS.flatMap((g) => g.items.map((c) => c.kind)));
-  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done', 'undone']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
+  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done', 'undone', 'ahead']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
   assert.equal(searchHelp('headset buttons')[0].id, 'talk');
   assert.equal(searchHelp('petrol')[0].id, 'fuel');
   assert.ok(searchHelp('quiet').some((t) => t.id === 'commands'), 'commands are searchable');
@@ -2227,6 +2227,23 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   e.setServiceBook(R.starterBook(0, clock));
   assert.doesNotMatch(e.startup(initialState()).context, /Maintenance/);
   resetConfig();
+}
+
+// ---- Horizon (was the island) read out and on the lock screens (owner, 2026-10-18)
+{
+  const { glanceCues, horizonSpoken, horizonLine } = await import('../src/ui/rideView');
+  for (const said of ['Anything ahead?', "What's on the horizon?", 'Horizon check', "Hey Betty, what's ahead of me", 'Is there anything ahead?', "What's coming up?"]) assert.deepEqual(parseCommand(said), { kind: 'ahead' }, said);
+  assert.equal(parseCommand('Is there a petrol station ahead?'), null, 'a real question still goes to her');
+  const base = { now: 0, speaking: null, lastSaid: null, talk: 'off', quietMin: 0, ending: false, distanceKm: 0, minutesOut: 0, fuelWarnKm: 60, rainChancePct: 60, trafficRadiusKm: 5, untoldStories: 2, showGlance: false } as any;
+  const st = { ...initialState(), area: { suburb: 'Rosebank', town: 'Johannesburg', region: 'Gauteng' }, weather: wx({ rainChanceNextHourPct: 70 }) };
+  const cues = glanceCues({ ...base, state: st, fuelKmLeft: 72,
+    route: { name: 'Clarens', leftKm: 212, leftMin: 160, next: { name: 'Villiers', km: 35 }, offKm: 0, doneKm: 50 },
+    service: { name: 'Engine oil and filter', text: 'in 416 km', due: false, kmLeft: 416, key: 'oil' } });
+  const spoken = horizonSpoken(cues);
+  assert.equal(spoken, 'Fuel: 72 km left before reserve. Rain likely, 70%. Route: 212 km and 2 hours 40 to go, Villiers in 35 km. Engine oil and filter due in 416 km. You\'re in Rosebank, 2 stories to tell.');
+  assert.equal(horizonSpoken([]), 'All clear on the horizon.');
+  assert.equal(horizonLine(cues), 'Fuel range: 72 km left');
+  assert.equal(horizonLine(cues.filter((g) => g.id === 'service')), 'Maintenance: Engine oil in 416 km');
 }
 
 console.log('all core tests passed');

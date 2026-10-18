@@ -381,6 +381,7 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .locktitle { font-size: 11px; letter-spacing: 4px; color: #556; }
 .lockspeed { font-size: 110px; font-weight: 700; line-height: 1; letter-spacing: -4px; color: #dde; font-variant-numeric: tabular-nums; }
 .lockunit { font-size: 12px; color: #556; }
+.lockhorizon { font-size: 18px; font-weight: 600; color: #e8c95c; max-width: 480px; margin-top: 18px; line-height: 1.4; }
 .lockline { font-size: 15px; color: #889; min-height: 60px; max-width: 480px; margin-top: 16px; line-height: 1.5; }
 .lockbtn { margin-top: 24px; width: 220px; padding: 22px 0; font-size: 13px; letter-spacing: 2px; color: #9aa; border: 1px solid #334; border-radius: 16px;
   background: #111 linear-gradient(#2a3a2a, #2a3a2a) no-repeat; background-size: 0% 100%; touch-action: none; }

@@ -384,6 +384,15 @@ has dynamic content, and a smoke test.
   still on the ride screen: "sometimes I don't get the ride summary".) A ride too short to keep (under 3 min and 1 km)
   goes home with a toast saying why. Once no ride runs, the ride screen redirects to home (so back from the story
   does not land on an empty ride).
+- HORIZON (renamed from "the island" 2026-10-18, owner: a name that does not copy Apple; ranked Roadbook/Horizon, he
+  chose Horizon). User-facing text says Horizon everywhere (Garage card, aria labels, Help); the CODE keeps the old
+  names (`ui/island.ts`, `CONFIG.island`, `islandcompact` ids, `glance*`), do not rename them for nothing. For a phone
+  in the pocket (owner: many riders do not mount it): `{kind: 'ahead'}` ("anything ahead?", "what's on the horizon?",
+  "horizon check", "what's coming up?") -> `horizonSpoken(glanceCues(...))`, one sentence per card (max 5), said by the
+  phone; `horizonLine` (top card, "Maintenance: Engine oil in 416 km") on Betty's Lock screen (`setHorizon`) and as the
+  Media Session title while she holds the headset buttons, i.e. the PHONE's lock screen Now Playing (and possibly
+  CarPlay's Now Playing; unverified). `CONFIG.island.lockLine` (Garage > Horizon > On the lock screen, default on;
+  still enabled when the card itself is hidden). Both use the cues even with Show Horizon off.
 - THE ISLAND (owner's name for the dark card at the top of the ride map; built 2026-10-17, `ui/island.ts`): the cues
   come from `glanceCues` (rideView.ts, pure: fuel range when under 1.5x the warning, rain, traffic, off route / route,
   sunset within the hour, the area, a nearby place, speed), each with a `key` (changes when the news does), a `short`

@@ -7,9 +7,9 @@ export interface SettingsContext { sample(): void; fuelText(): string }
 
 const CUSTOM = 'custom';
 const boostText = (db: number) => (db > 0 ? `+${db} dB` : 'Off');
-/** Garage > The island: one switch per behaviour (CONFIG.island). */
+/** Garage > Horizon (was "the island"; owner renamed it 2026-10-18): one switch per behaviour (CONFIG.island). */
 const ISLAND: Array<[string, keyof typeof CONFIG.island]> = [
-  ['islandcompact', 'compact'], ['islandtap', 'tapExpand'], ['islandbrowse', 'browse'], ['islandactions', 'actions'], ['islandprogress', 'progress'],
+  ['islandcompact', 'compact'], ['islandtap', 'tapExpand'], ['islandbrowse', 'browse'], ['islandactions', 'actions'], ['islandprogress', 'progress'], ['islandlock', 'lockLine'],
 ];
 
 /**
@@ -50,7 +50,7 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     }
     const when = new Date(f.priceAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
     $('pricesub').textContent = f.priceSource === 'auto' ? `Rand a litre. Looked up ${when}; checked each month.` : `Rand a litre. Yours, set ${when}; looked up again after the next monthly change.`;
-    for (const [id, key] of ISLAND) { const b = $<HTMLInputElement>(id); b.checked = CONFIG.island[key]; b.disabled = !CONFIG.showGlance; }
+    for (const [id, key] of ISLAND) { const b = $<HTMLInputElement>(id); b.checked = CONFIG.island[key]; b.disabled = !CONFIG.showGlance && key !== 'lockLine'; } // the lock line works with the card hidden
     $('garagefuel').textContent = ctx.fuelText();
   };
 

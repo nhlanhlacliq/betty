@@ -8,6 +8,9 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      'The island is now called Horizon (Garage > Horizon).',
+      'Say "anything ahead?" (or "what\'s on the horizon?") and Betty reads out Horizon: fuel, rain, traffic, your route, sunset, maintenance, where you are. Instant, and it works without signal.',
+      'Horizon\'s top card shows on Betty\'s Lock screen and, while she has the headset buttons, on the phone\'s lock screen under Now Playing, so a glance at a stop is enough. Switch it off in Garage > Horizon > On the lock screen.',
       'The island shows maintenance on the ride: anything overdue, or due within 500 km or a week ("Engine oil in 416 km").',
     ],
   },

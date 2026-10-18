@@ -128,6 +128,38 @@ export function glanceCues(i: RideInput): Glance[] {
   return out;
 }
 
+/** "212 km · 2 h 40" -> "212 km and 2 hours 40": for her voice. */
+const speakable = (t: string) => t.replace(/\s·\s/g, ' and ').replace(/(\d+) h (\d+)/g, '$1 hours $2').replace(/(\d+) min\b/g, '$1 minutes');
+
+/**
+ * Horizon read out (owner, 2026-10-18: "anything ahead?"), for a phone in the pocket: the cards in order, one plain
+ * sentence each, at most five, said by the phone (no AI call, works without signal).
+ */
+export function horizonSpoken(cues: Glance[]): string {
+  const say = (g: Glance): string | null => {
+    switch (g.id) {
+      case 'range': return `Fuel: ${g.title} before reserve.`;
+      case 'rain': return `${g.title}.`;
+      case 'traffic': return `Traffic ${g.title} ahead${g.value ? `, ${g.value}` : ''}.`;
+      case 'offroute': return g.title === 'On a detour' ? 'You\'re on your detour.' : `You're ${g.title} the route ${g.value}.`;
+      case 'route': return `Route: ${speakable(g.title)} to go${g.value ? `, ${speakable(g.value)}` : ''}.`;
+      case 'sunset': return `${g.title}.`;
+      case 'service': return `${g.title} ${g.value.replace(/^Due:? /, 'due ')}.`;
+      case 'area': return `You're in ${g.title}${g.value ? `, ${g.value}` : ''}.`;
+      case 'place': return `${g.value} is ${g.title} away.`;
+      default: return null;
+    }
+  };
+  const lines = cues.map(say).filter((x): x is string => !!x).slice(0, 5);
+  return lines.length ? lines.join(' ') : 'All clear on the horizon.';
+}
+
+/** The top card in one line, for the lock screens: "Maintenance: Engine oil in 416 km". */
+export const horizonLine = (cues: Glance[]): string => {
+  const g = cues.find((x) => x.id !== 'riding');
+  return g ? `${g.label.replace(/ · estimate$/, '')}: ${g.short ?? g.title}` : '';
+};
+
 /** The one thing worth a glance, most pressing first. */
 export function pickGlance(i: RideInput): Glance { return glanceCues(i)[0]; }
 

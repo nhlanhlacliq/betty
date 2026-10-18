@@ -16,6 +16,8 @@ export type Command =
   | { kind: 'forget' }
   /** "End ride": the same as End ride on the screen (sign-off, then the ride's story) */
   | { kind: 'end' }
+  /** "Anything ahead?": Horizon read out, from the phone */
+  | { kind: 'ahead' }
   /** "Chain done", "I lubed the chain", "the bike was serviced": a service reminder done (which one: findReminder) */
   | { kind: 'done'; what: string }
   /** "Chain not done", "undo the oil": take back the last Done of that reminder */
@@ -79,6 +81,7 @@ export function parseCommand(said: string): Command | null {
   const price = low.match(/^(?:set )?(?:the )?(?:fuel|petrol|gas)(?: price(?: is| at| to)?| is| at| costs?)(?: now)?\s+r?\s?(\d{1,3}(?:[.,]\d{1,2})?)\b/);
   if (n <= 12 && price) { const v = Number(price[1].replace(',', '.')); if (v >= 5 && v <= 100) return { kind: 'fuelset', what: 'price', value: v }; }
 
+  if (n <= 8 && /^((is there )?anything (up )?ahead( of me| for me)?|what'?s (up )?ahead( of me| for me)?|what is (up )?ahead( of me)?|what'?s (on )?the horizon|what is on the horizon|(check the |horizon )?horizon( check)?|what'?s coming up|what'?s up|anything i should know( about)?|what should i know)$/.test(low)) return { kind: 'ahead' };
   if (n <= 6 && /^((end|finish|stop) (the |this |my |our )?(ride|trip)( now| here)?|(we'?re|we are|i'?m|i am) done( riding)?( for (today|the day|now))?|that'?s (it|a wrap) for (today|the day))$/.test(low)) return { kind: 'end' };
 
   // Maintenance done (after "end": "I'm done" ends the ride). Which reminder it is, main.ts finds by name.
