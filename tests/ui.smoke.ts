@@ -1025,6 +1025,39 @@ resetConfig();
   assert.deepEqual(toasts, ['Ride deleted.']); assert.equal(shown.at(-1), 'journeys');
 }
 
+// ---- My journeys select mode: tick rides, select a month, short ones, delete together (asks first)
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const j = new JSDOM(`<!doctype html><button id="journeyselect"></button><div id="journeytotals"></div><div id="journeylist"></div><div id="journeyselectbar" hidden></div><div id="story"></div>`);
+  const d = j.window.document;
+  const t0 = Date.now() - 86_400_000;
+  let rides = [
+    { startedAt: t0, minutes: 2, movingMin: 1, distanceKm: 0.4, weather: null, places: [], events: [] },
+    { startedAt: t0 + 60_000, minutes: 4, movingMin: 3, distanceKm: 1.2, weather: null, places: [], events: [] },
+    { startedAt: t0 + 120_000, minutes: 80, movingMin: 70, distanceKm: 60, weather: null, places: ['Clarens'], events: [] },
+  ];
+  const opened: string[] = []; const toasts: string[] = [];
+  const view = mountJourneysScreen(d, { show: (id: string) => opened.push(id), onShow() {} } as any, { rides: () => rides, entries: () => [], track: () => [], copyRide: async () => true, saveRide() {},
+    toast: (m: string) => toasts.push(m), shareRide: async () => {}, deleteRide: (id: number) => { rides = rides.filter((r) => r.startedAt !== id); return true; } });
+  view.renderList();
+  const L = d.getElementById('journeylist')!, bar = d.getElementById('journeyselectbar')!;
+  assert.equal(bar.hidden, true);
+  d.getElementById('journeyselect')!.click();
+  assert.equal(bar.hidden, false); assert.equal(d.getElementById('journeyselect')!.textContent, 'Done');
+  assert.equal(L.querySelectorAll('.journey-row .pick').length, 3, 'ticks instead of drawings');
+  L.querySelector<HTMLElement>(`[data-ride="${t0 + 120_000}"]`)!.click();
+  assert.deepEqual(opened, [], 'a tap ticks, it does not open'); assert.match(bar.textContent!, /1 selected/);
+  assert.equal(L.querySelector(`[data-ride="${t0 + 120_000}"]`)!.getAttribute('aria-checked'), 'true');
+  L.querySelector<HTMLElement>('[data-select-month]')!.click(); assert.match(bar.textContent!, /3 selected/, 'select all in the month');
+  L.querySelector<HTMLElement>('[data-select-month]')!.click(); assert.match(bar.textContent!, /0 selected/, 'and none');
+  bar.querySelector<HTMLElement>('[data-sel="short"]')!.click(); assert.match(bar.textContent!, /2 selected/, 'short ones: under 5 min or 2 km');
+  bar.querySelector<HTMLElement>('[data-sel="ask"]')!.click(); assert.match(bar.textContent!, /Delete 2 rides\?/);
+  bar.querySelector<HTMLElement>('[data-sel="keep"]')!.click(); assert.equal(rides.length, 3, 'Keep: nothing gone');
+  bar.querySelector<HTMLElement>('[data-sel="ask"]')!.click(); bar.querySelector<HTMLElement>('[data-sel="delete"]')!.click();
+  assert.deepEqual(rides.map((r) => r.distanceKm), [60]); assert.deepEqual(toasts, ['2 rides deleted.']);
+  assert.equal(bar.hidden, true, 'back to the normal list'); assert.equal(L.querySelectorAll('.pick').length, 0);
+}
+
 // ---- a ride's story: riding and stopped time (ride of 2026-10-17: 80 minutes parked made a 3 h 39 ride)
 {
   const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');

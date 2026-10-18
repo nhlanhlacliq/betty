@@ -500,7 +500,10 @@ Long names and delete (same day): rows are `div role=button tabindex=0` (iPhone 
 `markLongNames`); Enter/Space open a focused row. Delete: story page `[data-delete]` -> in-place confirm ->
 `ctx.deleteRide` (main: refuses the running ride; `RideLog.remove`, `LineLogStore.removeRide`, `TrackStore.remove`,
 `RoadStore.remove`, `JourneyStore.forget`, `cardExtras.forget`; filters `unsaved` so the next log save does not put
-its lines back). Fuel count and odometer are NOT changed.
+its lines back). Fuel count and odometer are NOT changed. SELECT MODE: `#journeyselect` (Select/Done) -> rows become
+`role=checkbox` with a `.pick` tick in place of the drawing, a tap ticks; open months get Select all/none; sticky
+`#journeyselectbar`: "N selected", Short ones (< 5 min or < 2 km, all rides), Cancel, Delete N -> in-bar confirm ->
+`ctx.deleteRide` for each. Works on search/Starred results too.
 
 ## Garage search and Help (2026-10-17, owner)
 

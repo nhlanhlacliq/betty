@@ -694,3 +694,19 @@ html, body { overscroll-behavior: none; }
 .delete-ride .sub { text-align: left; margin: 0 0 10px; }
 .text-button.danger { color: var(--danger); }
 .secondary.danger-fill { background: var(--end); color: var(--end-text); border-color: transparent; }
+
+/* My journeys select mode (2026-10-18) */
+.month-head-row { display: flex; align-items: center; gap: 8px; }
+.month-head-row .month-head { flex: 1; min-width: 0; }
+.select-month { flex: none; font-size: 13px; }
+.journey-row.selecting { cursor: default; }
+.journey-row .pick { flex: none; width: 26px; height: 26px; margin: 0 4px 0 6px; border-radius: 50%; border: 2px solid #c3cdb9; background: var(--card); display: grid; place-items: center; }
+.journey-row.picked { border-color: var(--sage); background: #f6f9f1; }
+.journey-row.picked .pick { background: var(--sage); border-color: var(--sage); }
+.journey-row.picked .pick::after { content: ''; width: 6px; height: 11px; border-right: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: translateY(-1px) rotate(45deg); }
+.select-bar { position: sticky; bottom: 0; z-index: 5; margin: 10px -4px 0; padding: 12px 14px; background: var(--card); border: 1px solid var(--card-line); border-radius: 18px; box-shadow: 0 -6px 20px rgba(39, 63, 57, .10); display: grid; gap: 8px; }
+.select-bar p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.select-bar p b { color: var(--ink); font-size: 15px; }
+.select-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.select-actions .text-button { margin-right: auto; }
+.select-actions button[disabled] { opacity: .45; }

@@ -79,6 +79,12 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   const totals = doc.getElementById('journeytotals')!;
   const story = doc.getElementById('story')!;
 
+  // ---- Select mode (owner, 2026-10-18): tick rides, then delete them together.
+  let selecting = false;
+  const picked = new Set<number>();
+  let confirming = false;
+  /** "Short ones": the rides a quick test or a restart leaves behind. */
+  const SHORT_MIN = 5, SHORT_KM = 2;
   /** Months shown open: the newest by default; he opens and closes the others. */
   const openMonths = new Set<string>();
   let touched = false;
@@ -87,8 +93,9 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const road = roads[String(r.startedAt)] ?? [];
     // A div acting as a button (not a <button>): iPhone Safari does not scroll inside a button, and a long name
     // scrolls sideways (owner, 2026-10-18: "scroll left to reveal the rest of the name").
-    return `<div class="journey-row" role="button" tabindex="0" data-ride="${r.startedAt}">
-      ${CONFIG.journeyThumbs ? `<span class="journey-thumb">${miniTrackSvg(road)}</span>` : ''}
+    const on = picked.has(r.startedAt);
+    return `<div class="journey-row${selecting ? ' selecting' : ''}${on ? ' picked' : ''}" role="${selecting ? 'checkbox' : 'button'}"${selecting ? ` aria-checked="${on}"` : ''} tabindex="0" data-ride="${r.startedAt}">
+      ${selecting ? '<span class="pick" aria-hidden="true"></span>' : CONFIG.journeyThumbs ? `<span class="journey-thumb">${miniTrackSvg(road)}</span>` : ''}
       <div class="journey-main"><p class="eyebrow">${JourneyStore.starred(r.startedAt) ? '<span class="star-on" aria-label="Starred">★</span> ' : ''}${esc(date(r.startedAt))}</p><h2 class="ride-name"><span>${esc(rideTitle(r))}</span></h2><p class="sub">${esc(r.weather ?? 'Out with Betty')}</p></div>
       <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))}</p></div></div>`;
   };
@@ -108,7 +115,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const k = e as KeyboardEvent;
     if (k.key !== 'Enter' && k.key !== ' ') return;
     const b = (k.target as Element).closest?.<HTMLElement>('.journey-row[data-ride]');
-    if (b) { k.preventDefault(); open(Number(b.dataset.ride)); }
+    if (b) { k.preventDefault(); if (selecting) pick(Number(b.dataset.ride)); else open(Number(b.dataset.ride)); }
   };
 
   // ---- Your roads (Journeys 3): every ride's rough road on one map, pan and zoom, tap a road to open its ride.
@@ -210,6 +217,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
 
   const renderList = () => {
     const rides = [...ctx.rides()].reverse();
+    renderBar(); // the select bar follows every repaint (searching included)
     // Searching or starred: just the rides that match, no months, no cards.
     const q = searchBox?.value.trim() ?? '';
     const finding = !!q || starredOnly;
@@ -253,11 +261,49 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       const open = openMonths.has(m.key);
       const bits = [`${m.rides.length} ride${m.rides.length === 1 ? '' : 's'}`, `${Math.round(m.km)} km`, duration(m.minutes), m.costR != null ? `R${m.costR} fuel` : ''].filter(Boolean).join(' · ');
       return `<section class="journey-month${open ? ' open' : ''}" data-month="${m.key}">
-        <button class="month-head" type="button" data-month-toggle="${m.key}" aria-expanded="${open}"><span><b>${m.key === thisMonth ? 'This month' : esc(m.label)}</b><small>${esc(bits)}</small></span><i class="chev" aria-hidden="true"></i></button>
+        <div class="month-head-row"><button class="month-head" type="button" data-month-toggle="${m.key}" aria-expanded="${open}"><span><b>${m.key === thisMonth ? 'This month' : esc(m.label)}</b><small>${esc(bits)}</small></span><i class="chev" aria-hidden="true"></i></button>
+        ${selecting && open ? `<button class="text-button select-month" type="button" data-select-month="${m.key}">${m.rides.every((r) => picked.has(r.startedAt)) ? 'Select none' : 'Select all'}</button>` : ''}</div>
         ${open ? `<div class="journey-list">${m.rides.map(row).join('')}</div>${m.key !== thisMonth ? shareMonthBtn(m.key, `Share ${m.label.split(' ')[0]}`) : ''}` : ''}</section>`;
     }).join('');
     later(() => markLongNames(list));
+    renderBar();
   };
+
+  const bar = doc.getElementById('journeyselectbar');
+  const selectBtn = doc.getElementById('journeyselect');
+  const renderBar = () => {
+    selectBtn?.setAttribute('aria-pressed', String(selecting));
+    if (selectBtn) selectBtn.textContent = selecting ? 'Done' : 'Select';
+    if (!bar) return;
+    bar.hidden = !selecting;
+    if (!selecting) return;
+    const n = picked.size;
+    bar.innerHTML = confirming
+      ? `<p><b>Delete ${n} ride${n === 1 ? '' : 's'}?</b> ${n === 1 ? 'Its' : 'Their'} maps, numbers and lines go from this phone. Fuel and odometer stay.</p>
+        <div class="select-actions"><button class="secondary small" type="button" data-sel="keep">Keep</button><button class="secondary small danger-fill" type="button" data-sel="delete">Delete</button></div>`
+      : `<p><b>${n} selected</b></p>
+        <div class="select-actions"><button class="text-button" type="button" data-sel="short">Short ones</button><button class="secondary small" type="button" data-sel="cancel">Cancel</button>
+        <button class="secondary small danger-fill" type="button" data-sel="ask"${n ? '' : ' disabled'}>Delete${n ? ` ${n}` : ''}</button></div>`;
+  };
+  const stopSelecting = () => { selecting = false; confirming = false; picked.clear(); renderList(); };
+  selectBtn?.addEventListener('click', () => { if (selecting) stopSelecting(); else { selecting = true; renderList(); } });
+  bar?.addEventListener('click', (e) => {
+    const a = (e.target as Element).closest<HTMLElement>('[data-sel]')?.dataset.sel;
+    if (a === 'cancel') stopSelecting();
+    else if (a === 'short') {
+      for (const r of ctx.rides()) if (rideMinutes(r, false) < SHORT_MIN || r.distanceKm < SHORT_KM) picked.add(r.startedAt);
+      renderList();
+    } else if (a === 'ask' && picked.size) { confirming = true; renderBar(); }
+    else if (a === 'keep') { confirming = false; renderBar(); }
+    else if (a === 'delete') {
+      let gone = 0, kept = 0;
+      for (const id of picked) { if (ctx.deleteRide?.(id)) gone++; else kept++; }
+      ctx.toast(`${gone} ride${gone === 1 ? '' : 's'} deleted.${kept ? ' The one still running was kept.' : ''}`);
+      stopSelecting();
+    }
+  });
+  /** In select mode a tap ticks the row instead of opening it. */
+  const pick = (id: number) => { if (picked.has(id)) picked.delete(id); else picked.add(id); confirming = false; renderList(); };
 
   const renderStory = (rideId: number) => {
     const r = ctx.rides().find((x) => x.startedAt === rideId);
@@ -324,7 +370,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const sm = (e.target as Element).closest<HTMLButtonElement>('[data-share-month]');
     if (sm) { shareMonth(sm); return; }
     const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
-    if (b) open(Number(b.dataset.ride));
+    if (b) { if (selecting && box === found) pick(Number(b.dataset.ride)); else open(Number(b.dataset.ride)); }
   });
   searchBox?.addEventListener('input', () => renderList());
   list.addEventListener('keydown', keyOpen);
@@ -337,6 +383,14 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   list.addEventListener('click', (e) => {
     const sm = (e.target as Element).closest<HTMLButtonElement>('[data-share-month]');
     if (sm) { shareMonth(sm); return; }
+    const sa = (e.target as Element).closest<HTMLElement>('[data-select-month]');
+    if (sa) {
+      const g = groupByMonth(ctx.rides(), CONFIG.ridingTimeOnly).find((x) => x.key === sa.dataset.selectMonth);
+      const all = !!g && g.rides.every((r) => picked.has(r.startedAt));
+      for (const r of g?.rides ?? []) { if (all) picked.delete(r.startedAt); else picked.add(r.startedAt); }
+      renderList();
+      return;
+    }
     const mt = (e.target as Element).closest<HTMLElement>('[data-month-toggle]');
     if (mt) {
       const k = mt.dataset.monthToggle!;
@@ -346,7 +400,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       return;
     }
     const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
-    if (b) open(Number(b.dataset.ride));
+    if (b) { if (selecting) pick(Number(b.dataset.ride)); else open(Number(b.dataset.ride)); }
   });
   story.addEventListener('click', (e) => {
     const t = e.target as Element;

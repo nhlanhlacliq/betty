@@ -126,7 +126,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Google Maps still gives you the turns (Open in Google Maps). Betty follows along: distance and time left, the next stop, leaving the route, fuel.',
       'Taking another way? Tell her "I\'m on a detour" and the off-route reminders stop until you are back on it.',
     ])}` },
-  { id: 'journeys', title: 'My journeys and sharing', keywords: 'journeys rides story share card riding time stopped log export month map roads records milestones longest streak highest drawings search find star favourite rename on this day recap weeks delete remove scroll name',
+  { id: 'journeys', title: 'My journeys and sharing', keywords: 'journeys rides story share card riding time stopped log export month map roads records milestones longest streak highest drawings search find star favourite rename on this day recap weeks delete remove scroll name select several short',
     html: `${li([
       'Every ride of 3 minutes or 1 km and up is kept (the last 500): the map of the road, the moments, everything she said, riding and stopped time, and the fuel cost.',
       '<b>By month:</b> this month is open; older months fold into one line with their rides, km, riding time and fuel. Tap a month to open or close it. Each ride shows a little drawing of its road (Garage &gt; In your garage &gt; Road drawings in My journeys turns them off).',
@@ -137,6 +137,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Share a month:</b> <i>Share October</i> (on the month card, or at the bottom of an opened month) makes a picture of the month: every road on one map, km, rides, riding time, fuel, the places and the best thing Betty said.',
       '<b>Long names:</b> a ride name too long for the row fades at the right edge; swipe it left to read the rest. Tapping the row still opens the ride.',
       '<b>Delete a ride:</b> at the bottom of a ride\'s page, <i>Delete this ride</i>, then <i>Delete</i> to confirm. Its map, numbers and everything Betty said on it go from the phone; your fuel count and odometer stay as they are. A ride still running cannot be deleted.',
+      '<b>Delete several:</b> tap <i>Select</i> at the top, tick rides (or <i>Select all</i> on a month, or <i>Short ones</i> for everything under 5 minutes or 2 km), then <i>Delete</i> in the bar at the bottom; it asks first. <i>Cancel</i> or <i>Done</i> leaves without deleting.',
       '<b>Records:</b> longest ride, longest in the saddle, furthest from where you set off, highest point, best month and weeks in a row, plus the next milestone ("1,000 km with Betty, 160 to go"). Tap a record to open its ride. On the ride she tells you when you pass your longest ride or a km milestone (not while you have asked for quiet). Speed is never a record.',
       '<b>Share this ride</b> makes a picture card (map, numbers, her best line). <i>Hide where I start and finish</i> keeps home off it.',
       'Ride times count only riding by default (Garage &gt; Count riding time only).',
