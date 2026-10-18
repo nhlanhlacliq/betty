@@ -1132,6 +1132,16 @@ Everything buildable in the web app is built (see the sections above), except th
    sound ~0.3-0.5 s) for answers; (d) on-device live transcription in the native app with Whisper as backup; (e) tune
    the end-of-speech pause from ride logs (1.2 -> ~0.8 s); perceived: a tone the moment the question is caught, and
    "Hang on" sooner only when she is actually searching. Target: about 2.5-3.5 s.
+   (a)+(b) BUILT 2026-10-19: `ClaudeClient.phrase(ev, s, {early})` streams his answers (`wire(req, true)`, api/phrase
+   passes `text/event-stream` through), `StreamedMessage` rebuilds the content blocks, `firstSentence(answerSoFar())`
+   (after the last search result; not a `putsOff`/META preface; cleaned with maxSentences 1) is handed over once;
+   main.ts `say` queues it at once (cancelling "Hang on" via `onFirst`) and later only `restAfter(text, early)`.
+   Her own lines are not streamed. `wire` sends `system` as one block with `cache_control` (request keeps the string).
+   MEASURED LIVE (scripts/latency.live.ts, from the Mac): cache WORKS (4,943 tokens read per answer: web-search tool +
+   system; first call writes); first sentence at 1.0-1.4 s vs the whole answer 1.1-2.1 s. Honest result: with her
+   2-sentence answers the Claude-side gain is small (~0.1-0.7 s), and caching mostly cuts cost (reads at 0.1x); the
+   bigger remaining wins are (c) voice and (d) transcription. Native: RN fetch cannot stream, so the early sentence
+   arrives with the whole answer until expo/fetch is used.
 0b. **Owner learns first, then we build** (owner, 2026-10-19: he wants to understand and explain these himself before
    they are coded, "rather than just hope you coded them properly"). Do NOT start these until he says so:
    - Betty as an agent for HIS QUESTIONS (not for triggers/safety, which stay in code): Claude gets tools to look up

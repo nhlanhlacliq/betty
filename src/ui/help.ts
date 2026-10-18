@@ -83,6 +83,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Holding the buttons pauses music from other apps: that is how the phone gives the buttons to Betty.',
       '<b>No buttons?</b> Tap the microphone on the ride screen, or <i>TAP TO TALK</i> on the lock screen.',
       '<b>Typing:</b> the speech bubble on the ride screen opens a chat; at home, the Workshop chat lets you try her out at the desk.',
+      '<b>Answers start sooner:</b> she begins with the first sentence of her answer while the rest is still being written, so a longer answer may come in two parts.',
       'Speak after the tone. If she says "I didn\'t hear anything", try again a bit louder; the helmet mic is picked automatically when it is connected.',
     ])}` },
   { id: 'commands', title: 'Voice commands', keywords: 'commands say phrases list voice', html: '' },

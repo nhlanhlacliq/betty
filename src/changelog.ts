@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      { id: 'faster-answers', kind: 'better', title: 'Answers start sooner.', text: 'She starts speaking with the first sentence of her answer while the rest is still being written.', help: 'talk' },
       { id: 'ride-bar', kind: 'new', title: 'Back to the ride.', text: 'The grid button on the ride screen opens Journeys, Explore or the Garage; a bar above the tabs then shows the ride and takes you back, and the Ride tab has a live dot.', help: 'ridescreen' },
       { id: 'quiet-cuts-in', kind: 'better', title: 'Some lines cut in.', text: 'Going quiet, having her back, "repeat that" and her sign-off stop whatever she is saying and go at once; a safety alert is still never cut off.', help: 'commands' },
       { id: 'end-ride-stuck', kind: 'fixed', title: 'End ride no longer gets stuck.', text: 'Going back to the ride screen while she signed off could leave you on an empty ride screen where End ride did nothing.' },
