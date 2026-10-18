@@ -1043,14 +1043,14 @@ resetConfig();
   const L = d.getElementById('journeylist')!, bar = d.getElementById('journeyselectbar')!;
   assert.equal(bar.hidden, true);
   d.getElementById('journeyselect')!.click();
-  assert.equal(bar.hidden, false); assert.equal(d.getElementById('journeyselect')!.textContent, 'Done'); assert.ok(!bar.querySelector('[data-sel="cancel"]'), 'Done (the pencil) leaves: no Cancel crowding the bar');
+  assert.equal(bar.hidden, false); assert.ok(bar.querySelector('[data-sel="done"]'), 'Done floats in the bar'); assert.ok(d.getElementById('journeyselect')!.classList.contains('on')); assert.ok(!bar.querySelector('[data-sel="cancel"]'), 'Done (the pencil) leaves: no Cancel crowding the bar');
   assert.equal(L.querySelectorAll('.journey-row .pick').length, 3, 'ticks instead of drawings');
   L.querySelector<HTMLElement>(`[data-ride="${t0 + 120_000}"]`)!.click();
   assert.deepEqual(opened, [], 'a tap ticks, it does not open'); assert.match(bar.textContent!, /1 selected/);
   assert.equal(L.querySelector(`[data-ride="${t0 + 120_000}"]`)!.getAttribute('aria-checked'), 'true');
   L.querySelector<HTMLElement>('[data-select-month]')!.click(); assert.match(bar.textContent!, /3 selected/, 'select all in the month');
   L.querySelector<HTMLElement>('[data-select-month]')!.click(); assert.match(bar.textContent!, /0 selected/, 'and none');
-  bar.querySelector<HTMLElement>('[data-sel="short"]')!.click(); assert.match(bar.textContent!, /2 selected/, 'short ones: under 5 min or 2 km');
+  bar.querySelector<HTMLElement>('[data-sel="short"]')!.click(); assert.match(bar.textContent!, /2 selected/, 'short rides: under 5 min or 2 km'); assert.match(toasts.at(-1)!, /^Ticked 2 rides under 5 minutes or 2 km\.$/); toasts.length = 0;
   bar.querySelector<HTMLElement>('[data-sel="ask"]')!.click(); assert.match(bar.textContent!, /Delete 2 rides\?/);
   bar.querySelector<HTMLElement>('[data-sel="keep"]')!.click(); assert.equal(rides.length, 3, 'Keep: nothing gone');
   // star them together: the button reads Unstar once they all are
@@ -1065,7 +1065,7 @@ resetConfig();
   toasts.length = 0;
   d.getElementById('journeyselect')!.click(); bar.querySelector<HTMLElement>('[data-sel="short"]')!.click();
   bar.querySelector<HTMLElement>('[data-sel="ask"]')!.click(); bar.querySelector<HTMLElement>('[data-sel="delete"]')!.click();
-  assert.deepEqual(rides.map((r) => r.distanceKm), [60]); assert.deepEqual(toasts, ['2 rides deleted.']);
+  assert.deepEqual(rides.map((r) => r.distanceKm), [60]); assert.equal(toasts.at(-1), '2 rides deleted.');
   assert.equal(bar.hidden, true, 'back to the normal list'); assert.equal(L.querySelectorAll('.pick').length, 0);
   // Hold a ride: select mode opens with it ticked, and the click that ends the hold neither opens nor unticks it
   const r0 = L.querySelector<HTMLElement>('.journey-row')!;
@@ -1074,8 +1074,9 @@ resetConfig();
   r0.dispatchEvent(new j.window.MouseEvent('pointerup', { bubbles: true }));
   L.querySelector<HTMLElement>('.journey-row')!.click();
   assert.equal(bar.hidden, false); assert.match(bar.textContent!, /1 selected/); assert.deepEqual(opened, []);
-  assert.equal(d.getElementById('journeyselect')!.textContent, 'Done');
-  d.getElementById('journeyselect')!.click(); assert.ok(d.getElementById('journeyselect')!.querySelector('svg'), 'back to the pencil');
+  assert.ok(d.getElementById('journeyselect')!.classList.contains('on'), 'the pencil lit while selecting');
+  bar.querySelector<HTMLElement>('[data-sel="done"]')!.click(); assert.equal(bar.hidden, true, 'Done in the bar leaves select mode');
+  assert.ok(d.getElementById('journeyselect')!.querySelector('svg') && !d.getElementById('journeyselect')!.classList.contains('on'), 'the pencil, unlit');
   // a hold that moves (a swipe, or reading a long name) is not a hold
   const r1 = L.querySelector<HTMLElement>('.journey-row')!;
   r1.dispatchEvent(new j.window.MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));

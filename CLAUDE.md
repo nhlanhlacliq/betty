@@ -505,8 +505,9 @@ its lines back). Fuel count and odometer are NOT changed. SELECT MODE: `#journey
 `#journeyselectbar`: "N selected", Short ones (< 5 min or < 2 km, all rides), Cancel, Delete N -> in-bar confirm ->
 `ctx.deleteRide` for each. Works on search/Starred results too. LATER THE SAME DAY (owner: the Select button took
 space): no Select button; `#journeyselect` is a round PENCIL button at the top right of the header (`.edit-pencil`,
-absolute; owner rejected a text "Edit" link that wrapped onto its own line, and kept the privacy pill), "Done" while
-selecting (the bar has no Cancel); the bar also has ★ Star / ☆ Unstar for the ticked rides; HOLD a row 450 ms (pointer moved > 8 px cancels, so swiping a long name is not a hold) to enter select
+absolute; owner rejected a text "Edit" link that wrapped onto its own line, and kept the privacy pill), "Done" is in the
+floating bar (`data-sel="done"`), the pencil only lights up (`.on`) and scrolls to `#journeylist` when tapped (owner:
+Done at the top was awkward); "Short rides" (renamed from Short ones; toast says how many it ticked); the bar also has ★ Star / ☆ Unstar for the ticked rides; HOLD a row 450 ms (pointer moved > 8 px cancels, so swiping a long name is not a hold) to enter select
 mode with it ticked, the click after the hold is swallowed; `-webkit-touch-callout: none` stops the iPhone menu; a
 one-time toast "Tip: hold a ride..." (`betty.hint.hold`, only with 5+ rides). Starred = `.search-star` ☆/★ inside
 the search box.

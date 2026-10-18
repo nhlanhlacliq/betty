@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      'Selecting rides: the pencil takes you straight down to the rides, Done sits in the floating bar at the bottom, and "Short ones" is now "Short rides" (every ride under 5 minutes or 2 km) and says how many it ticked.',
       'My journeys is tidier at the top: hold a ride to select several (or tap the pencil at the top right), and the starred filter is the ☆ inside the search box. Selected rides can be starred (or unstarred) together as well as deleted.',
       'Select in My journeys: tick rides (or a whole month, or "Short ones" under 5 minutes or 2 km) and delete them together.',
       'A ride name too long for its row fades at the edge: swipe it left to read the rest.',

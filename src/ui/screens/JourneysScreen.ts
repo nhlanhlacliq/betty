@@ -275,10 +275,11 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   const selectBtn = doc.getElementById('journeyselect');
   const renderBar = () => {
     selectBtn?.setAttribute('aria-pressed', String(selecting));
-    // A pencil at the top right of the header (owner, 2026-10-18: the Edit link "looks terrible"); Done while selecting.
+    // The pencil stays a pencil (lit while selecting); Done lives in the floating bar, in reach wherever he has
+    // scrolled (owner, 2026-10-18: Done at the top of the page was "a bit awkward").
     if (selectBtn) {
-      selectBtn.innerHTML = selecting ? 'Done' : icon('pencil', 'ico sm');
-      selectBtn.classList.toggle('done', selecting);
+      if (!selectBtn.querySelector('svg')) selectBtn.innerHTML = icon('pencil', 'ico sm');
+      selectBtn.classList.toggle('on', selecting);
       selectBtn.setAttribute('aria-label', selecting ? 'Done selecting' : 'Select rides');
     }
     if (!bar) return;
@@ -288,20 +289,28 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     bar.innerHTML = confirming
       ? `<p><b>Delete ${n} ride${n === 1 ? '' : 's'}?</b> ${n === 1 ? 'Its' : 'Their'} maps, numbers and lines go from this phone. Fuel and odometer stay.</p>
         <div class="select-actions"><button class="secondary small" type="button" data-sel="keep">Keep</button><button class="secondary small danger-fill" type="button" data-sel="delete">Delete</button></div>`
-      : `<p><b>${n} selected</b></p>
-        <div class="select-actions"><button class="text-button" type="button" data-sel="short">Short ones</button>
+      : `<div class="select-top"><p><b>${n} selected</b></p><button class="select-done" type="button" data-sel="done">Done</button></div>
+        <div class="select-actions"><button class="text-button" type="button" data-sel="short" title="Every ride under ${SHORT_MIN} minutes or ${SHORT_KM} km">Short rides</button>
         <button class="secondary small" type="button" data-sel="star"${n ? '' : ' disabled'}>${allStarred() ? '☆ Unstar' : '★ Star'}</button>
         <button class="secondary small danger-fill" type="button" data-sel="ask"${n ? '' : ' disabled'}>Delete${n ? ` ${n}` : ''}</button></div>`;
   };
   /** Every ticked ride already starred: the button takes the stars away instead. */
   const allStarred = () => picked.size > 0 && [...picked].every((id) => JourneyStore.starred(id));
   const stopSelecting = () => { selecting = false; confirming = false; picked.clear(); renderList(); };
-  selectBtn?.addEventListener('click', () => { if (selecting) stopSelecting(); else { selecting = true; renderList(); } });
+  selectBtn?.addEventListener('click', () => {
+    if (selecting) { stopSelecting(); return; }
+    selecting = true; renderList();
+    // Straight to the rides, where the ticking happens.
+    later(() => list.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
+  });
   bar?.addEventListener('click', (e) => {
     const a = (e.target as Element).closest<HTMLElement>('[data-sel]')?.dataset.sel;
-    if (a === 'cancel') stopSelecting();
+    if (a === 'cancel' || a === 'done') stopSelecting();
     else if (a === 'short') {
-      for (const r of ctx.rides()) if (rideMinutes(r, false) < SHORT_MIN || r.distanceKm < SHORT_KM) picked.add(r.startedAt);
+      // Quick tests and restarts: every ride under 5 minutes or 2 km, in every month (owner: "what is short ones?").
+      let n = 0;
+      for (const r of ctx.rides()) if (rideMinutes(r, false) < SHORT_MIN || r.distanceKm < SHORT_KM) { if (!picked.has(r.startedAt)) n++; picked.add(r.startedAt); }
+      ctx.toast(n ? `Ticked ${n} ride${n === 1 ? '' : 's'} under ${SHORT_MIN} minutes or ${SHORT_KM} km.` : `No more rides under ${SHORT_MIN} minutes or ${SHORT_KM} km.`);
       renderList();
     } else if (a === 'star' && picked.size) {
       const on = !allStarred(), n = picked.size;

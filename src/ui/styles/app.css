@@ -714,7 +714,10 @@ html, body { overscroll-behavior: none; }
 /* Journeys header: a pencil at the top right (select rides), and the star in the search box (2026-10-18) */
 [data-screen="journeys"] .intro { position: relative; padding-right: 48px; }
 .edit-pencil { position: absolute; top: 0; right: 0; width: 40px; height: 40px; border-radius: 20px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--card-line); color: var(--ink); padding: 0; }
-.edit-pencil.done { width: auto; padding: 0 14px; font-size: 14px; font-weight: 600; background: var(--sage); border-color: var(--sage); color: #fff; }
+.edit-pencil.on { background: var(--sage); border-color: var(--sage); color: #fff; }
+.select-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.select-done { border: 0; border-radius: 16px; padding: 7px 16px; background: var(--sage); color: #fff; font: inherit; font-size: 14px; font-weight: 600; }
+#journeylist { scroll-margin-top: 12px; }
 .search-star { flex: none; border: 0; background: none; font-size: 20px; line-height: 1; padding: 6px 2px 6px 8px; color: var(--muted); }
 .search-star[aria-pressed="true"] { color: #c9a43c; }
 .journey-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
