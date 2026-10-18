@@ -1048,12 +1048,13 @@ async function beginRide(desk: boolean) {
   })();
   /** Tones go through the headset buttons' own track when it is running, so they do not steal the buttons. */
   const tone = (freq: number) => { if (!buttons.tone(freq)) beep(freq); };
-  const sayNow = (text: string) => {
+  /** `now`: cut off whatever she is saying and say this at once (going quiet, coming back), never over a P1. */
+  const sayNow = (text: string, now = false) => {
     if (speaker.aloud) cloud.prefetch(text, { priority: 4, id: 'voice' });
-    newLine('[P4] voice', text).item = queue.enqueue(text, 4, 'voice'); renderLog();
+    newLine('[P4] voice', text).item = now ? queue.interrupt(text, 4, 'voice') : queue.enqueue(text, 4, 'voice'); renderLog();
   };
   /** Her reply to a command: instant, from the phone, no Claude call (so it also works without signal). */
-  const reply = (text: string, command: string) => { sayNow(text); toChat({ from: 'betty', text, at: Date.now(), command }); };
+  const reply = (text: string, command: string, now = false) => { sayNow(text, now); toChat({ from: 'betty', text, at: Date.now(), command }); };
   const remembered = (m: ReturnType<typeof RiderMemoryStore.load>) => { RiderMemoryStore.save(m); engine.setMemory(m); window.dispatchEvent(new window.Event('betty-memory')); };
   const howLong = (min: number) => min === 60 ? 'an hour' : min === 30 ? 'half an hour' : min % 60 === 0 ? `${min / 60} hours` : `${min} minute${min === 1 ? '' : 's'}`;
   /** Voice stage 3: things he tells her to do rather than asks. */
@@ -1066,10 +1067,10 @@ async function beginRide(desk: boolean) {
         queue.dropAmbient();
         reply(c.minutes === null
           ? "Going quiet. Say talk to me when you want me back. Alerts still come through."
-          : `Quiet for ${howLong(c.minutes)}. Alerts still come through.`, 'quiet');
+          : `Quiet for ${howLong(c.minutes)}. Alerts still come through.`, 'quiet', true);
         return;
       case 'talk':
-        if (engine.quietLeftMin() > 0) { engine.setQuiet(0); reply("I'm back.", 'talk again'); } else reply('I never left.', 'talk again');
+        if (engine.quietLeftMin() > 0) { engine.setQuiet(0); reply("I'm back.", 'talk again', true); } else reply('I never left.', 'talk again', true);
         return;
       case 'mark': {
         const s = agg.current;

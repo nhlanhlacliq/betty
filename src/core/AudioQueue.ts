@@ -64,6 +64,27 @@ export class AudioQueue {
   }
 
   /**
+   * A line that cannot wait its turn (owner, 2026-10-18: going quiet and coming back): whatever she is saying stops
+   * ('interrupted') and this goes next, ahead of everything queued. A critical (P1) line is never cut off by it: then
+   * it simply goes first after the P1 lines. Queued lines stay queued.
+   */
+  interrupt(text: string, priority: Priority = 4, tag?: string): QueueItem | null {
+    if (!text.trim()) return null;
+    if (this.speaking && this.speaking.priority !== 1) {
+      this.speaker.stop();
+      this.onFate(this.speaking, 'interrupted');
+      this.speaking = null;
+      this.gen++;
+    }
+    const item: QueueItem = { text, priority, queuedAt: this.now(), fate: 'queued', tag };
+    const firstNonCritical = this.items.findIndex((i) => i.priority !== 1);
+    this.items.splice(firstNonCritical === -1 ? this.items.length : firstNonCritical, 0, item);
+    this.onFate(item, 'queued');
+    this.pump();
+    return item;
+  }
+
+  /**
    * While he is talking to her (push-to-talk), she must not start a line over him. Held lines wait; a critical
    * alert still goes. Releasing lets the waiting lines play in the usual order.
    */

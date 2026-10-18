@@ -2686,4 +2686,28 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(heard, ['first', 'urgent']);
 }
 
+// ---- lines that cannot wait their turn (going quiet, coming back): cut off the current line, never a P1
+{
+  const said: string[] = []; let stops = 0; const dones: Array<() => void> = [];
+  const sp = { speak: (t: string, done: () => void) => { said.push(t); dones.push(done); }, stop() { stops++; } };
+  const fates: string[] = [];
+  const q = new AudioQueue(sp, () => true, () => 0, (i, f) => fates.push(`${i.text}:${f}`));
+  const banter = q.enqueue('a long bit of banter', 3)!;
+  q.enqueue('rain soon', 2);
+  const quiet = q.interrupt('Going quiet.', 4, 'voice')!;
+  assert.equal(banter.fate, 'interrupted'); assert.equal(stops, 1);
+  assert.equal(quiet.fate, 'speaking'); assert.deepEqual(said, ['a long bit of banter', 'Going quiet.']);
+  dones[0](); // the cut-off line's late callback changes nothing
+  assert.equal(quiet.fate, 'speaking');
+  dones[1]();
+  assert.equal(quiet.fate, 'spoken'); assert.equal(said.at(-1), 'rain soon', 'queued lines still follow');
+  // A critical alert is never cut off: the interrupting line goes right after it.
+  const q2 = new AudioQueue(sp, () => true, () => 0);
+  const hot = q2.enqueue('Engine hot, pull over.', 1)!;
+  const back = q2.interrupt("I'm back.", 4)!;
+  assert.equal(hot.fate, 'speaking'); assert.equal(back.fate, 'queued');
+  dones.at(-1)!();
+  assert.equal(back.fate, 'speaking');
+}
+
 console.log('all core tests passed');

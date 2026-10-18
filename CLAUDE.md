@@ -161,7 +161,10 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 - P3 waits for a safe window and is dropped if queued longer than `ambientMaxAgeMs` (60 s). How OFTEN ambient lines
   are made is paced by `ambientCooldownMs` in TriggerEngine. The queue no longer has its own time-based P3 drop: it
   silently discarded lines that had already been logged (2026-10-09 road test). Do not add one back.
-- One line at a time: a line arriving while another plays waits and is spoken after it. Only P1 interrupts.
+- One line at a time: a line arriving while another plays waits and is spoken after it. Only P1 interrupts, plus the
+  replies to going quiet and coming back (owner, 2026-10-18: the Quiet button, "be quiet", "talk to me"):
+  `AudioQueue.interrupt` cuts off the current line (fate `interrupted`) and goes next, but never cuts off a P1 (it then
+  goes right after it). Use `sayNow(text, true)` / `reply(..., true)` in main.ts for any other line that must not wait.
 - Every line's fate is tracked on its `QueueItem` (`queued`, `speaking`, `spoken`, `expired`, `interrupted`,
   `cleared`) and shown in the log, so "logged but not heard" is always explained.
 - `WebSpeaker` must ALWAYS call onDone: mobile speech engines swallow lines or never fire `onend`, which used to jam

@@ -108,7 +108,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Betty\'s orb:</b> tap the small orb to hear her last line again.',
       '<b>Her line:</b> what she is saying shows under her name. While you ride, her last line stays there (dimmed) until she says something new; when you stop, a short status shows instead. Those are notes on screen, never things she says.',
       '<b>Little animations:</b> her line appears word by word as she says it, Horizon grows smoothly and glows softly when something new comes up. Elsewhere: messages drop in (tap one to close it), numbers count up, a ride\'s road draws itself, Done on a reminder ticks, and the main buttons give a tiny buzz on Android. One switch turns them all off: Garage &gt; Betty\'s personality &gt; Little animations (the phone\'s Reduce Motion does too).',
-      '<b>Quiet</b> (the headset icon): she stops chatting until you tap it again; alerts still come.',
+      '<b>Quiet</b> (the headset icon): she stops chatting until you tap it again; alerts still come. It works at once: whatever she was saying stops (a safety alert is never cut off).',
       '<b>Lock</b> covers the screen so a glove or rain cannot press anything; hold the unlock button for a second to get out.',
       '<b>The panel</b> slides down to a slim bar (swipe down) and back (swipe up).',
       '<b>The map:</b> drag, pinch or double tap to zoom; the target button follows you again.',
