@@ -68,7 +68,7 @@
         <header class="ride-topbar">
           <span class="live-pill"><i class="dot"></i><span id="ridestatus">On the road</span><span class="pill-sep">·</span><span id="modepill">Live</span></span>
           <div class="topbar-buttons">
-            <button class="round-button" type="button" data-go="workshop" aria-label="Workshop"><i data-icon="wrench" class="sm"></i></button>
+            <button class="round-button" id="ridemenubtn" type="button" data-sheet-open="ridemenu" aria-label="Menu: Journeys, Explore, Garage"><i data-icon="grid" class="sm"></i></button>
             <button class="round-button" id="mute" type="button" aria-label="Ask Betty to be quiet"><span id="muteicon"></span><span class="audio-dot on" id="mutedot"></span></button>
           </div>
         </header>
@@ -444,6 +444,22 @@
           <div class="dialog-actions"><button class="secondary" id="knowforget" type="button">Forget it</button><button class="primary" id="knowsave" type="button">Save</button></div>
         </section>
       </div>
+      <!-- The ride screen's menu (owner, 2026-10-18): the other screens without the tab bar; the Workshop one tap deeper -->
+      <div class="sheet-backdrop" data-sheet="ridemenu" hidden>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Go to">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <button class="dialog-close" type="button" data-sheet-close aria-label="Close">×</button>
+          <h2>Go to</h2>
+          <p>Betty keeps riding with you. The bar above the tabs brings you back.</p>
+          <div class="ride-menu">
+            <button type="button" data-go="journeys"><i data-icon="journeys"></i><span>Journeys</span></button>
+            <button type="button" data-go="explore"><i data-icon="explore"></i><span>Explore</span></button>
+            <button type="button" data-go="settings"><i data-icon="garage"></i><span>Garage</span></button>
+          </div>
+          <button class="text-button ride-menu-workshop" type="button" data-go="workshop"><i data-icon="wrench" class="sm"></i> Workshop: simulator, tuning, log</button>
+        </section>
+      </div>
+
       <div class="sheet-backdrop" data-sheet="end" hidden>
         <section class="sheet" role="dialog" aria-modal="true" aria-label="End ride">
           <div class="sheet-handle" aria-hidden="true"></div>
