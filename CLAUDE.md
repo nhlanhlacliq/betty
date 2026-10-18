@@ -1125,6 +1125,27 @@ next is in `native/README.md`: it is the native app's CLAUDE.md, keep it current
 Everything buildable in the web app is built (see the sections above), except the planning map. Next: THE NATIVE APP.
 
 **Next up:**
+0. **Faster spoken answers** (owner, 2026-10-19: "let's rather refocus on getting voice faster"). Measured chain today:
+   end-of-speech wait 1.2 s + upload and Whisper ~1.5 s + Claude 1-2 s (search 3-6 s) + voice to first sound (Chirp
+   ~1 s, Gemini streamed 2-3 s) = about 5-7 s. Plan, in order: (a) stream Claude's answer and send the first finished
+   sentence to the voice while the rest is written; (b) prompt caching on her system prompt; (c) streamed Chirp (first
+   sound ~0.3-0.5 s) for answers; (d) on-device live transcription in the native app with Whisper as backup; (e) tune
+   the end-of-speech pause from ride logs (1.2 -> ~0.8 s); perceived: a tone the moment the question is caught, and
+   "Hang on" sooner only when she is actually searching. Target: about 2.5-3.5 s.
+0b. **Owner learns first, then we build** (owner, 2026-10-19: he wants to understand and explain these himself before
+   they are coded, "rather than just hope you coded them properly"). Do NOT start these until he says so:
+   - Betty as an agent for HIS QUESTIONS (not for triggers/safety, which stay in code): Claude gets tools to look up
+     (route weather, stations ahead, past rides, reminders, live engine data) and to act (mark spot, set a reminder,
+     change the route, quiet until a place); fast path kept for simple questions (each tool round trip ~1-2 s).
+     Study: Scott Moss, Frontend Masters "Build an AI Agent from Scratch" and "AI Agents v2" (agent loop, tool
+     calling, evals, human-in-the-loop, context management; uses OpenAI, ideas carry over).
+   - EVALS: a fixed set of situations ("parked in Heidelberg, raining, asks about fuel") that score her answers on every
+     prompt/model change, to catch regressions like "I shall search" before a ride. Same course (v2).
+   - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
+     no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
+     asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact
+     first in alerts, end-of-speech timing, voice vs Horizon. Pre-LLM book; for riding distraction use NHTSA
+     driver-distraction guidelines instead.
 1. **Native app, iOS and Android** (owner, 2026-10-18: React Native + Expo, dev builds). Reuse `src/core` unchanged;
    rebuild the screens and the adapters. STARTED 2026-10-18 (section Native app). First milestone: Android with GPS, her voice and OBD over Bluetooth Classic
    (his ELM327 mini). Then the iPhone build from Xcode, background running, music ducking, local notifications.
