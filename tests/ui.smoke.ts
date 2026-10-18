@@ -1401,6 +1401,20 @@ resetConfig();
   assert.match(asked[0], /^Add what Thabo shared \(1 route\)\? Nothing of yours is replaced\./);
   assert.equal(merged.length, 1); assert.equal(reloaded, false, 'no reload, nothing replaced'); assert.deepEqual(toasts, ['Added from Thabo: 1 route (in Where to?).']);
 }
+// ---- Workshop scenarios: a timeline of simulator overrides, Stop clears what it set
+{
+  const { SCENARIOS, play } = await import('../src/ui/scenarios');
+  const { StateAggregator } = await import('../src/core/StateAggregator');
+  const agg = new StateAggregator();
+  const rain = SCENARIOS.find((x) => x.name === 'Rain front')!;
+  const steps: number[] = [];
+  const stop = play(rain, agg, (i) => steps.push(i), 1000); // 1000x: 75 s in 75 ms
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(steps.length, rain.steps.length, 'every step ran');
+  assert.equal(agg.current.weather!.rainNowMm, 1.2); assert.equal(agg.current.speedKmh, 80);
+  stop(); assert.equal(agg.hasOverride('weather'), false, 'Stop clears what it set');
+  assert.ok(SCENARIOS.every((x) => x.steps.length && x.note), 'each scenario has steps and a note');
+}
 // ---- Let Betty know me: paste, distil, read, save; switch it off; forget
 {
   const { mountKnowMe, ProfileStore } = await import('../src/ui/KnowMe');

@@ -4,6 +4,7 @@ import { StateAggregator } from '../core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from '../core/TriggerEngine';
 import { BikeState, TRIGGER_IDS, TrafficIncident, TriggerEvent, WeatherState } from '../core/types';
 import { button, checkbox, el } from './dom';
+import { SCENARIOS, play } from './scenarios';
 
 export interface SimContext {
   agg: StateAggregator;
@@ -161,6 +162,23 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
   wrap.append(bar);
   wrap.append(checkbox('Speak aloud (off = silent, simulated duration)', ctx.aloud, (on) => ctx.setAloud(on)).wrap);
 
+  // --- scenario scripts: a named timeline of overrides, Play / Stop
+  wrap.append(el('h3', '', 'Scenarios'));
+  const sbar = el('div', 'bar');
+  const pick = el('select') as HTMLSelectElement;
+  pick.innerHTML = SCENARIOS.map((sc, i) => `<option value="${i}">${sc.name}</option>`).join('');
+  const snote = el('p', 'hint', SCENARIOS[0].note);
+  pick.onchange = () => { snote.textContent = SCENARIOS[Number(pick.value)].note; };
+  let stopScenario: (() => void) | null = null;
+  const playBtn = button('Play', () => {
+    if (stopScenario) { stopScenario(); stopScenario = null; playBtn.textContent = 'Play'; return; }
+    const sc = SCENARIOS[Number(pick.value)];
+    stopScenario = play(sc, ctx.agg, (i) => { snote.textContent = `${sc.name}: step ${i + 1} of ${sc.steps.length}`; if (i === sc.steps.length - 1) { playBtn.textContent = 'Stop (clears it)'; } });
+    playBtn.textContent = 'Stop';
+  });
+  sbar.append(pick, playBtn);
+  wrap.append(sbar, snote);
+
   // --- fire triggers
   wrap.append(el('h3', '', 'Fire a trigger now (ignores cooldown, uses current priority)'));
   const fire = el('div', 'bar');
@@ -184,5 +202,5 @@ export function mountSimPanel(root: HTMLElement, ctx: SimContext): () => void {
   refreshers.forEach((f) => f(ctx.agg.current));
   updateInfo();
 
-  return () => { unsub(); clearInterval(timer); root.innerHTML = ''; };
+  return () => { stopScenario?.(); unsub(); clearInterval(timer); root.innerHTML = ''; };
 }
