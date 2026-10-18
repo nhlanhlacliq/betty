@@ -32,13 +32,33 @@ export function revealWords(el: HTMLElement, text: string, doc: Document = docum
   el.innerHTML = words.map((w, i) => `<span class="word" aria-hidden="true" style="animation-delay:${Math.round(i * step)}ms">${esc(w)}</span>`).join(' ');
 }
 
-/** Numbers in a text ("1,234 km", "R312", "2h 19m", "4.4") counted up from 0, keeping their format. */
-export function countUp(el: HTMLElement, ms = 700, doc: Document = document) {
+/**
+ * Numbers that CHANGED since he last saw them count from the old value to the new one, keeping their format
+ * ("1,234 km", "R312", "2h 19m"). Unchanged numbers just show (owner, 2026-10-18: counting up every time distracted).
+ * What he last saw is kept per `key` on the phone (`betty.counted.v1`), so it also holds across visits.
+ */
+const SEEN_KEY = 'betty.counted.v1';
+let seenCache: Record<string, string> | null = null;
+const seenStore = (doc: Document): Record<string, string> => {
+  if (seenCache) return seenCache;
+  try { seenCache = JSON.parse(doc.defaultView?.localStorage.getItem(SEEN_KEY) ?? '{}') ?? {}; } catch { seenCache = {}; }
+  return seenCache!;
+};
+const saveSeen = (doc: Document) => { try { doc.defaultView?.localStorage.setItem(SEEN_KEY, JSON.stringify(seenStore(doc))); } catch { /* private mode */ } };
+const NUM = /(\d[\d,]*(?:\.\d+)?)/;
+
+export function countUp(el: HTMLElement, key: string, ms = 700, doc: Document = document) {
   const text = el.textContent ?? '';
-  if (!motionOn(doc) || el.dataset.counted === text) return;
-  const parts = text.split(/(\d[\d,]*(?:\.\d+)?)/);
+  const seen = seenStore(doc);
+  const before = seen[key];
+  seen[key] = text;
+  if (!motionOn(doc) || before === undefined || before === text) return;
+  const parts = text.split(NUM);
+  const old = before.split(NUM);
   const nums = parts.map((p, i) => (i % 2 ? Number(p.replace(/,/g, '')) : null));
-  if (!nums.some((n) => n != null && n > 0)) return;
+  // From the old numbers when the text has the same shape ("12 km" -> "15 km"), otherwise from zero.
+  const from = parts.map((p, i) => (i % 2 && old.length === parts.length ? Number(old[i].replace(/,/g, '')) || 0 : 0));
+  if (!nums.some((n, i) => n != null && n !== from[i])) return;
   el.dataset.counted = text;
   const win = doc.defaultView;
   if (!win?.requestAnimationFrame) return;
@@ -52,15 +72,36 @@ export function countUp(el: HTMLElement, ms = 700, doc: Document = document) {
     if (el.dataset.counted !== text) return; // repainted meanwhile
     const k = Math.min(1, (t - t0) / ms);
     const e = 1 - Math.pow(1 - k, 3); // ease out
-    el.textContent = parts.map((p, i) => (i % 2 ? fmt((nums[i] as number) * e, p) : p)).join('');
+    el.textContent = parts.map((p, i) => (i % 2 ? fmt(from[i] + ((nums[i] as number) - from[i]) * e, p) : p)).join('');
     if (k < 1) win.requestAnimationFrame(frame); else el.textContent = text;
   };
   win.requestAnimationFrame(frame);
 }
 
-/** Count up every number in these elements (a screen just shown). */
-export function countUpAll(root: ParentNode, selector: string, doc: Document = document) {
-  root.querySelectorAll<HTMLElement>(selector).forEach((el) => countUp(el, 700, doc));
+/** Count every changed number in these elements (a screen just shown); each is known by `prefix` and its label. */
+export function countUpAll(root: ParentNode, selector: string, prefix: string, doc: Document = document) {
+  root.querySelectorAll<HTMLElement>(selector).forEach((el, i) => {
+    const label = el.parentElement?.querySelector('small')?.textContent?.trim();
+    countUp(el, `${prefix}:${label || i}`, 700, doc);
+  });
+  saveSeen(doc);
+}
+
+/**
+ * A ride's road draws itself only once the whole map is on screen (owner, 2026-10-18), so he sees it happen rather
+ * than it finishing while the map is still below the fold. Until then the road waits undrawn (`.motion` only).
+ */
+export function drawWhenSeen(map: Element | null, doc: Document = document) {
+  if (!map) return;
+  const win = doc.defaultView as (Window & typeof globalThis) | null;
+  if (!motionOn(doc) || !win?.IntersectionObserver) { map.classList.add('drawn'); return; }
+  const io = new win.IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.intersectionRatio >= 0.95)) return;
+    io.disconnect();
+    map.classList.add('drawing');
+    setTimeout(() => map.classList.add('drawn'), 1800);
+  }, { root: map.closest('.screen'), threshold: [0.95] });
+  io.observe(map);
 }
 
 /** Play a CSS animation class once (restarting it if it is already on). */
@@ -91,15 +132,24 @@ export function slideFrom(before: Map<string, DOMRect>, root: ParentNode, select
   });
 }
 
-/** An element changing size (Horizon growing or shrinking): from its old box to its new one, smoothly. */
-export function resize(el: HTMLElement, change: () => void, doc: Document = document) {
+/**
+ * An element changing size (Horizon growing or shrinking): from its old box to its new one, smoothly. The parts in
+ * `hold` keep their FINAL width while the box animates (the box clips them), so text never re-wraps into a narrow
+ * column on the way (owner, 2026-10-18: Horizon's text flashed up as tall vertical text while it grew).
+ */
+export function resize(el: HTMLElement, change: () => void, doc: Document = document, hold: HTMLElement[] = []) {
   if (!motionOn(doc) || typeof el.animate !== 'function' || el.hidden) { change(); return; }
   const a = el.getBoundingClientRect();
   change();
   const b = el.getBoundingClientRect();
   if (el.hidden || (Math.abs(a.width - b.width) < 2 && Math.abs(a.height - b.height) < 2)) return;
-  el.animate([{ width: `${a.width}px`, height: `${a.height}px` }, { width: `${b.width}px`, height: `${b.height}px` }],
+  const held = hold.filter((h) => !h.hidden).map((h) => ({ h, w: h.getBoundingClientRect().width }));
+  for (const { h, w } of held) { h.style.width = `${w}px`; h.style.flex = 'none'; }
+  el.style.overflow = 'hidden';
+  const anim = el.animate([{ width: `${a.width}px`, height: `${a.height}px` }, { width: `${b.width}px`, height: `${b.height}px` }],
     { duration: 320, easing: 'cubic-bezier(.2,.9,.3,1)' });
+  const release = () => { for (const { h } of held) { h.style.width = ''; h.style.flex = ''; } el.style.overflow = ''; };
+  anim.onfinish = release; anim.oncancel = release;
 }
 
 /** A tiny buzz under the finger on the main buttons (Android; iPhone Safari has no vibration for web pages). */

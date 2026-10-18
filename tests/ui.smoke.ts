@@ -1454,7 +1454,7 @@ resetConfig();
 {
   const { applyMotion, revealWords, countUp, motionOn } = await import('../src/ui/motion');
   const { CONFIG } = await import('../src/config/betty');
-  const m = new JSDOM('<!doctype html><p id="w"></p><b id="n">1,234 km</b>');
+  const m = new JSDOM('<!doctype html><p id="w"></p><b id="n">1,234 km</b>', { url: 'https://betty.test/' });
   const d = m.window.document;
   CONFIG.motion = true; applyMotion(d);
   assert.ok(d.documentElement.classList.contains('motion'));
@@ -1465,9 +1465,19 @@ resetConfig();
   assert.ok(!d.documentElement.classList.contains('motion') && !motionOn(d), 'the switch turns it all off');
   revealWords(d.getElementById('w')!, 'Plain now.', d);
   assert.equal(d.getElementById('w')!.innerHTML, 'Plain now.');
-  countUp(d.getElementById('n')!, 700, d);
+  countUp(d.getElementById('n')!, 'test:n', 700, d);
   assert.equal(d.getElementById('n')!.textContent, '1,234 km', 'no counting when off');
-  CONFIG.motion = true;
+  CONFIG.motion = true; applyMotion(d);
+  // Only a number that changed since he last saw it counts (from the old value); unchanged ones just show.
+  const n = d.getElementById('n')!;
+  countUp(n, 'test:n', 700, d);
+  assert.equal(n.dataset.counted, undefined, 'seen before and unchanged: no count');
+  n.textContent = '1,240 km'; countUp(n, 'test:n', 700, d);
+  assert.equal(n.dataset.counted, '1,240 km', 'changed: it counts');
+  delete n.dataset.counted; countUp(n, 'test:n', 700, d);
+  assert.equal(n.dataset.counted, undefined, 'and not again for the same value');
+  const fresh = d.createElement('b'); fresh.textContent = '7'; countUp(fresh, 'test:fresh', 700, d);
+  assert.equal(fresh.dataset.counted, undefined, 'the first time a number is seen it just shows');
   // The Garage switch exists and is wired (real index.html).
   const { readFileSync: read } = await import('node:fs');
   assert.match(read(new URL('../index.html', import.meta.url), 'utf8'), /id="motionswitch"/);

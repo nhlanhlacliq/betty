@@ -782,7 +782,8 @@ html, body { overscroll-behavior: none; }
 @keyframes draw-line { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 
 /* 5. A ride's story: the road draws itself from start to finish, then the moments come in one after another */
-.motion .story-map:not(.drawn) .ride-road { stroke-dasharray: 1; animation: draw-line 1.5s .15s cubic-bezier(.5, 0, .3, 1) both; }
+.motion .story-map:not(.drawn) .ride-road { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.motion .story-map.drawing:not(.drawn) .ride-road { animation: draw-line 1.5s .15s cubic-bezier(.5, 0, .3, 1) both; }
 .motion [data-screen="story"]:not([hidden]) .moments > li { animation: rise-in .4s ease-out both; }
 .motion [data-screen="story"] .moments > li:nth-child(2) { animation-delay: .06s; }
 .motion [data-screen="story"] .moments > li:nth-child(3) { animation-delay: .12s; }

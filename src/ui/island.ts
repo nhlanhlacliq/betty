@@ -50,7 +50,7 @@ export function mountIsland(doc: Document, hooks: IslandHooks) {
     // Growing, shrinking or moving to another card goes smoothly; a reading that just ticks over does not animate.
     const reshape = el.classList.contains('compact') === v.expanded || shownIndex !== v.index;
     shownIndex = v.index;
-    if (reshape) resize(el, () => fill(v), doc); else fill(v);
+    if (reshape) resize(el, () => fill(v), doc, [el.querySelector<HTMLElement>('.island-body')!]); else fill(v);
     if (news) play(el, 'news');
   };
   const fill = (v: ReturnType<typeof islandView>) => {

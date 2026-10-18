@@ -1059,13 +1059,16 @@ once her voice is AUDIBLE (owner: the words came before her voice): `SpeakTag.he
 starts (Cloud: first streamed chunk / clip about to play; WebSpeaker `onstart`; silent mode at once; ExpoSpeaker
 `onStart`), AudioQueue passes it once to `onHeard` (stale lines ignored), and main.ts sets `speakingNow` then (6 s
 fallback). So the orb's speaking state follows the real audio too;
-`countUp` on Journeys totals/month/records when the screen shows and the story's numbers; the story road draws itself
-(`.ride-road` + `pathLength="1"` on the track paths in mapView, `.story-map.drawn` after 1.8 s so the later repaint with
-place names does not redraw it) and its moments rise in one after another; reminders Done: a drawn tick, a sage flash,
+`countUp` on Journeys totals/month/records when the screen shows and the story's numbers, ONLY for a number that
+changed since he last saw it, from the old value (owner: counting every time distracted; last seen per label in
+`betty.counted.v1`; the first sight just shows); the story road draws itself once the WHOLE map is in view (`drawWhenSeen`: IntersectionObserver on the screen,
+95%; owner agreed; `.ride-road` + `pathLength="1"` on the track paths in mapView, waits undrawn, `.drawing`, then
+`.drawn` so the later repaint with place names does not redraw it) and its moments rise in one after another; reminders Done: a drawn tick, a sage flash,
 rows slide to their new place (`positions`/`slideFrom`, FLIP); Undo flashes amber; What's new badges pop (`play(.., 'pop')`)
 when the count goes up; `.primary/.secondary/.end-button` sink to 97% when pressed, and `mountPressFeel` vibrates 8 ms
 on `.primary`/`.end-button` (Android; iPhone Safari cannot); Horizon `resize` (Web Animations width/height) only when it
-grows, shrinks or changes card (not when a reading ticks), and a yellow glow (`.news`) on a new top cue other than speed.
+grows, shrinks or changes card (not when a reading ticks), with `.island-body` held at its FINAL width and the card
+clipping it (the text used to re-wrap into a tall vertical column mid-grow), and a yellow glow (`.news`) on a new top cue other than speed.
 On the ride only her line and Horizon move (owner agreed: motion pulls the eye). Checked in headless Chromium.
 
 ## Native app (STARTED 2026-10-18; owner: "start setting it up without the reader")

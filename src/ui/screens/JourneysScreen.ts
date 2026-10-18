@@ -14,7 +14,7 @@ import { rideRecords } from '../../core/Records';
 import { fitView } from '../../core/Explore';
 import { MapView, attachMapGestures } from '../mapGestures';
 import { MAP_H, MAP_W, projector } from '../mapView';
-import { countUpAll, motionOn } from '../motion';
+import { countUpAll, drawWhenSeen, motionOn } from '../motion';
 
 export interface JourneysContext {
   /** Remembered rides (oldest first, as RideLog keeps them) */
@@ -535,18 +535,16 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   });
   const open = (rideId: number) => {
     renderStory(rideId); shell.show('story');
-    // Little animations: the numbers count up, the road draws itself once (not again when the place names arrive).
-    if (motionOn(doc)) {
-      countUpAll(story, '.summary-stats b', doc);
-      const m = story.querySelector('.story-map');
-      setTimeout(() => m?.classList.add('drawn'), 1800);
-    }
+    // Little animations: changed numbers count, the road draws itself once the whole map is in view (once: not
+    // again when the place names arrive).
+    countUpAll(story, '.summary-stats b', `story:${rideId}`, doc);
+    if (motionOn(doc)) drawWhenSeen(story.querySelector('.story-map'), doc);
   };
   shell.onShow((id) => {
     if (id !== 'journeys') return;
     renderList();
     const page = doc.querySelector('[data-screen="journeys"]');
-    if (page) countUpAll(page, '.totals b, .month-nums b, .record-tile b', doc);
+    if (page) countUpAll(page, '.totals b, .month-nums b, .record-tile b', 'journeys', doc);
   });
   renderList();
   return { renderList, renderStory, open };
