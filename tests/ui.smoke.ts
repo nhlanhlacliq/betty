@@ -1028,7 +1028,7 @@ resetConfig();
 // ---- My journeys select mode: tick rides, select a month, short ones, delete together (asks first)
 {
   const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
-  const j = new JSDOM(`<!doctype html><button id="journeyselect"></button><div id="journeytotals"></div><div id="journeylist"></div><div id="journeyselectbar" hidden></div><div id="story"></div>`);
+  const j = new JSDOM(`<!doctype html><button id="journeyselect"></button><div id="journeytotals"></div><div id="journeylist"></div><div id="journeyselectbar" hidden></div><div id="story"></div>`, { url: 'https://betty.test/' });
   const d = j.window.document;
   const t0 = Date.now() - 86_400_000;
   let rides = [
@@ -1043,7 +1043,7 @@ resetConfig();
   const L = d.getElementById('journeylist')!, bar = d.getElementById('journeyselectbar')!;
   assert.equal(bar.hidden, true);
   d.getElementById('journeyselect')!.click();
-  assert.equal(bar.hidden, false); assert.equal(d.getElementById('journeyselect')!.textContent, 'Done');
+  assert.equal(bar.hidden, false); assert.equal(d.getElementById('journeyselect')!.textContent, 'Done'); assert.ok(!bar.querySelector('[data-sel="cancel"]'), 'Done (the pencil) leaves: no Cancel crowding the bar');
   assert.equal(L.querySelectorAll('.journey-row .pick').length, 3, 'ticks instead of drawings');
   L.querySelector<HTMLElement>(`[data-ride="${t0 + 120_000}"]`)!.click();
   assert.deepEqual(opened, [], 'a tap ticks, it does not open'); assert.match(bar.textContent!, /1 selected/);
@@ -1053,6 +1053,17 @@ resetConfig();
   bar.querySelector<HTMLElement>('[data-sel="short"]')!.click(); assert.match(bar.textContent!, /2 selected/, 'short ones: under 5 min or 2 km');
   bar.querySelector<HTMLElement>('[data-sel="ask"]')!.click(); assert.match(bar.textContent!, /Delete 2 rides\?/);
   bar.querySelector<HTMLElement>('[data-sel="keep"]')!.click(); assert.equal(rides.length, 3, 'Keep: nothing gone');
+  // star them together: the button reads Unstar once they all are
+  const { JourneyStore } = await import('../src/adapters/JourneyStore');
+  (globalThis as any).localStorage = j.window.localStorage; JourneyStore.reset();
+  bar.querySelector<HTMLElement>('[data-sel="star"]')!.click();
+  assert.ok(JourneyStore.starred(t0) && JourneyStore.starred(t0 + 60_000), 'both starred'); assert.equal(bar.hidden, true, 'done: out of select mode');
+  assert.match(toasts.at(-1)!, /2 rides starred/);
+  d.getElementById('journeyselect')!.click(); bar.querySelector<HTMLElement>('[data-sel="short"]')!.click();
+  assert.match(bar.querySelector('[data-sel="star"]')!.textContent!, /Unstar/);
+  bar.querySelector<HTMLElement>('[data-sel="star"]')!.click(); assert.equal(JourneyStore.starred(t0), false, 'unstarred together');
+  toasts.length = 0;
+  d.getElementById('journeyselect')!.click(); bar.querySelector<HTMLElement>('[data-sel="short"]')!.click();
   bar.querySelector<HTMLElement>('[data-sel="ask"]')!.click(); bar.querySelector<HTMLElement>('[data-sel="delete"]')!.click();
   assert.deepEqual(rides.map((r) => r.distanceKm), [60]); assert.deepEqual(toasts, ['2 rides deleted.']);
   assert.equal(bar.hidden, true, 'back to the normal list'); assert.equal(L.querySelectorAll('.pick').length, 0);
@@ -1064,7 +1075,7 @@ resetConfig();
   L.querySelector<HTMLElement>('.journey-row')!.click();
   assert.equal(bar.hidden, false); assert.match(bar.textContent!, /1 selected/); assert.deepEqual(opened, []);
   assert.equal(d.getElementById('journeyselect')!.textContent, 'Done');
-  d.getElementById('journeyselect')!.click(); assert.equal(d.getElementById('journeyselect')!.textContent, 'Edit');
+  d.getElementById('journeyselect')!.click(); assert.ok(d.getElementById('journeyselect')!.querySelector('svg'), 'back to the pencil');
   // a hold that moves (a swipe, or reading a long name) is not a hold
   const r1 = L.querySelector<HTMLElement>('.journey-row')!;
   r1.dispatchEvent(new j.window.MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));

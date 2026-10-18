@@ -275,7 +275,12 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   const selectBtn = doc.getElementById('journeyselect');
   const renderBar = () => {
     selectBtn?.setAttribute('aria-pressed', String(selecting));
-    if (selectBtn) selectBtn.textContent = selecting ? 'Done' : 'Edit';
+    // A pencil at the top right of the header (owner, 2026-10-18: the Edit link "looks terrible"); Done while selecting.
+    if (selectBtn) {
+      selectBtn.innerHTML = selecting ? 'Done' : icon('pencil', 'ico sm');
+      selectBtn.classList.toggle('done', selecting);
+      selectBtn.setAttribute('aria-label', selecting ? 'Done selecting' : 'Select rides');
+    }
     if (!bar) return;
     bar.hidden = !selecting;
     if (!selecting) return;
@@ -284,9 +289,12 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       ? `<p><b>Delete ${n} ride${n === 1 ? '' : 's'}?</b> ${n === 1 ? 'Its' : 'Their'} maps, numbers and lines go from this phone. Fuel and odometer stay.</p>
         <div class="select-actions"><button class="secondary small" type="button" data-sel="keep">Keep</button><button class="secondary small danger-fill" type="button" data-sel="delete">Delete</button></div>`
       : `<p><b>${n} selected</b></p>
-        <div class="select-actions"><button class="text-button" type="button" data-sel="short">Short ones</button><button class="secondary small" type="button" data-sel="cancel">Cancel</button>
+        <div class="select-actions"><button class="text-button" type="button" data-sel="short">Short ones</button>
+        <button class="secondary small" type="button" data-sel="star"${n ? '' : ' disabled'}>${allStarred() ? '☆ Unstar' : '★ Star'}</button>
         <button class="secondary small danger-fill" type="button" data-sel="ask"${n ? '' : ' disabled'}>Delete${n ? ` ${n}` : ''}</button></div>`;
   };
+  /** Every ticked ride already starred: the button takes the stars away instead. */
+  const allStarred = () => picked.size > 0 && [...picked].every((id) => JourneyStore.starred(id));
   const stopSelecting = () => { selecting = false; confirming = false; picked.clear(); renderList(); };
   selectBtn?.addEventListener('click', () => { if (selecting) stopSelecting(); else { selecting = true; renderList(); } });
   bar?.addEventListener('click', (e) => {
@@ -295,6 +303,11 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     else if (a === 'short') {
       for (const r of ctx.rides()) if (rideMinutes(r, false) < SHORT_MIN || r.distanceKm < SHORT_KM) picked.add(r.startedAt);
       renderList();
+    } else if (a === 'star' && picked.size) {
+      const on = !allStarred(), n = picked.size;
+      for (const id of picked) JourneyStore.setStar(id, on);
+      ctx.toast(`${n} ride${n === 1 ? '' : 's'} ${on ? 'starred' : 'unstarred'}.`);
+      stopSelecting();
     } else if (a === 'ask' && picked.size) { confirming = true; renderBar(); }
     else if (a === 'keep') { confirming = false; renderBar(); }
     else if (a === 'delete') {
