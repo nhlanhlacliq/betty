@@ -36,6 +36,8 @@ export interface JourneysContext {
   /** Make and share a picture of the ride (ui/rideCard.ts) */
   /** `status` puts each step on the Share button ("Finding places...", "Making your card...") */
   shareRide(rideId: number, hideEnds: boolean, status: (text: string) => void): Promise<void>;
+  /** Plan this ride's road as a route to ride it again (Route: what is ahead) */
+  rideAgain?(rideId: number, status: (text: string) => void): Promise<void>;
   /** The month's recap card (Journeys 8): km, rides, places, her best line, every road of the month */
   shareMonth?(key: string, status: (text: string) => void): Promise<void>;
   toast(msg: string): void;
@@ -179,7 +181,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const next = rec.nextKm;
     const pct = next ? Math.round(((rec.totalKm - next.from) / (next.at - next.from)) * 100) : 100;
     recordsBox.innerHTML = `<section class="records-card"><h2>Records</h2><div class="record-grid">${tiles}</div>
-      ${next ? `<div class="milestone"><p><b>${rec.totalKm.toLocaleString('en-US')} of ${next.at.toLocaleString('en-US')} km with Betty</b><span>${next.left.toLocaleString('en-US')} km to go</span></p><div class="bar" title="From ${next.from.toLocaleString('en-US')} km to ${next.at.toLocaleString('en-US')} km"><i style="width:${pct}%"></i></div></div>` : ''}
+      ${next ? `<div class="milestone"><p><b>${rec.totalKm.toLocaleString('en-US')} of ${next.at.toLocaleString('en-US')} km with Betty</b><span>${next.left.toLocaleString('en-US')} km to go</span></p><div class="bar"><i style="width:${pct}%"></i></div><div class="bar-ends"><span>${next.from.toLocaleString('en-US')} km</span><span>${next.at.toLocaleString('en-US')} km</span></div></div>` : ''}
       ${rec.nextRides ? `<p class="sub milestone-rides">${rec.rides} ride${rec.rides === 1 ? '' : 's'} so far · ${rec.nextRides.left} more to your ${rec.nextRides.at}th</p>` : ''}</section>`;
   };
 
@@ -409,7 +411,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
           <div class="share-ride"><button class="primary wide" type="button" data-share="${rideId}">${icon('share', 'ico sm')} Share this ride</button>
             <label class="check-row"><input type="checkbox" data-hideends checked /> Hide where I start and finish</label></div>
           <div class="dialog-actions"><button class="secondary" type="button" data-copy="${rideId}">${icon('share', 'ico sm')} Copy the log</button>
-            <button class="secondary" type="button" data-save="${rideId}">Save as a file</button><button class="primary" type="button" data-go="home">Ride again →</button></div>
+            <button class="secondary" type="button" data-save="${rideId}">Save as a file</button>${ctx.rideAgain && track.length > 1 ? `<button class="primary" type="button" data-again="${rideId}">Ride this again →</button>` : '<button class="primary" type="button" data-go="home">Ride again →</button>'}</div>
           ${ctx.deleteRide ? `<div class="delete-ride" data-delete-box><button class="text-button danger" type="button" data-delete="${rideId}">Delete this ride</button></div>` : ''}
         </div>
       </div>`;
@@ -465,6 +467,12 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     if (c) void ctx.copyRide(Number(c.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
     const s = t.closest<HTMLElement>('[data-save]');
     if (s) ctx.saveRide(Number(s.dataset.save));
+    const again = t.closest<HTMLButtonElement>('[data-again]');
+    if (again && !again.disabled && ctx.rideAgain) {
+      const label = again.innerHTML; again.disabled = true;
+      void ctx.rideAgain(Number(again.dataset.again), (text) => { again.textContent = text; }).finally(() => { again.disabled = false; again.innerHTML = label; });
+      return;
+    }
     // Delete: asks first, in place (the ride, its map, everything she said on it; fuel and odometer counts stay).
     const del = t.closest<HTMLElement>('[data-delete]');
     if (del) {

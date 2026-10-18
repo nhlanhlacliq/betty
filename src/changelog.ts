@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      { id: 'route-ahead', kind: 'better', title: 'What is ahead on your route.', text: 'Each stop shows when you get there, the weather there then and the stories ready for it; stops you stay at count in the times; Betty warns of rain ahead; save routes, or ride a past ride again.', help: 'routes' },
       { id: 'journeys-months', kind: 'better', title: 'My journeys by month.', text: 'Rides grouped by month with each month\'s numbers, a little drawing of each ride\'s road, "this month so far" with km a week, and On this day (a month, three, six and twelve months ago).', help: 'journeys' },
       { id: 'journeys-roads-records', kind: 'new', title: 'Your roads and records.', text: 'Every ride on one map with your most-ridden roads darker, your records and next milestones; on the ride Betty tells you when you pass your longest ride or a km milestone.', help: 'journeys' },
       { id: 'journeys-find', kind: 'new', title: 'Find, star, rename and delete rides.', text: 'Search by place, month or day, star favourites (☆ in the search box), rename a ride, and hold a ride (or tap the pencil) to star or delete several at once.', help: 'journeys' },

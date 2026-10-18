@@ -960,7 +960,7 @@ resetConfig();
   assert.equal((d.getElementById('roadsart')!.innerHTML.match(/opacity=".38"/g) ?? []).length, 1, 'one road drawn');
   const rec = d.getElementById('journeyrecords')!;
   assert.match(rec.textContent!, /Longest ride\s*23 km/); assert.match(rec.textContent!, /Best month\s*45 km\s*October 2026/);
-  assert.match(rec.textContent!, /86 of 100 km with Betty\s*14 km to go/); assert.match(rec.textContent!, /4 rides so far · 6 more to your 10th/);
+  assert.match(rec.textContent!, /86 of 100 km with Betty\s*14 km to go/); assert.match(rec.querySelector('.bar-ends')!.textContent!, /^0 km100 km$/, 'the bar\'s ends, visible on a phone'); assert.match(rec.textContent!, /4 rides so far · 6 more to your 10th/);
   assert.ok(rec.querySelector('.record-tile[data-ride]'), 'a record opens its ride');
   const { CONFIG } = await import('../src/config/betty');
   CONFIG.journeyThumbs = false; view.renderList();
@@ -1314,6 +1314,55 @@ resetConfig();
   d.getElementById('routeclear')!.dispatchEvent(new w.window.Event('click'));
   assert.equal(RouteStore.get(), null); assert.equal(changes.at(-1), null);
   delete (globalThis as any).localStorage;
+}
+// ---- Where to? shows what is ahead: each stop's arrival, weather then, stories ready, how long he stays; save a route
+{
+  const { mountRoutePlanner, RouteStore } = await import('../src/ui/RoutePlanner');
+  const mem = new Map<string, string>();
+  (globalThis as any).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+  const pts: Array<[number, number]> = []; for (let i = 0; i <= 200; i++) pts.push([-26.0 - i * 0.0135, 28.0]);
+  const route = { name: 'Clarens', stops: [{ name: 'Home', lat: -26.0, lon: 28.0, named: true }, { name: 'Heidelberg', lat: -26.9, lon: 28.0, named: true }, { name: 'Clarens', lat: -28.7, lon: 28.0, named: true }],
+    km: 300, minutes: 240, delayMin: 0, legs: [], points: pts, mapsUrl: 'https://maps', thrilling: false, plannedAt: 111 };
+  RouteStore.set(route as any);
+  const w = new JSDOM(`<!doctype html><div id="savedroutes" hidden></div><form id="routeform"><input id="routeinput" /><button id="routeplan" type="submit">Plan</button></form><input type="checkbox" id="routethrilling" />
+    <div id="routesummary" hidden><b id="routename"></b><small id="routestats"></small><ol id="routestops"></ol><a id="routemaps"></a><button id="routesave"></button><button id="routeclear"></button></div>`);
+  const d = w.window.document; const changes: any[] = []; let asked = 0;
+  mountRoutePlanner(d, { position: async () => null, onChange: (r) => changes.push(r), toast() {},
+    weather: async (r) => { asked++; return [{ name: 'Clarens', lat: 0, lon: 0, km: 300, inMin: 240, named: true, at: Date.now() + 240 * 60_000, tempC: 18, rainPct: 70, summary: 'rain' }]; },
+    storiesAhead: async () => ({ Heidelberg: 6, Clarens: 12 }) });
+  await new Promise((r) => setTimeout(r, 10));
+  const stops = () => [...d.querySelectorAll('#routestops li > div')].map((li) => [...li.children].map((x) => x.textContent).join(' '));
+  assert.equal(stops().length, 2, 'Heidelberg and Clarens (the start is not a stop ahead)');
+  assert.match(stops()[0], /^Heidelberg ~?\d+ km · about \d\d:\d\d · 6 stories ready/);
+  assert.match(stops()[1], /^Clarens 300 km · about \d\d:\d\d · rain likely \(70%\), 18° · 12 stories ready$/);
+  const stay = d.querySelector<HTMLSelectElement>('[data-stay="1"]')!;
+  assert.ok(stay && !d.querySelector('[data-stay="2"]'), 'a stay picker for the stops, not the finish');
+  stay.value = '45'; stay.dispatchEvent(new w.window.Event('change', { bubbles: true }));
+  assert.equal(RouteStore.get()!.stops[1].stayMin, 45); assert.match(d.getElementById('routestats')!.textContent!, /about 4 h 45 \(45 min of stops\)/);
+  assert.equal(changes.length, 1, 'the ride follows the new times'); await new Promise((r) => setTimeout(r, 10));
+  assert.equal(asked, 2, 'the weather asked again for the new arrival times');
+  d.getElementById('routesave')!.click();
+  assert.equal(RouteStore.saved().length, 1); assert.equal(d.getElementById('routesave')!.textContent, 'Saved');
+  d.getElementById('routeclear')!.dispatchEvent(new w.window.Event('click'));
+  assert.equal(RouteStore.get(), null); assert.equal((d.getElementById('savedroutes') as HTMLElement).hidden, false);
+  d.querySelector<HTMLElement>('[data-use-route]')!.click();
+  assert.equal(RouteStore.get()!.name, 'Clarens'); assert.equal(RouteStore.get()!.stops[1].stayMin, 45, 'a saved route keeps its stays');
+  d.querySelector<HTMLElement>('[data-unsave]')!.click(); assert.equal(RouteStore.saved().length, 0);
+  delete (globalThis as any).localStorage;
+}
+// ---- A ride's page: Ride this again plans its road as a route (only when the road was kept)
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const j = new JSDOM(`<!doctype html><div id="journeytotals"></div><div id="journeylist"></div><div id="story"></div>`);
+  const d = j.window.document; const asked: number[] = [];
+  const rides = [{ startedAt: 5_000, minutes: 60, distanceKm: 40, weather: null, places: [], events: [] }, { startedAt: 6_000, minutes: 60, distanceKm: 40, weather: null, places: [], events: [] }];
+  const view = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => rides, entries: () => [], track: (id: number) => (id === 5_000 ? [[-26, 28], [-26.2, 28.1]] : []),
+    copyRide: async () => true, saveRide() {}, toast() {}, shareRide: async () => {}, rideAgain: async (id: number, status: (t: string) => void) => { asked.push(id); status('Planning the route...'); } });
+  view.open(5_000);
+  const again = d.querySelector<HTMLButtonElement>('[data-again]')!;
+  assert.match(again.textContent!, /Ride this again/); again.click(); await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(asked, [5_000]); assert.match(again.textContent!, /Ride this again/, 'button back after planning');
+  view.open(6_000); assert.equal(d.querySelector('[data-again]'), null, 'no road kept: no Ride this again');
 }
 // ---- Let Betty know me: paste, distil, read, save; switch it off; forget
 {

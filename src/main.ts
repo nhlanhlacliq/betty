@@ -28,11 +28,13 @@ import { SwitchableSpeaker } from './adapters/SwitchableSpeaker';
 import { WeatherSource } from './adapters/WeatherSource';
 import { TrafficSource } from './adapters/TrafficSource';
 import { PlaceSource } from './adapters/PlaceSource';
-import { AreaSource, AreaStore, ToldStore } from './adapters/AreaSource';
+import { AreaSource, AreaStore, ToldStore, researchAhead } from './adapters/AreaSource';
 import { TrackStore } from './adapters/TrackStore';
 import { RoadStore } from './adapters/RoadStore';
 import { JourneyStore } from './adapters/JourneyStore';
 import { liveRecords } from './core/Records';
+import { checkpoints, rideAgainStops, weatherLine } from './core/RouteAhead';
+import { fetchRouteWeather } from './adapters/RouteWeather';
 import { groupByMonth } from './core/Journeys';
 import { drawMonthCard } from './ui/monthCard';
 import { TrackPoint, addTrackPoint } from './core/Track';
@@ -69,7 +71,7 @@ import { mountBackup } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
 import { BorderTiles } from './adapters/BorderTiles';
 import { ProfileStore, mountKnowMe } from './ui/KnowMe';
-import { stopsAhead } from './core/Route';
+import { PlannedRoute, stopsAhead } from './core/Route';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
 import { CardExtras, CardExtrasSource } from './adapters/CardExtras';
@@ -108,7 +110,7 @@ const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | 
 
 interface Rig {
   agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; real: boolean; /** A desk session for the Workshop chat: not a ride */ desk: boolean; unmountSim: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number; paintTimer: number;
+  setObd: (mode: ObdMode) => void; unsub: () => void; real: boolean; /** A desk session for the Workshop chat: not a ride */ desk: boolean; unmountSim: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number; paintTimer: number; routeWxTimer: number;
 }
 let rig: Rig | null = null;
 interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
@@ -301,6 +303,23 @@ const journeys = mountJourneysScreen(document, shell, {
       const how = await shareRideCard(document, png, `betty-ride-${new Date(rideId).toISOString().slice(0, 10)}.png`);
       if (how === 'saved') shell.toast('Ride card saved to your downloads.');
     } catch (e) { shell.toast(`Could not make the ride card: ${(e as Error).message}`, true); }
+  },
+  // Ride this again (Route: what is ahead): the ride's road as stops, routed by TomTom, waiting in Where to?.
+  rideAgain: async (rideId, status) => {
+    const r = RideLog.load().find((x) => x.startedAt === rideId);
+    const detailed = TrackStore.get(rideId);
+    const road = detailed.length > 1 ? detailed : RoadStore.get(rideId);
+    if (!r || road.length < 2) { shell.toast('No road kept for this ride to follow.'); return; }
+    status('Planning the route...');
+    try {
+      const res = await fetch('/api/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stops: rideAgainStops(road), thrilling: false }) });
+      const out: any = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out?.error || `HTTP ${res.status}`);
+      const route: PlannedRoute = { ...out, name: `Again: ${rideTitle(r)}`, plannedAt: Date.now() };
+      RouteStore.set(route); planner.paint(); rig?.engine.setRoute(route); window.dispatchEvent(new window.Event('betty-config'));
+      shell.show('home'); shell.openSheet('mode');
+      shell.toast(`Planned: ${Math.round(route.km)} km. Save it to keep it.`);
+    } catch (e) { shell.toast(`Could not plan it: ${(e as Error).message}`, true); }
   },
   // Delete a ride (owner, 2026-10-18): the record, its lines, both copies of its road, its card extras, star and name.
   deleteRide: (rideId) => {
@@ -642,7 +661,10 @@ mountKnowMe(document, {
   copy: (t) => copyText(t),
 });
 // Where to? A Google Maps link or typed places, planned by TomTom on Betty's server; Betty follows it on the ride.
-mountRoutePlanner(document, {
+const planner = mountRoutePlanner(document, {
+  // What is ahead (2026-10-18): the weather at each stop when he would get there leaving now, and the stories researched.
+  weather: (r) => fetchRouteWeather(checkpoints(r, null, 1e9, 40)),
+  storiesAhead: SERVER ? (r) => researchAhead(r.stops.filter((s, i) => s.named && i > 0)) : undefined,
   fuelNote: (r) => (CONFIG.obdMode === 'off' ? describeFuelPlan(routeFuelPlan(r, CONFIG.fuel, rig ? rig.engine.kmSinceFill() : FuelStore.load())) : ''),
   position: async () => {
     const s = rig?.agg.current;
@@ -812,6 +834,17 @@ async function beginRide(desk: boolean) {
   engine.setMemory(RiderMemoryStore.load());
   engine.setToldNotes(ToldStore.load());
   engine.setRoute(RouteStore.get()); // the route he planned, if any
+  // The weather where he will be along the route, at the time he gets there: now, then every 30 minutes; and stories
+  // for the towns on it researched before he arrives (if they were not when he planned it).
+  const routeWx = async () => {
+    const now = engine.routeNow();
+    if (!now || desk) return;
+    const l = await fetchRouteWeather(checkpoints(now.route, now.progress));
+    if (l && rig?.engine === engine) { engine.setRouteWeather(l); newLine('[route]', `weather ahead: ${l.map((w) => `${w.name} ${w.rainPct}%`).join(', ') || 'nothing ahead'}`); renderLog(); }
+  };
+  void routeWx();
+  const routeWxTimer = window.setInterval(() => void routeWx(), 30 * 60_000);
+  if (SERVER && !desk) { const r0 = engine.routeNow()?.route; if (r0) void researchAhead(r0.stops.filter((s, i) => s.named && i > 0), (msg) => { newLine('[areas]', msg); renderLog(); }); }
   engine.setServiceBook(ServiceStore.load()); // what is due (the briefing, answers and sign-off mention it)
   engine.setProfile(CONFIG.useProfile ? ProfileStore.get() : null); // what he chose to share, used lightly
   // History and culture of the area (researched on Betty's server, so only when deployed with it).
@@ -1145,10 +1178,12 @@ async function beginRide(desk: boolean) {
     document.getElementById('upaheadtitle')!.textContent = route.name;
     document.getElementById('upaheadsub')!.textContent = p ? `${Math.round(p.leftKm)} km and about ${p.leftMin >= 60 ? `${Math.floor(p.leftMin / 60)} h ${String(p.leftMin % 60).padStart(2, '0')}` : `${p.leftMin} min`} to go${p.offKm > 0.4 ? ` · ${p.offKm.toFixed(1)} km off the route` : ''}` : `${Math.round(route.km)} km planned`;
     (document.getElementById('upaheadmaps') as HTMLAnchorElement).href = route.mapsUrl;
-    // Named stops ahead of him, by distance along the route; then the finish.
-    const ahead = p ? stopsAhead(route, p).filter((x) => x.km > 0.2 && x.km < p.leftKm - 0.3) : [];
-    const rows = [...ahead, ...(p ? [{ name: `${route.name} (finish)`, km: p.leftKm }] : [])];
-    list.innerHTML = rows.length ? rows.map((x) => `<div class="sheet-row"><b>${esc2(x.name)}</b><span>${Math.round(x.km)} km${at(x.km) ? ` · ${at(x.km)}` : ''}</span></div>`).join('')
+    // What is ahead: the named stops and a point every 40 km, with arrival time (stays counted) and the weather there then.
+    const wx = engine.routeWeather();
+    const cps = checkpoints(route, p, 40, 12);
+    const rows = cps.map((c) => ({ ...c, w: wx.find((w) => w.name === c.name) ?? null }));
+    void stopsAhead; void at;
+    list.innerHTML = rows.length ? rows.map((x) => `<div class="sheet-row${x.named ? '' : ' minor'}"><b>${esc2(x.name)}</b><span>${x.km} km · ${new Date(Date.now() + x.inMin * 60_000).toTimeString().slice(0, 5)}${x.w ? ` · ${esc2(weatherLine(x.w))}` : ''}</span></div>`).join('')
       : '<p class="sub">Nothing left but the road.</p>';
   };
   lockScreen.setTalk(true);
@@ -1184,7 +1219,7 @@ async function beginRide(desk: boolean) {
     newLine('[voice]', ok ? 'headset buttons: play/pause talks to Betty, next track repeats her last line, previous track lets go' : 'headset buttons are not available in this browser');
   }
 
-  rig = { agg, engine, queue, say, setObd, unsub, real, desk, unmountSim, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer, paintTimer };
+  rig = { agg, engine, queue, say, setObd, unsub, real, desk, unmountSim, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer, paintTimer, routeWxTimer };
   endText.textContent = END_BUTTON.idle;
   workshopChat.refresh();
   paintRide();
@@ -1216,6 +1251,7 @@ async function stop() {
   window.clearInterval(r.memTimer);
   window.clearInterval(r.sensorTimer);
   window.clearInterval(r.paintTimer);
+  window.clearInterval(r.routeWxTimer);
   r.remember();
   r.logSensors();
   r.unsub(); // no new alerts or banter from here on; the queue and speaker stay alive

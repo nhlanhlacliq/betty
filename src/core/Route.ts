@@ -4,7 +4,13 @@ import { haversineKm, LatLon } from './geo';
  * A planned route (api/route.ts: his Google Maps link or typed places, routed by TomTom) and how far along it he is.
  * Pure, so it is tested without a phone. Turn-by-turn stays with Google Maps; Betty uses this for what is ahead.
  */
-export interface RouteStop { name: string; lat: number; lon: number; /** a place he named, not a point he dragged the route through */ named: boolean }
+export interface RouteStop {
+  name: string; lat: number; lon: number;
+  /** a place he named, not a point he dragged the route through */
+  named: boolean;
+  /** Minutes he plans to stay there (breakfast, fuel); counted in the time left. Undefined = ride through. */
+  stayMin?: number;
+}
 export interface PlannedRoute {
   name: string;
   stops: RouteStop[];
@@ -75,8 +81,10 @@ export function routeProgress(r: PlannedRoute, here: LatLon, hint = 0): RoutePro
   const leftKm = Math.max(0, total - doneKm);
   const nextIdx = stopAt.findIndex((p, k) => p > at.i && r.stops[k].named);
   const next = nextIdx >= 0 ? { name: r.stops[nextIdx].name, km: Math.max(0, along[stopAt[nextIdx]] - doneKm) } : null;
+  // Planned stays at stops still ahead count in the time left (2026-10-18).
+  const stays = r.stops.reduce((n, s, k) => (s.named && s.stayMin && stopAt[k] > at.i ? n + s.stayMin : n), 0);
   return {
-    index: at.i, doneKm, leftKm, leftMin: Math.round((r.minutes * leftKm) / Math.max(0.1, total)), offKm: at.d, next,
+    index: at.i, doneKm, leftKm, leftMin: Math.round((r.minutes * leftKm) / Math.max(0.1, total)) + stays, offKm: at.d, next,
     arrived: leftKm < 0.3 && doneKm > total * 0.5,
   };
 }

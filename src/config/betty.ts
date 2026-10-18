@@ -110,7 +110,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -118,7 +118,7 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,

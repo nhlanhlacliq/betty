@@ -44,6 +44,44 @@ export function areasOf(a: AreaInfo): Array<{ name: string; key: string }> {
 }
 
 /**
+ * Research an area once (api/story: Claude with web search, about 5 cents) into notes. Shared by the ride's area feed
+ * and the route's "stories ahead" (towns on a planned route, researched before he gets there).
+ */
+export async function researchArea(name: string, key: string, exclude: string[], fetcher: typeof fetch = (...a) => fetch(...a)): Promise<AreaNote[]> {
+  const region = key.split('|')[1] ?? '';
+  const res = await fetcher('/api/story', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ area: name, region, exclude }) });
+  const out: any = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out?.error || `HTTP ${res.status}`);
+  const stamp = Date.now();
+  return (out.notes ?? []).map((n: any, i: number) => ({ id: `${key}#${stamp}-${i}`, area: name, topic: String(n.topic ?? ''), text: String(n.text ?? '') }));
+}
+
+/**
+ * Stories ready before he arrives (Route: what is ahead): for each named stop of a planned route, the town and suburb
+ * there (api/area), researched once if the phone has nothing on them yet. One place at a time; returns how many
+ * stories each stop has. Server only (api/area, api/story).
+ */
+export async function researchAhead(stops: Array<{ name: string; lat: number; lon: number }>, onStatus: (msg: string) => void = () => {}, fetcher: typeof fetch = (...a) => fetch(...a)): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const s of stops) {
+    try {
+      const pos = { lat: cell(s.lat), lon: cell(s.lon) };
+      const res = await fetcher(`/api/area?lat=${pos.lat}&lon=${pos.lon}`);
+      if (!res.ok) continue;
+      const info: AreaInfo = await res.json();
+      let n = 0;
+      for (const a of areasOf(info)) {
+        let kept = AreaStore.get(a.key);
+        if (!kept) { onStatus(`researching ${a.name} ahead`); kept = await researchArea(a.name, a.key, [], fetcher); AreaStore.put(a.key, kept, pos); }
+        n += kept.length;
+      }
+      out[s.name] = n;
+    } catch { /* that stop waits for the ride itself */ }
+  }
+  return out;
+}
+
+/**
  * History and culture of the area he is riding through (owner, 2026-10-16: "not just Wikipedia, web search as
  * well"). Finds the suburb and town (api/area, OpenStreetMap), then the notes for each: from the phone if this area
  * was researched before, otherwise researched once by api/story (Claude with web search, about 5 cents) and kept.
@@ -78,12 +116,7 @@ export class AreaSource implements DataSource {
     return out;
   }
 
-  private async research(name: string, key: string, exclude: string[]): Promise<AreaNote[]> {
-    const region = key.split('|')[1] ?? '';
-    const out = await this.json('/api/story', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ area: name, region, exclude }) });
-    const stamp = Date.now();
-    return (out.notes ?? []).map((n: any, i: number) => ({ id: `${key}#${stamp}-${i}`, area: name, topic: String(n.topic ?? ''), text: String(n.text ?? '') }));
-  }
+  private research(name: string, key: string, exclude: string[]): Promise<AreaNote[]> { return researchArea(name, key, exclude, this.fetcher); }
 
   async tick(force = false) {
     if (this.busy) return;

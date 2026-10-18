@@ -4,6 +4,7 @@ import { PlannedRoute, RouteProgress, describeRoute, minutesText, routeProgress 
 import { profileUse } from './Profile';
 import { ServiceBook, describeDue } from './Reminders';
 import { LiveRecords, kmMilestoneCrossed } from './Records';
+import { CheckpointWeather, describeRouteWeather, rainAhead } from './RouteAhead';
 import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
@@ -106,6 +107,7 @@ export class TriggerEngine {
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
     this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.saidLongest = false; this.lastDistance = 0;
+    this.rainWarned.clear();
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
     this.fuelBaseKm = carried; this.fuelOffsetKm = 0;
@@ -183,10 +185,16 @@ export class TriggerEngine {
   private detourLeft = false;
   setRoute(r: PlannedRoute | null) {
     this.route = r; this.progress = null; this.offSince = null; this.offWarned = false; this.stopsSaid.clear(); this.arrivedSaid = false;
-    this.detour = false; this.detourLeft = false;
+    this.detour = false; this.detourLeft = false; this.rainWarned.clear(); this.routeWx = [];
   }
   setDetour(on: boolean) { this.detour = on; this.detourLeft = false; if (on) this.offWarned = true; }
   onDetour() { return this.detour; }
+  /** The weather at each checkpoint of the route at the hour he gets there (adapters/RouteWeather, every 30 min). */
+  private routeWx: CheckpointWeather[] = [];
+  private rainWarned = new Set<string>();
+  private rainNow: CheckpointWeather | null = null;
+  setRouteWeather(list: CheckpointWeather[]) { this.routeWx = list; }
+  routeWeather() { return this.routeWx; }
   /** His records before this ride (longest, total km), for "your longest ride yet" and "1,000 km together". */
   private live: LiveRecords | null = null;
   private saidLongest = false;
@@ -321,6 +329,12 @@ export class TriggerEngine {
       } else if (p.offKm < BACK_ON_KM) { this.offSince = null; this.offWarned = false; }
       if (p.next && p.next.km <= 1 && p.offKm < OFF_ROUTE_KM && !this.stopsSaid.has(p.next.name)) { this.stopsSaid.add(p.next.name); out.push(this.force('route_stop', s)); }
       if (p.arrived && !this.arrivedSaid) { this.arrivedSaid = true; out.push(this.force('route_arrived', s)); }
+      // Rain where he will be (within two hours), once per place a ride.
+      const wet = rainAhead(this.routeWx.filter((w) => w.at > this.now()));
+      if (wet && !this.rainWarned.has(wet.name)) {
+        this.rainWarned.add(wet.name); this.rainNow = wet;
+        try { out.push(this.force('route_weather', s)); } finally { this.rainNow = null; }
+      }
     }
 
     const spot = this.spotAhead(s);
@@ -424,7 +438,7 @@ export class TriggerEngine {
           w ? ` ${cap(w.summary)}, ${Math.round(w.tempC)} degrees, ${w.rainChanceNextHourPct} percent chance of rain in the next hour.` : '',
           left === null ? '' : ` About ${left} kilometres to reserve by my count.`].join('');
         return {
-          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}${this.fuelPlanNote()}` : ''}${this.dueNote() ? ` ${this.dueNote()} Mention what is due briefly.` : ''}`,
+          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}${this.fuelPlanNote()}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx)}` : ''}` : ''}${this.dueNote() ? ` ${this.dueNote()} Mention what is due briefly.` : ''}`,
           fallback: canned,
         };
       }
@@ -490,6 +504,15 @@ export class TriggerEngine {
         return {
           context: `He has just passed ${r.km.toLocaleString('en-US')} km of riding with you in total, over ${(this.live?.rides ?? 0) + 1} rides.`,
           fallback: `That's ${r.km.toLocaleString('en-US')} kilometres together.`,
+        };
+      }
+      case 'route_weather': {
+        const w = this.rainNow;
+        if (!w) return { context: '', fallback: '' };
+        const at = new Date(w.at).toTimeString().slice(0, 5);
+        return {
+          context: `On his route, rain is likely around ${w.name} when he gets there, at about ${at}: ${w.rainPct}% chance, ${w.summary}, ${w.tempC} C. It is ${w.km} km ahead. Tell him plainly in a line, so he can plan for it.`,
+          fallback: `Rain likely around ${w.name} by about ${at}.`,
         };
       }
       case 'ride_parked': {
@@ -616,7 +639,7 @@ export class TriggerEngine {
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }

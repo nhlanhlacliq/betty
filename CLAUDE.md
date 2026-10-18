@@ -512,6 +512,23 @@ mode with it ticked, the click after the hold is swallowed; `-webkit-touch-callo
 one-time toast "Tip: hold a ride..." (`betty.hint.hold`, only with 5+ rides). Starred = `.search-star` ☆/★ inside
 the search box.
 
+## Route: what is ahead (BUILT 2026-10-18; UNVERIFIED ON A RIDE)
+
+`core/RouteAhead.ts` (pure, tested): `checkpoints(route, progress, everyKm=40, max=8)` = named stops still ahead plus a
+point every 40 km between them, with km and minutes from now (planned minutes per km, plus `RouteStop.stayMin` of stops
+passed on the way); `weatherAlong` picks each checkpoint's Open-Meteo HOURLY values at the hour he arrives (local ISO
+times); `rainAhead` (>= 60% within 120 min); `describeRouteWeather`; `rideAgainStops` (start, points along, end as
+"lat,lon" stops: api/route routes coordinates as they are). `routeProgress.leftMin` adds stays of stops still ahead.
+`adapters/RouteWeather` `fetchRouteWeather`: ONE Open-Meteo request for all checkpoints (comma lists, checked live;
+returns an array), 48 h, coords to 2 decimals. `adapters/AreaSource` `researchArea` (shared) and `researchAhead`
+(towns at the named stops: api/area then api/story if not kept; one at a time). Engine: `setRouteWeather`,
+`route_weather` P2 once per place a ride ("rain likely around Villiers at about 11:40"), route weather in the briefing
+and in answers. main: weather at ride start and every 30 min (`routeWxTimer`), stories ahead at ride start (server).
+Where to? (`ui/RoutePlanner`): `#routestops` (each named stop after the start: km, arrival if leaving now, weather
+then, stories ready; a stay `select` for every stop but the finish, saved on the route), Save route
+(`RouteStore.save`, `betty.routes.saved.v1`, 20) and `#savedroutes` (use, ×). My journeys: "Ride this again"
+(`ctx.rideAgain`) when a road was kept: plans it, names it "Again: <title>", opens Where to?.
+
 ## Garage search and Help (2026-10-17, owner)
 
 `ui/help.ts` is the content as data: `VOICE_COMMANDS` (groups of {say[], does, kind}; a core test runs EVERY phrase
@@ -1004,8 +1021,10 @@ following, fuel stations ahead, service reminders, offline loading (service work
 without OBD, sunset warnings, the spoken sign-off and the ride story page with its map.
 
 **Next up (owner has asked, design agreed or proposed):**
-1. **Change the bike** (proposed 2026-10-17, owner asked to note it for later; questions still open: build it? one
-   bike at a time or a garage of several with an active one?). Design:
+1. **A garage of bikes** (owner, 2026-10-18: "garage of several bikes... but not now, save for a future iteration").
+   His vision: SEVERAL bikes, swipe left/right to pick the active one; each bike shown as a MODEL of the actual bike;
+   AI looks the model up online and fills in its specs (tank, reserve, consumption, schedule...); optionally a PHOTO of
+   his bike mapped onto the model so it looks like his; animations app-wide. Earlier design notes still apply:
    - Garage > In your garage: a "Your bike" picker (BMW G 310 GS, or Another bike). The bike carries its tank and
      reserve (fuel range follows the bike) and its maintenance schedule (`BIKES` in core/Reminders.ts;
      `ServiceBook.bike` already stores the id).
@@ -1021,10 +1040,8 @@ without OBD, sunset warnings, the spoken sign-off and the ride story page with i
 2. **Reminder notifications**: a phone notification when something falls due while Betty is not open. Needs web
    push (a push server, VAPID keys, the installed app; iPhone allows it for home-screen apps). Until then reminders
    surface in the briefing, sign-off, Garage and the Details sheet.
-3. **Route: what is ahead**: weather where he will be at arrival time (Open-Meteo sampled along the route), area
-   stories researched ahead for the towns on it, pass-through points vs real stops (breakfast, fuel) counted in the
-   arrival time, re-ride a past ride's stored track, saved routes in Journeys. A planning map (Mapbox was the
-   owner's direction, drawn in the sketch style) is the bigger piece.
+3. **Route: what is ahead**: BUILT 2026-10-18 (see its section). Still open: a planning map (Mapbox was the owner's
+   direction, drawn in the sketch style).
 4. **Native app** (owner, 2026-10-17: "we will move to a native app pretty soon"): CarPlay "voice-based
    conversational apps" category since iOS 26.4 (entitlement requested from Apple per app, `CPVoiceControlTemplate`;
    verify the key in Apple's docs) gives Betty a talk button on the CarPlay screen, so the headset buttons stay with
@@ -1061,8 +1078,10 @@ without OBD, sunset warnings, the spoken sign-off and the ride story page with i
 - Workshop: scenario scripts for the simulator ("overheat on the N3", "rain front") as plain data.
 
 **Housekeeping:**
-- ROTATE the Claude and TomTom keys (old deployment URLs still serve pages with them inside), and/or delete old
-  deployments (owner's OK needed).
+- Old deployments DELETED 2026-10-18 (owner's OK; `vercel rm betty --safe --yes` keeps only the one the live alias
+  points at). Pages from before 2026-10-14 had the Claude/TomTom keys inside; rotating them is still wise (someone may
+  have copied a page) but no longer urgent. Re-run the safe remove now and then: every deploy leaves a new URL (no
+  keys in them since the keys moved to the server).
 - TomTom quota: Search is 2,500 a month free and now serves routes, place names and petrol stations; watch it.
 
 **Hardware (Phase 4):** Raspberry Pi with real OBD2 (ELM327), tyre pressure sensors (TPMS BLE: Web Bluetooth is

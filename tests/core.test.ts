@@ -2354,4 +2354,49 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(CHANGELOG.map((d) => d.date), [...CHANGELOG.map((d) => d.date)].sort().reverse(), 'newest day first');
 }
 
+// ---- Route: what is ahead (2026-10-18): checkpoints with arrival (stays counted), weather then, rain ahead, ride again
+{
+  const A = await import('../src/core/RouteAhead');
+  const { routeProgress } = await import('../src/core/Route');
+  const pts: Array<[number, number]> = []; for (let i = 0; i <= 200; i++) pts.push([-26.0 - i * 0.0135, 28.0]); // ~300 km south
+  const route = { name: 'Clarens', stops: [{ name: 'Home', lat: -26.0, lon: 28.0, named: true }, { name: 'Heidelberg', lat: -26.9, lon: 28.0, named: true, stayMin: 45 }, { name: 'Clarens', lat: -28.7, lon: 28.0, named: true }],
+    km: 300, minutes: 240, delayMin: 0, legs: [], points: pts, mapsUrl: '', thrilling: false, plannedAt: 0 };
+  const cps = A.checkpoints(route as any, null);
+  const named = cps.filter((c) => c.named);
+  assert.deepEqual(named.map((c) => c.name), ['Heidelberg', 'Clarens'], 'the start is not ahead');
+  const h = named[0], c = named[1];
+  assert.ok(Math.abs(h.km - 100) < 3 && Math.abs(h.inMin - 80) < 4, `Heidelberg ~100 km, ~80 min (${h.km}, ${h.inMin})`);
+  assert.ok(Math.abs(c.inMin - (240 + 45)) < 6, `Clarens counts the 45 min breakfast (${c.inMin})`);
+  assert.ok(cps.some((x) => !x.named) && cps.every((x, i) => i === 0 || x.km >= cps[i - 1].km), 'points between, in order');
+  assert.equal(A.checkpoints(route as any, null, 1e9).filter((x) => !x.named).length, 0, 'named stops only, when asked');
+  const p = routeProgress(route as any, { lat: -26.0, lon: 28.0 });
+  assert.ok(Math.abs(p.leftMin - 285) <= 2, `time left includes the stay (${p.leftMin})`);
+  const past = routeProgress(route as any, { lat: -27.5, lon: 28.0 }, 110);
+  assert.ok(past.leftMin < 120, 'past Heidelberg: its stay no longer counts');
+  // weather at the hour he arrives (local hourly times), rain ahead within two hours
+  const t9 = new Date(2026, 9, 18, 9, 0).getTime();
+  const hours = Array.from({ length: 12 }, (_, i) => { const d = new Date(2026, 9, 18, 9 + i); return `${d.getFullYear()}-10-18T${String(d.getHours()).padStart(2, '0')}:00`; });
+  const fc = (rain: (i: number) => number) => ({ hourly: { time: hours, temperature_2m: hours.map((_, i) => 20 + i), precipitation_probability: hours.map((_, i) => rain(i)), weather_code: hours.map(() => 61) } });
+  const two = [{ ...h, inMin: 80 }, { ...c, inMin: 285 }];
+  const wx = A.weatherAlong(two, [fc(() => 10), fc((i) => (i === 4 ? 80 : 0))], t9);
+  assert.deepEqual(wx.map((w) => [w.name, new Date(w.at).getHours(), w.tempC, w.rainPct]), [['Heidelberg', 10, 21, 10], ['Clarens', 13, 24, 80]]);
+  assert.equal(A.weatherLine(wx[1]), 'rain likely (80%), 24°'); assert.equal(A.weatherLine(wx[0]), 'rain, 21°');
+  assert.equal(A.rainAhead(wx), null, 'Clarens is more than two hours away'); assert.equal(A.rainAhead(wx, 300)?.name, 'Clarens');
+  assert.match(A.describeRouteWeather(wx), /^Weather along the route, at the time he gets there: Heidelberg at about 10:20, rain, 21 C; Clarens at about 13:45, rain likely \(80%\), 24 C\.$/);
+  // the engine: rain where he will be, once per place
+  resetConfig(); clock = t9;
+  const e = new TriggerEngine(now); e.setRoute(route as any);
+  e.setRouteWeather([{ ...wx[1], inMin: 60, at: clock + 60 * 60_000 }]);
+  const evs = (st: any) => e.evaluate({ ...initialState(), speedKmh: 60, ...st }).filter((x) => x.id === 'route_weather');
+  const first = evs({ lat: -26.2, lon: 28.0 });
+  assert.equal(first.length, 1); assert.match(first[0].context, /rain is likely around Clarens when he gets there, at about \d\d:\d\d: 80% chance/);
+  assert.equal(evs({ lat: -26.21, lon: 28.0 }).length, 0, 'once');
+  assert.match(e.ask('will it rain on the way?', { ...initialState(), lat: -26.2, lon: 28.0 }).context, /Weather along the route/);
+  // ride again: start, points along, end as coordinate stops
+  const stops = A.rideAgainStops(pts.map((x) => [x[0], x[1]] as [number, number]), 6);
+  assert.equal(stops.length, 6); assert.equal(stops[0], '-26.00000,28.00000'); assert.equal(stops[5], '-28.70000,28.00000');
+  assert.deepEqual(A.rideAgainStops([[-26, 28]]), []);
+  resetConfig();
+}
+
 console.log('all core tests passed');

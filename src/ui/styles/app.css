@@ -732,3 +732,18 @@ html, body { overscroll-behavior: none; }
 .whatsnew-list .change b { font-weight: 600; }
 .whatsnew-list .change.new { border-left-color: var(--yellow); }
 .wn-help { font-size: 13px; padding: 0; margin-left: 2px; }
+
+.milestone .bar-ends { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--muted); }
+
+/* Route: what is ahead (2026-10-18) */
+.route-stops { list-style: none; padding: 0; margin: 10px 0 4px; display: grid; gap: 2px; }
+.route-stops li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.route-stops li b { display: block; font-size: 14px; font-weight: 600; }
+.route-stops li small { display: block; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.route-stops select { flex: none; font-size: 16px; background: #f1f4e9; border: 0; border-radius: 9px; padding: 6px 8px; color: var(--ink); max-width: 46%; }
+.saved-routes { margin: 0 0 12px; }
+.saved-route { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line-soft); }
+.saved-route .text-button { display: grid; text-align: left; padding: 8px 0; }
+.saved-route small { font-size: 12px; color: var(--muted); }
+.saved-x { border: 0; background: none; font-size: 20px; color: var(--muted); padding: 4px 8px; }
+.sheet-row.minor b { font-weight: 400; color: var(--muted); }
