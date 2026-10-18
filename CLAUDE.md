@@ -1155,6 +1155,16 @@ Everything buildable in the web app is built (see the sections above), except th
      that hears and speaks (OpenAI Realtime API, Gemini Live; ~0.3 s), interruptible, over one open connection. Cost:
      her conversation would not be Claude (personality, ride context, search and tools rebuilt there), dearer per
      minute, needs signal. Middle path: speech-to-speech only for back-and-forth chat, Claude for alerts and stories.
+   - On-device AI hybrid (native; 2026-10-19): Apple's on-device model (iOS 26, ~3B) / Gemini Nano on Android,
+     on-device speech recognition and premium voices for instant, offline replies (commands, "anything ahead?",
+     acknowledgements, no-signal lines); Claude keeps everything that needs her brain. Upgrades the offline line bank.
+   - Realtime pipeline (2026-10-19, owner curious about WebRTC + open-weight models): one WebRTC connection to a voice
+     server running streaming STT + a fast LLM + streaming TTS, wired with Pipecat or LiveKit Agents (turn detection,
+     interruptions). Own GPU with open models (Parakeet/faster-whisper, Llama/Qwen ~8B, Kokoro/Orpheus; Kyutai Moshi
+     speech-to-speech ~0.2 s): ~0.5-0.8 s but a GPU near SA is scarce and costs roughly R15-40k a month always-on,
+     and an 8B model is weaker than Claude. Hosted pieces instead (Deepgram STT, Groq LLM, Cartesia/ElevenLabs Flash
+     TTS): ~0.8-1.2 s, pay per use. Cheap perceived wins either way: instant on-phone acknowledgement, pre-answered
+     likely questions, interruptible speech, one persistent connection instead of several SA<->US requests.
    - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
      no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
      asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact
