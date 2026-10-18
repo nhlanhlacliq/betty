@@ -1,6 +1,6 @@
 import type { LatLon } from '../core/geo';
 import { PlannedRoute, minutesText } from '../core/Route';
-import { CheckpointWeather, checkpoints, weatherLine } from '../core/RouteAhead';
+import { CheckpointWeather, checkpoints, wantedMinutes, weatherLine } from '../core/RouteAhead';
 
 const KEY = 'betty.route.v1';
 /** The planned route, kept on the phone until he clears it (it is in the data backup, like everything betty.*). */
@@ -147,14 +147,24 @@ export function mountRoutePlanner(doc: Document, ctx: PlannerContext) {
     const f = ctx.fetcher ?? fetch;
     try {
       const from = await ctx.position();
-      const pr = await f('/api/plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ask: text, area: ctx.area?.() ?? '', known: ctx.known?.() ?? [], ...(from ? { from } : {}) }) });
-      const plan: any = await pr.json().catch(() => ({}));
-      if (!pr.ok) throw new Error(plan?.error || `HTTP ${pr.status}`);
-      const stops = (plan.stops as string[]).map((s) => (s === 'HOME' ? (from ? `${from.lat.toFixed(5)},${from.lon.toFixed(5)}` : '') : s)).filter(Boolean);
-      ask.textContent = `Routing ${stops.length} stops...`;
-      const rr = await f('/api/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stops, thrilling: !!plan.thrilling, ...(from ? { from } : {}) }) });
-      const out: any = await rr.json().catch(() => ({}));
-      if (!rr.ok) throw new Error(out?.error || `HTTP ${rr.status}`);
+      const want = wantedMinutes(text);
+      // Her stops, routed; if the route is far longer than he asked for, she is told and plans once more.
+      const attempt = async (feedback: string) => {
+        const pr = await f('/api/plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ask: text, area: ctx.area?.() ?? '', known: ctx.known?.() ?? [], ...(from ? { from } : {}), ...(feedback ? { feedback } : {}) }) });
+        const plan: any = await pr.json().catch(() => ({}));
+        if (!pr.ok) throw new Error(plan?.error || `HTTP ${pr.status}`);
+        const stops = (plan.stops as string[]).map((s) => (s === 'HOME' ? (from ? `${from.lat.toFixed(5)},${from.lon.toFixed(5)}` : '') : s)).filter(Boolean);
+        ask.textContent = `Routing ${stops.length} stops...`;
+        const rr = await f('/api/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stops, thrilling: !!plan.thrilling, ...(from ? { from } : {}) }) });
+        const out: any = await rr.json().catch(() => ({}));
+        if (!rr.ok) throw new Error(out?.error || `HTTP ${rr.status}`);
+        return { plan, out };
+      };
+      let { plan, out } = await attempt('');
+      if (want && out.minutes > want * 1.4) {
+        ask.textContent = 'A bit far: planning closer...';
+        ({ plan, out } = await attempt(`it came to ${Math.round(out.km)} km and about ${Math.round((out.minutes / 60) * 10) / 10} hours of riding, but he wants about ${want} minutes.`));
+      }
       const r: PlannedRoute = { ...out, name: plan.name || out.name, why: plan.why || undefined, plannedAt: Date.now() };
       RouteStore.set(r); input.value = '';
       paint(); ctx.onChange(r);

@@ -6,13 +6,14 @@ import { env, fromBetty, json } from './_shared.js';
  * search for good stops) turns what he asks into an ordered list of real places; the page then routes them with
  * api/route as usual. "HOME" as the last stop means back to where he starts. Haiku, max 3 searches, JSON out.
  */
-const MODEL = 'claude-haiku-5-5';
+// Sonnet: Haiku sent a "two-hour" run from Edenvale to Kaapsehoop (300 km away) on the live check, 2026-10-18.
+const MODEL = 'claude-sonnet-5-5';
 const MAX_ASK = 400;
 
-export const planPrompt = (ask: string, area: string, known: string[]) => `You plan motorcycle day rides in South Africa for a rider on a BMW G 310 GS who starts near ${area || 'Johannesburg, Gauteng'}.
+export const planPrompt = (ask: string, area: string, known: string[], feedback = '') => `You plan motorcycle day rides in South Africa for a rider on a BMW G 310 GS who starts near ${area || 'Johannesburg, Gauteng'}.
 He asks: "${ask}"
 Plan an ordered list of 1 to 6 stops: real towns, villages or specific places (a named cafe, a pass, a dam), spelled as on a map, that a route planner can find, in South Africa. Make the riding time what he asked for: first work out the total distance it allows (about 60 km/h average on twisty roads, 80 on open ones; time at a breakfast or coffee stop does not count), and keep the WHOLE ride within it, including the way back home; two hours of riding is about 120 to 160 km in total, so the furthest stop is at most about half that away. If he wants to come back home (a run, a loop, "back by lunch"), end with exactly HOME. Use web search when it helps to pick good places (breakfast, coffee, views, twisty roads). ${known.length ? `Places he has ridden before (vary from them unless he asks for the usual): ${known.slice(0, 20).join(', ')}.` : ''}
-Reply with ONLY JSON, no other words: {"name": "a short name for the ride", "stops": ["Place", "Place", "HOME"], "thrilling": true if he wants twisty or scenic roads else false, "why": "one sentence on why these stops"}`;
+${feedback ? `Your last plan did not fit: ${feedback} Plan again, closer to home.\n` : ''}Reply with ONLY JSON, no other words: {"name": "a short name for the ride", "stops": ["Place", "Place", "HOME"], "thrilling": true if he wants twisty or scenic roads else false, "why": "one sentence on why these stops"}`;
 
 /** The plan in a reply: the first JSON object, checked. */
 export function parsePlan(text: string): { name: string; stops: string[]; thrilling: boolean; why: string } | null {
@@ -38,9 +39,9 @@ export async function POST(req: Request): Promise<Response> {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: MODEL, max_tokens: 900, thinking: { type: 'disabled' },
+      model: MODEL, max_tokens: 1200, thinking: { type: 'between_tools' }, // Sonnet refuses "disabled"
       tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', region: 'Gauteng', country: 'ZA', timezone: 'Africa/Johannesburg' } }],
-      messages: [{ role: 'user', content: planPrompt(ask, String(body?.area ?? '').slice(0, 80), known) }],
+      messages: [{ role: 'user', content: planPrompt(ask, String(body?.area ?? '').slice(0, 80), known, String(body?.feedback ?? '').slice(0, 200)) }],
     }),
   });
   if (!res.ok) return json({ error: `Claude said HTTP ${res.status}` }, 502);

@@ -2604,4 +2604,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- how long he wants to ride, from his words (plan it with Betty checks the route against it)
+{
+  const { wantedMinutes } = await import('../src/core/RouteAhead');
+  assert.equal(wantedMinutes('a two-hour breakfast run'), 120); assert.equal(wantedMinutes('2 hours of twisties'), 120);
+  assert.equal(wantedMinutes('an hour and a half'), 90); assert.equal(wantedMinutes('90 minutes to somewhere nice'), 90);
+  assert.equal(wantedMinutes('half an hour'), 30); assert.equal(wantedMinutes('somewhere with coffee'), null);
+}
+
 console.log('all core tests passed');

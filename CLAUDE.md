@@ -555,7 +555,10 @@ then, stories ready; a stay `select` for every stop but the finish, saved on the
   furthest stop at most half; "HOME" = back to the start; vary from the places he rides most; JSON) -> `parsePlan` ->
   the page routes the stops with api/route (`#routeask`); `PlannedRoute.why` shown in Where to?. Checked live: "a
   two-hour breakfast run, twisty, back by lunch" from Edenvale -> Heidelberg, Suikerbosrand, Nigel, home (the first
-  version sent him to Hekpoort: too far, hence the distance rule).
+  version sent him to Hekpoort: too far, hence the distance rule). After deploy Haiku sent the same ask to Kaapsehoop
+  (300 km): api/plan now uses SONNET (thinking between_tools; checked: Cullinan ~140 km, the Cradle), and the page
+  checks the routed time against `wantedMinutes(ask)`: over 1.4x, api/plan is asked once more with `feedback` ("it
+  came to 600 km and about 7 hours, he wants about 120 minutes").
 - Share with a friend's Betty (core/Share): a `betty-share` JSON (routes, spots, stories) sent with the share sheet
   (`shareJson`) from a ride's page (the ride as a route: `rideAsRoute`, Google link through 10 points, plus its places'
   stories) or Explore (`#exploreshare`: all spots and stories). Garage > Import a backup recognises it (`parsePack`) and

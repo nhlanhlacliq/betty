@@ -1383,6 +1383,19 @@ resetConfig();
   assert.deepEqual(sent[0], ['/api/plan', { ask: 'a two-hour breakfast run, twisty roads', area: 'Edenvale', known: ['Sandton'], from: { lat: -26.14, lon: 28.15 } }]);
   assert.deepEqual(sent[1][1], { stops: ['Heidelberg', 'Nigel', '-26.14000,28.15000'], thrilling: true, from: { lat: -26.14, lon: 28.15 } }, 'HOME is where he starts');
   assert.equal(RouteStore.get()!.name, 'Twisty breakfast loop'); assert.equal(d.getElementById('routewhy')!.textContent, 'Suikerbosrand hills, back by lunch.');
+  // too far for what he asked: she is told how far, and plans once more
+  sent.length = 0; let routed = 0;
+  const w2 = new JSDOM(w.serialize()); const d2 = w2.window.document;
+  mountRoutePlanner(d2, { position: async () => null, onChange() {}, toast() {},
+    fetcher: (async (u: any, init: any) => {
+      sent.push([String(u), JSON.parse(init.body)]);
+      if (String(u) === '/api/plan') return new Response(JSON.stringify({ name: sent.length > 2 ? 'Closer' : 'Kaapsehoop', stops: ['X'], thrilling: true, why: '' }));
+      return new Response(JSON.stringify({ name: 'x', stops: [], km: routed++ ? 140 : 600, minutes: routed > 1 ? 125 : 420, delayMin: 0, legs: [], points: [[1, 2], [3, 4]], mapsUrl: '', thrilling: true }));
+    }) as typeof fetch });
+  (d2.getElementById('routeinput') as HTMLInputElement).value = 'a two-hour breakfast run';
+  d2.getElementById('routeask')!.click(); await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sent.filter(([u]) => u === '/api/plan').length, 2, 'planned twice');
+  assert.match(sent[2][1].feedback, /600 km and about 7 hours of riding, but he wants about 120 minutes/);
   delete (globalThis as any).localStorage;
 }
 // ---- Garage > Your data: a friend's shared file is ADDED (asks first), not restored as a backup

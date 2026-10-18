@@ -91,3 +91,14 @@ export function rideAgainStops(track: TrackPoint[], max = 12): string[] {
   const pick = Array.from({ length: n }, (_, i) => track[Math.round((i * (track.length - 1)) / (n - 1))]);
   return pick.map(([lat, lon]) => `${lat.toFixed(5)},${lon.toFixed(5)}`);
 }
+
+/** How long he wants to ride, from his words ("a two-hour run", "90 minutes", "half an hour"), or null. */
+export function wantedMinutes(ask: string): number | null {
+  const low = ask.toLowerCase().replace(/-/g, ' ');
+  const words: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+  if (/\bhalf an? hour\b/.test(low)) return 30;
+  const h = low.match(/\b(\d+(?:\.\d+)?|a|an|one|two|three|four|five|six)(?: and a half)? (?:hours?|hrs?|h)\b/);
+  if (h) return Math.round(((words[h[1]] ?? Number(h[1])) + (/\band a half\b/.test(low) ? 0.5 : 0)) * 60); // "two and a half hours", "an hour and a half"
+  const m = low.match(/\b(\d+) ?(?:minutes?|mins?)\b/);
+  return m ? Number(m[1]) : null;
+}
