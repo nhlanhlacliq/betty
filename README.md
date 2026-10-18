@@ -8,4 +8,4 @@ Voice co-pilot prototype. See CLAUDE.md for full project context.
     npm run build      # static site in dist/
 
 Phone sensors and speech need HTTPS (localhost is exempt): deploy `dist/` (Vercel etc.) to test on a phone.
-Optional env vars: VITE_ANTHROPIC_API_KEY, VITE_TOMTOM_API_KEY (see .env.example). Both are visible in the browser.
+Optional env vars: VITE_ANTHROPIC_API_KEY, VITE_TOMTOM_API_KEY (see .env.example). 
