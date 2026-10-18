@@ -15,7 +15,7 @@ export function mountChangelogPanel(root: HTMLElement, log = CHANGELOG, built = 
   for (const day of log) {
     wrap.append(el('h3', '', day.date));
     const ul = el('ul', 'changes');
-    for (const item of day.items) ul.append(el('li', '', item));
+    for (const item of day.items) ul.append(el('li', '', `${item.kind === 'new' ? 'New' : item.kind === 'better' ? 'Better' : 'Fixed'}: ${item.title} ${item.text}`));
     wrap.append(ul);
   }
   root.append(wrap);

@@ -608,7 +608,7 @@ resetConfig();
   handle.dispatchEvent(new page.window.Event('click', { bubbles: true }));
   assert.equal(homeScreen.classList.contains('dock-slim'), slimBefore);
   assert.match(doc.getElementById('whatsnewversion')!.textContent!, /Development build/);
-  assert.match(doc.getElementById('whatsnewlist')!.textContent!, /mark this spot/);
+  assert.match(doc.getElementById('whatsnewlist')!.textContent!, /Your roads and records/);
   resetConfig();
 }
 
@@ -899,19 +899,28 @@ resetConfig();
   assert.throws(() => parseBackup('{"hello":1}'), /not a Betty backup/); assert.throws(() => parseBackup('nope'), /not a Betty backup/);
   assert.throws(() => parseBackup(JSON.stringify({ ...b, storage: { 'evil.key': 'x' } })), /damaged/);
 }
-// ---- Garage > What's new: unread count on the card and the tab, cleared by opening it
+// ---- Garage > What's new: New / Better / Fixed per day, one line per older day, unread by id, fixes not counted
 {
-  const { unreadCount, totalItems, mountWhatsNew } = await import('../src/ui/WhatsNew');
-  const log = [{ date: 'b', items: ['new one', 'new two'] }, { date: 'a', items: ['old'] }];
-  assert.equal(unreadCount(log, null), 2, 'first visit: only the newest day counts'); assert.equal(unreadCount(log, 1), 2); assert.equal(unreadCount(log, 3), 0);
+  const { unreadCount, allIds, seenSet, mountWhatsNew } = await import('../src/ui/WhatsNew');
+  const c = (id: string, kind: 'new' | 'better' | 'fixed', help?: string) => ({ id, kind, title: `${id}.`, text: `About ${id}.`, ...(help ? { help } : {}) });
+  const log = [{ date: '2026-10-18', items: [c('n1', 'new', 'journeys'), c('b1', 'better'), c('f1', 'fixed')] }, { date: '2026-10-17', items: [c('old', 'new')] }];
+  assert.equal(unreadCount(log, new Set()), 3, 'fixes are not counted'); assert.equal(unreadCount(log, new Set(['n1'])), 2);
+  const mem = (start: string[] | null, old: boolean) => { let v = start; return { get: () => v, set: (ids: string[]) => { v = ids; }, hadOld: () => old, peek: () => v }; };
+  const first = mem(null, false); assert.deepEqual([...seenSet(log, first)], ['old'], 'a first visit: only the newest day is new');
+  const upgraded = mem(null, true); assert.deepEqual([...seenSet(log, upgraded)].sort(), allIds(log).sort(), 'he used the old version: nothing old shows as new');
   const w = new JSDOM(`<!doctype html><button id="whatsnewopen"></button><small id="whatsnewsub"></small><b id="whatsnewbadge"></b><b id="garagebadge"></b><p id="whatsnewversion"></p><div id="whatsnewlist"></div>`);
-  const d = w.window.document; let seen: number | null = 1;
-  mountWhatsNew(d, { get: () => seen, set: (n) => { seen = n; } }, log, null);
-  assert.equal(d.getElementById('garagebadge')!.textContent, '2'); assert.equal((d.getElementById('garagebadge') as HTMLElement).hidden, false);
-  assert.match(d.getElementById('whatsnewsub')!.textContent!, /2 new updates/);
-  assert.equal(d.querySelectorAll('#whatsnewlist li.new').length, 2, 'the new ones are marked');
+  const d = w.window.document; const store = mem(['old'], true);
+  mountWhatsNew(d, store, log, null);
+  assert.equal(d.getElementById('garagebadge')!.textContent, '2'); assert.match(d.getElementById('whatsnewsub')!.textContent!, /2 new updates/);
+  const L = d.getElementById('whatsnewlist')!;
+  assert.deepEqual([...L.querySelectorAll('.wn-kind')].map((h) => h.textContent), ['New', 'Better', 'Fixed'], 'the newest day open, by kind');
+  assert.equal(L.querySelectorAll('li.new').length, 2, 'new and better marked, the fix not');
+  assert.ok(L.querySelector('[data-help="journeys"]'), 'How it works opens Help');
+  assert.match(L.querySelectorAll('.wn-head')[1].textContent!, /17 October\s*1 new/); assert.equal(L.querySelectorAll('.wn-day.open').length, 1, 'older days fold');
+  L.querySelectorAll<HTMLElement>('.wn-head')[1].click(); assert.equal(L.querySelectorAll('.wn-day.open').length, 2);
   d.getElementById('whatsnewopen')!.dispatchEvent(new w.window.Event('click'));
-  assert.equal(seen, totalItems(log)); assert.equal((d.getElementById('whatsnewbadge') as HTMLElement).hidden, true); assert.match(d.getElementById('whatsnewsub')!.textContent!, /Up to date/);
+  assert.equal(L.querySelectorAll('li.new').length, 2, 'still marked while he reads');
+  assert.deepEqual([...store.peek()!].sort(), allIds(log).sort()); assert.equal((d.getElementById('whatsnewbadge') as HTMLElement).hidden, true); assert.match(d.getElementById('whatsnewsub')!.textContent!, /Up to date/);
 }
 // ---- traffic: every 5 minutes, and not while parked
 {

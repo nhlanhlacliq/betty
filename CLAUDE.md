@@ -1208,6 +1208,12 @@ were not a command; the answer prompt now says only the commands change settings
 - TypeScript strict. Keep `core/` pure and covered by tests; adapters and ui stay thin.
 - Every change the owner would notice ALSO goes into Help (`src/ui/help.ts`): a new topic or the existing one updated,
   and any new voice command in `VOICE_COMMANDS` (owner, 2026-10-17). Changelog = what changed; Help = how it works now.
+- CHANGELOG SHAPE (owner, 2026-10-18: "it needs a clean up"): `{id, kind: new|better|fixed, title, text, help?}`. ONE
+  entry per feature per day describing how it works NOW; polish of something built the same day is folded into that
+  entry (never "the pencil now scrolls", "records say what they count" as new lines); `fixed` only for something he
+  had on an earlier day; one sentence, the how-to goes in Help (`help` = a HELP_TOPICS id, a test checks it exists).
+  Ids never change: What's new keeps read state by id (`betty.seen.v2`), the badge counts unread new/better only.
+  Older days fold to one line in the sheet; the newest day and any day with unread entries open.
 - Every change the owner would notice gets a plain-words line in `src/changelog.ts` (shown in the app as WHAT'S NEW,
   under LOG, with the build time so he can tell a reload picked up the new version). Owner's request, 2026-10-16.
 - Config values (thresholds, cooldowns, priorities, prompt) live in `config/betty.ts`, never inline.

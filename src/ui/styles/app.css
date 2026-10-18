@@ -721,3 +721,14 @@ html, body { overscroll-behavior: none; }
 .search-star { flex: none; border: 0; background: none; font-size: 20px; line-height: 1; padding: 6px 2px 6px 8px; color: var(--muted); }
 .search-star[aria-pressed="true"] { color: #c9a43c; }
 .journey-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+/* What's new, tidied (2026-10-18): days fold like the months in My journeys; New / Better / Fixed */
+.wn-day { margin: 0 0 4px; }
+.wn-body { padding: 2px 2px 10px; }
+.wn-kind { font-size: 11px; letter-spacing: .5px; text-transform: uppercase; margin: 12px 0 6px; color: var(--sage-text); }
+.wn-kind.fixed { color: var(--muted); }
+.whatsnew-list .changes { list-style: none; padding: 0; margin: 0; }
+.whatsnew-list .change { padding: 9px 0 9px 12px; border-left: 3px solid transparent; font-size: 14px; line-height: 1.45; color: var(--ink); }
+.whatsnew-list .change b { font-weight: 600; }
+.whatsnew-list .change.new { border-left-color: var(--yellow); }
+.wn-help { font-size: 13px; padding: 0; margin-left: 2px; }

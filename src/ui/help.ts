@@ -68,6 +68,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Install it:</b> in Safari, Share &gt; Add to Home Screen. It then opens like an app, even without signal.',
       '<b>Before the first ride:</b> in Garage, set what she calls you and the bike, your fuel figures, and switch on <i>Headset buttons</i> if you want to talk to her from the helmet.',
       '<b>Ride:</b> on the Ride tab tap <i>Let\'s ride</i>. Allow location, motion and the microphone when the phone asks. Tap <i>Filled up</i> after every fill-up so the fuel range is right.',
+      '<b>What changed:</b> Garage &gt; What\'s new lists each day\'s updates as New, Better and Fixed, with <i>How it works</i> to the matching Help; the number on the Garage tab counts what you have not seen.',
       '<b>End:</b> <i>End ride</i> (or say "end ride"). She signs off and the ride\'s story opens in My journeys.',
     ])}` },
   { id: 'talk', title: 'Talking to Betty', keywords: 'headset buttons microphone mic push to talk tap play pause next previous track call mode chat type',

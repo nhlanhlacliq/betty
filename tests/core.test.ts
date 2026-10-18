@@ -2339,4 +2339,19 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   delete (globalThis as any).localStorage;
 }
 
+// ---- What's new: ids unique, kinds known, Help links real, one sentence each (owner's rules, 2026-10-18)
+{
+  const { CHANGELOG } = await import('../src/changelog');
+  const { HELP_TOPICS } = await import('../src/ui/help');
+  const ids = CHANGELOG.flatMap((d) => d.items.map((c) => c.id));
+  assert.equal(new Set(ids).size, ids.length, 'ids are unique');
+  const topics = new Set(HELP_TOPICS.map((t) => t.id));
+  for (const d of CHANGELOG) for (const c of d.items) {
+    assert.ok(['new', 'better', 'fixed'].includes(c.kind), c.id);
+    if (c.help) assert.ok(topics.has(c.help), `${c.id}: Help topic ${c.help} exists`);
+    assert.ok(c.text.length <= 260, `${c.id}: one sentence, not a manual`);
+  }
+  assert.deepEqual(CHANGELOG.map((d) => d.date), [...CHANGELOG.map((d) => d.date)].sort().reverse(), 'newest day first');
+}
+
 console.log('all core tests passed');
