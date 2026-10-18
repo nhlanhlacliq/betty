@@ -1,13 +1,13 @@
 import { CONFIG } from '../../src/config/betty';
 import { AudioQueue, QueueItem } from '../../src/core/AudioQueue';
-import { ClaudeClient } from '../../src/core/ClaudeClient';
+import { ClaudeClient, voiceTags } from '../../src/core/ClaudeClient';
 import type { LatLon } from '../../src/core/geo';
 import { StateAggregator } from '../../src/core/StateAggregator';
 import { TriggerEngine, isSafeWindow } from '../../src/core/TriggerEngine';
 import type { BikeState, DataSource, TriggerEvent } from '../../src/core/types';
 import { WeatherSource } from '../../src/adapters/WeatherSource';
 import { ExpoGeoSource } from './adapters/ExpoGeoSource';
-import { ExpoSpeaker } from './adapters/ExpoSpeaker';
+import { ExpoSpeaker, setUpAudio } from './adapters/ExpoSpeaker';
 import { SERVER_HEADERS, api } from './server';
 
 /**
@@ -39,13 +39,14 @@ export async function startRide(h: RideHooks) {
 
   const engine = new TriggerEngine();
   const claude = new ClaudeClient(undefined, 2500, 6000, api('/api/phrase'), SERVER_HEADERS);
+  await setUpAudio();
   const speaker = new ExpoSpeaker((m) => log('[audio]', m));
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current));
 
   const say = async (ev: TriggerEvent) => {
     const p = await claude.phrase(ev, agg.current);
     const item = queue.enqueue(p.text, ev.priority, ev.id);
-    h.line({ at: Date.now(), head: `[P${ev.priority}] ${ev.id} (${p.source}${p.detail ? `: ${p.detail}` : ''}, ${p.latencyMs} ms)`, text: p.text || '(silent)', item });
+    h.line({ at: Date.now(), head: `[P${ev.priority}] ${ev.id} (${p.source}${p.detail ? `: ${p.detail}` : ''}, ${p.latencyMs} ms)`, text: voiceTags(p.text, false) || '(silent)', item });
     return item;
   };
 

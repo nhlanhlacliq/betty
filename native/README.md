@@ -35,7 +35,10 @@ detection, group rides.
 First run on the owner's iPhone 12 (2026-10-18): signing works with his free Personal Team (`ios.appleTeamId`
 6DHA6234P3 in app.json, so a regenerated ios/ keeps it); the dev build installed, then CRASHED at launch in
 `RNBluetoothClassic.init()` (assertion). Fix: `react-native.config.js` keeps that library out of the iOS build, and
-`ElmClassicTransport` only `require`s it on Android. Crash reports: `xcrun devicectl device info files --device <id>
+`ElmClassicTransport` only `require`s it on Android. After that it RAN: briefing and typed answers from Claude in 1.2 to 2.3 s,
+GPS and weather live; but SILENT (the default iOS audio session obeys the silent switch) and `<short pause>` showed:
+`setUpAudio` (expo-audio `playsInSilentMode`, `mixWithOthers` for now) and `voiceTags(text, false)` for the phone voice
+and the screen. Crash reports: `xcrun devicectl device info files --device <id>
 --domain-type systemCrashLogs`, then `devicectl device copy from ...` (the .ips JSON has the faulting thread).
 
 Known risks:

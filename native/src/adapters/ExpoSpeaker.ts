@@ -1,5 +1,13 @@
 import * as Speech from 'expo-speech';
+import { setAudioModeAsync } from 'expo-audio';
 import type { SpeakTag, Speaker } from '../../../src/core/AudioQueue';
+import { voiceTags } from '../../../src/core/ClaudeClient';
+
+/**
+ * Her voice must play with the iPhone's silent switch on (first run, 2026-10-18: nothing was heard; the default audio
+ * session obeys the switch). Mixed with his music for now; ducking it per line comes with the cloud voices.
+ */
+export const setUpAudio = () => setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'mixWithOthers' }).catch(() => {});
 
 /**
  * The phone's own voice (expo-speech). Like WebSpeaker it ALWAYS calls onDone, also when the engine never reports
@@ -15,7 +23,8 @@ export class ExpoSpeaker implements Speaker {
     const finish = () => { if (done) return; done = true; clearTimeout(deadline); onDone(); };
     // Written off after a deadline from its length: about 15 characters a second plus 4 s.
     const deadline = setTimeout(() => { if (my === this.gen) this.onProblem(`no end after ${text.length} chars, moving on`); finish(); }, 4000 + text.length * 70);
-    Speech.speak(text, {
+    // <laugh>, <short pause> and the like are for Gemini only: the phone voice would read them out.
+    Speech.speak(voiceTags(text, false), {
       language: 'en-ZA',
       onStart: () => tag?.heard?.(),
       onDone: finish, onStopped: finish,

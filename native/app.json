@@ -40,7 +40,8 @@
           "locationWhenInUsePermission": "Betty uses your location for your speed, the weather and the places on your ride."
         }
       ],
-      "expo-dev-client"
+      "expo-dev-client",
+      "expo-audio"
     ]
   }
 }
