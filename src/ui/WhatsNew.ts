@@ -1,3 +1,4 @@
+import { play } from './motion';
 import { CHANGELOG, Change, ChangeDay, ChangeKind } from '../changelog';
 import { buildTime } from './ChangelogPanel';
 
@@ -47,12 +48,17 @@ export function mountWhatsNew(doc: Document, store: SeenStore = LocalSeen, log: 
   /** Read state as it was when the sheet opened, so the new ones stay marked while he reads. */
   let shownSeen = seen;
 
+  let lastCount = -1;
   const paint = () => {
     const n = unreadCount(log, seen);
     for (const id of ['whatsnewbadge', 'garagebadge']) {
       const b = $(id);
-      if (b) { b.textContent = n > 9 ? '9+' : String(n); b.hidden = n === 0; }
+      if (b) {
+        b.textContent = n > 9 ? '9+' : String(n); b.hidden = n === 0;
+        if (n > Math.max(0, lastCount)) play(b, 'pop'); // a very small pop when there is something new
+      }
     }
+    lastCount = n;
     const sub = $('whatsnewsub');
     if (sub) sub.textContent = n ? `${n} new update${n === 1 ? '' : 's'} since you last looked` : `Up to date${built ? `, version of ${stamp(built)}` : ''}`;
   };

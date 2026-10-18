@@ -5,6 +5,7 @@ import { mountCollapsibleDock } from '../dockSwipe';
 import type { GlanceAction, Glance, RideView } from '../rideView';
 import { mountIsland } from '../island';
 import { followDock } from '../Shell';
+import { revealWords } from '../motion';
 
 export interface RideActions {
   /** The microphone: start talking, or finish if already listening. */
@@ -87,7 +88,11 @@ export function mountRideScreen(doc: Document, actions: RideActions, borders?: (
       text('rideline', x.line);
       text('ridekicker', v.kicker);
       text('companionstate', v.state);
-      text('ridesub', v.message);
+      // Her line appears word by word while she says it (Little animations); anything else just shows.
+      if (last.get('ridesub') !== v.message) {
+        last.set('ridesub', v.message);
+        if (v.orb === 'speaking') revealWords($('ridesub'), v.message, doc); else { $('ridesub').textContent = v.message; $('ridesub').removeAttribute('aria-label'); }
+      }
       text('rideheadline', v.headline);
       text('rideplace', v.place);
       text('ridefacts', v.facts);

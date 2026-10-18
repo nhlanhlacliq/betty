@@ -72,6 +72,8 @@ export interface Config {
   modes: Record<string, SavedMode>;
   /** My journeys: a little drawing of each ride's road on its row (Garage switch, owner 2026-10-18) */
   journeyThumbs: boolean;
+  /** Little animations app-wide (toasts, her line word by word, counting numbers...; ui/motion.ts). One switch, owner 2026-10-18 */
+  motion: boolean;
   /** Ride times count only the time moving (parked and breaks left out); each ride's story still shows both. */
   ridingTimeOnly: boolean;
   /**
@@ -151,6 +153,7 @@ export const DEFAULT_CONFIG: Config = {
   voiceBoostDb: 6,
   ridingTimeOnly: true,
   journeyThumbs: true,
+  motion: true,
   modes: {},
   smartSearch: false,
   island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false, lockLine: true },

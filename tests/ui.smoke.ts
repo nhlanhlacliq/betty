@@ -1450,4 +1450,26 @@ resetConfig();
   assert.equal(ProfileStore.get(), null);
   delete (globalThis as any).localStorage;
 }
+// ---- Little animations: one switch, her words, numbers, the switch in the Garage
+{
+  const { applyMotion, revealWords, countUp, motionOn } = await import('../src/ui/motion');
+  const { CONFIG } = await import('../src/config/betty');
+  const m = new JSDOM('<!doctype html><p id="w"></p><b id="n">1,234 km</b>');
+  const d = m.window.document;
+  CONFIG.motion = true; applyMotion(d);
+  assert.ok(d.documentElement.classList.contains('motion'));
+  revealWords(d.getElementById('w')!, 'Rain by Villiers, sir.', d);
+  assert.equal(d.querySelectorAll('#w .word').length, 4, 'one span a word');
+  assert.equal(d.getElementById('w')!.getAttribute('aria-label'), 'Rain by Villiers, sir.');
+  CONFIG.motion = false; applyMotion(d);
+  assert.ok(!d.documentElement.classList.contains('motion') && !motionOn(d), 'the switch turns it all off');
+  revealWords(d.getElementById('w')!, 'Plain now.', d);
+  assert.equal(d.getElementById('w')!.innerHTML, 'Plain now.');
+  countUp(d.getElementById('n')!, 700, d);
+  assert.equal(d.getElementById('n')!.textContent, '1,234 km', 'no counting when off');
+  CONFIG.motion = true;
+  // The Garage switch exists and is wired (real index.html).
+  const { readFileSync: read } = await import('node:fs');
+  assert.match(read(new URL('../index.html', import.meta.url), 'utf8'), /id="motionswitch"/);
+}
 console.log('ui smoke tests passed');

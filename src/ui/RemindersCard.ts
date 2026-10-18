@@ -1,3 +1,4 @@
+import { play, positions, slideFrom } from './motion';
 import { BIKES, Reminder, ServiceBook, alignToOdometer, canUndo, dueList, dueText, markDone, undoDone } from '../core/Reminders';
 import type { Shell } from './Shell';
 
@@ -22,6 +23,9 @@ function interval(r: Reminder): string {
 /** The best unit for showing a number of days in the sheet. */
 const unitFor = (days: number) => (days % 365 === 0 ? 365 : days % 30 === 0 ? 30 : days % 7 === 0 ? 7 : 1);
 
+/** A tick that draws itself after Done (Little animations; plain when they are off). */
+const TICK = '<svg class="tick" viewBox="0 0 16 16" aria-hidden="true"><path pathLength="1" d="M3 8.5l3.2 3.2L13 4.8"/></svg>';
+
 /**
  * Garage > Reminders: the odometer, each reminder with how long until it is due (Done resets it), and a sheet to add
  * or edit one. Repaints on `betty-service` (a ride adding km, "chain done" by voice).
@@ -38,7 +42,12 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
   /** Rows shown before "Show all": everything due or close, then the next few. */
   const KEEP = 5;
 
+  /** The row just marked Done or Undone: its tick draws (or it flashes back), and every row slides to its new place. */
+  let changed: { id: string; undo: boolean } | null = null;
+  const rowKey = (el: HTMLElement) => el.dataset.reminder;
+
   const paint = () => {
+    const before = changed ? positions(list, '.reminder-row', rowKey) : null;
     const book = ctx.load();
     if (doc.activeElement !== odo) odo.value = String(Math.round(book.odoKm));
     const rows = dueList(book, now());
@@ -49,12 +58,18 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
     list.innerHTML = (bike ? `<p class="sub reminder-bike">${esc(bike.name)} schedule from the handbook${book.odoKm ? '' : '. Set the odometer first so it lines up'}${guessed ? '. "Last done" is a guess until you set it or tap Done.' : '.'}</p>` : '')
       + (rows.length ? shown.map((d) => `<div class="reminder-row ${d.state}" data-reminder="${esc(d.r.id)}">
         <button class="reminder-main" type="button" data-edit="${esc(d.r.id)}"><b>${esc(d.r.name)}</b><small>${esc(interval(d.r))}${d.r.assumed ? ' · last done: a guess' : ''}</small></button>
-        <span class="reminder-state">${esc(justDone.has(d.r.id) ? `Done just now · next ${dueText(d)}` : d.state === 'ok' ? dueText(d) : `${d.state === 'due' ? 'Due' : 'Soon'}: ${dueText(d)}`)}</span>
+        <span class="reminder-state">${justDone.has(d.r.id) ? TICK : ''}${esc(justDone.has(d.r.id) ? `Done just now · next ${dueText(d)}` : d.state === 'ok' ? dueText(d) : `${d.state === 'due' ? 'Due' : 'Soon'}: ${dueText(d)}`)}</span>
         ${justDone.has(d.r.id) && d.r.prev
           ? `<button class="secondary small" type="button" data-undo="${esc(d.r.id)}">Undo</button>`
           : `<button class="secondary small" type="button" data-done="${esc(d.r.id)}">Done</button>`}</div>`).join('')
         + (rows.length > keep ? `<button class="text-button fold-toggle" type="button" data-showall>${showAll ? 'Show less' : `Show all ${rows.length}`}</button>` : '')
       : '<p class="sub">No reminders. Add one below.</p>');
+    if (before && changed) {
+      slideFrom(before, list, '.reminder-row', rowKey, doc);
+      const row = [...list.querySelectorAll<HTMLElement>('.reminder-row')].find((r) => r.dataset.reminder === changed!.id) ?? null;
+      play(row, changed.undo ? 'just-undone' : 'just-done');
+    }
+    changed = null;
   };
 
   const open = (r: Reminder | null) => {
@@ -83,9 +98,9 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
     const t = e.target as Element;
     if (t.closest('[data-showall]')) { showAll = !showAll; paint(); return; }
     const done = t.closest('[data-done]') as HTMLElement | null;
-    if (done) { ctx.save(markDone(ctx.load(), done.dataset.done!, now())); justDone.add(done.dataset.done!); paint(); return; }
+    if (done) { ctx.save(markDone(ctx.load(), done.dataset.done!, now())); justDone.add(done.dataset.done!); changed = { id: done.dataset.done!, undo: false }; paint(); return; }
     const undo = t.closest('[data-undo]') as HTMLElement | null;
-    if (undo) { ctx.save(undoDone(ctx.load(), undo.dataset.undo!)); justDone.delete(undo.dataset.undo!); paint(); return; }
+    if (undo) { ctx.save(undoDone(ctx.load(), undo.dataset.undo!)); justDone.delete(undo.dataset.undo!); changed = { id: undo.dataset.undo!, undo: true }; paint(); return; }
     const ed = t.closest('[data-edit]') as HTMLElement | null;
     if (ed) open(ctx.load().items.find((r) => r.id === ed.dataset.edit) ?? null);
   });

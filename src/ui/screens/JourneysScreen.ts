@@ -14,6 +14,7 @@ import { rideRecords } from '../../core/Records';
 import { fitView } from '../../core/Explore';
 import { MapView, attachMapGestures } from '../mapGestures';
 import { MAP_H, MAP_W, projector } from '../mapView';
+import { countUpAll, motionOn } from '../motion';
 
 export interface JourneysContext {
   /** Remembered rides (oldest first, as RideLog keeps them) */
@@ -532,8 +533,21 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
         .finally(() => { sh.disabled = false; sh.removeAttribute('aria-busy'); sh.innerHTML = label; });
     }
   });
-  const open = (rideId: number) => { renderStory(rideId); shell.show('story'); };
-  shell.onShow((id) => { if (id === 'journeys') renderList(); });
+  const open = (rideId: number) => {
+    renderStory(rideId); shell.show('story');
+    // Little animations: the numbers count up, the road draws itself once (not again when the place names arrive).
+    if (motionOn(doc)) {
+      countUpAll(story, '.summary-stats b', doc);
+      const m = story.querySelector('.story-map');
+      setTimeout(() => m?.classList.add('drawn'), 1800);
+    }
+  };
+  shell.onShow((id) => {
+    if (id !== 'journeys') return;
+    renderList();
+    const page = doc.querySelector('[data-screen="journeys"]');
+    if (page) countUpAll(page, '.totals b, .month-nums b, .record-tile b', doc);
+  });
   renderList();
   return { renderList, renderStory, open };
 }

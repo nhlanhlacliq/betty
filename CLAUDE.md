@@ -1047,6 +1047,23 @@ find interesting ("interests"); alerts and time checks never. `profileNote` adds
 say you were told this, never quote it, never list it". Checked live: a sample distilled well; "where should I stop
 for coffee out west" used it naturally.
 
+## Little animations (2026-10-18, owner picked 1, 2, 3, 5, 6, 8, 9 of a list + toasts; "one switch in settings")
+
+`ui/motion.ts`: `motionOn` (CONFIG.motion, default on, AND not prefers-reduced-motion), `applyMotion` puts `.motion` on
+<html> (at load, on `betty-config`, on a Reduce Motion change). EVERY such animation in app.css sits under `.motion`
+(the "Little animations" block at the end) and every script-driven one checks `motionOn` first, so the one switch
+(Garage > Betty's personality > Little animations, `#motionswitch`) turns all of them off. Pieces: toasts (Shell:
+spring in, nudge when replaced, rise out, error shake, tap to close, longer for long text: those two are not motion);
+her ride line word by word (`revealWords`, ~340 ms a word, squeezed into 9 s, only while `orb === 'speaking'`);
+`countUp` on Journeys totals/month/records when the screen shows and the story's numbers; the story road draws itself
+(`.ride-road` + `pathLength="1"` on the track paths in mapView, `.story-map.drawn` after 1.8 s so the later repaint with
+place names does not redraw it) and its moments rise in one after another; reminders Done: a drawn tick, a sage flash,
+rows slide to their new place (`positions`/`slideFrom`, FLIP); Undo flashes amber; What's new badges pop (`play(.., 'pop')`)
+when the count goes up; `.primary/.secondary/.end-button` sink to 97% when pressed, and `mountPressFeel` vibrates 8 ms
+on `.primary`/`.end-button` (Android; iPhone Safari cannot); Horizon `resize` (Web Animations width/height) only when it
+grows, shrinks or changes card (not when a reading ticks), and a yellow glow (`.news`) on a new top cue other than speed.
+On the ride only her line and Horizon move (owner agreed: motion pulls the eye). Checked in headless Chromium.
+
 ## Native app (STARTED 2026-10-18; owner: "start setting it up without the reader")
 
 Decision: React Native + Expo (development builds, not Expo Go), one codebase, reusing `src/core` as is. Rejected:

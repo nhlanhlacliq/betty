@@ -86,8 +86,12 @@ import { spanFor } from './ui/mapView';
 import { mountEdgeStretch, mountPullToRefresh, mountSheetDrag, mountSwipeBack, rememberSpot, takeSpot } from './ui/gestures';
 import { Glance, RideInput, SaidLine, glanceCues, horizonLine, horizonSpoken, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
+import { applyMotion, mountPressFeel } from './ui/motion';
 
 loadConfig();
+applyMotion();
+mountPressFeel();
+window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change', () => applyMotion());
 
 /** Build-time keys. Absent when the page is run outside Vite (the smoke test), where Betty simply has no keys. */
 const ENV: Record<string, string | undefined> = import.meta.env ?? {};
@@ -648,6 +652,7 @@ obdSel.addEventListener('change', () => {
 });
 // TUNING's "Reset all to defaults" also resets these two, so show what is now in force.
 window.addEventListener('betty-config', () => {
+  applyMotion();
   nameInput.value = CONFIG.riderName; bikeInput.value = CONFIG.bikeName; fillVoices(); showCloud(); buttonsBox.checked = CONFIG.headsetButtons; obdSel.value = CONFIG.obdMode; rig?.setObd(CONFIG.obdMode);
   paintBrand(); paintRide();
 });

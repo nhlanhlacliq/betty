@@ -18,7 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
-      { id: 'toast-motion', kind: 'better', title: 'Livelier messages.', text: 'The little messages at the top now drop in and float away, stay up longer when they are long, and close with a tap.' },
+      { id: 'toast-motion', kind: 'new', title: 'Little animations.', text: 'Her words appear as she says them, numbers count up, your road draws itself, messages drop in (tap to close), Horizon grows smoothly; one Garage switch turns them all off.', help: 'ridescreen' },
       { id: 'louder-by-voice', kind: 'better', title: 'Louder by voice.', text: 'Say "louder", "softer", "max volume" or "normal volume" on the ride; it moves the Louder voice slider in Garage.', help: 'commands' },
       { id: 'plan-with-betty', kind: 'new', title: 'Let Betty plan the ride.', text: 'Describe it in Where to? ("a two-hour breakfast run, twisty roads") and she picks the stops, says why, and plans the route.', help: 'routes' },
       { id: 'new-roads', kind: 'new', title: 'New roads.', text: 'She notices when you are on a road you have never ridden with her, and knows how often you have ridden the one you are on.', help: 'unprompted' },

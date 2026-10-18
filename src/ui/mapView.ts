@@ -224,8 +224,9 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
     }
     if (m.track.length > 1) {
       const d = m.track.map((t, i) => { const p = at({ lat: t[0], lon: t[1] }); return `${i ? 'L' : 'M'}${r1(p.x)} ${r1(p.y)}`; }).join('');
-      parts.push(`<path d="${d}" fill="none" stroke="#fffdf3" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`
-        + `<path d="${d}" fill="none" stroke="#819a77" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`);
+      // class + pathLength: the ride's story draws the road along itself (ui/motion.ts); nothing else uses them.
+      parts.push(`<path class="ride-road" pathLength="1" d="${d}" fill="none" stroke="#fffdf3" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`
+        + `<path class="ride-road" pathLength="1" d="${d}" fill="none" stroke="#819a77" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`);
       const s = at({ lat: m.track[0][0], lon: m.track[0][1] });
       if (onMap(s)) parts.push(`<circle cx="${r1(s.x)}" cy="${r1(s.y)}" r="7" fill="#faf9ee" stroke="#7e9674" stroke-width="3"/>`);
     }

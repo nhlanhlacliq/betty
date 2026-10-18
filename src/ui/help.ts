@@ -101,11 +101,12 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Narration</b> (Garage &gt; Betty\'s personality) sets how often she talks on her own and what about: Minimal (banter 20, stories 20, silence 60, a remark every 4 minutes), Balanced (40 / 40 / 20, every 2 minutes) or Storyteller (25 / 60 / 15, every 2 minutes). Alerts, answers, the briefing and the sign-off are not affected; time checks have their own interval. "Less chatty", "more stories" or "quiet for twenty minutes" change the same mix.',
       '<b>Stories</b>: the facts about an area are researched once and kept, but each time one comes up she tells it fresh, in her own words, with your humour and JARVIS/TARS settings. Listen in Explore reads the note as it is.',
     ])}` },
-  { id: 'ridescreen', title: 'The ride screen', keywords: 'horizon island card glance map lock screen now playing quiet orb dock slim panel zoom pan',
+  { id: 'ridescreen', title: 'The ride screen', keywords: 'horizon island card glance map lock screen now playing quiet orb dock slim panel zoom pan animation animations motion',
     html: `${li([
       '<b>Horizon</b> (the dark card at the top of the map; it used to be called the island): the one thing worth a glance. Tap to open it, swipe sideways for the others (rain, route, fuel, sunset, maintenance due within 500 km or a week, the area), and use its button (Filled up, Tell me a story, Up ahead...). Garage &gt; Horizon.',
       '<b>Phone in your pocket?</b> Say "anything ahead?" and she reads Horizon out. Its top card also shows on Betty\'s Lock screen, and on the phone\'s own lock screen (Now Playing) while she has the headset buttons; switch that off in Garage &gt; Horizon &gt; On the lock screen.',
       '<b>Betty\'s orb:</b> tap the small orb to hear her last line again.',
+      '<b>Little animations:</b> her line appears word by word as she says it, Horizon grows smoothly and glows softly when something new comes up. Elsewhere: messages drop in (tap one to close it), numbers count up, a ride\'s road draws itself, Done on a reminder ticks, and the main buttons give a tiny buzz on Android. One switch turns them all off: Garage &gt; Betty\'s personality &gt; Little animations (the phone\'s Reduce Motion does too).',
       '<b>Quiet</b> (the headset icon): she stops chatting until you tap it again; alerts still come.',
       '<b>Lock</b> covers the screen so a glove or rain cannot press anything; hold the unlock button for a second to get out.',
       '<b>The panel</b> slides down to a slim bar (swipe down) and back (swipe up).',

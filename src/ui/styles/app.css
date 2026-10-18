@@ -394,16 +394,8 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .toast { position: absolute; top: calc(var(--status-h) + 56px); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 40px); background: #2e483f; color: #fffbed;
   padding: 13px 18px; border-radius: 15px; font-size: 12px; line-height: 1.5; box-shadow: 0 5px 20px #203c3922; z-index: 100; pointer-events: none; text-align: center; }
 .toast.err { background: #7a3f35; }
-/* Toasts drop in with a little spring, nudge when replaced, rise away when done; errors give one small shake. */
+/* Toasts close with a tap. Their motion is in "Little animations" at the end of this file. */
 .toast { pointer-events: auto; cursor: pointer; }
-.toast.in { animation: toast-in .42s cubic-bezier(.2, 1.35, .4, 1) both; }
-.toast.err.in { animation: toast-in .42s cubic-bezier(.2, 1.35, .4, 1) both, toast-shake .36s .38s ease-in-out; }
-.toast.bump { animation: toast-bump .3s ease-out; }
-.toast.out { animation: toast-out .22s ease-in both; }
-@keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(-14px) scale(.94); } to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
-@keyframes toast-bump { 40% { transform: translateX(-50%) scale(1.04); } to { transform: translateX(-50%) scale(1); } }
-@keyframes toast-out { to { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(.97); } }
-@keyframes toast-shake { 25% { transform: translateX(calc(-50% - 4px)); } 50% { transform: translateX(calc(-50% + 4px)); } 75% { transform: translateX(calc(-50% - 2px)); } }
 
 /* ---------- lock screen (full-screen cover while riding) ---------- */
 .lockcover { position: fixed; inset: 0; z-index: 1000; background: #000; color: #9aa; touch-action: none; user-select: none; -webkit-user-select: none;
@@ -762,3 +754,51 @@ html, body { overscroll-behavior: none; }
 
 .route-ask { display: block; text-align: left; margin: 6px 0 2px; font-size: 13px; line-height: 1.4; }
 #routewhy { display: block; margin: 2px 0 4px; color: var(--ink); font-style: italic; }
+
+/* ---------- Little animations (ui/motion.ts; Garage > Betty's personality > Little animations) ----------
+   Everything here sits under .motion, which <html> only has while the switch is on and Reduce Motion is off. */
+/* Toasts: drop in with a little spring, nudge when replaced, rise away; errors give one small shake. */
+.motion .toast.in { animation: toast-in .42s cubic-bezier(.2, 1.35, .4, 1) both; }
+.motion .toast.err.in { animation: toast-in .42s cubic-bezier(.2, 1.35, .4, 1) both, toast-shake .36s .38s ease-in-out; }
+.motion .toast.bump { animation: toast-bump .3s ease-out; }
+.motion .toast.out { animation: toast-out .22s ease-in both; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(-14px) scale(.94); } to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
+@keyframes toast-bump { 40% { transform: translateX(-50%) scale(1.04); } to { transform: translateX(-50%) scale(1); } }
+@keyframes toast-out { to { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(.97); } }
+@keyframes toast-shake { 25% { transform: translateX(calc(-50% - 4px)); } 50% { transform: translateX(calc(-50% + 4px)); } 75% { transform: translateX(calc(-50% - 2px)); } }
+
+/* 1. Her line on the ride, word by word as she says it */
+.motion #ridesub .word { display: inline-block; animation: word-in .32s ease-out both; }
+@keyframes word-in { from { opacity: 0; transform: translateY(3px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* 3. Done on a reminder: the tick draws itself and the row glows sage; Undo flashes it back */
+.reminder-state .tick { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; }
+.reminder-state .tick path { fill: none; stroke: var(--sage); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.motion .reminder-row.just-done .tick path { stroke-dasharray: 1; animation: draw-line .45s .1s ease-out both; }
+.motion .reminder-row.just-done { animation: row-done .9s ease-out; }
+.motion .reminder-row.just-undone { animation: row-undone .6s ease-out; }
+@keyframes row-done { 0% { background: #e3ecd9; } 100% { background: transparent; } }
+@keyframes row-undone { 0% { background: #f4ecd2; } 100% { background: transparent; } }
+@keyframes draw-line { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* 5. A ride's story: the road draws itself from start to finish, then the moments come in one after another */
+.motion .story-map:not(.drawn) .ride-road { stroke-dasharray: 1; animation: draw-line 1.5s .15s cubic-bezier(.5, 0, .3, 1) both; }
+.motion [data-screen="story"]:not([hidden]) .moments > li { animation: rise-in .4s ease-out both; }
+.motion [data-screen="story"] .moments > li:nth-child(2) { animation-delay: .06s; }
+.motion [data-screen="story"] .moments > li:nth-child(3) { animation-delay: .12s; }
+.motion [data-screen="story"] .moments > li:nth-child(4) { animation-delay: .18s; }
+.motion [data-screen="story"] .moments > li:nth-child(5) { animation-delay: .24s; }
+.motion [data-screen="story"] .moments > li:nth-child(n+6) { animation-delay: .3s; }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* 6. What's new badge: a very small pop */
+.motion .badge.pop, .motion .tab-badge.pop { animation: badge-pop .32s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes badge-pop { from { transform: scale(.7); } to { transform: scale(1); } }
+
+/* 8. Main buttons sink a little under the finger (the buzz is in motion.ts) */
+.motion :is(.primary, .secondary, .end-button) { transition: transform .12s ease-out; }
+.motion :is(.primary, .secondary, .end-button):active:not(:disabled) { transform: scale(.97); }
+
+/* 9. Horizon: grows and shrinks smoothly (motion.ts), and glows softly when something new comes up */
+.motion #glance.news { animation: horizon-news 1.6s ease-out; }
+@keyframes horizon-news { 0% { box-shadow: 0 0 0 0 #f4dc8599; } 30% { box-shadow: 0 0 0 7px #f4dc8566; } 100% { box-shadow: 0 0 0 14px #f4dc8500; } }

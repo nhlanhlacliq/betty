@@ -1,5 +1,6 @@
 import { CONFIG } from '../config/betty';
 import { icon } from './icons';
+import { play, resize } from './motion';
 import type { Glance, GlanceAction } from './rideView';
 
 /**
@@ -38,12 +39,22 @@ export function mountIsland(doc: Document, hooks: IslandHooks) {
   let st = freshIsland();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  let shownIndex = -1;
   const paint = () => {
     const v = islandView(cues, st, Date.now());
+    // News (a new most-pressing cue, not plain speed): a soft glow, so a glance is enough (Little animations).
+    const news = !!st.topKey && v.next.topKey !== st.topKey && cues[0]?.id !== 'riding';
     st = v.next;
     el.hidden = !v.glance;
     if (!v.glance) return;
-    const g = v.glance, cfg = CONFIG.island;
+    // Growing, shrinking or moving to another card goes smoothly; a reading that just ticks over does not animate.
+    const reshape = el.classList.contains('compact') === v.expanded || shownIndex !== v.index;
+    shownIndex = v.index;
+    if (reshape) resize(el, () => fill(v), doc); else fill(v);
+    if (news) play(el, 'news');
+  };
+  const fill = (v: ReturnType<typeof islandView>) => {
+    const g = v.glance!, cfg = CONFIG.island;
     el.classList.toggle('compact', !v.expanded);
     $('glanceicon').innerHTML = icon(g.icon);
     $('glancelabel').textContent = g.label;
