@@ -591,6 +591,11 @@ html, body { overscroll-behavior: none; }
 .turn-card.compact strong { font-size: 15px; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .island-action { flex: none; align-self: center; background: #fffdf1; color: var(--ink-deep); border: 0; border-radius: 14px; padding: 9px 13px; font-size: 12px; font-weight: 600; }
 .island-action[hidden] { display: none; }
+/* Dismiss (traffic cards): a small round × at the top right of the open card */
+.island-dismiss { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: #ffffff1a; color: #fffdf1; font-size: 18px; line-height: 1; display: grid; place-items: center; }
+.island-dismiss[hidden] { display: none; }
+.motion #glance.dismissing { animation: horizon-away .22s ease-in both; }
+@keyframes horizon-away { to { opacity: 0; transform: translateY(-16px); } }
 .island-progress { height: 4px; border-radius: 2px; background: #ffffff26; margin-top: 10px; overflow: hidden; }
 .island-progress i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s ease; }
 .island-progress[hidden] { display: none; }

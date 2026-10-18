@@ -18,6 +18,8 @@ export interface RideActions {
   ask(text: string): void;
   /** The island's card button */
   island(kind: GlanceAction, g: Glance): void;
+  /** He dismissed a Horizon card (a traffic incident, by incidentKey) */
+  dismiss?(key: string): void;
 }
 
 export interface RideExtras {
@@ -48,7 +50,7 @@ export function mountRideScreen(doc: Document, actions: RideActions, borders?: (
   $('rideorb').addEventListener('click', () => actions.repeat());
   $('mute').addEventListener('click', () => actions.toggleQuiet());
   followDock(doc.querySelector('[data-screen="ride"]')!, doc.querySelector('.active-dock')!);
-  const island = mountIsland(doc, { action: (kind, g) => actions.island(kind, g) });
+  const island = mountIsland(doc, { action: (kind, g) => actions.island(kind, g), dismiss: actions.dismiss ? (key) => actions.dismiss!(key) : undefined });
   mountCollapsibleDock(doc.querySelector('[data-screen="ride"]')!, doc.querySelector('.active-dock')!, 'ride');
 
   let span = DEFAULT_SPAN_KM;

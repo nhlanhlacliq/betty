@@ -63,6 +63,7 @@ import { HeadsetButtons } from './adapters/HeadsetButtons';
 import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushToTalk';
 import { beep } from './adapters/audio';
 import { IncidentMemory } from './adapters/IncidentMemory';
+import { HorizonDismissed } from './adapters/HorizonDismissed';
 import { LogEntry, formatLog } from './core/LineLog';
 import { ScreenId, copyText, downloadText, mountShell } from './ui/Shell';
 import { ReadyRow, mountHomeScreen } from './ui/screens/HomeScreen';
@@ -737,7 +738,7 @@ paintBrand();
 let rideHooks: RideActions | null = null;
 const rideScreen = mountRideScreen(document, {
   talk: () => rideHooks?.talk(), repeat: () => rideHooks?.repeat(), toggleQuiet: () => rideHooks?.toggleQuiet(), ask: (t) => rideHooks?.ask(t),
-  island: (k, g) => rideHooks?.island(k, g),
+  island: (k, g) => rideHooks?.island(k, g), dismiss: (key) => rideHooks?.dismiss?.(key),
 }, bordersFor);
 rideRef = rideScreen;
 // Chat: a conversation view during a ride (the chat button in the ride dock), and the developer chat in the
@@ -764,6 +765,8 @@ let markPins = RiderMemoryStore.load().marks;
 window.addEventListener('betty-memory', () => { markPins = RiderMemoryStore.load().marks; });
 /** What she is saying now, and the last line she finished (for the ride screen). */
 let speakingNow: SaidLine | null = null;
+/** Traffic he dismissed from Horizon (read once, updated when he dismisses one) */
+let dismissedKeys = HorizonDismissed.load();
 let lastSaid: SaidLine | null = null;
 let talkState: 'off' | 'listening' | 'thinking' = 'off';
 /** Horizon's cards as last painted, for "anything ahead?" */
@@ -802,6 +805,7 @@ function paintRide() {
     route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm, detour: r.engine.onDetour() } : null,
     fuelRangeKm: Math.round(kmToReserve(CONFIG.fuel)),
     service: islandService(r.engine.serviceBook()),
+    dismissed: dismissedKeys,
   };
   const view = rideView(input);
   // Read out and on the lock screens even with the card hidden (a phone in the pocket).
@@ -892,7 +896,7 @@ async function beginRide(desk: boolean) {
   const engine = new TriggerEngine();
   engine.setHistory(RideLog.load());
   if (!desk && real) engine.setRecords(liveRecords(RideLog.load())); // "your longest ride yet", "1,000 km together"
-  engine.setKnownIncidents(IncidentMemory.load());
+  engine.setKnownIncidents([...IncidentMemory.load(), ...HorizonDismissed.load()]);
   currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
   engine.setFuelKm(FuelStore.load());
   engine.setMemory(RiderMemoryStore.load());
@@ -1266,6 +1270,8 @@ async function beginRide(desk: boolean) {
     repeat: () => { if (lastLine) sayNow(lastLine); else shell.toast("She hasn't said anything yet."); },
     ask: (text) => { void askBetty(text); },
     toggleQuiet: () => { obey(engine.quietLeftMin() > 0 ? { kind: 'talk' } : { kind: 'quiet', minutes: null }); renderLog(); paintRide(); },
+    // Horizon: he dismissed a traffic card. Hidden for a week, and she will not announce or brief him on it.
+    dismiss: (key) => { HorizonDismissed.add(key); dismissedKeys = HorizonDismissed.load(); engine.knowIncident(key); paintRide(); shell.toast('Dismissed for a week.'); },
     // The island's one button per card.
     island: (kind, g) => {
       if (kind === 'filled') { (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click(); shell.toast(`Fill-up noted: about ${Math.round(kmToReserve(CONFIG.fuel))} km of range.`); paintRide(); }

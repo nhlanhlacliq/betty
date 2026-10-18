@@ -1230,6 +1230,15 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(cues[0].short, '86 km left'); assert.deepEqual(cues[0].action, { kind: 'filled', label: 'Filled up' }); assert.ok(Math.abs(cues[0].progress! - 86 / 280) < 1e-9);
   assert.equal(cues[2].short, '200 km · 2 h 30'); assert.equal(cues[2].action!.kind, 'upahead'); assert.ok(Math.abs(cues[2].progress! - 1 / 3) < 1e-9);
   assert.deepEqual(cues[3].action, { kind: 'story', label: 'Tell me a story' });
+  // Traffic can be dismissed: the card carries its incidentKey, and a dismissed one gives way to the next nearest.
+  const inc = (id: string, km: number, road: string): any => ({ id, distanceKm: km, roadName: road, description: 'a road closure', severity: 3, lat: 0, lon: 0 });
+  const jams = { ...state, incidents: [inc('a', 1, 'N3'), inc('b', 3, 'R21')] };
+  const t1 = glanceCues({ ...base, state: jams, fuelKmLeft: null }).find((c) => c.id === 'traffic')!;
+  assert.equal(t1.value, 'N3'); assert.equal(t1.dismiss, 'a road closure|N3');
+  const t2 = glanceCues({ ...base, state: jams, fuelKmLeft: null, dismissed: ['a road closure|N3'] }).find((c) => c.id === 'traffic')!;
+  assert.equal(t2.value, 'R21', 'the dismissed one is gone, the next one shows');
+  assert.ok(!glanceCues({ ...base, state: jams, fuelKmLeft: null, dismissed: ['a road closure|N3', 'a road closure|R21'] }).some((c) => c.id === 'traffic'));
+  assert.equal(cues.find((c) => c.id === 'rain')!.dismiss, undefined, 'only traffic is dismissable');
   resetConfig();
 }
 

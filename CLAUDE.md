@@ -403,6 +403,10 @@ has dynamic content, and a smoke test.
   Media Session title while she holds the headset buttons, i.e. the PHONE's lock screen Now Playing (and possibly
   CarPlay's Now Playing; unverified). `CONFIG.island.lockLine` (Garage > Horizon > On the lock screen, default on;
   still enabled when the card itself is hidden). Both use the cues even with Show Horizon off.
+- HORIZON DISMISS (2026-10-18, owner): traffic cards carry `Glance.dismiss` (= `incidentKey`); × (`#glancedismiss`, open card
+  only) or a swipe up hides it: `adapters/HorizonDismissed` (`betty.dismissed.v1`, a week), `RideInput.dismissed` filters
+  it out of `glanceCues` (the next nearest incident shows), and `engine.knowIncident` + `setKnownIncidents` at ride start
+  keep her from announcing or briefing it. Only traffic is dismissable. Checked in headless Chromium.
 - THE ISLAND (owner's name for the dark card at the top of the ride map; built 2026-10-17, `ui/island.ts`): the cues
   come from `glanceCues` (rideView.ts, pure: fuel range when under 1.5x the warning, rain, traffic, off route / route,
   sunset within the hour, the area, a nearby place, speed), each with a `key` (changes when the news does), a `short`

@@ -1,6 +1,6 @@
 import { CONFIG } from '../config/betty';
 import { icon } from './icons';
-import { play, resize } from './motion';
+import { motionOn, play, resize } from './motion';
 import type { Glance, GlanceAction } from './rideView';
 
 /**
@@ -30,7 +30,11 @@ export function islandView(cues: Glance[], st: IslandState, now: number, cfg = C
   return { glance: cues[next.index], expanded, index: next.index, count: cues.length, next };
 }
 
-export interface IslandHooks { action(kind: GlanceAction, g: Glance): void }
+export interface IslandHooks {
+  action(kind: GlanceAction, g: Glance): void;
+  /** He dismissed a card (traffic): hide what `key` names */
+  dismiss?(key: string): void;
+}
 
 export function mountIsland(doc: Document, hooks: IslandHooks) {
   const el = doc.getElementById('glance')!;
@@ -63,6 +67,7 @@ export function mountIsland(doc: Document, hooks: IslandHooks) {
     const act = $('glanceaction') as HTMLButtonElement;
     act.hidden = !(cfg.actions && v.expanded && g.action);
     if (g.action) act.textContent = g.action.label;
+    $('glancedismiss').hidden = !(v.expanded && g.dismiss && hooks.dismiss);
     const bar = $('glanceprogress');
     bar.hidden = !(cfg.progress && v.expanded && g.progress !== undefined);
     (bar.firstElementChild as HTMLElement).style.width = `${Math.round((g.progress ?? 0) * 100)}%`;
@@ -88,10 +93,21 @@ export function mountIsland(doc: Document, hooks: IslandHooks) {
     const v = islandView(cues, st, Date.now());
     if (v.glance?.action) hooks.action(v.glance.action.kind, v.glance);
   });
-  // Swipe sideways: the next or previous cue (and the card grows while he browses).
+  // Dismiss (traffic): the × on the open card, or swipe the card up. It leaves upwards, then the next card shows.
+  const shownCard = () => islandView(cues, st, Date.now()).glance;
+  const dismiss = () => {
+    const key = shownCard()?.dismiss;
+    if (!key || !hooks.dismiss) return;
+    const go = () => { el.classList.remove('dismissing'); st = { ...st, pinned: false, index: 0, browseUntil: 0 }; hooks.dismiss!(key); };
+    if (motionOn(doc)) { el.classList.add('dismissing'); setTimeout(go, 220); } else go();
+  };
+  $('glancedismiss').addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
+  // Swipe sideways: the next or previous cue (and the card grows while he browses). Swipe up: dismiss (traffic).
   let x0 = 0, y0 = 0;
   el.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
   el.addEventListener('touchend', (e) => {
+    const ux = e.changedTouches[0].clientX - x0, uy = e.changedTouches[0].clientY - y0;
+    if (uy < -40 && Math.abs(uy) > Math.abs(ux) && shownCard()?.dismiss) { dismiss(); return; }
     if (!CONFIG.island.browse || cues.length < 2) return;
     const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
     if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return;

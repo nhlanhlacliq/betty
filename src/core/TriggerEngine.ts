@@ -262,6 +262,8 @@ export class TriggerEngine {
   setHistory(history: RideRecord[]) { this.history = history; }
   /** Incidents already announced on earlier rides (keys from incidentKey). */
   setKnownIncidents(keys: string[]) { this.known = new Set(keys); }
+  /** He dismissed this incident (Horizon): treat it as known, so she does not announce it or brief him on it. */
+  knowIncident(key: string) { this.known.add(key); }
   private announcedKeys: string[] = [];
   /** Keys of the incidents announced this ride, to remember for the next ones. */
   announcedIncidents(): string[] { return [...this.announcedKeys]; }

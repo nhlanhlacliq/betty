@@ -2,6 +2,7 @@
  * What the ride screen shows, as a pure function of the ride. No DOM here, so it is unit-tested in Node and the
  * screen module only paints the result. Wording lives in copy.ts.
  */
+import { incidentKey } from '../core/TriggerEngine';
 import type { BikeState, Priority } from '../core/types';
 import { COMPANION_STATE, GLANCE, LINE_LINGER_MS, MOMENTS, RIDE_STATES } from './copy';
 import type { IconName } from './icons';
@@ -35,6 +36,8 @@ export interface RideInput {
   fuelRangeKm?: number;
   /** A service reminder due within 500 km or a week, or overdue (core/Reminders islandReminder) */
   service?: { name: string; text: string; due: boolean; kmLeft: number | null; key: string } | null;
+  /** Traffic incidents he dismissed from Horizon (incidentKey), hidden for a week */
+  dismissed?: string[];
 }
 
 export type GlanceId = 'range' | 'rain' | 'traffic' | 'route' | 'offroute' | 'sunset' | 'service' | 'area' | 'place' | 'riding';
@@ -50,6 +53,8 @@ export interface Glance {
   action?: { kind: GlanceAction; label: string };
   /** 0 to 1, for the optional progress bar */
   progress?: number;
+  /** Set when the card can be dismissed (traffic): what to hide (an incidentKey) */
+  dismiss?: string;
 }
 
 export interface RideView {
@@ -98,9 +103,10 @@ export function glanceCues(i: RideInput): Glance[] {
     add({ ...GLANCE.rain, id: 'rain', key: `rain:${now ? 'now' : Math.round(w.rainChanceNextHourPct / 10)}`, title: now ? 'Raining now' : `Rain likely, ${w.rainChanceNextHourPct}%`, value: '',
       short: now ? 'Raining' : `Rain ${w.rainChanceNextHourPct}%`, action: { kind: 'ask-rain', label: 'Will it last?' } });
   }
-  const jam = [...s.incidents].filter((x) => x.distanceKm <= i.trafficRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm)[0];
+  const hidden = new Set(i.dismissed ?? []);
+  const jam = [...s.incidents].filter((x) => x.distanceKm <= i.trafficRadiusKm && !hidden.has(incidentKey(x))).sort((a, b) => a.distanceKm - b.distanceKm)[0];
   if (jam) add({ ...GLANCE.traffic, id: 'traffic', key: `traffic:${jam.id}`, title: `${km(jam.distanceKm)} km`, value: jam.roadName || jam.description,
-    short: `Traffic ${km(jam.distanceKm)} km`, action: { kind: 'ask-traffic', label: 'Tell me' } });
+    short: `Traffic ${km(jam.distanceKm)} km`, action: { kind: 'ask-traffic', label: 'Tell me' }, dismiss: incidentKey(jam) });
   const r = i.route;
   if (r && r.offKm > 0.4) add({ ...GLANCE.offroute, id: 'offroute', key: 'offroute', title: r.detour ? 'On a detour' : `${km(r.offKm)} km off`, value: r.detour ? `${km(r.offKm)} km from the route to ${r.name}` : `to ${r.name}`, short: r.detour ? 'Detour' : 'Off route',
     action: { kind: 'upahead', label: 'Up ahead' } });
