@@ -85,11 +85,29 @@ export function mountShell(doc: Document = document): Shell {
     toast(msg, err = false) {
       const t = doc.getElementById('toast');
       if (!t) return;
+      clearTimeout(toastTimer);
+      if (!msg) { t.hidden = true; t.classList.remove('in', 'bump', 'out'); return; }
+      // A toast arriving while one shows gives that one a little nudge instead of dropping in again.
+      const showing = !t.hidden && !t.classList.contains('out');
       t.textContent = msg;
       t.classList.toggle('err', err);
-      t.hidden = !msg;
-      clearTimeout(toastTimer);
-      if (msg) toastTimer = setTimeout(() => { t.hidden = true; }, err ? 6000 : 3200);
+      t.hidden = false;
+      t.classList.remove('in', 'bump', 'out');
+      void t.offsetWidth; // restart the animation
+      t.classList.add(showing ? 'bump' : 'in');
+      // It leaves by rising and fading; hidden once that is done (or at once with reduced motion, which has no animation).
+      const leave = () => {
+        clearTimeout(toastTimer);
+        if (t.hidden || t.classList.contains('out')) return;
+        t.classList.add('out');
+        const gone = () => { if (t.classList.contains('out')) { t.hidden = true; t.classList.remove('out'); } };
+        t.addEventListener('animationend', gone, { once: true });
+        toastTimer = setTimeout(gone, 300);
+      };
+      t.onclick = leave; // tap to dismiss
+      // Long messages stay up longer: about 3 s, plus time to read anything over 60 characters, at most 8 s.
+      const ms = Math.min(8000, (err ? 6000 : 3200) + Math.max(0, msg.length - 60) * 40);
+      toastTimer = setTimeout(leave, ms);
     },
     onShow(fn) { showFns.push(fn); },
     onSheet(fn) { sheetFns.push(fn); },

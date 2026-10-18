@@ -394,6 +394,16 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .toast { position: absolute; top: calc(var(--status-h) + 56px); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 40px); background: #2e483f; color: #fffbed;
   padding: 13px 18px; border-radius: 15px; font-size: 12px; line-height: 1.5; box-shadow: 0 5px 20px #203c3922; z-index: 100; pointer-events: none; text-align: center; }
 .toast.err { background: #7a3f35; }
+/* Toasts drop in with a little spring, nudge when replaced, rise away when done; errors give one small shake. */
+.toast { pointer-events: auto; cursor: pointer; }
+.toast.in { animation: toast-in .42s cubic-bezier(.2, 1.35, .4, 1) both; }
+.toast.err.in { animation: toast-in .42s cubic-bezier(.2, 1.35, .4, 1) both, toast-shake .36s .38s ease-in-out; }
+.toast.bump { animation: toast-bump .3s ease-out; }
+.toast.out { animation: toast-out .22s ease-in both; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(-14px) scale(.94); } to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
+@keyframes toast-bump { 40% { transform: translateX(-50%) scale(1.04); } to { transform: translateX(-50%) scale(1); } }
+@keyframes toast-out { to { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(.97); } }
+@keyframes toast-shake { 25% { transform: translateX(calc(-50% - 4px)); } 50% { transform: translateX(calc(-50% + 4px)); } 75% { transform: translateX(calc(-50% - 2px)); } }
 
 /* ---------- lock screen (full-screen cover while riding) ---------- */
 .lockcover { position: fixed; inset: 0; z-index: 1000; background: #000; color: #9aa; touch-action: none; user-select: none; -webkit-user-select: none;
