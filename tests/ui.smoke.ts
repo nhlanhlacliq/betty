@@ -1481,5 +1481,6 @@ resetConfig();
   // The Garage switch exists and is wired (real index.html).
   const { readFileSync: read } = await import('node:fs');
   assert.match(read(new URL('../index.html', import.meta.url), 'utf8'), /id="motionswitch"/);
+  assert.match(read(new URL('../index.html', import.meta.url), 'utf8'), /<button class="ride-bar" id="ridebar" type="button" hidden/, 'the ride bar starts hidden');
 }
 console.log('ui smoke tests passed');

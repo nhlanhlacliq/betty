@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      { id: 'ride-bar', kind: 'new', title: 'Back to the ride.', text: 'On any other screen during a ride, a bar above the tabs shows the ride and takes you back with a tap, and the Ride tab has a live dot.', help: 'ridescreen' },
       { id: 'quiet-cuts-in', kind: 'better', title: 'Some lines cut in.', text: 'Going quiet, having her back, "repeat that" and her sign-off stop whatever she is saying and go at once; a safety alert is still never cut off.', help: 'commands' },
       { id: 'end-ride-stuck', kind: 'fixed', title: 'End ride no longer gets stuck.', text: 'Going back to the ride screen while she signed off could leave you on an empty ride screen where End ride did nothing.' },
       { id: 'last-line-stays', kind: 'better', title: 'Her last line stays.', text: 'While you ride, her last line stays on the ride screen (dimmed) until she says something new; stopped, a short status shows, never words she did not say.', help: 'ridescreen' },

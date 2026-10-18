@@ -789,9 +789,24 @@ const onFate = (item: QueueItem, fate: Fate) => {
   }
   paintRide();
 };
+/** The ride-in-progress bar and the Ride tab's live dot: on while a real ride runs (not during the sign-off). */
+let rideBarText = '';
+function paintRideBar() {
+  const on = riding() && endNow === null;
+  document.documentElement.classList.toggle('riding-bar', on);
+  const bar = document.getElementById('ridebar');
+  if (bar) bar.hidden = !on;
+  document.querySelector('.tab[data-nav="home"]')?.classList.toggle('live', on);
+  if (!on || !rig) return;
+  const snap = rig.engine.rideSnapshot();
+  const min = Math.floor(CONFIG.ridingTimeOnly ? snap.movingMin : snap.minutesOut);
+  const text = `Riding · ${Math.round(snap.distanceKm)} km · ${min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}` : `${min} min`}`;
+  if (text !== rideBarText) { rideBarText = text; const t = document.getElementById('ridebartext'); if (t) t.textContent = text; }
+}
 function paintRide() {
   const r = rig;
   if (!r) return;
+  paintRideBar(); // only once a ride exists: at load, `endNow` and `riding` further down are not set up yet
   const s = r.agg.current;
   const told = new Set(r.engine.toldNoteIds());
   const quietMin = r.engine.quietLeftMin();
@@ -1411,6 +1426,7 @@ async function stop() {
   showWake(null);
   rig = null;
   endNow = null;
+  paintRideBar();
   endText.textContent = END_BUTTON.idle;
   realBox.disabled = false;
   home.setRiding(false);
@@ -1429,6 +1445,7 @@ async function stop() {
   setStatus('');
 }
 
+$('ridebar').addEventListener('click', () => shell.show('ride'));
 // Start riding (or, while a ride runs, go back to it). End ride asks first; during the sign-off it ends at once.
 startBtn.addEventListener('click', () => { if (riding()) shell.show('ride'); else if (!starting) void start(); });
 // With no ride at all (never expected, but it once left him stuck): End ride just takes him home.

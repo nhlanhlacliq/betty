@@ -394,6 +394,12 @@ has dynamic content, and a smoke test.
 - Pull-to-refresh keeps his place (2026-10-17; it went back to Home): `rememberSpot` puts the screen, the open story's
   ride (`#story[data-ride]`) and the scroll in sessionStorage; `takeSpot` at the very end of main.ts restores it once
   (home, journeys, story with journeys under it, explore, settings, workshop; never ride/chat).
+- RIDE IN PROGRESS BAR (2026-10-18, owner chose "option 1 plus live dot"): `#ridebar` (index.html, above the tab bar)
+  on every screen but the ride while `riding()` and not signing off; `html.riding-bar` makes `.screen` end above it
+  (bottom: tab height + 52px) so it covers nothing (search boxes, lists). Text "Riding · 42 km · 1h 10" (riding time
+  per `ridingTimeOnly`); tap = `shell.show('ride')`. The Ride tab gets `.live` (green dot, pulses under `.motion`).
+  `paintRideBar` runs from `paintRide` only once a ride exists (at load `endNow`/`riding` are not initialised yet: TDZ)
+  and once more in `stop()`. End ride stays only on the ride screen (owner agreed). Checked in headless Chromium.
 - Stuck after ending (owner's bug, 2026-10-18): going back to the ride screen during the sign-off left him on an empty
   ride screen whose End ride did nothing once the ride shut down. `stop()` now moves him to the story (kept ride) or
   home from ride/chat; a "stop now" tap counts while the sign-off is still being written; End ride with no ride goes
