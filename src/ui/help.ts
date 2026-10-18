@@ -168,7 +168,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Can\'t hear her over the wind:</b> Garage &gt; Voice &amp; audio &gt; Louder voice. Check the helmet is connected before you start the ride.',
       '<b>The headset buttons stopped working:</b> another app may have started playing (it takes the buttons), or you pressed previous track. Tap <i>Give Betty the headset buttons back</i> on the ride screen.',
       '<b>She didn\'t hear you:</b> wait for the tone, then speak. In strong wind say it a little louder; she stops after a pause or 12 seconds.',
-      '<b>No signal:</b> the app still opens, commands still work and she keeps the GPS and fuel count; answers, stories and the cloud voice need signal, so she falls back to the phone\'s voice.',
+      '<b>No signal:</b> the app still opens, commands still work and she keeps the GPS and fuel count. Alerts use lines she wrote earlier in her own words (refreshed once a day while you have signal), and area stories are read as written; answers and the cloud voice need signal, so she falls back to the phone\'s voice.',
       '<b>Screen locked:</b> with headset buttons on, she keeps working with the screen off. Without them, the phone may pause her: use Lock instead of the side button.',
       '<b>Fuel range looks wrong:</b> tap Filled up after each fill and keep the consumption up to date.',
       '<b>She got something wrong:</b> she can be. Workshop &gt; Log &gt; Share sends the ride\'s log, which shows what she was told and why.',

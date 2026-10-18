@@ -38,6 +38,7 @@ import { pastRecall } from './core/PastRides';
 import { roughSpots } from './core/RoughSpots';
 import { SharePack, makePack, mergeSpots, mergeStories, rideAsRoute } from './core/Share';
 import { RoadCells } from './adapters/RoadCells';
+import { LineBankStore } from './adapters/LineBankStore';
 import { checkpoints, rideAgainStops, weatherLine } from './core/RouteAhead';
 import { fetchRouteWeather } from './adapters/RouteWeather';
 import { groupByMonth } from './core/Journeys';
@@ -567,6 +568,8 @@ const sayOutsideRide = (text: string) => {
 mountSettingsScreen(document, shell, { sample: () => sayOutsideRide(sampleLine(CONFIG.persona.humour)), fuelText });
 mountHelpScreen(document, shell);
 mountReminders(document, shell, { load: () => ServiceStore.load(), save: (b) => { ServiceStore.save(b); rig?.engine.setServiceBook(b); } });
+// The offline line bank: her alert lines written ahead, refilled once a day while there is signal.
+if (SERVER) setTimeout(() => void LineBankStore.refill(), 8000);
 // The petrol price, once a month after the first-Wednesday change (his own figure wins until then).
 if (SERVER) void refreshFuelPrice().then((p) => { if (p !== null) { saveConfig(); window.dispatchEvent(new window.Event('betty-config')); } });
 // Betty's look: the default companion or his own picture/GIF, kept on the phone.
@@ -930,6 +933,7 @@ async function beginRide(desk: boolean) {
   const sensorTimer = window.setInterval(logSensors, 15 * 60_000);
   const paintTimer = window.setInterval(paintRide, 5000); // lets a finished line settle back to idle
   const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined);
+  claude.useBank(LineBankStore); // her own alert lines when Claude cannot be asked (no signal, or a P1 alert)
   // The cloud voice plays on the headset buttons' own track while they are Betty's (another sound source could take
   // the buttons away), otherwise on its own element. The phone voice is its backup for every line.
   const cloud = new CloudSpeaker(new WebSpeaker(speechProblem), () => (buttons.holding ? buttons : player), speechProblem, undefined, undefined, undefined, pcm, undefined, clipStore);

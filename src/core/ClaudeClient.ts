@@ -7,7 +7,8 @@ import { putsOff, wantsSearch } from './Heard';
 /** What Betty will say (empty text = say nothing) and where the words came from. */
 export interface Phrase {
   text: string;
-  source: 'claude' | 'fallback';
+  /** claude; bank = one of her own lines written earlier, filled with live values (no signal, or a P1 alert); fallback = canned */
+  source: 'claude' | 'bank' | 'fallback';
   /** Why the fallback was used, or a note on the Claude reply. Empty when there is nothing to add. */
   detail: string;
   latencyMs: number;
@@ -33,6 +34,9 @@ export class ClaudeClient {
   private talk: Turn[] = [];
   /** Her lines this ride per kind (time checks, banter), so the next one of that kind does not reuse their jokes. */
   private byKind = new Map<string, string[]>();
+  /** The offline line bank (adapters/LineBankStore): her own alert lines for when Claude cannot be asked. */
+  private bank: { take(id: TriggerEvent['id'], slots: Record<string, string>): string | null } | null = null;
+  useBank(b: { take(id: TriggerEvent['id'], slots: Record<string, string>): string | null } | null) { this.bank = b; }
   /** Result of the most recent phrase() call, for the UI. */
   last: Phrase | null = null;
 
@@ -66,12 +70,17 @@ export class ClaudeClient {
       });
       if (retried) c.note = c.note ? `${c.note}; searched on the second go` : 'searched on the second go';
       else if (r.searched) c.note = c.note ? `${c.note}; searched` : 'searched';
-      // An alert whose reply turned out unusable still has to be said: use the canned line.
-      out = c.text || !ev.fallback
+      // An alert whose reply turned out unusable still has to be said: use the canned line. A line she chose to keep
+      // to herself (an ambient SILENT) stays silent, even when it has a fallback.
+      out = c.text || !ev.fallback || UNPROMPTED_IDS.includes(ev.id)
         ? { text: c.text, source: 'claude', detail: c.note, latencyMs, request }
         : { text: ev.fallback, source: 'fallback', detail: 'unusable reply', latencyMs, request };
     } else {
-      out = { text: ev.fallback, source: 'fallback', detail: ev.fallback ? r.error : `${r.error}, staying silent`, latencyMs, request };
+      // No Claude (no signal, a timeout, or a P1 that never waits): one of her banked lines if there is one for it.
+      const banked = ev.slots && ev.context ? this.bank?.take(ev.id, ev.slots) ?? null : null;
+      out = banked
+        ? { text: banked, source: 'bank', detail: `${r.error}, a line she wrote earlier`, latencyMs, request }
+        : { text: ev.fallback, source: 'fallback', detail: ev.fallback ? r.error : `${r.error}, staying silent`, latencyMs, request };
     }
     if (ev.riderSaid && out.source === 'claude' && out.text) {
       this.talk = [...this.talk, { said: ev.riderSaid, answer: out.text }].slice(-TALK_MEMORY);

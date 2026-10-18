@@ -529,6 +529,53 @@ then, stories ready; a stay `select` for every stop but the finish, saved on the
 (`RouteStore.save`, `betty.routes.saved.v1`, 20) and `#savedroutes` (use, ×). My journeys: "Ride this again"
 (`ctx.rideAgain`) when a road was kept: plans it, names it "Again: <title>", opens Where to?.
 
+## The longer list, built 2026-10-18 (owner: "add the longer list items, excluding the hardware stage"); ALL UNVERIFIED ON A RIDE
+
+- Voice dials: `{kind: 'length'}` ("shorter/longer answers", `nudgeLength`, 1-5), `{kind: 'mixset'}` ("banter 70
+  percent": `setMixShare` keeps the other two in proportion; "silence N percent" works because the quiet command skips
+  "silence" + a number), `{kind: 'mode'}` save/use/which: `CONFIG.modes` (name -> `SavedMode`: mix, gap, line length,
+  persona), also offered in Garage > Narration ("(yours)").
+- Fatigue (`fatigue` P2, core/Comfort): riding minutes since the last 15-minute stop >= 120 (60 between 22:00 and
+  05:00), again every 60; names the next route stop. Wind and cold (`wind_cold` P2): Open-Meteo now also gives
+  `wind_gusts_10m`/`wind_direction_10m`; gust across his heading >= 40 km/h (once in 30 min), wind chill at his speed
+  (+ head wind) <= 5 C once a ride (formula: Environment Canada / JAG-TI, only at or below 10 C).
+- New roads (core/RoadMemory, adapters/RoadCells `betty.cells.v1`): ~200 m cells (0.002 deg) with ride counts, seeded
+  once from TrackStore (detailed) then RoadStore (rough) roads with gaps filled every 100 m, capped at 60,000 cells;
+  each real ride adds itself (saved idempotently each minute: base + this ride's cells). `new_road` P3 (unprompted) when
+  the last 10 cells are new (9 of 10), >= 3 rides behind him, once in 20 min, not while quiet/parked; answers get how
+  often he has ridden this stretch.
+- Memory across rides (core/PastRides): `PAST_CUE` (yesterday, last ride/week/month, weekdays, dates, remember, you
+  said...) -> `pickRides` (a day, "yesterday", "last week", a date, narrowed or found by a place) -> `recallRide` (when,
+  km, places, his questions from `[voice] heard "..."`, up to 8 of her lines) into the answer, via
+  `engine.setPastRecall` (main reads RideLog + LineLogStore).
+- Rough patches (core/RoughSpots): `RideStats.rough` (hard brake / a jolt, with position, 60 max) -> `RideRecord.rough`
+  [lat, lon, 1|2]; amber dots on the ride's story map; a ~110 m cell with bumps on 2+ rides or hard brakes on 3+ rides
+  -> `rough_patch` P2 within 300 m ahead (50 deg), once per spot in 10 min, never steering advice.
+- Plan a ride with Betty: `api/plan` (Haiku + web search max 3, `planPrompt`: work out the distance the time allows,
+  furthest stop at most half; "HOME" = back to the start; vary from the places he rides most; JSON) -> `parsePlan` ->
+  the page routes the stops with api/route (`#routeask`); `PlannedRoute.why` shown in Where to?. Checked live: "a
+  two-hour breakfast run, twisty, back by lunch" from Edenvale -> Heidelberg, Suikerbosrand, Nigel, home (the first
+  version sent him to Hekpoort: too far, hence the distance rule).
+- Share with a friend's Betty (core/Share): a `betty-share` JSON (routes, spots, stories) sent with the share sheet
+  (`shareJson`) from a ride's page (the ride as a route: `rideAsRoute`, Google link through 10 points, plus its places'
+  stories) or Explore (`#exploreshare`: all spots and stories). Garage > Import a backup recognises it (`parsePack`) and
+  MERGES (`mergeSpots` skips spots within ~30 m and labels "(from X)", `mergeStories` adds only stories she lacks,
+  routes go to saved routes); nothing replaced, no reload, his rides never enter the friend's journeys.
+- Smarter web answers (`CONFIG.smartSearch`, Garage > Talking to Betty): forced-search answers go to
+  `claude-sonnet-5-5` with thinking `between_tools` (Sonnet rejects "disabled") and NO tool_choice (Sonnet rejects
+  forced tools: "not supported for this model"), the search asked for in the system prompt; max_tokens capped at 500
+  (api/phrase limit). Checked live: the RPM question came back right (about 52 to 103 km/h in sixth), ~5.7 s.
+- Workshop scenarios (`ui/scenarios.ts`, SIMULATOR > Scenarios): overheat on the N3, rain front, closure ahead, cold
+  and windy, rough road; `play(scenario, agg)` sets overrides over time, Stop clears them.
+- Offline line bank (core/LineBank, adapters/LineBankStore `betty.linebank.v1`): `BANK_SPEC` = alert ids with blanks;
+  engine `slotsFor` puts the live values on each event (`TriggerEvent.slots`); `ClaudeClient.useBank`: when Claude
+  cannot be asked (network error, timeout, HTTP error, no key, or a P1) a variant is filled and spoken (`source: 'bank'`)
+  before the canned fallback; variants rotate, one with a missing value is skipped. Refilled at most once a day (server
+  only), 4 alerts per api/phrase request, 3 variants each, "sir" written out becomes {rider}. Area stories' fallback is
+  now the note itself ("You're riding through X. <note>"), and an ambient SILENT never falls back to it.
+- NOT built from the list, and why: group rides (two Bettys sharing position live needs a realtime server and both
+  phones online: with the native app), staying quiet during a phone call (a web page cannot see calls: native).
+
 ## Garage search and Help (2026-10-17, owner)
 
 `ui/help.ts` is the content as data: `VOICE_COMMANDS` (groups of {say[], does, kind}; a core test runs EVERY phrase

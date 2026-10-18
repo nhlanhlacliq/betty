@@ -2577,4 +2577,31 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- the offline line bank (2026-10-18): her alert lines with blanks, used when Claude cannot be asked
+{
+  const L = await import('../src/core/LineBank');
+  assert.equal(L.fill('{what} on {road}, {km} km ahead.', { what: 'a road closure', road: 'Modderfontein Road', km: '2' }), 'A road closure on Modderfontein Road, 2 km ahead.');
+  assert.equal(L.fill('Fuel at {pct} percent.', {}), null, 'a blank with no value: not used');
+  const bank = L.parseBank('{"fuel_range": ["About {km} km before reserve, sir.", "{rider}, {km} km to reserve.", "Bad {speed} blank"], "other": ["x"]}', ['fuel_range' as any]);
+  assert.deepEqual(bank.fuel_range!.map((l) => l.text), ['About {km} km before reserve, {rider}.', '{rider}, {km} km to reserve.'], '"sir" becomes the blank; unknown blanks are dropped');
+  let b = bank;
+  const said: string[] = [];
+  for (let i = 0; i < 3; i++) { const got = L.take(b, 'fuel_range' as any, { rider: 'Nhlanhla', km: '57' })!; said.push(got.text); b = got.bank; }
+  assert.deepEqual(said, ['About 57 km before reserve, Nhlanhla.', 'Nhlanhla, 57 km to reserve.', 'About 57 km before reserve, Nhlanhla.'], 'each once, then round again');
+  assert.deepEqual(L.needs(bank, 3).includes('fuel_range' as any), true);
+  assert.match(L.bankPrompt(['low_fuel' as any]), /never "sir"[\s\S]*low_fuel: fuel is down to \{pct\} percent/);
+  // the client: no signal (or a P1) -> a banked line, filled with this moment's values
+  resetConfig(); clock = 170_000_000;
+  const e = new TriggerEngine(now);
+  const ev = e.force('engine_overtemp', { ...initialState(), obd: true, engineTempC: 112 });
+  assert.deepEqual(ev.slots, { rider: 'sir', temp: '112' });
+  const c = new ClaudeClient(undefined);
+  c.useBank({ take: (id, slots) => (id === 'engine_overtemp' ? L.fill('{rider}, engine at {temp} degrees. Pull over and let it cool.', slots) : null) });
+  const p = await c.phrase({ ...ev, priority: 1 }, initialState());
+  assert.equal(p.source, 'bank'); assert.equal(p.text, 'Sir, engine at 112 degrees. Pull over and let it cool.');
+  const n = e.force('area_story', { ...initialState(), areaNotes: [{ id: 'n1', area: 'Sandton', topic: 'horses', text: 'Sandton once had 15,000 horses.' }] });
+  assert.equal(n.fallback, "You're riding through Sandton. Sandton once had 15,000 horses.", 'stories can be told with no signal');
+  resetConfig();
+}
+
 console.log('all core tests passed');

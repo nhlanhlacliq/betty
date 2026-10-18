@@ -1,4 +1,5 @@
-import { CONFIG, cleanBikeName } from '../config/betty';
+import { CONFIG, cleanBikeName, cleanRiderName } from '../config/betty';
+import { BANK_SPEC } from './LineBank';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
 import { PlannedRoute, RouteProgress, describeRoute, minutesText, routeProgress } from './Route';
 import { profileUse } from './Profile';
@@ -299,7 +300,8 @@ export class TriggerEngine {
     const label = EVENT_LABELS[id];
     if (label) this.stats.noteEvent(label);
     const use = this.profile && context ? profileUse(id, this.rng) : null;
-    return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now(), ...(use ? { profile: { text: this.profile!, use } } : {}) };
+    const slots = context ? this.slotsFor(id, s, incident) : null;
+    return { id, priority: CONFIG.priorities[id], context, fallback, createdAt: this.now(), ...(use ? { profile: { text: this.profile!, use } } : {}), ...(slots ? { slots } : {}) };
   }
 
   evaluate(s: BikeState): TriggerEvent[] {
@@ -460,6 +462,28 @@ export class TriggerEngine {
       const arriving = note !== null && CONFIG.ambient.tourGuideWeight > 0 && !this.storiedAreas.has(note.area);
       const pick = arriving ? 'area_story' : chooseAmbient(CONFIG.ambient, place !== null, this.rng, note !== null);
       if (pick) out.push(this.force(pick, s));
+    }
+    return out;
+  }
+
+  /** The live values for an alert's banked lines (core/LineBank BANK_SPEC); null for ids without a bank. */
+  private slotsFor(id: TriggerId, s: BikeState, incident?: TrafficIncident): Record<string, string> | null {
+    if (!BANK_SPEC[id]) return null;
+    const out: Record<string, string> = { rider: cleanRiderName(CONFIG.riderName) };
+    const hhmm = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
+    switch (id) {
+      case 'engine_overtemp': out.temp = String(Math.round(s.engineTempC)); break;
+      case 'dtc_detected': out.codes = s.dtcs.join(', '); break;
+      case 'low_fuel': out.pct = String(Math.round(s.fuelPct)); break;
+      case 'fuel_range': { const k = this.fuelKmLeft(); if (k != null) out.km = String(k); break; }
+      case 'rain_soon': if (s.weather) out.chance = String(s.weather.rainNowMm > 0 ? 100 : s.weather.rainChanceNextHourPct); break;
+      case 'sunset_soon': if (s.weather?.sunsetAt) out.time = hhmm(s.weather.sunsetAt); break;
+      case 'traffic_incident': if (incident) { out.what = incident.description; out.road = incident.roadName || 'the road ahead'; out.km = String(Math.max(1, Math.round(incident.distanceKm))); } break;
+      case 'marked_spot': if (this.spotNow) { out.metres = String(Math.max(50, Math.round((this.spotNow.km * 1000) / 50) * 50)); out.note = this.spotNow.spot.note || 'the spot you marked'; } break;
+      case 'rough_patch': if (this.roughNow) out.metres = String(Math.max(50, Math.round((this.roughNow.km * 1000) / 50) * 50)); break;
+      case 'off_route': case 'route_arrived': if (this.route) out.dest = this.route.name; break;
+      case 'route_stop': if (this.progress?.next) out.stop = this.progress.next.name; break;
+      case 'fatigue': out.time = minutesText(Math.round(this.stats.snapshot().movingMin - this.movingAtBreak)); break;
     }
     return out;
   }
@@ -716,7 +740,8 @@ export class TriggerEngine {
         const n = this.freshNote(s);
         if (!n) return { context: '', fallback: '' };
         return {
-          context: `He is riding through ${n.area}. A story about ${n.area} (${n.topic}): ${n.text}`, fallback: '',
+          // No signal: the note itself, which is written as a story (offline line bank, 2026-10-18).
+          context: `He is riding through ${n.area}. A story about ${n.area} (${n.topic}): ${n.text}`, fallback: `You're riding through ${n.area}. ${n.text}`,
           mark: () => { this.toldNotes.add(n.id); this.storiedAreas.add(n.area); this.stats.notePlace(n.area); },
         };
       }

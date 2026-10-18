@@ -106,6 +106,8 @@ export interface TriggerEvent {
   /** What the rider actually said, when this is his question (typed in the chat panel now, spoken later) */
   riderSaid?: string;
   createdAt: number;
+  /** The live values for a banked line's blanks (core/LineBank), for the alerts that have them */
+  slots?: Record<string, string>;
   /** What she knows about him (his rider profile), when this line may use it, and how (core/Profile.ts) */
   profile?: { text: string; use: 'answer' | 'remark' | 'interests' };
 }

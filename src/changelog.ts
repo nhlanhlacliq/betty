@@ -18,6 +18,16 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      { id: 'plan-with-betty', kind: 'new', title: 'Let Betty plan the ride.', text: 'Describe it in Where to? ("a two-hour breakfast run, twisty roads") and she picks the stops, says why, and plans the route.', help: 'routes' },
+      { id: 'new-roads', kind: 'new', title: 'New roads.', text: 'She notices when you are on a road you have never ridden with her, and knows how often you have ridden the one you are on.', help: 'unprompted' },
+      { id: 'past-rides', kind: 'new', title: 'Memory across rides.', text: 'Ask "what did we talk about on Saturday?" or "what did you tell me about Sandton last time?" and she answers from that ride\'s log.', help: 'questions' },
+      { id: 'rough-patches', kind: 'new', title: 'Rough patches.', text: 'Hard brakes and big bumps show on each ride\'s map, and a spot that keeps happening gets a heads-up as you come up on it.', help: 'unprompted' },
+      { id: 'looking-after', kind: 'new', title: 'Breaks, wind and cold.', text: 'She suggests a break after two hours without one (one at night), and warns of strong crosswind gusts and of the cold you feel at speed.', help: 'unprompted' },
+      { id: 'share-friend', kind: 'new', title: 'Share with a friend\'s Betty.', text: 'Send a ride (as a route to ride), your spots or your stories in a file; their Betty adds them, nothing is replaced.', help: 'privacy' },
+      { id: 'voice-dials', kind: 'better', title: 'More settings by voice.', text: '"Shorter answers", "banter 70 percent", and your own modes: "save this as weekend mode", "switch to weekend mode".', help: 'commands' },
+      { id: 'smart-search', kind: 'new', title: 'Smarter web answers.', text: 'A Garage switch for a stronger model on the questions she looks up: better with sums and comparisons, a little slower.', help: 'questions' },
+      { id: 'offline-lines', kind: 'better', title: 'Without signal.', text: 'Alerts use lines she wrote earlier in her own words, and area stories are read as written, instead of one fixed sentence or silence.', help: 'trouble' },
+      { id: 'scenarios', kind: 'new', title: 'Workshop scenarios.', text: 'Play an overheat, a rain front, a closure, a cold windy ride or a rough road in the simulator.' },
       { id: 'route-ahead', kind: 'better', title: 'What is ahead on your route.', text: 'Each stop shows when you get there, the weather there then and the stories ready for it; stops you stay at count in the times; Betty warns of rain ahead; save routes, or ride a past ride again.', help: 'routes' },
       { id: 'journeys-months', kind: 'better', title: 'My journeys by month.', text: 'Rides grouped by month with each month\'s numbers, a little drawing of each ride\'s road, "this month so far" with km a week, and On this day (a month, three, six and twelve months ago).', help: 'journeys' },
       { id: 'journeys-roads-records', kind: 'new', title: 'Your roads and records.', text: 'Every ride on one map with your most-ridden roads darker, your records and next milestones; on the ride Betty tells you when you pass your longest ride or a km milestone.', help: 'journeys' },
