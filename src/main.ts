@@ -30,6 +30,7 @@ import { TrafficSource } from './adapters/TrafficSource';
 import { PlaceSource } from './adapters/PlaceSource';
 import { AreaSource, AreaStore, ToldStore } from './adapters/AreaSource';
 import { TrackStore } from './adapters/TrackStore';
+import { RoadStore } from './adapters/RoadStore';
 import { TrackPoint, addTrackPoint } from './core/Track';
 import { RideLog } from './adapters/RideLog';
 import { toRecord } from './core/RideMemory';
@@ -251,10 +252,12 @@ mountExploreScreen(document, shell, {
 const cardExtras = new CardExtrasSource();
 const cardWanted = () => SERVER && (CONFIG.cardPlaces || CONFIG.cardMetro);
 const rideLogText = (rideId: number) => { saveLog(); return formatLog(LineLogStore.load(), RideLog.load(), rideId); };
+RoadStore.seed(TrackStore.all()); // rides kept before the rough copies existed
 const journeys = mountJourneysScreen(document, shell, {
   rides: () => RideLog.load(),
   entries: () => { saveLog(); return LineLogStore.load(); },
   track: (rideId) => TrackStore.get(rideId),
+  roads: () => RoadStore.all(),
   prepareCard: (rideId) => { const t = TrackStore.get(rideId); return cardWanted() && t.length > 1 && !cardExtras.kept(rideId) ? cardExtras.prepare(rideId, t) : null; },
   // On the story map every name shows (it is private); the card leaves his start and finish off when asked.
   mapExtras: (rideId) => {
@@ -793,6 +796,7 @@ async function beginRide(desk: boolean) {
     if (!desk && real) { const km = engine.rideSnapshot().distanceKm; ServiceStore.addKm(km - odoSaved); odoSaved = km; engine.setServiceBook(ServiceStore.load()); }
     IncidentMemory.save(engine.announcedIncidents());
     TrackStore.save(engine.rideSnapshot().startedAt, rideTrack);
+    if (!desk) RoadStore.save(engine.rideSnapshot().startedAt, rideTrack);
     ToldStore.save(engine.toldNoteIds());
   };
   const memTimer = window.setInterval(remember, 60_000);

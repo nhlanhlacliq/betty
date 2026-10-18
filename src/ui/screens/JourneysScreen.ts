@@ -7,6 +7,8 @@ import { foldList, toggleFold } from '../fold';
 import { MapPin, mapSvg, spanFor, trackCenter } from '../mapView';
 import type { Shell } from '../Shell';
 import { rideTitle } from './HomeScreen';
+import { groupByMonth, monthKey } from '../../core/Journeys';
+import { miniTrackSvg } from '../miniMap';
 
 export interface JourneysContext {
   /** Remembered rides (oldest first, as RideLog keeps them) */
@@ -14,6 +16,8 @@ export interface JourneysContext {
   /** Every saved line */
   entries(): LogEntry[];
   track(rideId: number): TrackPoint[];
+  /** The rough copy of every ride's road by ride id (RoadStore), read once per render: thumbnails, Your roads. */
+  roads?(): Record<string, TrackPoint[]>;
   /**
    * The place names and metro line for this ride's map (Garage > The map), if already kept, and a promise for when
    * they have been fetched (null when there is nothing to fetch). The story map shows them, and the card reuses them.
@@ -66,6 +70,18 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   const totals = doc.getElementById('journeytotals')!;
   const story = doc.getElementById('story')!;
 
+  /** Months shown open: the newest by default; he opens and closes the others. */
+  const openMonths = new Set<string>();
+  let touched = false;
+  let roads: Record<string, TrackPoint[]> = {};
+  const row = (r: RideRecord) => {
+    const road = roads[String(r.startedAt)] ?? [];
+    return `<button class="journey-row" type="button" data-ride="${r.startedAt}">
+      <span class="journey-thumb">${miniTrackSvg(road)}</span>
+      <div class="journey-main"><p class="eyebrow">${esc(date(r.startedAt))}</p><h2>${esc(rideTitle(r))}</h2><p class="sub">${esc(r.weather ?? 'Out with Betty')}</p></div>
+      <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))}</p></div></button>`;
+  };
+
   const renderList = () => {
     const rides = [...ctx.rides()].reverse();
     if (!rides.length) {
@@ -78,9 +94,18 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const km = Math.round(rides.reduce((n, r) => n + r.distanceKm, 0));
     const min = rides.reduce((n, r) => n + rideMinutes(r, CONFIG.ridingTimeOnly), 0);
     totals.innerHTML = `<div class="totals"><div><b>${rides.length}</b><small>ride${rides.length === 1 ? '' : 's'}</small></div><div><b>${km} km</b><small>together</small></div><div><b>${duration(min)}</b><small>in the saddle</small></div></div>${spendLine(rides)}`;
-    list.innerHTML = `<div class="journey-list">${rides.map((r) => `<button class="journey-row" type="button" data-ride="${r.startedAt}">
-      <div><p class="eyebrow">${esc(date(r.startedAt))}</p><h2 style="font-size:19px">${esc(rideTitle(r))}</h2><p class="sub" style="margin-top:7px">${esc(r.weather ?? 'Out with Betty')}</p></div>
-      <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))} · ${r.places.length + r.events.length} moments ↗</p></div></button>`).join('')}</div>`;
+    // By month (owner, 2026-10-18: "just a long scrolling list"): the newest month open, older ones a header line.
+    const months = groupByMonth(rides, CONFIG.ridingTimeOnly);
+    roads = ctx.roads?.() ?? {};
+    if (!touched) { openMonths.clear(); openMonths.add(months[0].key); }
+    const thisMonth = monthKey(Date.now());
+    list.innerHTML = months.map((m) => {
+      const open = openMonths.has(m.key);
+      const bits = [`${m.rides.length} ride${m.rides.length === 1 ? '' : 's'}`, `${Math.round(m.km)} km`, duration(m.minutes), m.costR != null ? `R${m.costR} fuel` : ''].filter(Boolean).join(' · ');
+      return `<section class="journey-month${open ? ' open' : ''}" data-month="${m.key}">
+        <button class="month-head" type="button" data-month-toggle="${m.key}" aria-expanded="${open}"><span><b>${m.key === thisMonth ? 'This month' : esc(m.label)}</b><small>${esc(bits)}</small></span><i class="chev" aria-hidden="true"></i></button>
+        ${open ? `<div class="journey-list">${m.rides.map(row).join('')}</div>` : ''}</section>`;
+    }).join('');
   };
 
   const renderStory = (rideId: number) => {
@@ -135,6 +160,14 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   };
 
   list.addEventListener('click', (e) => {
+    const mt = (e.target as Element).closest<HTMLElement>('[data-month-toggle]');
+    if (mt) {
+      const k = mt.dataset.monthToggle!;
+      touched = true;
+      if (openMonths.has(k)) openMonths.delete(k); else openMonths.add(k);
+      renderList();
+      return;
+    }
     const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
     if (b) open(Number(b.dataset.ride));
   });

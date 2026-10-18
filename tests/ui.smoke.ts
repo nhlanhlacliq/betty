@@ -922,6 +922,29 @@ resetConfig();
   await (src as any).tick(false); assert.equal(calls, 2, 'not due again for 5 minutes');
   resetConfig();
 }
+// ---- My journeys: months (newest open, older ones a header), a little map on every ride
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const j = new JSDOM(`<!doctype html><div id="journeylist"></div><div id="journeytotals"></div><div id="story"></div>`);
+  const d = j.window.document;
+  const at = (m: number, day: number) => new Date(2026, m - 1, day, 9).getTime();
+  const rides = [at(9, 5), at(9, 20), at(10, 2), at(10, 17)].map((t, i) => ({ startedAt: t, minutes: 60, movingMin: 50, distanceKm: 20 + i, weather: 'clear, 20 C', places: [`Place ${i}`], events: [], costR: 30 }));
+  const view = mountJourneysScreen(d, { show() {}, onShow() {} } as any, { rides: () => rides, entries: () => [], track: () => [], roads: () => ({ [String(at(10, 17))]: [[-26.1, 28.0], [-26.2, 28.1]] }),
+    copyRide: async () => true, saveRide() {}, toast() {}, shareRide: async () => {} });
+  view.renderList();
+  const L = d.getElementById('journeylist')!;
+  const heads = [...L.querySelectorAll('.month-head')].map((h) => h.textContent!.replace(/\s+/g, ' ').trim());
+  assert.equal(heads.length, 2);
+  assert.match(heads[0], /^(This month|October 2026) ?2 rides · 45 km · 1h 40m · R60 fuel$/); assert.match(heads[1], /^September 2026 ?2 rides · 41 km · 1h 40m · R60 fuel$/);
+  assert.equal(L.querySelectorAll('.journey-row').length, 2, 'only the newest month open');
+  assert.equal(L.querySelectorAll('.journey-row .mini-map:not(.empty)').length, 1, 'a ride with a road has its little map'); assert.equal(L.querySelectorAll('.mini-map.empty').length, 1);
+  L.querySelector<HTMLElement>('[data-month-toggle="2026-09"]')!.click();
+  assert.equal(L.querySelectorAll('.journey-row').length, 4, 'September opened');
+  L.querySelector<HTMLElement>('[data-month-toggle="2026-10"]')!.click();
+  assert.equal(L.querySelectorAll('.journey-row').length, 2, 'October closed'); assert.match(L.querySelector('.journey-row')!.textContent!, /Place 1/);
+  view.renderList(); assert.equal(L.querySelectorAll('.journey-row').length, 2, 'his choice survives a repaint');
+}
+
 // ---- a ride's story: riding and stopped time (ride of 2026-10-17: 80 minutes parked made a 3 h 39 ride)
 {
   const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');

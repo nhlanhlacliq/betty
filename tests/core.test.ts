@@ -309,8 +309,8 @@ const ride0 = () => new RideStats(now).snapshot();
   let h: RideRecord[] = upsertRide([], rec);
   h = upsertRide(h, { ...rec, minutes: 50 });
   assert.equal(h.length, 1, 'same ride is updated, not duplicated'); assert.equal(h[0].minutes, 50);
-  for (let i = 0; i < 40; i++) h = upsertRide(h, { ...rec, startedAt: 2000 + i });
-  assert.equal(h.length, 30); assert.equal(h.at(-1)!.startedAt, 2039);
+  for (let i = 0; i < 510; i++) h = upsertRide(h, { ...rec, startedAt: 2000 + i });
+  assert.equal(h.length, 500, 'capped at 500 rides'); assert.equal(h.at(-1)!.startedAt, 2509);
   const d = describeRide(rec, 1000 + 3 * 86_400_000);
   assert.match(d, /3 days ago: 42 minutes, 31.5 km/); assert.match(d, /Soweto/); assert.match(d, /low fuel/);
   assert.match(describeRide(rec, 1000 + 86_400_000), /yesterday/);
@@ -2244,6 +2244,25 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(horizonSpoken([]), 'All clear on the horizon.');
   assert.equal(horizonLine(cues), 'Fuel range: 72 km left');
   assert.equal(horizonLine(cues.filter((g) => g.id === 'service')), 'Maintenance: Engine oil in 416 km');
+}
+
+// ---- My journeys by month (owner, 2026-10-18)
+{
+  const { groupByMonth, monthKey, monthLabel } = await import('../src/core/Journeys');
+  const r = (y: number, m: number, d: number, km: number, extra: Partial<RideRecord> = {}): RideRecord => ({ startedAt: new Date(y, m - 1, d, 8).getTime(), minutes: 60, movingMin: 50, distanceKm: km, weather: null, places: [], events: [], ...extra });
+  const groups = groupByMonth([r(2026, 9, 28, 40), r(2026, 10, 2, 30, { costR: 40 }), r(2026, 10, 17, 93.4, { costR: 124 }), r(2026, 9, 3, 12)], true);
+  assert.deepEqual(groups.map((g) => g.key), ['2026-10', '2026-09'], 'newest month first');
+  assert.deepEqual(groups[0].rides.map((x) => new Date(x.startedAt).getDate()), [17, 2], 'newest ride first');
+  assert.deepEqual([groups[0].km, groups[0].minutes, groups[0].costR], [123.4, 100, 164]);
+  assert.equal(groups[1].costR, null, 'no ride kept a cost');
+  assert.equal(groupByMonth([r(2026, 10, 2, 30)], false)[0].minutes, 60, 'all the time when riding-only is off');
+  assert.equal(monthKey(new Date(2026, 0, 5).getTime()), '2026-01'); assert.equal(monthLabel('2026-10'), 'October 2026');
+  const { miniTrackSvg } = await import('../src/ui/miniMap');
+  const svg = miniTrackSvg([[-26.1, 28.0], [-26.2, 28.1], [-26.15, 28.3]]);
+  assert.match(svg, /<polyline points="[\d., ]+"/); assert.equal((svg.match(/<polyline/g) ?? []).length, 2);
+  const nums = [...svg.matchAll(/(\d+\.\d),(\d+\.\d)/g)].flatMap((m) => [Number(m[1]), Number(m[2])]);
+  assert.ok(nums.every((n) => n >= 0 && n <= 56), 'inside the box');
+  assert.match(miniTrackSvg([]), /class="mini-map empty"/);
 }
 
 console.log('all core tests passed');

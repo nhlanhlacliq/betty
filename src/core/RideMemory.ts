@@ -16,7 +16,7 @@ export interface RideRecord {
   events: string[];
 }
 
-export const MAX_REMEMBERED_RIDES = 30;
+export const MAX_REMEMBERED_RIDES = 500; // was 30: Journeys groups by month, keeps records (2026-10-18)
 /** Shorter than this (and under 1 km) is a desk test, not a ride worth remembering. */
 const MIN_MINUTES = 3;
 

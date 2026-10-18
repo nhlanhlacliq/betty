@@ -127,7 +127,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     ])}` },
   { id: 'journeys', title: 'My journeys and sharing', keywords: 'journeys rides story share card riding time stopped log export',
     html: `${li([
-      'Every ride of 3 minutes or 1 km and up is kept: the map of the road, the moments, everything she said, riding and stopped time, and the fuel cost.',
+      'Every ride of 3 minutes or 1 km and up is kept (the last 500): the map of the road, the moments, everything she said, riding and stopped time, and the fuel cost.',
+      '<b>By month:</b> this month is open; older months fold into one line with their rides, km, riding time and fuel. Tap a month to open or close it. Each ride shows a little drawing of its road.',
       '<b>Share this ride</b> makes a picture card (map, numbers, her best line). <i>Hide where I start and finish</i> keeps home off it.',
       'Ride times count only riding by default (Garage &gt; Count riding time only).',
     ])}` },

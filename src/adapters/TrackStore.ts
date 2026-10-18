@@ -2,7 +2,7 @@ import { TrackPoint, thinTrack } from '../core/Track';
 
 const KEY = 'betty.tracks.v1';
 /** Rides whose path is kept (the newest). */
-const KEEP = 12;
+const KEEP = 30; // was 12; every ride also keeps a rough copy in RoadStore (2026-10-18)
 
 /** The path of recent rides, by ride id (its start time), for the maps in Journeys. On this device only. */
 export const TrackStore = {
