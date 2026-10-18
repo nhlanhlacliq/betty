@@ -1364,6 +1364,27 @@ resetConfig();
   assert.deepEqual(asked, [5_000]); assert.match(again.textContent!, /Ride this again/, 'button back after planning');
   view.open(6_000); assert.equal(d.querySelector('[data-again]'), null, 'no road kept: no Ride this again');
 }
+// ---- Where to? "Plan it with Betty": her stops, then the route through them (HOME = back where he starts)
+{
+  const { mountRoutePlanner, RouteStore } = await import('../src/ui/RoutePlanner');
+  const mem = new Map<string, string>();
+  (globalThis as any).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+  const w = new JSDOM(`<!doctype html><div id="savedroutes" hidden></div><form id="routeform"><input id="routeinput" /><button id="routeplan" type="submit">Plan</button></form><button id="routeask"></button><input type="checkbox" id="routethrilling" />
+    <div id="routesummary" hidden><b id="routename"></b><small id="routewhy"></small><small id="routestats"></small><ol id="routestops"></ol><a id="routemaps"></a><button id="routesave"></button><button id="routeclear"></button></div>`);
+  const d = w.window.document; const sent: Array<[string, any]> = [];
+  mountRoutePlanner(d, { position: async () => ({ lat: -26.14, lon: 28.15 }), onChange() {}, toast() {}, known: () => ['Sandton'], area: () => 'Edenvale',
+    fetcher: (async (u: any, init: any) => {
+      sent.push([String(u), JSON.parse(init.body)]);
+      return String(u) === '/api/plan' ? new Response(JSON.stringify({ name: 'Twisty breakfast loop', stops: ['Heidelberg', 'Nigel', 'HOME'], thrilling: true, why: 'Suikerbosrand hills, back by lunch.' }))
+        : new Response(JSON.stringify({ name: 'x', stops: [], km: 150, minutes: 130, delayMin: 0, legs: [], points: [[1, 2], [3, 4]], mapsUrl: '', thrilling: true }));
+    }) as typeof fetch });
+  (d.getElementById('routeinput') as HTMLInputElement).value = 'a two-hour breakfast run, twisty roads';
+  d.getElementById('routeask')!.click(); await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(sent[0], ['/api/plan', { ask: 'a two-hour breakfast run, twisty roads', area: 'Edenvale', known: ['Sandton'], from: { lat: -26.14, lon: 28.15 } }]);
+  assert.deepEqual(sent[1][1], { stops: ['Heidelberg', 'Nigel', '-26.14000,28.15000'], thrilling: true, from: { lat: -26.14, lon: 28.15 } }, 'HOME is where he starts');
+  assert.equal(RouteStore.get()!.name, 'Twisty breakfast loop'); assert.equal(d.getElementById('routewhy')!.textContent, 'Suikerbosrand hills, back by lunch.');
+  delete (globalThis as any).localStorage;
+}
 // ---- Let Betty know me: paste, distil, read, save; switch it off; forget
 {
   const { mountKnowMe, ProfileStore } = await import('../src/ui/KnowMe');

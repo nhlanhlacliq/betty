@@ -37,6 +37,9 @@ export interface PlannerContext {
   weather?(r: PlannedRoute): Promise<CheckpointWeather[] | null>;
   /** Research the towns at the named stops before he gets there; how many stories each has (server only) */
   storiesAhead?(r: PlannedRoute): Promise<Record<string, number>>;
+  /** For "plan it with Betty": places he has ridden (to vary from) and roughly where he is */
+  known?(): string[];
+  area?(): string | null;
   /** Whether the route fits in the fuel he has ("Needs a fuel stop: fill up by Villiers") */
   fuelNote?(r: PlannedRoute): string;
   fetcher?: typeof fetch;
@@ -70,6 +73,7 @@ export function mountRoutePlanner(doc: Document, ctx: PlannerContext) {
     $('routesummary').hidden = !r;
     if (!r) return;
     $('routename').textContent = r.name;
+    const why = $('routewhy'); if (why) { why.textContent = r.why ?? ''; why.hidden = !r.why; }
     $('routestats').textContent = routeStats(r);
     const fuel = $('routefuel'); if (fuel) fuel.textContent = ctx.fuelNote?.(r) ?? '';
     ($<HTMLAnchorElement>('routemaps')).href = r.mapsUrl;
@@ -132,6 +136,31 @@ export function mountRoutePlanner(doc: Document, ctx: PlannerContext) {
       ctx.toast(`Route planned: ${r.name}, ${Math.round(r.km)} km.`);
     } catch (err) { ctx.toast((err as Error).message, true); }
     finally { go.disabled = false; go.textContent = 'Plan'; }
+  });
+  // Plan it with Betty: what he describes -> her stops (api/plan) -> the route through them (api/route).
+  const ask = $<HTMLButtonElement>('routeask');
+  ask?.addEventListener('click', async () => {
+    const text = input.value.trim();
+    if (!text) { ctx.toast('Describe the ride in the box first: "a two-hour breakfast run, twisty roads".'); input.focus(); return; }
+    if (ask.disabled) return;
+    const label = ask.textContent; ask.disabled = true; ask.textContent = 'Betty is planning...';
+    const f = ctx.fetcher ?? fetch;
+    try {
+      const from = await ctx.position();
+      const pr = await f('/api/plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ask: text, area: ctx.area?.() ?? '', known: ctx.known?.() ?? [], ...(from ? { from } : {}) }) });
+      const plan: any = await pr.json().catch(() => ({}));
+      if (!pr.ok) throw new Error(plan?.error || `HTTP ${pr.status}`);
+      const stops = (plan.stops as string[]).map((s) => (s === 'HOME' ? (from ? `${from.lat.toFixed(5)},${from.lon.toFixed(5)}` : '') : s)).filter(Boolean);
+      ask.textContent = `Routing ${stops.length} stops...`;
+      const rr = await f('/api/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stops, thrilling: !!plan.thrilling, ...(from ? { from } : {}) }) });
+      const out: any = await rr.json().catch(() => ({}));
+      if (!rr.ok) throw new Error(out?.error || `HTTP ${rr.status}`);
+      const r: PlannedRoute = { ...out, name: plan.name || out.name, why: plan.why || undefined, plannedAt: Date.now() };
+      RouteStore.set(r); input.value = '';
+      paint(); ctx.onChange(r);
+      ctx.toast(`Betty planned ${r.name}: ${Math.round(r.km)} km.`);
+    } catch (err) { ctx.toast((err as Error).message, true); }
+    finally { ask.disabled = false; ask.textContent = label; }
   });
   $('routeclear')?.addEventListener('click', () => { RouteStore.set(null); paint(); ctx.onChange(null); ctx.toast('Route cleared: a free ride it is.'); });
   paint();

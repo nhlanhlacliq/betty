@@ -668,6 +668,9 @@ mountKnowMe(document, {
 const planner = mountRoutePlanner(document, {
   // What is ahead (2026-10-18): the weather at each stop when he would get there leaving now, and the stories researched.
   weather: (r) => fetchRouteWeather(checkpoints(r, null, 1e9, 40)),
+  // Plan it with Betty: the places he rides most (to vary from), and where he is.
+  known: () => { const n = new Map<string, number>(); for (const r of RideLog.load()) for (const p of r.places) n.set(p, (n.get(p) ?? 0) + 1); return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p).slice(0, 20); },
+  area: () => { const a = rig?.agg.current.area ?? null; return a ? [a.suburb, a.town].filter(Boolean).join(', ') : null; },
   storiesAhead: SERVER ? (r) => researchAhead(r.stops.filter((s, i) => s.named && i > 0)) : undefined,
   fuelNote: (r) => (CONFIG.obdMode === 'off' ? describeFuelPlan(routeFuelPlan(r, CONFIG.fuel, rig ? rig.engine.kmSinceFill() : FuelStore.load())) : ''),
   position: async () => {

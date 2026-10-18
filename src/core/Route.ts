@@ -22,6 +22,8 @@ export interface PlannedRoute {
   mapsUrl: string;
   thrilling: boolean;
   plannedAt: number;
+  /** When Betty planned it from his description: why these stops, in a sentence */
+  why?: string;
 }
 export interface RouteProgress {
   /** Index of the route point he is nearest (carried to the next call: loops pass the same place twice) */

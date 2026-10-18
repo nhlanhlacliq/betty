@@ -347,10 +347,11 @@
             <p class="eyebrow">Where to?</p>
             <div class="saved-routes" id="savedroutes" hidden></div>
             <form id="routeform" class="route-form"><input type="text" id="routeinput" autocomplete="off" placeholder="Clarens, or stops: Heidelberg, Villiers, Clarens, or a Google Maps link" aria-label="Where to" /><button class="primary" id="routeplan" type="submit">Plan</button></form>
+            <button class="text-button route-ask" id="routeask" type="button">Or describe it and let Betty plan it ("a two-hour breakfast run, twisty roads")</button>
             <p class="route-tip">Tip: plan your ride in Google Maps, stops and all, tap Share and paste the link here.</p>
             <label class="check-row"><input type="checkbox" id="routethrilling" /> Twisty roads (thrilling route)</label>
             <div class="route-summary" id="routesummary" hidden>
-              <b id="routename"></b><small id="routestats"></small><small id="routefuel"></small>
+              <b id="routename"></b><small id="routewhy"></small><small id="routestats"></small><small id="routefuel"></small>
               <ol class="route-stops" id="routestops"></ol>
               <div class="dialog-actions"><a class="secondary" id="routemaps" target="_blank" rel="noopener">Open in Google Maps</a><button class="secondary" id="routesave" type="button">Save route</button><button class="secondary" id="routeclear" type="button">Clear</button></div>
             </div>

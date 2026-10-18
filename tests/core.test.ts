@@ -2533,4 +2533,12 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- plan a ride with Betty (api/plan): the plan out of her reply
+{
+  const { parsePlan, planPrompt } = await import('../api/plan');
+  assert.deepEqual(parsePlan('Here you go: {"name":"Loop","stops":["Heidelberg","Nigel","HOME"],"thrilling":true,"why":"Twisty."} Enjoy'), { name: 'Loop', stops: ['Heidelberg', 'Nigel', 'HOME'], thrilling: true, why: 'Twisty.' });
+  assert.equal(parsePlan('no json here'), null); assert.equal(parsePlan('{"stops": []}'), null);
+  assert.match(planPrompt('breakfast run', 'Edenvale', ['Sandton']), /starts near Edenvale[\s\S]*end with exactly HOME[\s\S]*vary from them unless he asks for the usual\): Sandton/);
+}
+
 console.log('all core tests passed');
