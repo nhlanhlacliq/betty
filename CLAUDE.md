@@ -25,7 +25,8 @@ is wrong or risky, say so.
 | 1 Voice foundation | Scaffold, GPS speed, TTS to helmet, "Systems online", trigger engine, audio queue | Done (web app) |
 | 2 Data feeds | Weather, traffic, phone IMU lean, TPMS BLE, mock OBD2 | Weather (Open-Meteo), traffic (TomTom), GPS lean, mock OBD2, places, area names, routes, petrol stations done. TPMS outstanding |
 | 3 AI brain | Claude-phrased speech, session memory, voice input "Hey Betty", chat test mode | Done: phrasing, ambient personality, area stories, web search, ride memory, notes/marked spots, push-to-talk voice input, chat. Wake word left for Phase 4 |
-| 4 Hardware | Raspberry Pi 4 under seat, real OBD2 via ELM327, standalone, local Piper TTS, Porcupine wake word | Not started |
+| 4 Hardware | Raspberry Pi 4 under seat, real OBD2 via ELM327, standalone, local Piper TTS, Porcupine wake word | Not started; real OBD2 now goes through the native app (protocol in `core/Elm327.ts`) |
+| 5 Native app | React Native + Expo in `native/`, iOS and Android, sharing `src/core` | First slice 2026-10-18, NOT RUN ON A PHONE YET: see Native app below and `native/README.md` |
 
 History: Phase 1 was first scaffolded as Expo/React Native, then converted to a Vite web app on request
 ("just make it a webapp for now"). The Expo code is deleted. Do not reintroduce React Native unless asked.
@@ -34,6 +35,9 @@ History: Phase 1 was first scaffolded as Expo/React Native, then converted to a 
 OBD needs a BLE or Wi-Fi reader. He builds Android APKs and sideloads to his iPhone from Xcode (free Apple ID = 7 days).
 
 ## Stack
+
+Two apps, one brain: the web app (below) and the native app in `native/` (React Native + Expo SDK 58, its own
+`package.json` and `node_modules`, see `native/README.md`). Both use `src/core` and `src/config`.
 
 - Vite 6 + TypeScript (strict), vanilla DOM UI (no framework). Entry: `index.html` -> `src/main.ts`.
 - Tests: `tsx` with plain `node:assert`; UI smoke test uses `jsdom` (dev dependency). No test framework.
@@ -51,7 +55,8 @@ npm test            # core logic tests + jsdom UI smoke test, must pass
 npm run build       # production build to dist/
 ```
 
-Run typecheck + test before declaring any change done.
+Run typecheck + test before declaring any change done. If `src/core`, `src/config` or `native/` changed, also run
+`cd native && npm run typecheck && npm run bundle` (the native app compiles the shared code too).
 
 ## Architecture
 
@@ -77,6 +82,7 @@ src/
     RideMemory.ts          RideRecord, toRecord, upsertRide, describeRide/describeTotals (cross-ride memory, pure)
     geo.ts                 haversineKm, bboxAround, bearingDeg, angleDiff, compassPoint, relativeDirection
     GpsLean.ts             Lean estimated from GPS speed and turn rate: atan(v * turnRate / g)
+    Elm327.ts              ELM327 OBD2 protocol: init, PID answers, supported-PID map, fault codes, ElmSession (native app)
   adapters/                Everything that touches a browser API, network or hardware
     WebGeoSource.ts        navigator.geolocation -> speed/lat/lon/course/altitude + lean estimate (GpsLean)
     WebMotionSource.ts     accelerometer -> hard-jolt count; compass heading for when GPS has no course
@@ -114,7 +120,8 @@ tests/ui.smoke.ts          Drives both panels in jsdom, then loads the real inde
 ```
 
 **Key rule: core/ never imports from adapters/ or ui/ and never touches `window`/`navigator`.** Moving from phone to
-Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `Speaker`.
+Pi (Phase 4) must only mean swapping adapters that implement `DataSource` and `Speaker`. The native app depends on this:
+it imports `src/core` directly (Metro watches `../src`), so a browser API in core breaks the native build.
 
 ## Triggers
 
@@ -738,7 +745,8 @@ TUNING panel: per-trigger priority (P1-P4) and cooldown, ambient gap and max age
   a heading when stopped (mount-dependent on iOS, treat as rough).
   These feed `RideStats`, banter topics and the tour-guide line; none of them triggers an alert.
 - Place distances are recomputed from the current position (`placesFromHere`), not the fetch position.
-- Web Bluetooth does not exist on iOS, so a browser cannot read an ELM327 dongle there. Real OBD2 = Phase 4 (Pi).
+- Web Bluetooth does not exist on iOS, so a browser cannot read an ELM327 dongle there. Real OBD2 = the native app
+  (since 2026-10-18; it was Phase 4, the Pi).
 
 ## Vercel deployment
 
@@ -1039,13 +1047,35 @@ find interesting ("interests"); alerts and time checks never. `profileNote` adds
 say you were told this, never quote it, never list it". Checked live: a sample distilled well; "where should I stop
 for coffee out west" used it naturally.
 
+## Native app (STARTED 2026-10-18; owner: "start setting it up without the reader")
+
+Decision: React Native + Expo (development builds, not Expo Go), one codebase, reusing `src/core` as is. Rejected:
+Swift + Kotlin (everything twice), Capacitor (weak at background audio and CarPlay). How to build, run and what is
+next is in `native/README.md`: it is the native app's CLAUDE.md, keep it current.
+- `native/src/rig.ts` = the ride pipeline (like `start()` in main.ts) with native adapters (`ExpoGeoSource`,
+  `ExpoSpeaker`, `ElmClassicTransport` + `ObdSource`) plus the shared `WeatherSource`; `native/App.tsx` = a plain first
+  screen (Let's ride / End ride, numbers, her lines, type a question, pick the paired reader on Android).
+- OBD2: `src/core/Elm327.ts` (pure, tested): `ELM_INIT`, `PIDS` (rpm, coolant, speed, throttle, fuel), `cleanLines`,
+  `readPid`, `supportedPids` (0100/0120 bitmaps), `parseDtcs` (CAN with its count byte and multi-frame; older buses
+  three codes a line), `ElmSession` (init logs the reader version and the PIDs the bike lists; a PID with 3 misses in a
+  row is dropped; a value the bike does not give is left out, never zero). `ObdTransport` = send a command, get the
+  text up to ">". Not yet: battery voltage (`ATRV`), gear from rpm/speed.
+- OPEN DECISION after the reader test: if the bike gives no fuel PID (012F), `obd: true` would switch off the km-based
+  fuel range (the engine uses the estimate only when `s.obd` is false). Then fuel needs its own flag.
+- Server: `fromBetty` also accepts `x-betty-origin` (the app has no page origin); `ClaudeClient` takes `proxyHeaders`.
+- Building: the owner builds APKs himself and sideloads the iPhone from Xcode with a free Apple ID (7-day builds, 3
+  apps). CarPlay entitlement and TestFlight need the paid Apple Developer Program. The Mac had NO Xcode, Java or
+  Android SDK on 2026-10-18 (setup steps in `native/README.md`), so the first slice is checked by typecheck and by
+  bundling the Android and iOS JavaScript only.
+- `.vercelignore` excludes `native/`: it is not part of the web deploy.
+
 ## Backlog (open items only; cleaned 2026-10-18)
 
 Everything buildable in the web app is built (see the sections above), except the planning map. Next: THE NATIVE APP.
 
 **Next up:**
 1. **Native app, iOS and Android** (owner, 2026-10-18: React Native + Expo, dev builds). Reuse `src/core` unchanged;
-   rebuild the screens and the adapters. First milestone: Android with GPS, her voice and OBD over Bluetooth Classic
+   rebuild the screens and the adapters. STARTED 2026-10-18 (section Native app). First milestone: Android with GPS, her voice and OBD over Bluetooth Classic
    (his ELM327 mini). Then the iPhone build from Xcode, background running, music ducking, local notifications.
    CarPlay "voice-based conversational apps" (iOS 26.4+, `CPVoiceControlTemplate`, entitlement requested from Apple:
    needs the paid developer account; verify the key in Apple's docs) and Siri App Intents last. The free Apple ID
@@ -1223,6 +1253,9 @@ were not a command; the answer prompt now says only the commands change settings
 
 ## Conventions
 
+- Two apps share `src/core`/`src/config`: logic goes there (with tests), never into `native/src/rig.ts` or `src/main.ts`.
+  A change in the shared code is checked in both (root `npm test`; `native` typecheck + bundle).
+- The native app has its own notes and rules in `native/README.md`; update it with every native change.
 - TypeScript strict. Keep `core/` pure and covered by tests; adapters and ui stay thin.
 - Every change the owner would notice ALSO goes into Help (`src/ui/help.ts`): a new topic or the existing one updated,
   and any new voice command in `VOICE_COMMANDS` (owner, 2026-10-17). Changelog = what changed; Help = how it works now.

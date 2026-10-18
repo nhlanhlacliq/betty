@@ -44,7 +44,11 @@ export class ClaudeClient {
    * With a key, calls Anthropic straight from the page (local development). Without one, and with proxyUrl set,
    * posts the same request to Betty's server, which adds the key (the deployed app). With neither, it falls back.
    */
-  constructor(private apiKey: string | undefined, private timeoutMs = 2500, private ambientTimeoutMs = 6000, private proxyUrl?: string) {}
+  constructor(
+    private apiKey: string | undefined, private timeoutMs = 2500, private ambientTimeoutMs = 6000, private proxyUrl?: string,
+    /** Extra headers for the server (the native app sends `x-betty-origin`, having no page origin). */
+    private proxyHeaders: Record<string, string> = {},
+  ) {}
 
   async phrase(ev: TriggerEvent, state: BikeState): Promise<Phrase> {
     const t0 = Date.now();
@@ -120,7 +124,7 @@ export class ClaudeClient {
           body: JSON.stringify(request),
         })
         : await fetch(this.proxyUrl!, {
-          method: 'POST', signal: ctrl.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify(request),
+          method: 'POST', signal: ctrl.signal, headers: { 'content-type': 'application/json', ...this.proxyHeaders }, body: JSON.stringify(request),
         });
       if (!res.ok) return { error: `HTTP ${res.status}` };
       const json = await res.json();

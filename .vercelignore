@@ -2,3 +2,6 @@
 .env
 .env.*
 !.env.example
+
+# The native app (Expo) is not part of the web deploy
+native

@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Betty",
+    "slug": "betty",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nhlanhla.betty",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Betty uses your location for your speed, the weather and the places on your ride."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F6F0",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nhlanhla.betty",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Betty uses your location for your speed, the weather and the places on your ride."
+        }
+      ],
+      "expo-dev-client"
+    ]
+  }
+}

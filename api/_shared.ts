@@ -18,7 +18,11 @@ export function fromBetty(req: Request): boolean {
   const origin = req.headers.get('origin');
   if (origin) return ok(origin);
   const referer = req.headers.get('referer');
-  return referer ? ok(referer) : false;
+  if (referer) return ok(referer);
+  // The native app (no page, so no Origin or Referer) names the site it belongs to. Like Origin, this only stops
+  // casual reuse; the spend limits on the keys are the real guard.
+  const app = req.headers.get('x-betty-origin');
+  return app ? ok(app) : false;
 }
 
 export const env = (name: string) => (typeof process !== 'undefined' ? process.env[name] : undefined);

@@ -1006,6 +1006,10 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body }))).status, 503, 'no key on the server');
     process.env.ANTHROPIC_API_KEY = 'sk-test'; process.env.TOMTOM_API_KEY = 'tt-test'; process.env.GROQ_API_KEY = 'gq-test';
     assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body, origin: 'https://evil.example' }))).status, 403, 'other sites refused');
+    const bare = (h: Record<string, string>) => new Request('https://betty-zeta.vercel.app/api/phrase', { method: 'POST', body, headers: { host: 'betty-zeta.vercel.app', ...h } });
+    assert.equal((await phraseApi(bare({}))).status, 403, 'no origin at all is refused');
+    assert.notEqual((await phraseApi(bare({ 'x-betty-origin': 'https://betty-zeta.vercel.app' }))).status, 403, 'the native app names the site');
+    assert.equal((await phraseApi(bare({ 'x-betty-origin': 'https://evil.example' }))).status, 403);
     assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body: JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 100, messages: [] }) }))).status, 400, 'only the models Betty uses');
     assert.equal((await phraseApi(req('/api/phrase', { method: 'POST', body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 99999, messages: [] }) }))).status, 400, 'no huge requests');
     const ok = await phraseApi(req('/api/phrase', { method: 'POST', body }));
@@ -2619,6 +2623,36 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(wantedMinutes('a two-hour breakfast run'), 120); assert.equal(wantedMinutes('2 hours of twisties'), 120);
   assert.equal(wantedMinutes('an hour and a half'), 90); assert.equal(wantedMinutes('90 minutes to somewhere nice'), 90);
   assert.equal(wantedMinutes('half an hour'), 30); assert.equal(wantedMinutes('somewhere with coffee'), null);
+}
+
+// ---- ELM327 protocol (the native app's OBD2 reader)
+{
+  const { cleanAnswer, readPid, supportedPids, parseDtcs, ElmSession } = await import('../src/core/Elm327');
+  assert.equal(readPid('rpm', '410C1AF8\r\r>'), 1726, 'rpm = (A*256+B)/4');
+  assert.equal(readPid('rpm', 'SEARCHING...\r41 0C 1A F8 \r\r>'), 1726, 'spaces and SEARCHING are ignored');
+  assert.equal(readPid('coolantC', '41057B>'), 83);
+  assert.equal(readPid('throttlePct', '4111FF>'), 100);
+  assert.equal(readPid('fuelPct', 'NO DATA\r\r>'), null, 'no value is null, never a made-up zero');
+  assert.equal(readPid('rpm', '?\r>'), null);
+  assert.equal(cleanAnswer('UNABLE TO CONNECT\r>'), null);
+  assert.deepEqual(supportedPids('4100BE3EB813>'), ['01', '03', '04', '05', '06', '07', '0B', '0C', '0D', '0E', '0F', '11', '13', '14', '15', '1C', '1F', '20']);
+  assert.deepEqual(parseDtcs('43010133\r>'), ['P0133'], 'CAN: count then codes');
+  assert.deepEqual(parseDtcs('4302014341C1\r>'), ['P0143', 'C01C1'], 'a "43" inside a code is not a new answer');
+  assert.deepEqual(parseDtcs('4300\r>'), []);
+  assert.deepEqual(parseDtcs('43013300000000\r43000000000000\r>'), ['P0133'], 'older buses: three codes a line, 0000 padding');
+  assert.deepEqual(parseDtcs('00A\r0:4304010202\r1:0303040405\r>').length, 4, 'a long CAN answer over frames');
+  assert.deepEqual(parseDtcs('NO DATA>'), []);
+  // A session against a fake bike that has no fuel PID: fuel is never sent as a value, and after 3 misses not asked.
+  const asked: string[] = [];
+  const bike: Record<string, string> = { ATZ: 'ELM327 v1.5\r\r>', '0100': '4100BE3EB813>', '0120': 'NO DATA>', '010C': '410C1AF8>', '0105': '41057B>', '0111': '411133>', '010D': '410D3C>', '012F': 'NO DATA>', '03': '4300>' };
+  const s = new ElmSession({ send: async (c) => { asked.push(c); return bike[c] ?? 'OK\r>'; } });
+  await s.init();
+  assert.equal(s.version, 'ELM327 v1.5');
+  assert.ok(!s.wants('fuelPct'), 'the bike did not list PID 2F, so fuel is not asked');
+  const r = await s.poll();
+  assert.deepEqual(r.state, { obd: true, rpm: 1726, engineTempC: 83, throttlePct: 20, dtcs: [] });
+  assert.equal(r.speedKmh, 60);
+  assert.ok(!asked.includes('012F'));
 }
 
 console.log('all core tests passed');
