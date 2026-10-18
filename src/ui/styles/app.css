@@ -747,3 +747,5 @@ html, body { overscroll-behavior: none; }
 .saved-route small { font-size: 12px; color: var(--muted); }
 .saved-x { border: 0; background: none; font-size: 20px; color: var(--muted); padding: 4px 8px; }
 .sheet-row.minor b { font-weight: 400; color: var(--muted); }
+
+.rough-key { color: #e9a54a; }

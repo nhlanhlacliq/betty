@@ -8,6 +8,8 @@ export interface RideRecord {
   /** Of those, the minutes moving (rides from before 2026-10-17 do not have it) */
   movingMin?: number;
   distanceKm: number;
+  /** Where he braked hard (1) or hit a big bump (2): [lat, lon, kind] (rides from 2026-10-18 on) */
+  rough?: Array<[number, number, 1 | 2]>;
   /** Highest point of the ride, GPS metres (rides from 2026-10-18 on) */
   highM?: number;
   /** Fuel used (km x his average consumption) and what it cost at the price of the day, rand */
@@ -30,6 +32,7 @@ export function toRecord(snap: RideSnapshot, weather: string | null, fuel?: Fuel
     movingMin: Math.min(Math.round(snap.minutesOut), Math.round(snap.movingMin)),
     distanceKm: snap.distanceKm,
     ...(snap.highM != null ? { highM: snap.highM } : {}),
+    ...(snap.rough?.length ? { rough: snap.rough.map((x) => [x.lat, x.lon, x.kind === 'brake' ? 1 : 2] as [number, number, 1 | 2]) } : {}),
     ...(fuel ? { fuelL: Math.round(litresFor(snap.distanceKm, fuel) * 10) / 10, costR: costOf(snap.distanceKm, fuel) } : {}),
     weather,
     places: snap.places.slice(0, 8),

@@ -28,6 +28,8 @@ export interface RideSnapshot {
   events: Array<{ what: string; atMin: number }>;
   /** Places she has talked about this ride */
   places: string[];
+  /** Where he braked hard or hit a big bump this ride (rough patches, 2026-10-18), at most 60 */
+  rough: Array<{ lat: number; lon: number; kind: 'brake' | 'bump' }>;
 }
 
 const MOVING_KMH = 3;
@@ -70,6 +72,8 @@ export class RideStats {
   private jolts = 0;
   private events: RideSnapshot['events'] = [];
   private places: string[] = [];
+  private rough: RideSnapshot['rough'] = [];
+  private lastJolts: number | null = null;
 
   constructor(private now: () => number = Date.now) { this.startedAt = now(); }
 
@@ -104,17 +108,26 @@ export class RideStats {
     else if (t - this.speedRef.at >= SPEED_WINDOW_MS) {
       const a = (s.speedKmh - this.speedRef.kmh) / 3.6 / ((t - this.speedRef.at) / 1000);
       const hard = Math.abs(a) >= HARD_MS2;
-      if (hard && !this.inHardEvent) { if (a < 0) this.hardBrakes++; else this.hardAccels++; } // one long stop counts once
+      if (hard && !this.inHardEvent) {
+        if (a < 0) { this.hardBrakes++; this.mark(s, 'brake'); } else this.hardAccels++;
+      } // one long stop counts once
       this.inHardEvent = hard;
       this.speedRef = { kmh: s.speedKmh, at: t };
     }
 
+    if (this.lastJolts !== null && s.jolts > this.lastJolts && s.speedKmh > MOVING_KMH) this.mark(s, 'bump');
+    this.lastJolts = s.jolts;
     if (this.joltsAtStart === null) this.joltsAtStart = s.jolts;
     this.jolts = Math.max(0, s.jolts - this.joltsAtStart);
     if (s.obd) {
       this.maxTemp = Math.max(this.maxTemp, s.engineTempC);
       if (this.fuelStart === null) this.fuelStart = s.fuelPct;
     }
+  }
+
+  private mark(s: BikeState, kind: 'brake' | 'bump') {
+    if (s.lat == null || s.lon == null || this.rough.length >= 60) return;
+    this.rough.push({ lat: Math.round(s.lat * 1e4) / 1e4, lon: Math.round(s.lon * 1e4) / 1e4, kind });
   }
 
   noteEvent(what: string) { this.events.push({ what, atMin: Math.round((this.now() - this.startedAt) / 60_000) }); }
@@ -141,6 +154,7 @@ export class RideStats {
       fuelStartPct: this.fuelStart,
       events: [...this.events],
       places: [...this.places],
+      rough: [...this.rough],
     };
   }
 }

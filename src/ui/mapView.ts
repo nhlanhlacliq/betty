@@ -36,6 +36,8 @@ export interface MapInput {
   areaPins?: AreaPin[];
   /** Radius of his marked spots in map units (6; Explore's smaller-scale map uses more) */
   markRadius?: number;
+  /** Where he braked hard or hit a big bump on this ride (the ride's story map) */
+  rough?: Array<{ lat: number; lon: number }>;
   /** Your roads (My journeys): every ride's rough road, drawn faint so roads ridden often come out darker */
   roads?: TrackPoint[][];
 }
@@ -226,6 +228,10 @@ export function mapSvg(m: MapInput, label = 'Sketch of the ride: not for navigat
         + `<path d="${d}" fill="none" stroke="#819a77" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`);
       const s = at({ lat: m.track[0][0], lon: m.track[0][1] });
       if (onMap(s)) parts.push(`<circle cx="${r1(s.x)}" cy="${r1(s.y)}" r="7" fill="#faf9ee" stroke="#7e9674" stroke-width="3"/>`);
+    }
+    for (const p of m.rough ?? []) {
+      const q = at(p); if (!onMap(q, 0)) continue;
+      parts.push(`<circle cx="${r1(q.x)}" cy="${r1(q.y)}" r="6" fill="#e9a54a" stroke="#fffef4" stroke-width="2.5" opacity=".9"/>`);
     }
     if (m.areaPins?.length) parts.push(areaPinsSvg(m.areaPins, at));
     if (m.labels?.length) parts.push(labelsSvg(m.labels, at, m.avoid ?? [], m.labelSize ?? 15));

@@ -35,6 +35,7 @@ import { JourneyStore } from './adapters/JourneyStore';
 import { liveRecords } from './core/Records';
 import { RoadMemory } from './core/RoadMemory';
 import { pastRecall } from './core/PastRides';
+import { roughSpots } from './core/RoughSpots';
 import { RoadCells } from './adapters/RoadCells';
 import { checkpoints, rideAgainStops, weatherLine } from './core/RouteAhead';
 import { fetchRouteWeather } from './adapters/RouteWeather';
@@ -854,6 +855,7 @@ async function beginRide(desk: boolean) {
     return [...Object.values(detailed), ...Object.entries(rough).filter(([id]) => !detailed[id]).map(([, t]) => t)];
   })) : null;
   engine.setRoadMemory(roadMem);
+  engine.setRoughSpots(roughSpots(RideLog.load())); // bumps and hard brakes that keep happening in the same place
   // "What did we talk about on Saturday?": the saved log of the ride his words point at.
   engine.setPastRecall((said) => { saveLog(); return pastRecall(RideLog.load(), LineLogStore.load(), said, Date.now()); });
   engine.setServiceBook(ServiceStore.load()); // what is due (the briefing, answers and sign-off mention it)

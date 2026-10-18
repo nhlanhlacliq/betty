@@ -29,6 +29,7 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
   route_weather: { kicker: 'Up ahead', headline: 'Rain on the way.' },
   fatigue: { kicker: 'Take five', headline: 'Time for a break.' },
   new_road: { kicker: 'A first', headline: 'A new road.' },
+  rough_patch: { kicker: 'Heads up', headline: 'Rough patch ahead.' },
   wind_cold: { kicker: 'Heads up', headline: 'Wind and cold.' },
   traffic_incident: { kicker: 'Heads up', headline: 'Traffic on your way.' },
   ride_milestone: { kicker: 'Time check', headline: 'Still rolling.' },

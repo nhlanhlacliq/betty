@@ -382,7 +382,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const roadMap = () => {
       const x = ctx.mapExtras?.(rideId) ?? null;
       return mapSvg({ center: trackCenter(track), here: null, headingDeg: null, track, places: [], incidents: [], marks: [], spanKm: spanFor(track),
-        labels: x?.labels ?? [], labelSize: 26, borders: x?.metro?.length ? { suburbs: [], metro: x.metro } : null }, 'The road you took', 'story');
+        labels: x?.labels ?? [], labelSize: 26, borders: x?.metro?.length ? { suburbs: [], metro: x.metro } : null,
+        rough: (r.rough ?? []).map(([lat, lon]) => ({ lat, lon })) }, 'The road you took', 'story');
     };
     if (track.length > 1) {
       void ctx.prepareCard?.(rideId)?.then(() => {
@@ -402,7 +403,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
         <div class="settings-card"><h2>The road you took</h2>
           ${track.length > 1 ? `<div class="story-map">${roadMap()}</div>`
             : '<p class="empty-note">No map for this ride: it was recorded before Betty kept the road, or without GPS.</p>'}
-          <p>${esc(longDate(r.startedAt))}</p>
+          <p>${esc(longDate(r.startedAt))}${r.rough?.length ? ` · <span class="rough-key">●</span> ${r.rough.length} hard brake${r.rough.length === 1 ? '' : 's'} or bump${r.rough.length === 1 ? '' : 's'}` : ''}</p>
           ${moments.length ? foldList(moments, 4, 'moments') : '<p class="sub">A quiet ride is a good ride, too.</p>'}
         </div>
         <div class="settings-card"><h2>The moments in between</h2>

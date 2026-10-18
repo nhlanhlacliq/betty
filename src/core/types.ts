@@ -5,14 +5,14 @@ export type TriggerId =
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
   | 'ambient_banter' | 'local_fact' | 'area_story' | 'marked_spot'
   | 'off_route' | 'route_stop' | 'route_arrived'
-  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold' | 'new_road';
+  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold' | 'new_road' | 'rough_patch';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
   'ambient_banter', 'local_fact', 'area_story', 'marked_spot',
   'off_route', 'route_stop', 'route_arrived',
-  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold', 'new_road',
+  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold', 'new_road', 'rough_patch',
 ];
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */

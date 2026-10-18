@@ -2508,4 +2508,29 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.doesNotMatch(e.ask('How is the weather?', initialState()).context, /saved log of earlier rides/);
 }
 
+// ---- rough patches (2026-10-18): where he brakes hard or hits bumps, warned when it keeps happening
+{
+  const RS = await import('../src/core/RoughSpots');
+  clock = 140_000_000;
+  const st = new RideStats(now);
+  const at = (kmh: number, jolts = 0) => { clock += 1000; st.update({ ...initialState(), speedKmh: kmh, lat: -26.1, lon: 28.1, jolts }); };
+  at(80); at(80); at(30); at(30); // 50 km/h lost in a second: hard
+  at(60, 0); at(60, 1); // a bump
+  assert.deepEqual(st.snapshot().rough.map((x) => x.kind), ['brake', 'bump']);
+  const rec = toRecord({ ...st.snapshot(), minutesOut: 10, distanceKm: 5 }, null)!;
+  assert.deepEqual(rec.rough, [[-26.1, 28.1, 1], [-26.1, 28.1, 2]]);
+  const r = (id: number, rough: Array<[number, number, 1 | 2]>): RideRecord => ({ startedAt: id, minutes: 10, distanceKm: 5, weather: null, places: [], events: [], rough });
+  const spots = RS.roughSpots([r(1, [[-26.2, 28.0, 2], [-26.3, 28.0, 1]]), r(2, [[-26.2003, 28.0002, 2], [-26.3, 28.0, 1]]), r(3, [[-26.4, 28.0, 2]])]);
+  assert.equal(spots.length, 1, 'a bump on two rides counts; braking twice does not; one bump does not');
+  assert.equal(spots[0].bumpRides, 2);
+  assert.ok(RS.roughAhead(spots, { lat: -26.198, lon: 28.0 }, 180), 'ahead, riding south');
+  assert.equal(RS.roughAhead(spots, { lat: -26.198, lon: 28.0 }, 0), null, 'behind him');
+  resetConfig(); clock = 150_000_000;
+  const e = new TriggerEngine(now); e.setRoughSpots(spots);
+  const got = e.evaluate({ ...initialState(), speedKmh: 50, lat: -26.198, lon: 28.0, headingDeg: 180 }).filter((x) => x.id === 'rough_patch');
+  assert.equal(got.length, 1); assert.match(got[0].context, /hit a hard bump on 2 earlier rides.*Never tell him how to steer/);
+  clock += 60_000; assert.equal(e.evaluate({ ...initialState(), speedKmh: 50, lat: -26.198, lon: 28.0, headingDeg: 180 }).filter((x) => x.id === 'rough_patch').length, 0, 'not again within 10 minutes');
+  resetConfig();
+}
+
 console.log('all core tests passed');

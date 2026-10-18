@@ -6,6 +6,7 @@ import { ServiceBook, describeDue } from './Reminders';
 import { LiveRecords, kmMilestoneCrossed } from './Records';
 import { CheckpointWeather, describeRouteWeather, rainAhead } from './RouteAhead';
 import { RoadMemory } from './RoadMemory';
+import { RoughSpot, roughAhead } from './RoughSpots';
 import { BREAK_MS, COLD_FEELS_C, CROSSWIND_KMH, crosswind, fatigueDueMin, feelsLikeC } from './Comfort';
 import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
@@ -200,6 +201,11 @@ export class TriggerEngine {
   /** Memory across rides: what was said on the earlier ride his question points at (main: core/PastRides over the log). */
   private recall: ((said: string) => string) | null = null;
   setPastRecall(f: ((said: string) => string) | null) { this.recall = f; }
+  /** Rough patches from his earlier rides (core/RoughSpots), each warned at most once in 10 minutes. */
+  private rough: RoughSpot[] = [];
+  private roughWarned = new Map<string, number>();
+  private roughNow: { spot: RoughSpot; km: number } | null = null;
+  setRoughSpots(list: RoughSpot[]) { this.rough = list; }
   /** Where he has ridden before (core/RoadMemory): new roads, and how familiar this one is. */
   private roads: RoadMemory | null = null;
   setRoadMemory(r: RoadMemory | null) { this.roads = r; }
@@ -351,6 +357,14 @@ export class TriggerEngine {
       }
     }
 
+    if (this.rough.length && s.lat != null && s.lon != null && s.headingDeg != null && s.speedKmh >= 15) {
+      const r = roughAhead(this.rough, { lat: s.lat, lon: s.lon }, s.headingDeg);
+      const k = r ? `${r.spot.lat},${r.spot.lon}` : '';
+      if (r && this.now() - (this.roughWarned.get(k) ?? -Infinity) >= WARN_AGAIN_MS && this.ready('rough_patch')) {
+        this.roughWarned.set(k, this.now()); this.roughNow = r;
+        try { out.push(this.force('rough_patch', s)); } finally { this.roughNow = null; }
+      }
+    }
     const spot = this.spotAhead(s);
     if (spot && this.ready('marked_spot')) {
       this.warnedSpots.set(spot.spot.at, this.now());
@@ -551,6 +565,16 @@ export class TriggerEngine {
         return {
           context: `He has just passed ${r.km.toLocaleString('en-US')} km of riding with you in total, over ${(this.live?.rides ?? 0) + 1} rides.`,
           fallback: `That's ${r.km.toLocaleString('en-US')} kilometres together.`,
+        };
+      }
+      case 'rough_patch': {
+        const r = this.roughNow;
+        if (!r) return { context: '', fallback: '' };
+        const metres = Math.max(50, Math.round((r.km * 1000) / 50) * 50);
+        const what = r.spot.bumpRides >= 2 ? `he hit a hard bump on ${r.spot.bumpRides} earlier rides` : `he braked hard on ${r.spot.brakeRides} earlier rides`;
+        return {
+          context: `About ${metres} metres ahead is a spot where ${what}. Give him a short, plain heads-up. Never tell him how to steer, which part of the lane or what speed: you cannot see the road.`,
+          fallback: `Rough patch about ${metres} metres ahead.`,
         };
       }
       case 'new_road': {
