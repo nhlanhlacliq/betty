@@ -13,7 +13,7 @@ import { describeFuelPlan, fuelLeft, kmToReserve, routeFuelPlan } from './core/F
 import { StationSource } from './adapters/StationSource';
 import { refreshFuelPrice } from './adapters/FuelPrice';
 import { ServiceStore } from './adapters/ServiceStore';
-import { canUndo, dueInfo, dueText, findReminder, markDone, undoDone } from './core/Reminders';
+import { ServiceBook, canUndo, dueInfo, dueText, findReminder, islandReminder, markDone, undoDone } from './core/Reminders';
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
 import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
@@ -567,6 +567,11 @@ function paintBrand() {
 
 // ---- the rider screens
 const VOICE_MODES: Record<CloudVoiceMode, string> = { stream: 'Gemini', mixed: 'Gemini + Chirp', chirp: 'Chirp', gemini: 'Gemini', off: 'Phone voice' };
+/** The island's maintenance cue: overdue, or due within 500 km or a week. */
+const islandService = (book: ServiceBook | null) => {
+  const d = book ? islandReminder(book, Date.now()) : null;
+  return d ? { name: d.r.name, text: dueText(d), due: d.state === 'due', kmLeft: d.kmLeft, key: d.r.id } : null;
+};
 const readiness = (): ReadyRow[] => {
   const real = realBox.checked;
   const nav = window.navigator;
@@ -674,6 +679,7 @@ function paintRide() {
     untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
     route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm, detour: r.engine.onDetour() } : null,
     fuelRangeKm: Math.round(kmToReserve(CONFIG.fuel)),
+    service: islandService(r.engine.serviceBook()),
   });
   const minLabel = document.getElementById('rideminlabel');
   if (minLabel) minLabel.textContent = CONFIG.ridingTimeOnly ? 'min riding' : 'min out';

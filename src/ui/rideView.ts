@@ -33,9 +33,11 @@ export interface RideInput {
   route?: { name: string; leftKm: number; leftMin: number; next: { name: string; km: number } | null; offKm: number; doneKm?: number; detour?: boolean } | null;
   /** Full-tank range, for the fuel progress bar */
   fuelRangeKm?: number;
+  /** A service reminder due within 500 km or a week, or overdue (core/Reminders islandReminder) */
+  service?: { name: string; text: string; due: boolean; kmLeft: number | null; key: string } | null;
 }
 
-export type GlanceId = 'range' | 'rain' | 'traffic' | 'route' | 'offroute' | 'sunset' | 'area' | 'place' | 'riding';
+export type GlanceId = 'range' | 'rain' | 'traffic' | 'route' | 'offroute' | 'sunset' | 'service' | 'area' | 'place' | 'riding';
 /** What a card's one button does (main.ts carries it out). */
 export type GlanceAction = 'filled' | 'ask-rain' | 'ask-traffic' | 'upahead' | 'story' | 'ask-place';
 export interface Glance {
@@ -76,6 +78,8 @@ const momentFor = (tag?: string) => MOMENTS[(tag ?? 'voice') as keyof typeof MOM
 /** Voice tags like <laugh> are for Gemini, not for the screen. */
 const plain = (t: string) => t.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 const hhmm = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
+/** "Engine oil and filter" -> "Engine oil", "Brake fluid, entire system" -> "Brake fluid": for the pill. */
+const shortName = (n: string) => n.replace(/\s+and\s.*$|,.*$/, '').trim() || n;
 const km = (n: number) => (n < 10 ? n.toFixed(1) : String(Math.round(n)));
 
 /** Every cue worth a glance, most pressing first (the island shows the first and can browse the rest). */
@@ -110,6 +114,10 @@ export function glanceCues(i: RideInput): Glance[] {
     add({ ...GLANCE.sunset, id: 'sunset', key: 'sunset', title: `Sunset ${hhmm(w.sunsetAt)}`, value: '', short: `Sunset ${hhmm(w.sunsetAt)}`,
       progress: 1 - (w.sunsetAt - i.now) / (60 * 60_000) });
   }
+  const sv = i.service;
+  if (sv) add({ ...GLANCE.service, id: 'service', key: `service:${sv.key}:${sv.due ? 'due' : 'soon'}`, title: sv.name, value: sv.due ? `Due: ${sv.text}` : `Due ${sv.text}`,
+    short: sv.kmLeft != null && sv.kmLeft > 0 ? `${shortName(sv.name)} in ${sv.kmLeft} km` : `${shortName(sv.name)} due`,
+    progress: sv.kmLeft != null ? Math.min(1, Math.max(0, 1 - sv.kmLeft / 500)) : undefined });
   const area = s.area?.suburb || s.area?.town;
   if (area) add({ ...GLANCE.area, id: 'area', key: `area:${area}`, title: area, value: i.untoldStories ? `${i.untoldStories} ${i.untoldStories === 1 ? 'story' : 'stories'} to tell` : '', short: area,
     action: i.untoldStories ? { kind: 'story', label: 'Tell me a story' } : undefined });

@@ -128,6 +128,7 @@ export class TriggerEngine {
   /** Service reminders and Betty's odometer (what is due goes in the briefing, answers and sign-off). */
   private book: ServiceBook | null = null;
   setServiceBook(b: ServiceBook | null) { this.book = b; }
+  serviceBook() { return this.book; }
   /** What is due now, with the km ridden this ride added (the book's odometer is saved once a minute). */
   private dueNote(all = false): string {
     return this.book ? describeDue(this.book, this.now(), all) : '';

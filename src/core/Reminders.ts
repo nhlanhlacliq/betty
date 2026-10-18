@@ -65,6 +65,16 @@ export function dueText(d: DueInfo): string {
   return parts.join(' or ') || 'no interval set';
 }
 
+/**
+ * The island's maintenance cue (owner, 2026-10-18: "500 km due service and such would be good to go into the
+ * island"): the most pressing reminder that is overdue or due within 500 km or 7 days, else null.
+ */
+export const ISLAND_KM = 500;
+export const ISLAND_DAYS = 7;
+export function islandReminder(book: ServiceBook, now: number): DueInfo | null {
+  return dueList(book, now).find((d) => d.state === 'due' || (d.kmLeft != null && d.kmLeft <= ISLAND_KM) || (d.daysLeft != null && d.daysLeft <= ISLAND_DAYS)) ?? null;
+}
+
 /** Done: counted again from here. */
 export const markDone = (book: ServiceBook, id: string, now: number): ServiceBook =>
   ({ ...book, items: book.items.map((r) => (r.id === id ? { ...r, lastKm: book.odoKm, lastAt: now, assumed: false, prev: { lastKm: r.lastKm, lastAt: r.lastAt, assumed: r.assumed } } : r)) });

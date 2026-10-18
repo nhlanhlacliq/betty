@@ -2189,6 +2189,14 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(R.undoDone(undone, 'oil').items.find((r) => r.id === 'oil'), back, 'nothing left to undo: unchanged');
   for (const [said, what] of [['Chain not done', 'chain'], ['Mark the oil as not done', 'oil'], ['Undo the brake fluid', 'brake fluid']] as const) assert.deepEqual(parseCommand(said), { kind: 'undone', what }, said);
   assert.equal(parseCommand('Undo that'), null, '"that" is no reminder');
+  // the island: due within 500 km or a week, or overdue
+  const isl = R.islandReminder({ ...book, odoKm: 29_584, items: book.items.filter((r) => r.id === 'oil' || r.id === 'airfilter') }, t0);
+  assert.equal(isl?.r.id, 'oil'); assert.equal(isl?.kmLeft, 416);
+  assert.equal(R.islandReminder({ ...book, odoKm: 29_400, items: book.items.filter((r) => r.id === 'oil') }, t0), null, '600 km away: not yet');
+  const { glanceCues } = await import('../src/ui/rideView');
+  const cue = glanceCues({ now: t0, state: initialState(), speaking: null, lastSaid: null, talk: 'off', quietMin: 0, ending: false, distanceKm: 0, minutesOut: 0, fuelKmLeft: null, fuelWarnKm: 60, rainChancePct: 60, trafficRadiusKm: 5, untoldStories: 0, showGlance: true,
+    service: { name: 'Engine oil and filter', text: 'in 416 km', due: false, kmLeft: 416, key: 'oil' } } as any).find((g) => g.id === 'service')!;
+  assert.deepEqual([cue.label, cue.title, cue.value, cue.short], ['Maintenance', 'Engine oil and filter', 'Due in 416 km', 'Engine oil in 416 km']);
   // Done before Undo existed (no prev): a handbook item goes back to the schedule's guess
   const early = { ...book, odoKm: 29_584, items: book.items.map((r) => (r.id === 'oil' ? { ...r, lastKm: 29_584, lastAt: t0, assumed: false, prev: undefined } : r)) };
   const oilEarly = early.items.find((r) => r.id === 'oil')!;

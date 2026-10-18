@@ -6,6 +6,12 @@ export interface ChangeDay { date: string; items: string[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-18',
+    items: [
+      'The island shows maintenance on the ride: anything overdue, or due within 500 km or a week ("Engine oil in 416 km").',
+    ],
+  },
+  {
     date: '2026-10-17',
     items: [
       'Mark as not done also works for a handbook item marked Done before Undo existed: it goes back to the handbook milestone (oil last done at 20,000 km, due at 30,000).',

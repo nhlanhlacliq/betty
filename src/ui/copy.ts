@@ -61,7 +61,8 @@ export const COMPANION_STATE = {
 export const LINE_LINGER_MS = 30_000;
 
 export interface GlanceCopy { icon: IconName; label: string }
-export const GLANCE: Record<'range' | 'rain' | 'traffic' | 'route' | 'offroute' | 'sunset' | 'area' | 'place' | 'riding', GlanceCopy> = {
+export const GLANCE: Record<'range' | 'rain' | 'traffic' | 'route' | 'offroute' | 'sunset' | 'service' | 'area' | 'place' | 'riding', GlanceCopy> = {
+  service: { icon: 'wrench', label: 'Maintenance' },
   route: { icon: 'pin', label: 'Your route' },
   offroute: { icon: 'compass', label: 'Off your route' },
   range: { icon: 'fuel', label: 'Fuel range · estimate' },

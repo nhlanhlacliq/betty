@@ -91,7 +91,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     ])}` },
   { id: 'ridescreen', title: 'The ride screen', keywords: 'island map lock quiet orb dock slim panel zoom pan',
     html: `${li([
-      '<b>The island</b> (the dark card on the map): the one thing worth a glance. Tap to open it, swipe sideways for the others (rain, route, fuel, sunset, the area), and use its button (Filled up, Tell me a story, Up ahead...). Garage &gt; The island.',
+      '<b>The island</b> (the dark card on the map): the one thing worth a glance. Tap to open it, swipe sideways for the others (rain, route, fuel, sunset, maintenance due within 500 km or a week, the area), and use its button (Filled up, Tell me a story, Up ahead...). Garage &gt; The island.',
       '<b>Betty\'s orb:</b> tap the small orb to hear her last line again.',
       '<b>Quiet</b> (the headset icon): she stops chatting until you tap it again; alerts still come.',
       '<b>Lock</b> covers the screen so a glove or rain cannot press anything; hold the unlock button for a second to get out.',
@@ -114,6 +114,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Done:</b> tap Done, or say "chain done", "changed the oil", "the bike was serviced". It counts again from there.',
       '<b>Not done after all:</b> right after tapping Done the button reads <i>Undo</i>. Later, tap the reminder and choose <i>Mark as not done</i>, which puts it back to how it was before the last Done (for a handbook item with nothing to go back to, it returns to the handbook\'s milestone, e.g. oil last done at 20,000 km). Or say "chain not done".',
       'Tap any reminder to change its interval, rename it or delete it; <i>Add a reminder</i> makes your own (by km, by time, or both).',
+      'On the ride, the island shows a reminder that is overdue or due within 500 km or a week ("Engine oil in 416 km").',
       'She mentions anything due or coming up in the briefing and the sign-off, and the Details sheet on the Ride tab shows the most pressing one. Ask "what\'s due?" any time. The list shows the most pressing five; Show all opens the rest.',
     ])}` },
   { id: 'routes', title: 'Planning a route', keywords: 'route where to google maps link plan twisty thrilling stops off route detour',
