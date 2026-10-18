@@ -45,10 +45,14 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
   voice: { kicker: 'Betty', headline: 'On it.' },
 };
 
-/** Ride screen states that are not a line. */
+/**
+ * Ride screen states that are not a line. Written as STATUS, never in her voice: a caption in her voice ("I'll be here
+ * when you're rolling") read like a line she should have said aloud (owner, 2026-10-18). While moving, her last line
+ * stays on screen (dimmed) instead; `idle` only shows before she has said anything.
+ */
 export const RIDE_STATES = {
-  idle: { kicker: 'The moment around you', headline: 'A little space to breathe.', sub: 'Betty is keeping an eye on the journey. For now, enjoy the road.' },
-  parked: { kicker: 'Taking a moment', headline: 'Taking a breather.', sub: "I'll be here when you're rolling." },
+  idle: { kicker: 'On the road', headline: 'Riding.', sub: 'Betty speaks up when there is something worth saying.' },
+  parked: { kicker: 'Stopped', headline: 'Standing still.', sub: 'Stopped. Betty is keeping an eye on the road ahead.' },
   quiet: { kicker: 'A little quiet', headline: 'Taking the hint.' },
   quietFor: (min: number) => `Alerts still come through. Back in ${min} minute${min === 1 ? '' : 's'}.`,
   quietUntilTold: 'Alerts still come through. Tap Quiet again to have her back.',

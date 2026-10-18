@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      { id: 'last-line-stays', kind: 'better', title: 'Her last line stays.', text: 'While you ride, her last line stays on the ride screen (dimmed) until she says something new; stopped, a short status shows, never words she did not say.', help: 'ridescreen' },
       { id: 'horizon-dismiss', kind: 'better', title: 'Dismiss traffic on Horizon.', text: 'Tap × on an open traffic card, or swipe it up: it stays away for a week, and Betty will not announce it either.', help: 'ridescreen' },
       { id: 'toast-motion', kind: 'new', title: 'Little animations.', text: 'Her words appear as she says them, numbers count up, your road draws itself, messages drop in (tap to close), Horizon grows smoothly; one Garage switch turns them all off.', help: 'ridescreen' },
       { id: 'louder-by-voice', kind: 'better', title: 'Louder by voice.', text: 'Say "louder", "softer", "max volume" or "normal volume" on the ride; it moves the Louder voice slider in Garage.', help: 'commands' },

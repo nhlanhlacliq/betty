@@ -403,6 +403,10 @@ has dynamic content, and a smoke test.
   Media Session title while she holds the headset buttons, i.e. the PHONE's lock screen Now Playing (and possibly
   CarPlay's Now Playing; unverified). `CONFIG.island.lockLine` (Garage > Horizon > On the lock screen, default on;
   still enabled when the card itself is hidden). Both use the cues even with Show Horizon off.
+- RIDE SCREEN LINE (2026-10-18, owner chose the combination): moving, her last line stays under her name after the
+  30 s linger, DIMMED (`RideView.earlier`, `#ridesub.earlier`); stopped (< 3 km/h) or before her first line, a STATUS
+  caption (`RIDE_STATES.parked/idle` in copy.ts). Captions are never written in her voice: "I'll be here when you're
+  rolling" read like a line she failed to say.
 - HORIZON DISMISS (2026-10-18, owner): traffic cards carry `Glance.dismiss` (= `incidentKey`); × (`#glancedismiss`, open card
   only) or a swipe up hides it: `adapters/HorizonDismissed` (`betty.dismissed.v1`, a week), `RideInput.dismissed` filters
   it out of `glanceCues` (the next nearest incident shows), and `engine.knowIncident` + `setKnownIncidents` at ride start

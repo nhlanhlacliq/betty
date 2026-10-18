@@ -91,6 +91,7 @@ export function mountRideScreen(doc: Document, actions: RideActions, borders?: (
       text('ridekicker', v.kicker);
       text('companionstate', v.state);
       // Her line appears word by word while she says it (Little animations); anything else just shows.
+      $('ridesub').classList.toggle('earlier', !!v.earlier);
       if (last.get('ridesub') !== v.message) {
         last.set('ridesub', v.message);
         if (v.orb === 'speaking') revealWords($('ridesub'), v.message, doc); else { $('ridesub').textContent = v.message; $('ridesub').removeAttribute('aria-label'); }

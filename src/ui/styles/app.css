@@ -773,6 +773,9 @@ html, body { overscroll-behavior: none; }
 @keyframes toast-shake { 25% { transform: translateX(calc(-50% - 4px)); } 50% { transform: translateX(calc(-50% + 4px)); } 75% { transform: translateX(calc(-50% - 2px)); } }
 
 /* 1. Her line on the ride, word by word as she says it */
+/* Her last line, kept on screen while riding until she says something new */
+#ridesub { transition: opacity .4s ease; }
+#ridesub.earlier { opacity: .55; }
 .motion #ridesub .word { display: inline-block; animation: word-in .32s ease-out both; }
 @keyframes word-in { from { opacity: 0; transform: translateY(3px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
 

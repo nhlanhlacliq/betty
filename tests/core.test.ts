@@ -1767,16 +1767,21 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     fuelWarnKm: 60, rainChancePct: 60, trafficRadiusKm: 5, untoldStories: 0, showGlance: true,
   };
   const idle = rideView(base);
-  assert.equal(idle.orb, 'resting'); assert.equal(idle.headline, 'A little space to breathe.'); assert.equal(idle.state, 'Along for the ride');
+  assert.equal(idle.orb, 'resting'); assert.equal(idle.headline, 'Riding.'); assert.match(idle.message, /when there is something worth saying/); assert.equal(idle.state, 'Along for the ride');
   assert.equal(idle.distance, '12'); assert.equal(idle.minutes, '25'); assert.equal(idle.speed, '60'); assert.equal(idle.temp, '21°'); assert.equal(idle.place, '');
   assert.equal(idle.facts, '21°, clear');
-  assert.equal(rideView({ ...base, state: { ...base.state, speedKmh: 0 } }).headline, 'Taking a breather.', 'standing still');
+  assert.equal(rideView({ ...base, state: { ...base.state, speedKmh: 0 } }).headline, 'Standing still.', 'standing still');
   const said = { text: 'Rain in twenty minutes. <sigh> Typical.', tag: 'rain_soon', priority: 2 as const, at: now };
   const sp = rideView({ ...base, speaking: said });
   assert.equal(sp.orb, 'speaking'); assert.equal(sp.state, 'Speaking'); assert.equal(sp.kicker, 'Heads up'); assert.equal(sp.headline, 'Rain about.');
   assert.equal(sp.message, 'Rain in twenty minutes. Typical.', 'voice tags never reach the screen');
   assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 10_000 } }).headline, 'Rain about.', 'a finished line lingers');
-  assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 60_000 } }).headline, 'A little space to breathe.', 'then settles');
+  const later = rideView({ ...base, lastSaid: { ...said, at: now - 60_000 } });
+  assert.equal(later.message, 'Rain in twenty minutes. Typical.', 'moving: her last line stays');
+  assert.equal(later.earlier, true, 'shown dimmed'); assert.equal(later.orb, 'resting');
+  assert.equal(rideView({ ...base, lastSaid: { ...said, at: now - 10_000 } }).earlier, undefined, 'just said: not dimmed');
+  const stopped = rideView({ ...base, state: { ...base.state, speedKmh: 0 }, lastSaid: { ...said, at: now - 60_000 } });
+  assert.equal(stopped.headline, 'Standing still.', 'stopped: a status caption'); assert.doesNotMatch(stopped.message, /\bI'll\b|\bI am\b/, 'never in her voice');
   assert.equal(rideView({ ...base, speaking: { ...said, tag: 'not_a_trigger' } }).kicker, 'Betty', 'unknown tags fall back');
   assert.equal(rideView({ ...base, talk: 'listening', speaking: said }).orb, 'listening', 'listening beats speaking');
   assert.equal(rideView({ ...base, talk: 'thinking' }).state, 'Thinking');

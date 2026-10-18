@@ -63,6 +63,8 @@ export interface RideView {
   state: string;
   /** What she is saying, just said, or the idle line: the companion card */
   message: string;
+  /** The message is an earlier line of hers kept on screen while riding (shown dimmed), not one just said */
+  earlier?: boolean;
   /** The context card: what kind of moment, and the facts around him */
   kicker: string;
   headline: string;
@@ -208,6 +210,8 @@ export function rideView(i: RideInput): RideView {
     return moment(i.lastSaid, quiet ? 'quiet' : 'resting', quiet ? COMPANION_STATE.quiet : COMPANION_STATE.idle);
   }
   if (quiet) return { ...base, orb: 'quiet', state: COMPANION_STATE.quiet, ...RIDE_STATES.quiet, message: quietSub };
+  // Moving: her last line stays, dimmed, until she says something new. Stopped (or nothing said yet): a status caption.
+  if (s.speedKmh >= 3 && i.lastSaid) return { ...moment(i.lastSaid, 'resting', COMPANION_STATE.idle), earlier: true };
   const idle = s.speedKmh < 3 ? RIDE_STATES.parked : RIDE_STATES.idle;
   return { ...base, orb: 'resting', state: COMPANION_STATE.idle, kicker: idle.kicker, headline: idle.headline, message: idle.sub };
 }
