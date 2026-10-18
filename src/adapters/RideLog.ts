@@ -13,6 +13,10 @@ export const RideLog = {
   save(rec: RideRecord) {
     try { localStorage.setItem(KEY, JSON.stringify(upsertRide(RideLog.load(), rec))); } catch { /* ignore */ }
   },
+  /** Delete one ride (My journeys > Delete this ride). */
+  remove(rideId: number) {
+    try { localStorage.setItem(KEY, JSON.stringify(RideLog.load().filter((r) => r.startedAt !== rideId))); } catch { /* ignore */ }
+  },
   clear() {
     try { localStorage.removeItem(KEY); } catch { /* ignore */ }
   },

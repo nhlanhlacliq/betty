@@ -22,6 +22,8 @@ export const JourneyStore = {
     if (n) names[String(id)] = n; else delete names[String(id)];
     save({ ...m, names });
   },
+  /** A deleted ride: its star and name go too. */
+  forget(id: number) { const m = load(); const names = { ...m.names }; delete names[String(id)]; save({ starred: m.starred.filter((x) => x !== id), names }); },
   /** For tests and an import: read storage again. */
   reset() { cache = null; },
 };

@@ -31,6 +31,7 @@ import { PlaceSource } from './adapters/PlaceSource';
 import { AreaSource, AreaStore, ToldStore } from './adapters/AreaSource';
 import { TrackStore } from './adapters/TrackStore';
 import { RoadStore } from './adapters/RoadStore';
+import { JourneyStore } from './adapters/JourneyStore';
 import { liveRecords } from './core/Records';
 import { groupByMonth } from './core/Journeys';
 import { drawMonthCard } from './ui/monthCard';
@@ -300,6 +301,15 @@ const journeys = mountJourneysScreen(document, shell, {
       const how = await shareRideCard(document, png, `betty-ride-${new Date(rideId).toISOString().slice(0, 10)}.png`);
       if (how === 'saved') shell.toast('Ride card saved to your downloads.');
     } catch (e) { shell.toast(`Could not make the ride card: ${(e as Error).message}`, true); }
+  },
+  // Delete a ride (owner, 2026-10-18): the record, its lines, both copies of its road, its card extras, star and name.
+  deleteRide: (rideId) => {
+    if (rig && !rig.desk && rig.engine.rideSnapshot().startedAt === rideId) return false;
+    saveLog();
+    unsaved = unsaved.filter((l) => l.rideId !== rideId); // or the next save would put its lines back
+    RideLog.remove(rideId); LineLogStore.removeRide(rideId); TrackStore.remove(rideId); RoadStore.remove(rideId);
+    JourneyStore.forget(rideId); cardExtras.forget(rideId);
+    return true;
   },
   // The month's recap card (Journeys 8): every road of the month, the numbers, her best line of the month.
   shareMonth: async (key, status) => {

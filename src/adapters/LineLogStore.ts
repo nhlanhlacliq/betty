@@ -14,6 +14,10 @@ export const LineLogStore = {
     if (!fresh.length) return;
     try { localStorage.setItem(KEY, JSON.stringify(mergeLog(LineLogStore.load(), fresh))); } catch { /* storage full or blocked */ }
   },
+  /** Everything said on one ride, gone (the ride was deleted). */
+  removeRide(rideId: number) {
+    try { localStorage.setItem(KEY, JSON.stringify(LineLogStore.load().filter((e) => e.rideId !== rideId))); } catch { /* ignore */ }
+  },
   clear() {
     try { localStorage.removeItem(KEY); } catch { /* ignore */ }
   },

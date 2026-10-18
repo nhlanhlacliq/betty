@@ -999,6 +999,32 @@ resetConfig();
   JourneyStore.rename(rides[0].startedAt, ''); JourneyStore.setStar(rides[0].startedAt, false);
 }
 
+// ---- My journeys: a long name scrolls sideways; rows open by tap or keyboard; delete asks first
+{
+  const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');
+  const j = new JSDOM(`<!doctype html><div id="journeytotals"></div><div id="journeylist"></div><div id="story"></div>`);
+  const d = j.window.document;
+  let rides = [{ startedAt: Date.now() - 3_600_000, minutes: 60, movingMin: 50, distanceKm: 30, weather: null, places: ['A very long place name that will not fit on a phone at all'], events: [] }];
+  const deleted: number[] = []; const toasts: string[] = []; const shown: string[] = [];
+  const view = mountJourneysScreen(d, { show: (id: string) => shown.push(id), onShow() {} } as any, { rides: () => rides, entries: () => [], track: () => [], copyRide: async () => true, saveRide() {},
+    toast: (m: string) => toasts.push(m), shareRide: async () => {}, deleteRide: (id: number) => { deleted.push(id); rides = rides.filter((r) => r.startedAt !== id); return true; } });
+  view.renderList();
+  const row = d.querySelector<HTMLElement>('.journey-row')!;
+  assert.equal(row.tagName, 'DIV', 'not a <button>: iPhone will scroll the name'); assert.equal(row.getAttribute('role'), 'button');
+  assert.ok(row.querySelector('h2.ride-name > span'), 'the name sits in its own scroller');
+  row.dispatchEvent(new j.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  assert.deepEqual(shown, ['story'], 'Enter opens the ride');
+  const story = d.getElementById('story')!;
+  story.querySelector<HTMLElement>('[data-delete]')!.click();
+  assert.match(story.querySelector('[data-delete-box]')!.textContent!, /Delete this ride\?.*fuel count and odometer stay/s);
+  story.querySelector<HTMLElement>('[data-delete-cancel]')!.click();
+  assert.equal(deleted.length, 0, 'Keep it: nothing deleted'); assert.ok(story.querySelector('[data-delete]'));
+  story.querySelector<HTMLElement>('[data-delete]')!.click();
+  story.querySelector<HTMLElement>('[data-delete-yes]')!.click();
+  assert.equal(deleted.length, 1, 'deleted once'); assert.equal(rides.length, 0);
+  assert.deepEqual(toasts, ['Ride deleted.']); assert.equal(shown.at(-1), 'journeys');
+}
+
 // ---- a ride's story: riding and stopped time (ride of 2026-10-17: 80 minutes parked made a 3 h 39 ride)
 {
   const { mountJourneysScreen } = await import('../src/ui/screens/JourneysScreen');

@@ -39,6 +39,8 @@ export interface JourneysContext {
   /** The month's recap card (Journeys 8): km, rides, places, her best line, every road of the month */
   shareMonth?(key: string, status: (text: string) => void): Promise<void>;
   toast(msg: string): void;
+  /** Delete a ride and everything kept with it; false if it cannot be (the ride still running) */
+  deleteRide?(rideId: number): boolean;
 }
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -83,10 +85,30 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
   let roads: Record<string, TrackPoint[]> = {};
   const row = (r: RideRecord) => {
     const road = roads[String(r.startedAt)] ?? [];
-    return `<button class="journey-row" type="button" data-ride="${r.startedAt}">
+    // A div acting as a button (not a <button>): iPhone Safari does not scroll inside a button, and a long name
+    // scrolls sideways (owner, 2026-10-18: "scroll left to reveal the rest of the name").
+    return `<div class="journey-row" role="button" tabindex="0" data-ride="${r.startedAt}">
       ${CONFIG.journeyThumbs ? `<span class="journey-thumb">${miniTrackSvg(road)}</span>` : ''}
-      <div class="journey-main"><p class="eyebrow">${JourneyStore.starred(r.startedAt) ? '<span class="star-on" aria-label="Starred">★</span> ' : ''}${esc(date(r.startedAt))}</p><h2>${esc(rideTitle(r))}</h2><p class="sub">${esc(r.weather ?? 'Out with Betty')}</p></div>
-      <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))}</p></div></button>`;
+      <div class="journey-main"><p class="eyebrow">${JourneyStore.starred(r.startedAt) ? '<span class="star-on" aria-label="Starred">★</span> ' : ''}${esc(date(r.startedAt))}</p><h2 class="ride-name"><span>${esc(rideTitle(r))}</span></h2><p class="sub">${esc(r.weather ?? 'Out with Betty')}</p></div>
+      <div class="right"><b>${r.distanceKm} km</b><p class="sub">${duration(rideMinutes(r, CONFIG.ridingTimeOnly))}</p></div></div>`;
+  };
+
+  /** After layout, so widths can be measured. */
+  const later = (f: () => void) => { const w = doc.defaultView; if (w?.requestAnimationFrame) w.requestAnimationFrame(f); else setTimeout(f, 0); };
+  /** Names wider than their space get a fade at the right edge (until scrolled to the end), so he knows to swipe. */
+  const markLongNames = (root: Element) => {
+    root.querySelectorAll<HTMLElement>('.ride-name').forEach((h) => {
+      const edge = () => h.classList.toggle('more', h.scrollWidth - h.clientWidth - h.scrollLeft > 2);
+      edge();
+      h.onscroll = edge;
+    });
+  };
+  /** Enter or Space on a focused row opens it, as a button would. */
+  const keyOpen = (e: Event) => {
+    const k = e as KeyboardEvent;
+    if (k.key !== 'Enter' && k.key !== ' ') return;
+    const b = (k.target as Element).closest?.<HTMLElement>('.journey-row[data-ride]');
+    if (b) { k.preventDefault(); open(Number(b.dataset.ride)); }
   };
 
   // ---- Your roads (Journeys 3): every ride's rough road on one map, pan and zoom, tap a road to open its ride.
@@ -199,6 +221,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       if (finding) {
         roads = ctx.roads?.() ?? {};
         const hits = findRides(rides, q, rideTitle).filter((r) => !starredOnly || JourneyStore.starred(r.startedAt));
+        later(() => markLongNames(found));
         found.innerHTML = `<p class="sub found-count">${hits.length ? `${hits.length} ride${hits.length === 1 ? '' : 's'}` : starredOnly && !q ? 'No starred rides yet. Open a ride and tap Star.' : 'No ride matches that.'}</p><div class="journey-list">${hits.map(row).join('')}</div>`;
         return;
       }
@@ -233,6 +256,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
         <button class="month-head" type="button" data-month-toggle="${m.key}" aria-expanded="${open}"><span><b>${m.key === thisMonth ? 'This month' : esc(m.label)}</b><small>${esc(bits)}</small></span><i class="chev" aria-hidden="true"></i></button>
         ${open ? `<div class="journey-list">${m.rides.map(row).join('')}</div>${m.key !== thisMonth ? shareMonthBtn(m.key, `Share ${m.label.split(' ')[0]}`) : ''}` : ''}</section>`;
     }).join('');
+    later(() => markLongNames(list));
   };
 
   const renderStory = (rideId: number) => {
@@ -284,6 +308,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
             <label class="check-row"><input type="checkbox" data-hideends checked /> Hide where I start and finish</label></div>
           <div class="dialog-actions"><button class="secondary" type="button" data-copy="${rideId}">${icon('share', 'ico sm')} Copy the log</button>
             <button class="secondary" type="button" data-save="${rideId}">Save as a file</button><button class="primary" type="button" data-go="home">Ride again →</button></div>
+          ${ctx.deleteRide ? `<div class="delete-ride" data-delete-box><button class="text-button danger" type="button" data-delete="${rideId}">Delete this ride</button></div>` : ''}
         </div>
       </div>`;
   };
@@ -302,6 +327,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     if (b) open(Number(b.dataset.ride));
   });
   searchBox?.addEventListener('input', () => renderList());
+  list.addEventListener('keydown', keyOpen);
+  found?.addEventListener('keydown', keyOpen);
   starBtn?.addEventListener('click', () => { starredOnly = !starredOnly; renderList(); });
   recordsBox?.addEventListener('click', (e) => {
     const b = (e.target as Element).closest<HTMLElement>('[data-ride]');
@@ -328,6 +355,22 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     if (c) void ctx.copyRide(Number(c.dataset.copy)).then((ok) => ctx.toast(ok ? 'Ride log copied' : 'Copy is not available here'));
     const s = t.closest<HTMLElement>('[data-save]');
     if (s) ctx.saveRide(Number(s.dataset.save));
+    // Delete: asks first, in place (the ride, its map, everything she said on it; fuel and odometer counts stay).
+    const del = t.closest<HTMLElement>('[data-delete]');
+    if (del) {
+      const box = story.querySelector<HTMLElement>('[data-delete-box]');
+      if (box) box.innerHTML = `<p class="sub"><b>Delete this ride?</b> Its map, numbers and everything Betty said on it go from this phone. Your fuel count and odometer stay as they are.</p>
+        <div class="dialog-actions"><button class="secondary" type="button" data-delete-cancel>Keep it</button><button class="secondary danger-fill" type="button" data-delete-yes="${del.dataset.delete}">Delete</button></div>`;
+      return;
+    }
+    if (t.closest('[data-delete-cancel]')) { renderStory(Number(story.dataset.ride)); return; }
+    const yes = t.closest<HTMLElement>('[data-delete-yes]');
+    if (yes) {
+      const ok = ctx.deleteRide?.(Number(yes.dataset.deleteYes));
+      if (ok) { ctx.toast('Ride deleted.'); shell.show('journeys'); }
+      else ctx.toast('That ride is still going: end it first.');
+      return;
+    }
     const star = t.closest<HTMLElement>('[data-star]');
     if (star) {
       const id = Number(star.dataset.star), on = !JourneyStore.starred(id);

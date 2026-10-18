@@ -18,5 +18,9 @@ export const TrackStore = {
       localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(ids.map((id) => [String(id), all[String(id)]]))));
     } catch { /* storage full or blocked: the map is a nicety */ }
   },
+  remove(rideId: number) {
+    const all = this.all(); delete all[String(rideId)];
+    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch { /* ignore */ }
+  },
   clear() { try { localStorage.removeItem(KEY); } catch { /* ignore */ } },
 };

@@ -32,5 +32,9 @@ export const RoadStore = {
     if (!missing.length) return;
     try { localStorage.setItem(KEY, JSON.stringify({ ...have, ...Object.fromEntries(missing.map(([id, t]) => [id, coarse(t)])) })); } catch { /* ignore */ }
   },
+  remove(rideId: number) {
+    const all = this.all(); delete all[String(rideId)];
+    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch { /* ignore */ }
+  },
   clear() { try { localStorage.removeItem(KEY); } catch { /* ignore */ } },
 };

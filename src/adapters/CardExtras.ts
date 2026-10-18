@@ -38,6 +38,11 @@ export class CardExtrasSource {
 
   private get st(): Store { return this.store ?? localStorage; }
 
+  /** A deleted ride: drop what was kept for its card. */
+  forget(rideId: number) {
+    try { const all = load(this.st); delete all[String(rideId)]; this.st.setItem(KEY, JSON.stringify(all)); } catch { /* ignore */ }
+  }
+
   /** Kept for this ride, if fetched before. */
   kept(rideId: number): CardExtras | null { return load(this.st)[String(rideId)] ?? null; }
 

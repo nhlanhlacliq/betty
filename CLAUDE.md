@@ -495,6 +495,13 @@ the ride card included. Story: Star / Rename (in-place field; Enter or blur save
 month on one map (`fitView`), km / rides / riding / fuel, best line of the month (`bestLine`), shared like the ride card;
 `ctx.shareMonth`, button on the month card and at the bottom of an opened older month.
 
+Long names and delete (same day): rows are `div role=button tabindex=0` (iPhone Safari does not scroll inside a
+<button>); `.ride-name` scrolls sideways, `.more` adds a right-edge fade while there is more (set after layout,
+`markLongNames`); Enter/Space open a focused row. Delete: story page `[data-delete]` -> in-place confirm ->
+`ctx.deleteRide` (main: refuses the running ride; `RideLog.remove`, `LineLogStore.removeRide`, `TrackStore.remove`,
+`RoadStore.remove`, `JourneyStore.forget`, `cardExtras.forget`; filters `unsaved` so the next log save does not put
+its lines back). Fuel count and odometer are NOT changed.
+
 ## Garage search and Help (2026-10-17, owner)
 
 `ui/help.ts` is the content as data: `VOICE_COMMANDS` (groups of {say[], does, kind}; a core test runs EVERY phrase

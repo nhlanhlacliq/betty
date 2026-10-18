@@ -2321,4 +2321,22 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(J.findRides(rides, '', title).length, rides.length);
 }
 
+// ---- deleting a ride removes it from every store (owner, 2026-10-18)
+{
+  const mem: Record<string, string> = {};
+  (globalThis as any).localStorage = { getItem: (k: string) => mem[k] ?? null, setItem: (k: string, v: string) => { mem[k] = v; }, removeItem: (k: string) => { delete mem[k]; } };
+  const { RideLog } = await import('../src/adapters/RideLog');
+  const { LineLogStore } = await import('../src/adapters/LineLogStore');
+  const { TrackStore } = await import('../src/adapters/TrackStore');
+  const { RoadStore } = await import('../src/adapters/RoadStore');
+  const rec = (id: number): RideRecord => ({ startedAt: id, minutes: 10, distanceKm: 5, weather: null, places: [], events: [] });
+  RideLog.save(rec(1)); RideLog.save(rec(2));
+  LineLogStore.save([{ id: 'a', at: 1, rideId: 1, head: '[P3] ambient_banter', text: 'one' } as any, { id: 'b', at: 2, rideId: 2, head: '[P3] ambient_banter', text: 'two' } as any]);
+  TrackStore.save(1, [[-26, 28], [-26.1, 28.1]]); RoadStore.save(1, [[-26, 28], [-26.1, 28.1]]); RoadStore.save(2, [[-26, 28], [-26.1, 28.1]]);
+  RideLog.remove(1); LineLogStore.removeRide(1); TrackStore.remove(1); RoadStore.remove(1);
+  assert.deepEqual(RideLog.load().map((r) => r.startedAt), [2]); assert.deepEqual(LineLogStore.load().map((e) => e.rideId), [2]);
+  assert.deepEqual(TrackStore.get(1), []); assert.deepEqual(Object.keys(RoadStore.all()), ['2']);
+  delete (globalThis as any).localStorage;
+}
+
 console.log('all core tests passed');
