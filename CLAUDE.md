@@ -503,7 +503,12 @@ Long names and delete (same day): rows are `div role=button tabindex=0` (iPhone 
 its lines back). Fuel count and odometer are NOT changed. SELECT MODE: `#journeyselect` (Select/Done) -> rows become
 `role=checkbox` with a `.pick` tick in place of the drawing, a tap ticks; open months get Select all/none; sticky
 `#journeyselectbar`: "N selected", Short ones (< 5 min or < 2 km, all rides), Cancel, Delete N -> in-bar confirm ->
-`ctx.deleteRide` for each. Works on search/Starred results too.
+`ctx.deleteRide` for each. Works on search/Starred results too. LATER THE SAME DAY (owner: the Select button took
+space): no Select button; `#journeyselect` is an "Edit" link in the page header (the privacy pill became a line in
+the subtitle); HOLD a row 450 ms (pointer moved > 8 px cancels, so swiping a long name is not a hold) to enter select
+mode with it ticked, the click after the hold is swallowed; `-webkit-touch-callout: none` stops the iPhone menu; a
+one-time toast "Tip: hold a ride..." (`betty.hint.hold`, only with 5+ rides). Starred = `.search-star` ☆/★ inside
+the search box.
 
 ## Garage search and Help (2026-10-17, owner)
 

@@ -1056,6 +1056,21 @@ resetConfig();
   bar.querySelector<HTMLElement>('[data-sel="ask"]')!.click(); bar.querySelector<HTMLElement>('[data-sel="delete"]')!.click();
   assert.deepEqual(rides.map((r) => r.distanceKm), [60]); assert.deepEqual(toasts, ['2 rides deleted.']);
   assert.equal(bar.hidden, true, 'back to the normal list'); assert.equal(L.querySelectorAll('.pick').length, 0);
+  // Hold a ride: select mode opens with it ticked, and the click that ends the hold neither opens nor unticks it
+  const r0 = L.querySelector<HTMLElement>('.journey-row')!;
+  r0.dispatchEvent(new j.window.MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));
+  await new Promise((r) => setTimeout(r, 520));
+  r0.dispatchEvent(new j.window.MouseEvent('pointerup', { bubbles: true }));
+  L.querySelector<HTMLElement>('.journey-row')!.click();
+  assert.equal(bar.hidden, false); assert.match(bar.textContent!, /1 selected/); assert.deepEqual(opened, []);
+  assert.equal(d.getElementById('journeyselect')!.textContent, 'Done');
+  d.getElementById('journeyselect')!.click(); assert.equal(d.getElementById('journeyselect')!.textContent, 'Edit');
+  // a hold that moves (a swipe, or reading a long name) is not a hold
+  const r1 = L.querySelector<HTMLElement>('.journey-row')!;
+  r1.dispatchEvent(new j.window.MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));
+  r1.dispatchEvent(new j.window.MouseEvent('pointermove', { bubbles: true, clientX: 60, clientY: 12 }));
+  await new Promise((r) => setTimeout(r, 520));
+  assert.equal(bar.hidden, true, 'moved: no select mode');
 }
 
 // ---- a ride's story: riding and stopped time (ride of 2026-10-17: 80 minutes parked made a 3 h 39 ride)

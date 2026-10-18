@@ -710,3 +710,10 @@ html, body { overscroll-behavior: none; }
 .select-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .select-actions .text-button { margin-right: auto; }
 .select-actions button[disabled] { opacity: .45; }
+
+/* Journeys header Edit and the star in the search box (2026-10-18) */
+.edit-link { flex: none; align-self: flex-start; font-size: 16px; font-weight: 600; padding: 6px 2px; }
+.edit-link[aria-pressed="true"] { color: var(--sage-text); }
+.search-star { flex: none; border: 0; background: none; font-size: 20px; line-height: 1; padding: 6px 2px 6px 8px; color: var(--muted); }
+.search-star[aria-pressed="true"] { color: #c9a43c; }
+.journey-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }

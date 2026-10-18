@@ -222,6 +222,7 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const q = searchBox?.value.trim() ?? '';
     const finding = !!q || starredOnly;
     starBtn?.setAttribute('aria-pressed', String(starredOnly));
+    if (starBtn) starBtn.textContent = starredOnly ? '★' : '☆';
     for (const el of [totals, dayBox, monthBox, doc.getElementById('roadscard'), doc.getElementById('journeyrecords')]) el?.classList.toggle('search-hide', finding);
     list.classList.toggle('search-hide', finding);
     if (found) {
@@ -267,13 +268,14 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     }).join('');
     later(() => markLongNames(list));
     renderBar();
+    holdHint(rides.length);
   };
 
   const bar = doc.getElementById('journeyselectbar');
   const selectBtn = doc.getElementById('journeyselect');
   const renderBar = () => {
     selectBtn?.setAttribute('aria-pressed', String(selecting));
-    if (selectBtn) selectBtn.textContent = selecting ? 'Done' : 'Select';
+    if (selectBtn) selectBtn.textContent = selecting ? 'Done' : 'Edit';
     if (!bar) return;
     bar.hidden = !selecting;
     if (!selecting) return;
@@ -302,6 +304,38 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
       stopSelecting();
     }
   });
+  // Hold a ride to start selecting (owner, 2026-10-18: the Select button took space; long-press, as in Photos and
+  // Mail). The click that follows the hold must not open or untick it.
+  const HOLD_MS = 450;
+  let hold: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null;
+  let swallowClick = false;
+  const cancelHold = () => { if (hold) clearTimeout(hold.timer); hold = null; };
+  const startHold = (e: Event) => {
+    const p = e as PointerEvent;
+    const b = (p.target as Element).closest?.<HTMLElement>('.journey-row[data-ride]');
+    if (!b || selecting) return;
+    cancelHold();
+    hold = { x: p.clientX, y: p.clientY, timer: setTimeout(() => {
+      hold = null; swallowClick = true;
+      selecting = true; picked.add(Number(b.dataset.ride));
+      (doc.defaultView?.navigator as Navigator | undefined)?.vibrate?.(12);
+      renderList();
+    }, HOLD_MS) };
+  };
+  const moveHold = (e: Event) => { const p = e as PointerEvent; if (hold && Math.hypot(p.clientX - hold.x, p.clientY - hold.y) > 8) cancelHold(); };
+  for (const box of [list, found]) {
+    box?.addEventListener('pointerdown', startHold);
+    box?.addEventListener('pointermove', moveHold);
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) box?.addEventListener(t, cancelHold);
+    box?.addEventListener('click', (e) => { if (swallowClick) { swallowClick = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+    box?.addEventListener('contextmenu', (e) => { if ((e.target as Element).closest?.('.journey-row')) e.preventDefault(); }); // no callout menu on a hold
+  }
+  /** Once: tell him a ride can be held (only when there are enough rides for it to matter). */
+  const holdHint = (count: number) => {
+    if (count < 5) return;
+    try { const st = doc.defaultView!.localStorage; if (st.getItem('betty.hint.hold')) return; st.setItem('betty.hint.hold', '1'); } catch { return; }
+    ctx.toast('Tip: hold a ride to select several, or tap Edit.');
+  };
   /** In select mode a tap ticks the row instead of opening it. */
   const pick = (id: number) => { if (picked.has(id)) picked.delete(id); else picked.add(id); confirming = false; renderList(); };
 

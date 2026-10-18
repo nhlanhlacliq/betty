@@ -8,6 +8,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
+      'My journeys is tidier at the top: hold a ride to select several (or tap Edit at the top right), and the starred filter is the ☆ inside the search box.',
       'Select in My journeys: tick rides (or a whole month, or "Short ones" under 5 minutes or 2 km) and delete them together.',
       'A ride name too long for its row fades at the edge: swipe it left to read the rest.',
       'Delete a ride from the bottom of its page (it asks first). Fuel and odometer counts are not changed.',
