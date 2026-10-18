@@ -164,7 +164,9 @@ Priorities: P1 critical, P2 advisory, P3 ambient, P4 rider-initiated.
 - One line at a time: a line arriving while another plays waits and is spoken after it. Only P1 interrupts, plus the
   replies to going quiet and coming back (owner, 2026-10-18: the Quiet button, "be quiet", "talk to me"):
   `AudioQueue.interrupt` cuts off the current line (fate `interrupted`) and goes next, but never cuts off a P1 (it then
-  goes right after it). Use `sayNow(text, true)` / `reply(..., true)` in main.ts for any other line that must not wait.
+  goes right after it). Use `sayNow(text, true)` / `reply(..., true)` / `say(ev, true)` in main.ts for any other line
+  that must not wait. Cutting in now: quiet, talk again, "repeat that" (voice, orb tap, next-track button) and the
+  sign-off. Careful: never pass `say` straight to `forEach` (the index would arrive as `now`).
 - Every line's fate is tracked on its `QueueItem` (`queued`, `speaking`, `spoken`, `expired`, `interrupted`,
   `cleared`) and shown in the log, so "logged but not heard" is always explained.
 - `WebSpeaker` must ALWAYS call onDone: mobile speech engines swallow lines or never fire `onend`, which used to jam
@@ -392,6 +394,10 @@ has dynamic content, and a smoke test.
 - Pull-to-refresh keeps his place (2026-10-17; it went back to Home): `rememberSpot` puts the screen, the open story's
   ride (`#story[data-ride]`) and the scroll in sessionStorage; `takeSpot` at the very end of main.ts restores it once
   (home, journeys, story with journeys under it, explore, settings, workshop; never ride/chat).
+- Stuck after ending (owner's bug, 2026-10-18): going back to the ride screen during the sign-off left him on an empty
+  ride screen whose End ride did nothing once the ride shut down. `stop()` now moves him to the story (kept ride) or
+  home from ride/chat; a "stop now" tap counts while the sign-off is still being written; End ride with no ride goes
+  home. Checked in headless Chromium with a 3-minute simulated ride.
 - Ending a ride (2026-10-17): a remembered ride's story opens AT ONCE on End & see my story, while she signs off, and
   is re-rendered with her sign-off line after. (It used to wait up to 45 s for the sign-off and only open if he was
   still on the ride screen: "sometimes I don't get the ride summary".) A ride too short to keep (under 3 min and 1 km)

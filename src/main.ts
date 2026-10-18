@@ -120,7 +120,7 @@ const feed = { weather: 'idle', traffic: 'idle', places: 'idle', areas: 'idle' }
 const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places} | Area stories: ${feed.areas}`;
 
 interface Rig {
-  agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent) => Promise<QueueItem | null>;
+  agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent, now?: boolean) => Promise<QueueItem | null>;
   setObd: (mode: ObdMode) => void; unsub: () => void; real: boolean; /** A desk session for the Workshop chat: not a ride */ desk: boolean; unmountSim: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number; paintTimer: number; routeWxTimer: number;
 }
 let rig: Rig | null = null;
@@ -963,7 +963,8 @@ async function beginRide(desk: boolean) {
   const speaker = new SwitchableSpeaker(cloud);
   const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => { onFate(item, fate); renderLog(); saveLogSoon(); }, onHeard);
 
-  const say = async (ev: TriggerEvent) => {
+  /** `now`: cut off whatever she is saying (AudioQueue.interrupt; never a P1), e.g. the sign-off. */
+  const say = async (ev: TriggerEvent, now = false) => {
     const p = await claude.phrase(ev, agg.current);
     const tag = { priority: ev.priority, id: ev.id };
     // Her own lines (Gemini, 5 to 7 s) are queued only once their audio is in, so they never block an answer.
@@ -976,7 +977,7 @@ async function beginRide(desk: boolean) {
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
     const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : '(silent)'));
     if (text && speaker.aloud) cloud.prefetch(text, tag); // fetch the audio while it waits its turn
-    line.item = queue.enqueue(text, ev.priority, ev.id); // the item carries its fate: waiting, speaking, spoken, or why not
+    line.item = now ? queue.interrupt(text, ev.priority, ev.id) : queue.enqueue(text, ev.priority, ev.id); // the item carries its fate: waiting, speaking, spoken, or why not
     toChat({ from: 'betty', text: line.text, at: Date.now(), ev, phrase: p });
     renderLog();
     if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
@@ -1013,7 +1014,7 @@ async function beginRide(desk: boolean) {
     if (SERVER && !desk && toReserve !== null && toReserve <= CONFIG.fuel.warnKmLeft + 40 && s.lat != null && s.lon != null) {
       void stations.near(s.lat, s.lon).then((l) => engine.setStations(l));
     }
-    engine.evaluate(s).forEach(say);
+    engine.evaluate(s).forEach((ev) => void say(ev));
     queue.pump();
     paintRide();
   });
@@ -1061,7 +1062,7 @@ async function beginRide(desk: boolean) {
   const obey = (c: Command) => {
     newLine('[command]', c.kind === 'preset' ? `preset ${c.preset}` : c.kind === 'mix' ? `${c.what} ${c.step > 0 ? 'up' : 'down'}` : c.kind === 'humour' || c.kind === 'persona' ? `${c.kind} ${c.set !== undefined ? `set ${c.set}` : `step ${c.step}`}` : c.kind === 'quiet' ? `quiet ${c.minutes === null ? 'until told' : `for ${c.minutes} min`}` : c.kind === 'mark' ? `mark${c.note ? `: ${c.note}` : ''}` : c.kind === 'remember' ? `remember: ${c.fact}` : c.kind);
     switch (c.kind) {
-      case 'repeat': reply(lastLine || "I haven't said anything yet.", 'repeat'); return;
+      case 'repeat': reply(lastLine || "I haven't said anything yet.", 'repeat', true); return;
       case 'quiet':
         engine.setQuiet(c.minutes === null ? Infinity : Date.now() + c.minutes * 60_000);
         queue.dropAmbient();
@@ -1264,11 +1265,11 @@ async function beginRide(desk: boolean) {
     }
   };
   /** Next track: say the last line again, as it was. */
-  const repeat = () => { if (lastLine) sayNow(lastLine); };
+  const repeat = () => { if (lastLine) sayNow(lastLine, true); };
   talkNow = () => void talk();
   rideHooks = {
     talk: () => void talk(),
-    repeat: () => { if (lastLine) sayNow(lastLine); else shell.toast("She hasn't said anything yet."); },
+    repeat: () => { if (lastLine) sayNow(lastLine, true); else shell.toast("She hasn't said anything yet."); },
     ask: (text) => { void askBetty(text); },
     toggleQuiet: () => { obey(engine.quietLeftMin() > 0 ? { kind: 'talk' } : { kind: 'quiet', minutes: null }); renderLog(); paintRide(); },
     // Horizon: he dismissed a traffic card. Hidden for a week, and she will not announce or brief him on it.
@@ -1382,9 +1383,15 @@ async function stop() {
 
   // A sign-off for any ride worth remembering.
   const debrief = !r.desk && toRecord(r.engine.rideSnapshot(), null) ? r.engine.force('ride_debrief', r.agg.current) : null;
-  const item = debrief ? await r.say(debrief) : null;
+  // Her sign-off cuts in (owner, 2026-10-18). A tap on "stop now" counts while it is still being written, too: it
+  // used to wait for Claude (up to 8 s) before the tap was looked at.
+  let item: QueueItem | null = null;
+  if (debrief) {
+    const said = r.say(debrief, true).then((it) => { item = it; });
+    while (!hurry && item === null) { if (await Promise.race([said.then(() => true), new Promise<boolean>((res) => setTimeout(() => res(false), 150))])) break; }
+  }
   const deadline = Date.now() + SIGN_OFF_LIMIT_MS;
-  while (item && !SETTLED.includes(item.fate) && !hurry && Date.now() < deadline) {
+  while (item && !SETTLED.includes((item as QueueItem).fate) && !hurry && Date.now() < deadline) {
     await new Promise((res) => setTimeout(res, 150));
   }
 
@@ -1410,8 +1417,11 @@ async function stop() {
   chatScreen.setRiding(false);
   workshopChat.refresh();
   paintBrand();
-  // The story again with her sign-off line in it; a ride too short to keep says so instead of vanishing.
-  if (kept) { if (shell.current === 'story') journeys.renderStory(rideId); }
+  // The story again with her sign-off line in it; a ride too short to keep says so instead of vanishing. If he went
+  // back to the ride (or chat) screen while she signed off, take him off it: with the ride over it is an empty page
+  // whose End ride does nothing (owner's bug, 2026-10-18: "stuck on that page").
+  const onRide = shell.current === 'ride' || shell.current === 'chat';
+  if (kept) { if (shell.current === 'story') journeys.renderStory(rideId); else if (onRide) { journeys.renderStory(rideId); shell.show('story'); } }
   else if (!r.desk) {
     if (shell.current === 'ride' || shell.current === 'chat') shell.show('home');
     shell.toast('A short one: rides under 3 minutes and 1 km are not kept in My journeys.');
@@ -1421,8 +1431,9 @@ async function stop() {
 
 // Start riding (or, while a ride runs, go back to it). End ride asks first; during the sign-off it ends at once.
 startBtn.addEventListener('click', () => { if (riding()) shell.show('ride'); else if (!starting) void start(); });
-endBtn.addEventListener('click', () => { if (endNow) endNow(); else if (riding()) shell.openSheet('end'); });
-$('endconfirm').addEventListener('click', () => { if (endNow) endNow(); else if (rig) void stop(); });
+// With no ride at all (never expected, but it once left him stuck): End ride just takes him home.
+endBtn.addEventListener('click', () => { if (endNow) endNow(); else if (riding()) shell.openSheet('end'); else if (!rig) shell.show('home'); });
+$('endconfirm').addEventListener('click', () => { if (endNow) endNow(); else if (rig) void stop(); else { shell.closeSheet(); shell.show('home'); } });
 
 // Last, once every screen is mounted (their onShow handlers fill them in). After a pull-to-refresh: back to the screen he was on (and the same ride's story), scrolled where it was.
 {

@@ -18,7 +18,8 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-18',
     items: [
-      { id: 'quiet-cuts-in', kind: 'better', title: 'Quiet means now.', text: 'Going quiet (the Quiet button or "be quiet") and having her back cut off whatever she is saying and answer at once; a safety alert is still never cut off.', help: 'commands' },
+      { id: 'quiet-cuts-in', kind: 'better', title: 'Some lines cut in.', text: 'Going quiet, having her back, "repeat that" and her sign-off stop whatever she is saying and go at once; a safety alert is still never cut off.', help: 'commands' },
+      { id: 'end-ride-stuck', kind: 'fixed', title: 'End ride no longer gets stuck.', text: 'Going back to the ride screen while she signed off could leave you on an empty ride screen where End ride did nothing.' },
       { id: 'last-line-stays', kind: 'better', title: 'Her last line stays.', text: 'While you ride, her last line stays on the ride screen (dimmed) until she says something new; stopped, a short status shows, never words she did not say.', help: 'ridescreen' },
       { id: 'horizon-dismiss', kind: 'better', title: 'Dismiss traffic on Horizon.', text: 'Tap × on an open traffic card, or swipe it up: it stays away for a week, and Betty will not announce it either.', help: 'ridescreen' },
       { id: 'toast-motion', kind: 'new', title: 'Little animations.', text: 'Her words appear as she says them, numbers count up, your road draws itself, messages drop in (tap to close), Horizon grows smoothly; one Garage switch turns them all off.', help: 'ridescreen' },
