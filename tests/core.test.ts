@@ -2655,4 +2655,21 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(!asked.includes('012F'));
 }
 
+// ---- "heard": the ride screen shows her words when her voice is actually audible, not when her turn starts
+{
+  const calls: Array<{ text: string; tag?: any; done: () => void }> = [];
+  const sp = { speak: (text: string, done: () => void, tag?: any) => { calls.push({ text, tag, done }); }, stop() {} };
+  const heard: string[] = [];
+  const q = new AudioQueue(sp, () => true, () => 0, () => {}, (i) => heard.push(i.text));
+  const a = q.enqueue('first', 4)!;
+  assert.equal(a.fate, 'speaking'); assert.deepEqual(heard, [], 'not heard just because it is her turn');
+  calls[0].tag.heard(); calls[0].tag.heard();
+  assert.deepEqual(heard, ['first'], 'once, when the audio starts');
+  q.enqueue('urgent', 1); // interrupts
+  calls[0].tag.heard();
+  assert.deepEqual(heard, ['first'], 'a stale line cannot report itself as heard');
+  calls[1].tag.heard();
+  assert.deepEqual(heard, ['first', 'urgent']);
+}
+
 console.log('all core tests passed');

@@ -768,10 +768,22 @@ let lastSaid: SaidLine | null = null;
 let talkState: 'off' | 'listening' | 'thinking' = 'off';
 /** Horizon's cards as last painted, for "anything ahead?" */
 let horizonNow: Glance[] = [];
+/** Her turn has started but her voice may not be audible yet (a cloud clip can take seconds): the ride screen shows
+ *  the line from `onHeard`, or after 6 s regardless so a speaker that never reports cannot hide it. */
+let heardTimer: ReturnType<typeof setTimeout> | undefined;
+const onHeard = (item: QueueItem) => {
+  clearTimeout(heardTimer);
+  if (item.fate !== 'speaking') return;
+  speakingNow = { text: item.text, tag: item.tag, priority: item.priority, at: Date.now() };
+  paintRide();
+};
 const onFate = (item: QueueItem, fate: Fate) => {
   const said: SaidLine = { text: item.text, tag: item.tag, priority: item.priority, at: Date.now() };
-  if (fate === 'speaking') speakingNow = said;
-  else if (speakingNow && speakingNow.text === item.text) { speakingNow = null; if (fate === 'spoken') lastSaid = said; }
+  if (fate === 'speaking') { clearTimeout(heardTimer); heardTimer = setTimeout(() => onHeard(item), 6000); }
+  else {
+    if (speakingNow && speakingNow.text === item.text) speakingNow = null;
+    if (fate === 'spoken') { lastSaid = said; clearTimeout(heardTimer); }
+  }
   paintRide();
 };
 function paintRide() {
@@ -945,7 +957,7 @@ async function beginRide(desk: boolean) {
   // Her stock phrases in her Gemini voice, ready before they are needed (from the phone after the first ride).
   if (CONFIG.cloudVoice !== 'off' && CONFIG.cloudVoice !== 'chirp') for (const l of STOCK_LINES) cloud.prefetch(l, { priority: 4, id: 'voice' });
   const speaker = new SwitchableSpeaker(cloud);
-  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => { onFate(item, fate); renderLog(); saveLogSoon(); });
+  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => { onFate(item, fate); renderLog(); saveLogSoon(); }, onHeard);
 
   const say = async (ev: TriggerEvent) => {
     const p = await claude.phrase(ev, agg.current);

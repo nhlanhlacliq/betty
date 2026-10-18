@@ -1054,7 +1054,11 @@ for coffee out west" used it naturally.
 (the "Little animations" block at the end) and every script-driven one checks `motionOn` first, so the one switch
 (Garage > Betty's personality > Little animations, `#motionswitch`) turns all of them off. Pieces: toasts (Shell:
 spring in, nudge when replaced, rise out, error shake, tap to close, longer for long text: those two are not motion);
-her ride line word by word (`revealWords`, ~340 ms a word, squeezed into 9 s, only while `orb === 'speaking'`);
+her ride line word by word (`revealWords`, ~340 ms a word, squeezed into 9 s, only while `orb === 'speaking'`), and only
+once her voice is AUDIBLE (owner: the words came before her voice): `SpeakTag.heard` is called by every speaker when audio
+starts (Cloud: first streamed chunk / clip about to play; WebSpeaker `onstart`; silent mode at once; ExpoSpeaker
+`onStart`), AudioQueue passes it once to `onHeard` (stale lines ignored), and main.ts sets `speakingNow` then (6 s
+fallback). So the orb's speaking state follows the real audio too;
 `countUp` on Journeys totals/month/records when the screen shows and the story's numbers; the story road draws itself
 (`.ride-road` + `pathLength="1"` on the track paths in mapView, `.story-map.drawn` after 1.8 s so the later repaint with
 place names does not redraw it) and its moments rise in one after another; reminders Done: a drawn tick, a sage flash,

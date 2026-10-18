@@ -1,5 +1,5 @@
 import { CONFIG } from '../config/betty';
-import { Speaker } from '../core/AudioQueue';
+import { SpeakTag, Speaker } from '../core/AudioQueue';
 
 /** The slice of speechSynthesis this needs, so the recovery logic can be tested with a fake. */
 export interface Synth {
@@ -36,6 +36,8 @@ export class WebSpeaker implements Speaker {
   }
 
   private token = 0;
+  /** The current line's "now audible" callback (SpeakTag.heard) */
+  private heard?: () => void;
   private timers: Array<ReturnType<typeof setTimeout>> = [];
   /** Held on purpose: some browsers drop the events of an utterance that has been garbage-collected. */
   private current: SpeechSynthesisUtterance | null = null;
@@ -47,9 +49,10 @@ export class WebSpeaker implements Speaker {
     private timings: SpeakerTimings = DEFAULT_TIMINGS,
   ) {}
 
-  speak(text: string, onDone: () => void) {
+  speak(text: string, onDone: () => void, tag?: SpeakTag) {
     if (!this.synth) { onDone(); return; }
     this.clearTimers();
+    this.heard = tag?.heard;
     this.attempt(text, onDone, ++this.token, false);
   }
 
@@ -90,7 +93,7 @@ export class WebSpeaker implements Speaker {
     const voice = CONFIG.voiceURI ? synth.getVoices?.().find((v) => v.voiceURI === CONFIG.voiceURI) : undefined;
     if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-ZA';
     u.rate = 1.0;
-    u.onstart = () => { started = true; };
+    u.onstart = () => { started = true; if (token === this.token) this.heard?.(); };
     u.onend = () => finish();
     u.onerror = (e) => {
       const kind = (e as SpeechSynthesisErrorEvent)?.error ?? 'error';

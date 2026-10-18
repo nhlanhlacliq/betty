@@ -309,8 +309,8 @@ export class CloudSpeaker implements Speaker {
       const clip = this.getStream(r);
       if (!clip.chunks.length) {
         noAudio = setTimeout(() => { if (!clip.chunks.length) { this.failed.add(r.key); giveUp(`no audio after ${STREAM_WAIT_MS / 1000} s`); } }, STREAM_WAIT_MS);
-        const off = clip.on(() => { if (clip.chunks.length) { off(); if (my === this.token && !finished) this.onAudio('gemini', true, Date.now() - t0); } });
-      } else this.onAudio('gemini', true, 0);
+        const off = clip.on(() => { if (clip.chunks.length) { off(); if (my === this.token && !finished) { this.onAudio('gemini', true, Date.now() - t0); tag?.heard?.(); } } });
+      } else { this.onAudio('gemini', true, 0); tag?.heard?.(); }
       armDeadline();
       this.stopPlay = this.pcmPlayer.play(clip, done, giveUp);
       return;
@@ -324,6 +324,7 @@ export class CloudSpeaker implements Speaker {
         : raw;
       if (my !== this.token || finished) return;
       this.onAudio(r.engine, false, Date.now() - t0);
+      tag?.heard?.();
       const url = URL.createObjectURL(blob);
       armDeadline();
       this.stopPlay = this.player().play(url, () => { URL.revokeObjectURL(url); done(); }, (why) => { URL.revokeObjectURL(url); giveUp(why); });

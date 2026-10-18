@@ -2,7 +2,12 @@ import { CONFIG } from '../config/betty';
 import { Priority } from './types';
 
 /** What a line is, so a speaker can choose how to say it (the cloud voice picks engine and tone from it). */
-export interface SpeakTag { priority: Priority; id?: string }
+export interface SpeakTag {
+  priority: Priority; id?: string;
+  /** Call when the line actually becomes audible (a cloud clip can take seconds to arrive): the ride screen shows her
+   *  words from then. Speakers call it at most once; the queue ignores late or stale calls. */
+  heard?: () => void;
+}
 export interface Speaker {
   speak(text: string, onDone: () => void, tag?: SpeakTag): void;
   stop(): void;
@@ -32,6 +37,8 @@ export class AudioQueue {
     private isSafe: () => boolean,
     private now: () => number = Date.now,
     private report: (item: QueueItem, fate: Fate) => void = () => {},
+    /** The line being spoken became audible (SpeakTag.heard) */
+    private onHeard: (item: QueueItem) => void = () => {},
   ) {}
 
   private onFate(item: QueueItem, fate: Fate) { item.fate = fate; this.report(item, fate); }
@@ -75,13 +82,14 @@ export class AudioQueue {
     const [item] = this.items.splice(idx, 1);
     this.speaking = item;
     const gen = ++this.gen;
+    let heard = false;
     this.onFate(item, 'speaking');
     this.speaker.speak(item.text, () => {
       if (gen !== this.gen) return; // stale: this speech was interrupted or cleared
       this.speaking = null;
       this.onFate(item, 'spoken');
       this.pump();
-    }, { priority: item.priority, id: item.tag });
+    }, { priority: item.priority, id: item.tag, heard: () => { if (gen === this.gen && this.speaking === item && !heard) { heard = true; this.onHeard(item); } } });
   }
 
   clear() {

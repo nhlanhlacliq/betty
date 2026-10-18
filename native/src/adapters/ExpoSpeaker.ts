@@ -1,5 +1,5 @@
 import * as Speech from 'expo-speech';
-import type { Speaker } from '../../../src/core/AudioQueue';
+import type { SpeakTag, Speaker } from '../../../src/core/AudioQueue';
 
 /**
  * The phone's own voice (expo-speech). Like WebSpeaker it ALWAYS calls onDone, also when the engine never reports
@@ -9,7 +9,7 @@ export class ExpoSpeaker implements Speaker {
   private gen = 0;
   constructor(private onProblem: (msg: string) => void = () => {}) {}
 
-  speak(text: string, onDone: () => void) {
+  speak(text: string, onDone: () => void, tag?: SpeakTag) {
     const my = ++this.gen;
     let done = false;
     const finish = () => { if (done) return; done = true; clearTimeout(deadline); onDone(); };
@@ -17,6 +17,7 @@ export class ExpoSpeaker implements Speaker {
     const deadline = setTimeout(() => { if (my === this.gen) this.onProblem(`no end after ${text.length} chars, moving on`); finish(); }, 4000 + text.length * 70);
     Speech.speak(text, {
       language: 'en-ZA',
+      onStart: () => tag?.heard?.(),
       onDone: finish, onStopped: finish,
       onError: (e) => { this.onProblem(`speech error: ${String((e as any)?.message ?? e)}`); finish(); },
     });
