@@ -62,6 +62,12 @@ export interface Config {
   cardMetro: boolean;
   /** Louder voice, in dB (0 to 16; owner, ride of 2026-10-17: "can't hear it over the wind"): Chirp by Google, Gemini by a limiter on the phone */
   voiceBoostDb: number;
+  /**
+   * Searched answers on Sonnet (owner's option, 2026-10-18): better at sums and comparisons from search results (RPM to
+   * road speed came out right), about 2 s slower and dearer. Sonnet takes no forced tool_choice, so the search is asked
+   * for in words, and it wants thinking "between_tools" (it rejects "disabled").
+   */
+  smartSearch: boolean;
   /** His own named modes (voice: "save this as weekend mode", "switch to weekend mode"), by name */
   modes: Record<string, SavedMode>;
   /** My journeys: a little drawing of each ride's road on its row (Garage switch, owner 2026-10-18) */
@@ -146,6 +152,7 @@ export const DEFAULT_CONFIG: Config = {
   ridingTimeOnly: true,
   journeyThumbs: true,
   modes: {},
+  smartSearch: false,
   island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false, lockLine: true },
   micDeviceId: '',
   micLabel: '',

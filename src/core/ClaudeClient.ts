@@ -173,15 +173,17 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
     { role: 'user' as const, content: `He said: "${t.said}"` },
     { role: 'assistant' as const, content: t.answer },
   ]);
+  // A searched answer on Sonnet when he chose smarter web answers: no forced tool (Sonnet refuses it), asked in words.
+  const smart = !!ev.riderSaid && !!o.forceSearch && CONFIG.smartSearch;
   return {
-    model: CONFIG.claudeModel,
+    model: smart ? 'claude-sonnet-5-5' : CONFIG.claudeModel,
     // Room for the configured line length, plus a few words she may say before searching.
-    max_tokens: 60 + 60 * sentencesFor(ev.id) + (ev.riderSaid ? 100 : 0),
+    max_tokens: Math.min(500, 60 + 60 * sentencesFor(ev.id) + (ev.riderSaid ? 100 : 0) + (smart ? 120 : 0)), // api/phrase allows 500
     ...(ev.riderSaid ? { tools: [WEB_SEARCH] } : {}),
-    ...(ev.riderSaid && o.forceSearch ? { tool_choice: { type: 'tool' as const, name: 'web_search' as const } } : {}),
+    ...(ev.riderSaid && o.forceSearch && !smart ? { tool_choice: { type: 'tool' as const, name: 'web_search' as const } } : {}),
     // Without this the model thinks first: the thinking block eats max_tokens and blows the timeout.
-    thinking: { type: CONFIG.claudeThinkingOff },
-    system: flavour ? `${base}\n\n${flavour}` : base,
+    thinking: { type: smart ? 'between_tools' : CONFIG.claudeThinkingOff },
+    system: `${flavour ? `${base}\n\n${flavour}` : base}${smart ? '\n\nHe wants this looked up: search the web before you answer, then give the result in your own words.' : ''}`,
     messages: [...history, {
       role: 'user' as const,
       content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}${sameKind(o.same)}`,

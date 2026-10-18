@@ -86,7 +86,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     ])}` },
   { id: 'commands', title: 'Voice commands', keywords: 'commands say phrases list voice', html: '' },
   { id: 'questions', title: 'Things to ask her', keywords: 'questions ask answer search web google',
-    html: `${li(GOOD_QUESTIONS)}<p>Anything current (prices, reviews, events, news) she looks up on the web; say "search" if you want her to look something up. Common knowledge she answers herself.</p>` },
+    html: `${li(GOOD_QUESTIONS)}<p>Anything current (prices, reviews, events, news) she looks up on the web; say "search" if you want her to look something up. Common knowledge she answers herself. For better searched answers (sums, comparisons), switch on Garage &gt; Talking to Betty &gt; <i>Smarter web answers</i>: a stronger model, about 2 seconds slower and a few cents more a question.</p>` },
   { id: 'unprompted', title: 'What she tells you on her own', keywords: 'alerts warnings banter stories time checks rain traffic fuel sunset parked briefing sign off',
     html: `${li([
       '<b>Briefing</b> when you set off: weather, rain, traffic, fuel, anything worth knowing.',

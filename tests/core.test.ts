@@ -2561,4 +2561,20 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(m.added, 1, 'only the story she did not have'); assert.equal(m.merged['Sandton|Gauteng'].notes.length, 2);
 }
 
+// ---- smarter web answers: searched answers on Sonnet (no forced tool: Sonnet refuses it; thinking between_tools)
+{
+  resetConfig(); clock = 160_000_000;
+  const e = new TriggerEngine(now); const st = initialState();
+  const ev = e.ask('Do a web search on the CFMoto price', st);
+  const plain = buildClaudeRequest(ev, st, [], [], { forceSearch: true });
+  assert.equal(plain.model, 'claude-haiku-5-5'); assert.deepEqual((plain as any).tool_choice, { type: 'tool', name: 'web_search' });
+  CONFIG.smartSearch = true;
+  const smart = buildClaudeRequest(ev, st, [], [], { forceSearch: true });
+  assert.equal(smart.model, 'claude-sonnet-5-5'); assert.equal((smart as any).tool_choice, undefined); assert.deepEqual(smart.thinking, { type: 'between_tools' });
+  assert.match(smart.system, /search the web before you answer/);
+  assert.equal(buildClaudeRequest(e.ask('how far to go?', st), st, []).model, 'claude-haiku-5-5', 'answers that need no search stay on Haiku');
+  CONFIG.maxSpokenSentences = 5; assert.ok(buildClaudeRequest(ev, st, [], [], { forceSearch: true }).max_tokens <= 500, 'within what the server allows');
+  resetConfig();
+}
+
 console.log('all core tests passed');
