@@ -179,8 +179,8 @@ export function mountJourneysScreen(doc: Document, shell: Shell, ctx: JourneysCo
     const next = rec.nextKm;
     const pct = next ? Math.round(((rec.totalKm - next.from) / (next.at - next.from)) * 100) : 100;
     recordsBox.innerHTML = `<section class="records-card"><h2>Records</h2><div class="record-grid">${tiles}</div>
-      ${next ? `<div class="milestone"><p><b>${next.at.toLocaleString('en-US')} km with Betty</b><span>${next.left.toLocaleString('en-US')} to go</span></p><div class="bar"><i style="width:${pct}%"></i></div></div>` : ''}
-      ${rec.nextRides ? `<p class="sub milestone-rides">${rec.nextRides.left} ride${rec.nextRides.left === 1 ? '' : 's'} to your ${rec.nextRides.at}th.</p>` : ''}</section>`;
+      ${next ? `<div class="milestone"><p><b>${rec.totalKm.toLocaleString('en-US')} of ${next.at.toLocaleString('en-US')} km with Betty</b><span>${next.left.toLocaleString('en-US')} km to go</span></p><div class="bar" title="From ${next.from.toLocaleString('en-US')} km to ${next.at.toLocaleString('en-US')} km"><i style="width:${pct}%"></i></div></div>` : ''}
+      ${rec.nextRides ? `<p class="sub milestone-rides">${rec.rides} ride${rec.rides === 1 ? '' : 's'} so far · ${rec.nextRides.left} more to your ${rec.nextRides.at}th</p>` : ''}</section>`;
   };
 
   // ---- Find a ride, starred (Journeys 7)

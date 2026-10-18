@@ -951,7 +951,7 @@ resetConfig();
   assert.equal((d.getElementById('roadsart')!.innerHTML.match(/opacity=".38"/g) ?? []).length, 1, 'one road drawn');
   const rec = d.getElementById('journeyrecords')!;
   assert.match(rec.textContent!, /Longest ride\s*23 km/); assert.match(rec.textContent!, /Best month\s*45 km\s*October 2026/);
-  assert.match(rec.textContent!, /100 km with Betty\s*14 to go/);
+  assert.match(rec.textContent!, /86 of 100 km with Betty\s*14 km to go/); assert.match(rec.textContent!, /4 rides so far · 6 more to your 10th/);
   assert.ok(rec.querySelector('.record-tile[data-ride]'), 'a record opens its ride');
   const { CONFIG } = await import('../src/config/betty');
   CONFIG.journeyThumbs = false; view.renderList();
