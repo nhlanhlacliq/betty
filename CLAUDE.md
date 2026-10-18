@@ -396,7 +396,7 @@ has dynamic content, and a smoke test.
   (home, journeys, story with journeys under it, explore, settings, workshop; never ride/chat).
 - RIDE MENU (2026-10-18, owner: the wrench took him to the Workshop, the only way off the ride screen): the ride
   top bar's wrench is now a grid button (`#ridemenubtn`) opening the `ridemenu` sheet: Journeys, Explore, Garage as
-  three big buttons, the Workshop as a small link under them. The tab bar stays hidden on the ride screen (map room,
+  three big buttons; NO Workshop link (owner removed it; the Workshop is in the Garage). The tab bar stays hidden on the ride screen (map room,
   no small targets under gloves).
 - RIDE IN PROGRESS BAR (2026-10-18, owner chose "option 1 plus live dot"): `#ridebar` (index.html, above the tab bar)
   on every screen but the ride while `riding()` and not signing off; `html.riding-bar` makes `.screen` end above it

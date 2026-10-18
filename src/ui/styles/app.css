@@ -604,12 +604,11 @@ html, body { overscroll-behavior: none; }
 .island-action { flex: none; align-self: center; background: #fffdf1; color: var(--ink-deep); border: 0; border-radius: 14px; padding: 9px 13px; font-size: 12px; font-weight: 600; }
 .island-action[hidden] { display: none; }
 /* Dismiss (traffic cards): a small round × at the top right of the open card */
-/* The ride screen's menu sheet: three glove-sized buttons, the Workshop as a small link under them */
+/* The ride screen's menu sheet: three glove-sized buttons */
 .ride-menu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
 .ride-menu button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 96px; border-radius: 20px;
   background: var(--sage-soft); color: var(--ink); font-size: 14px; font-weight: 600; }
 .ride-menu button .ico { width: 26px; height: 26px; }
-.ride-menu-workshop { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 .island-dismiss { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: #ffffff1a; color: #fffdf1; font-size: 18px; line-height: 1; display: grid; place-items: center; }
 .island-dismiss[hidden] { display: none; }
 .motion #glance.dismissing { animation: horizon-away .22s ease-in both; }
