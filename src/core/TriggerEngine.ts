@@ -5,6 +5,7 @@ import { profileUse } from './Profile';
 import { ServiceBook, describeDue } from './Reminders';
 import { LiveRecords, kmMilestoneCrossed } from './Records';
 import { CheckpointWeather, describeRouteWeather, rainAhead } from './RouteAhead';
+import { RoadMemory } from './RoadMemory';
 import { BREAK_MS, COLD_FEELS_C, CROSSWIND_KMH, crosswind, fatigueDueMin, feelsLikeC } from './Comfort';
 import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
@@ -196,6 +197,12 @@ export class TriggerEngine {
   private rainNow: CheckpointWeather | null = null;
   setRouteWeather(list: CheckpointWeather[]) { this.routeWx = list; }
   routeWeather() { return this.routeWx; }
+  /** Memory across rides: what was said on the earlier ride his question points at (main: core/PastRides over the log). */
+  private recall: ((said: string) => string) | null = null;
+  setPastRecall(f: ((said: string) => string) | null) { this.recall = f; }
+  /** Where he has ridden before (core/RoadMemory): new roads, and how familiar this one is. */
+  private roads: RoadMemory | null = null;
+  setRoadMemory(r: RoadMemory | null) { this.roads = r; }
   /** Fatigue: riding minutes at the end of his last real break, and when she last said so. */
   private movingAtBreak = 0;
   private fatigueAtMoving: number | null = null;
@@ -351,6 +358,11 @@ export class TriggerEngine {
       try { out.push(this.force('marked_spot', s)); } finally { this.spotNow = null; }
     }
 
+    // Roads: each new cell he enters; a new road (P3) when the last ~2 km are all new and he has a few rides behind him.
+    if (this.roads && s.lat != null && s.lon != null && s.speedKmh >= 20) {
+      this.roads.visit(s.lat, s.lon);
+      if (this.history.length >= 3 && this.roads.newStretch() && this.now() >= this.quietUntil && !this.parked && this.ready('new_road')) out.push(this.force('new_road', s));
+    }
     // Fatigue (P2): two hours riding without a real break (one at night), then again every hour without one.
     if (s.speedKmh >= MOVING_AGAIN_KMH) {
       const moving = this.stats.snapshot().movingMin;
@@ -541,6 +553,10 @@ export class TriggerEngine {
           fallback: `That's ${r.km.toLocaleString('en-US')} kilometres together.`,
         };
       }
+      case 'new_road': {
+        const where = s.area?.suburb || s.area?.town;
+        return { context: `He is on a road he has never ridden with you before${where ? `, near ${where}` : ''}.`, fallback: '' };
+      }
       case 'fatigue': {
         const r = this.stats.snapshot();
         const since = Math.round(r.movingMin - this.movingAtBreak);
@@ -691,7 +707,7 @@ export class TriggerEngine {
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${(() => { const r = this.recall?.(this.riderText) ?? ''; return r ? ` ${r}` : ''; })()}${this.roads ? (() => { const n = this.roads.familiarity(); return n >= 2 ? ` He has ridden this stretch on about ${n} earlier rides with you.` : this.roads.newStretch() ? ' This stretch is new: he has not ridden it with you before.' : ''; })() : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }

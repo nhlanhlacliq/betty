@@ -58,6 +58,8 @@ export const GOOD_QUESTIONS = [
   'What\'s that building on the left? (she searches)',
   'Search the web for the CFMoto 450MT price.',
   'Where was that pothole I marked?',
+  'What did we talk about on Saturday? / What did you tell me about Sandton last time?',
+  'Have I ridden this road before?',
   'What did I ask you to remember?',
 ];
 
@@ -90,6 +92,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Briefing</b> when you set off: weather, rain, traffic, fuel, anything worth knowing.',
       '<b>Alerts</b>, always straight: rain coming, traffic on your way, fuel getting low (with the stations ahead), sunset within 45 minutes, a spot you marked coming up, leaving your planned route, the next stop and arriving.',
       '<b>Company</b>, now and then: stories about the area (researched the first time you ride through), places nearby, banter about the ride, and time checks.',
+      '<b>New roads:</b> when the last couple of kilometres are all new to her, she may remark on it ("a new one for us"). She keeps a light map of where you have ridden (about 200 m squares, on this phone), so she can also tell you how often you have ridden a road.',
       '<b>Looking after you:</b> after two hours riding without a real break (15 minutes stopped), one hour late at night, she suggests a stop, naming the next one on your route; again every hour you ride on. Strong crosswind gusts (40 km/h and up across the bike) get a heads-up, and once a ride she mentions it when the wind chill at your speed makes it feel 5 °C or colder.',
       '<b>Parked:</b> after 10 minutes standing still she asks once whether you have parked, then keeps quiet until you ride off.',
       '<b>Sign-off</b> when you end the ride.',

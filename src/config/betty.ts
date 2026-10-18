@@ -112,7 +112,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2, new_road: 3,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -120,7 +120,7 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, new_road: 1_200_000, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -387,6 +387,9 @@ through Germiston, which..."). The note is your only source: add no facts to it,
 Never mention notes, research, sources or websites. If the note truly has no story in it, reply with exactly ${SILENT_TOKEN}.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
+  new_road: `This is a light remark, not an alert: he is on a road he has never ridden with you before (the last couple
+of kilometres are all new to you). Notice it in a line, curious and warm, the way a riding friend would ("new one for
+us"); you may tie it to where he is. Do not invent anything about the road.`,
   ride_record: `This is a small celebration, not an alert: a personal record or milestone has just happened on this ride
 (the situation says which). Mark it in one or two lines, warmly, in character, with a touch of pride in him. Use only the
 numbers given. Never suggest riding further, faster or longer to beat it again.`,

@@ -2449,4 +2449,63 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- new road vs usual road (2026-10-18)
+{
+  const R = await import('../src/core/RoadMemory');
+  const line = (lon0: number, n: number, step = 0.003): Array<[number, number]> => Array.from({ length: n }, (_, i) => [-26.1, lon0 + i * step]);
+  const usual = line(28.0, 40); // ~12 km east-west
+  const counts = R.countsFromTracks([usual, usual, usual]);
+  assert.ok(Object.keys(counts).length >= 55, 'the gaps between points are filled');
+  assert.ok(Object.values(counts).every((n) => n === 3));
+  const rm = new R.RoadMemory(counts);
+  for (const [lat, lon] of line(28.0, 30, 0.001)) rm.visit(lat, lon);
+  assert.equal(rm.newStretch(), false); assert.equal(rm.familiarity(), 3, 'ridden three times before');
+  for (const [lat, lon] of Array.from({ length: 30 }, (_, i) => [-26.2 - i * 0.001, 28.05] as [number, number])) rm.visit(lat, lon);
+  assert.equal(rm.newStretch(), true, 'a road south: all new'); assert.equal(rm.familiarity(), 0);
+  const merged = rm.merged();
+  assert.equal(merged[R.cellOf(-26.1, 28.0)], 4, 'this ride added once'); assert.deepEqual(rm.merged(), merged, 'saving again adds nothing');
+  assert.equal(Object.keys(R.capCells({ a: 1, b: 5, c: 3 }, 2)).sort().join(), 'b,c', 'the least ridden go first');
+  // the engine: a new road with a few rides behind him, not while quiet, once in 20 minutes
+  resetConfig(); clock = 130_000_000;
+  const e = new TriggerEngine(now, () => 0.99);
+  e.setHistory([1, 2, 3].map((i) => ({ startedAt: i, minutes: 30, distanceKm: 10, weather: null, places: [], events: [] })));
+  e.setRoadMemory(new R.RoadMemory(counts));
+  const fired: TriggerEvent[] = [];
+  for (let i = 0; i < 40; i++) { clock += 5000; fired.push(...e.evaluate({ ...initialState(), speedKmh: 60, lat: -26.3 - i * 0.0025, lon: 28.2 }).filter((x) => x.id === 'new_road')); }
+  assert.equal(fired.length, 1); assert.equal(fired[0].priority, 3); assert.match(fired[0].context, /never ridden with you before/);
+  assert.match(e.ask('have I been here before?', { ...initialState(), lat: -26.4, lon: 28.2 }).context, /This stretch is new/);
+  resetConfig();
+}
+
+// ---- memory across rides (2026-10-18): the ride his question points at, and what was said on it
+{
+  const P = await import('../src/core/PastRides');
+  const t12 = new Date(2026, 9, 18, 12, 0).getTime(); // Sunday
+  const ride = (d: number, h: number, places: string[]): RideRecord => ({ startedAt: new Date(2026, 9, d, h).getTime(), minutes: 60, distanceKm: 40 + d, weather: null, places, events: [] });
+  const rides = [ride(10, 9, ['Germiston']), ride(16, 16, ['Midrand']), ride(17, 6, ['Sandton', 'Rosebank']), ride(17, 15, ['Edenvale'])];
+  const at = (r: RideRecord) => new Date(r.startedAt).getDate() + '/' + new Date(r.startedAt).getHours();
+  assert.deepEqual(P.pickRides(rides, 'What did we talk about on Saturday?', t12).map(at), ['17/15', '17/6']);
+  assert.deepEqual(P.pickRides(rides, 'what did you tell me about Sandton on Saturday', t12).map(at), ['17/6'], 'a place narrows the day');
+  assert.deepEqual(P.pickRides(rides, 'Yesterday, what was that story?', t12).map(at), ['17/15', '17/6']);
+  assert.deepEqual(P.pickRides(rides, 'Remember what you said about Germiston?', t12).map(at), ['10/9'], 'a place finds it');
+  assert.deepEqual(P.pickRides(rides, 'on the 16th of October', t12).map(at), ['16/16']);
+  assert.deepEqual(P.pickRides(rides, 'what did we talk about last time', t12).map(at), ['17/15']);
+  assert.deepEqual(P.pickRides(rides, 'How far to Clarens?', t12), [], 'not about the past');
+  const log = [
+    { id: '1', at: 0, rideId: rides[2].startedAt, head: '[voice]', text: 'heard "Tell me about the horses in Sandton" in 900 ms (3 s from V6)' },
+    { id: '2', at: 0, rideId: rides[2].startedAt, head: '[P3] area_story', text: 'Sandton had 15,000 horses in 1969, more than people in some suburbs.' },
+    { id: '3', at: 0, rideId: rides[2].startedAt, head: '[P2] off_route', text: 'You are off the route.' },
+  ] as any;
+  const r = P.recallRide(rides[2], log);
+  assert.match(r, /^Saturday, 17 October.*57 km, through Sandton, Rosebank\. He asked you: "Tell me about the horses in Sandton"\. You said: "Sandton had 15,000 horses/);
+  assert.doesNotMatch(r, /off the route/, 'alerts are not what he means');
+  assert.match(P.pastRecall(rides, log, 'what did we talk about on Saturday morning', t12), /^From your saved log of earlier rides/);
+  // the engine passes it into her answer
+  resetConfig(); clock = t12;
+  const e = new TriggerEngine(now);
+  e.setPastRecall((said) => P.pastRecall(rides, log, said, t12));
+  assert.match(e.ask('What did you tell me about Sandton on Saturday?', initialState()).context, /15,000 horses/);
+  assert.doesNotMatch(e.ask('How is the weather?', initialState()).context, /saved log of earlier rides/);
+}
+
 console.log('all core tests passed');

@@ -33,6 +33,9 @@ import { TrackStore } from './adapters/TrackStore';
 import { RoadStore } from './adapters/RoadStore';
 import { JourneyStore } from './adapters/JourneyStore';
 import { liveRecords } from './core/Records';
+import { RoadMemory } from './core/RoadMemory';
+import { pastRecall } from './core/PastRides';
+import { RoadCells } from './adapters/RoadCells';
 import { checkpoints, rideAgainStops, weatherLine } from './core/RouteAhead';
 import { fetchRouteWeather } from './adapters/RouteWeather';
 import { groupByMonth } from './core/Journeys';
@@ -845,6 +848,14 @@ async function beginRide(desk: boolean) {
   void routeWx();
   const routeWxTimer = window.setInterval(() => void routeWx(), 30 * 60_000);
   if (SERVER && !desk) { const r0 = engine.routeNow()?.route; if (r0) void researchAhead(r0.stops.filter((s, i) => s.named && i > 0), (msg) => { newLine('[areas]', msg); renderLog(); }); }
+  // Where he has ridden before: new roads, familiar ones (real rides only). Saved each minute and at the end.
+  const roadMem = !desk && real ? new RoadMemory(RoadCells.load(() => {
+    const detailed = TrackStore.all(), rough = RoadStore.all(); // the detailed road where kept, the rough copy for older rides
+    return [...Object.values(detailed), ...Object.entries(rough).filter(([id]) => !detailed[id]).map(([, t]) => t)];
+  })) : null;
+  engine.setRoadMemory(roadMem);
+  // "What did we talk about on Saturday?": the saved log of the ride his words point at.
+  engine.setPastRecall((said) => { saveLog(); return pastRecall(RideLog.load(), LineLogStore.load(), said, Date.now()); });
   engine.setServiceBook(ServiceStore.load()); // what is due (the briefing, answers and sign-off mention it)
   engine.setProfile(CONFIG.useProfile ? ProfileStore.get() : null); // what he chose to share, used lightly
   // History and culture of the area (researched on Betty's server, so only when deployed with it).
@@ -860,6 +871,7 @@ async function beginRide(desk: boolean) {
     // Betty's odometer (service reminders): only real rides count, as a delta so an odometer set mid-ride is kept.
     if (!desk && real) { const km = engine.rideSnapshot().distanceKm; ServiceStore.addKm(km - odoSaved); odoSaved = km; engine.setServiceBook(ServiceStore.load()); }
     IncidentMemory.save(engine.announcedIncidents());
+    if (roadMem?.cellsThisRide) RoadCells.save(roadMem.merged());
     TrackStore.save(engine.rideSnapshot().startedAt, rideTrack);
     if (!desk) RoadStore.save(engine.rideSnapshot().startedAt, rideTrack);
     ToldStore.save(engine.toldNoteIds());

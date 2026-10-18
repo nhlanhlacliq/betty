@@ -5,20 +5,20 @@ export type TriggerId =
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
   | 'ambient_banter' | 'local_fact' | 'area_story' | 'marked_spot'
   | 'off_route' | 'route_stop' | 'route_arrived'
-  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold';
+  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold' | 'new_road';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
   'ambient_banter', 'local_fact', 'area_story', 'marked_spot',
   'off_route', 'route_stop', 'route_arrived',
-  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold',
+  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold', 'new_road',
 ];
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */
 export const AMBIENT_IDS: TriggerId[] = ['ambient_banter', 'local_fact', 'area_story'];
 /** Lines she makes up on her own (no alert, no question): they get no clock or bike readings, and may be silent. */
-export const UNPROMPTED_IDS: TriggerId[] = [...AMBIENT_IDS, 'ride_milestone', 'ride_record'];
+export const UNPROMPTED_IDS: TriggerId[] = [...AMBIENT_IDS, 'ride_milestone', 'ride_record', 'new_road'];
 
 export interface WeatherState {
   tempC: number;
