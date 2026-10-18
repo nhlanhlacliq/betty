@@ -1,4 +1,4 @@
-import { CONFIG, TALK_PRESETS, TalkPreset, applyTalkPreset, currentTalkPreset } from '../../config/betty';
+import { CONFIG, TALK_PRESETS, TalkPreset, applyTalkPreset, currentTalkPreset, mixSummary } from '../../config/betty';
 import { saveConfig } from '../../config/persist';
 import { TALK_LABELS } from '../copy';
 import type { Shell } from '../Shell';
@@ -35,7 +35,8 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
     $('blendval').textContent = `${CONFIG.persona.tars}% TARS`;
     const p = currentTalkPreset();
     preset.value = p ?? CUSTOM;
-    $('talkhint').textContent = p ? 'How much company feels right?' : 'A custom mix, set in the Workshop (TUNING).';
+    // What the setting actually does (owner, 2026-10-18: "does that have any effect?"): how often she talks, and what.
+    $('talkhint').textContent = `${p ? '' : 'A custom mix (by voice or in the Workshop). '}${mixSummary()} Alerts and answers are not affected.`;
     glance.checked = CONFIG.showGlance;
     $<HTMLInputElement>('mapborders').checked = CONFIG.mapBorders;
     $<HTMLInputElement>('cardplaces').checked = CONFIG.cardPlaces;

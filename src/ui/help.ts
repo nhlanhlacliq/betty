@@ -88,7 +88,8 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Company</b>, now and then: stories about the area (researched the first time you ride through), places nearby, banter about the ride, and time checks.',
       '<b>Parked:</b> after 10 minutes standing still she asks once whether you have parked, then keeps quiet until you ride off.',
       '<b>Sign-off</b> when you end the ride.',
-      'How often she talks: Garage &gt; Betty\'s personality, or say "less chatty", "minimal", "quiet for twenty minutes".',
+      '<b>Narration</b> (Garage &gt; Betty\'s personality) sets how often she talks on her own and what about: Minimal (banter 20, stories 20, silence 60, a remark every 4 minutes), Balanced (40 / 40 / 20, every 2 minutes) or Storyteller (25 / 60 / 15, every 2 minutes). Alerts, answers, the briefing and the sign-off are not affected; time checks have their own interval. "Less chatty", "more stories" or "quiet for twenty minutes" change the same mix.',
+      '<b>Stories</b>: the facts about an area are researched once and kept, but each time one comes up she tells it fresh, in her own words, with your humour and JARVIS/TARS settings. Listen in Explore reads the note as it is.',
     ])}` },
   { id: 'ridescreen', title: 'The ride screen', keywords: 'horizon island card glance map lock screen now playing quiet orb dock slim panel zoom pan',
     html: `${li([

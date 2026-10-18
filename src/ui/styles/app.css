@@ -227,8 +227,9 @@ h3 { font-size: 18px; letter-spacing: -.3px; font-weight: 600; }
 .totals > div { text-align: center; }
 .totals b { display: block; font-size: 20px; font-weight: 550; letter-spacing: -.5px; }
 .totals small { font-size: 9px; color: var(--muted); }
-.journey-list { display: grid; gap: 8px; padding: 2px 0 6px; }
-.journey-row { background: var(--card); border: 1px solid #e4e8db; border-radius: 18px; padding: 10px 14px 10px 10px; display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; color: var(--ink); }
+.journey-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 2px 0 6px; } /* minmax: a long name must not widen the column past the screen (2026-10-18, his phone) */
+.journey-month, #journeylist, #journeyfound { min-width: 0; max-width: 100%; }
+.journey-row { min-width: 0; max-width: 100%; box-sizing: border-box; background: var(--card); border: 1px solid #e4e8db; border-radius: 18px; padding: 10px 14px 10px 10px; display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; color: var(--ink); }
 .journey-thumb { flex: none; width: 56px; height: 56px; border-radius: 13px; background: var(--map); overflow: hidden; display: block; }
 .journey-thumb svg { display: block; width: 100%; height: 100%; }
 .journey-main { flex: 1; min-width: 0; }
@@ -644,7 +645,7 @@ html, body { overscroll-behavior: none; }
 .roads-head h2, .records-card h2 { font-size: 17px; margin: 0 0 3px; }
 .roads-head small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.4; }
 .roads-map { height: 260px; margin: 0; }
-.record-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.record-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
 .record-tile { display: grid; gap: 2px; text-align: left; padding: 11px 12px; border-radius: 14px; background: var(--sage-soft); border: 0; color: var(--ink); font: inherit; }
 .record-tile small { font-size: 11px; color: var(--sage-text); letter-spacing: .2px; }
 .record-tile b { font-size: 19px; font-weight: 600; letter-spacing: -.4px; }
