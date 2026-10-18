@@ -62,6 +62,8 @@ export interface Config {
   cardMetro: boolean;
   /** Louder voice, in dB (0 to 16; owner, ride of 2026-10-17: "can't hear it over the wind"): Chirp by Google, Gemini by a limiter on the phone */
   voiceBoostDb: number;
+  /** His own named modes (voice: "save this as weekend mode", "switch to weekend mode"), by name */
+  modes: Record<string, SavedMode>;
   /** My journeys: a little drawing of each ride's road on its row (Garage switch, owner 2026-10-18) */
   journeyThumbs: boolean;
   /** Ride times count only the time moving (parked and breaks left out); each ride's story still shows both. */
@@ -110,7 +112,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -118,7 +120,7 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -143,6 +145,7 @@ export const DEFAULT_CONFIG: Config = {
   voiceBoostDb: 6,
   ridingTimeOnly: true,
   journeyThumbs: true,
+  modes: {},
   island: { compact: true, tapExpand: true, browse: true, actions: true, progress: false, lockLine: true },
   micDeviceId: '',
   micLabel: '',
@@ -206,6 +209,36 @@ export function nudgeMix(what: 'banter' | 'stories' | 'chatty', step: 1 | -1) {
     CONFIG.ambientCooldownMs = Math.min(10 * 60_000, Math.max(30_000, CONFIG.ambientCooldownMs - 30_000 * step));
   }
 }
+/**
+ * "Banter 70 percent" (owner's backlog, 2026-10-18): that share for one part of the mix, the other two scaled to share
+ * the rest in the same proportion as before (both zero: split evenly).
+ */
+export function setMixShare(what: 'banter' | 'stories' | 'silence', pct: number) {
+  const a = CONFIG.ambient;
+  const key = what === 'banter' ? 'banterWeight' : what === 'stories' ? 'tourGuideWeight' : 'silenceWeight';
+  const others = (['banterWeight', 'tourGuideWeight', 'silenceWeight'] as const).filter((k) => k !== key);
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  const rest = others.reduce((n, k) => n + a[k], 0);
+  for (const k of others) a[k] = Math.round(rest ? (a[k] / rest) * (100 - p) : (100 - p) / 2);
+  a[key] = p;
+}
+/** "Shorter answers" / "longer answers": how many sentences a line may have, 1 to 5. */
+export const nudgeLength = (step: 1 | -1) => { CONFIG.maxSpokenSentences = Math.max(1, Math.min(5, CONFIG.maxSpokenSentences + step)); return CONFIG.maxSpokenSentences; };
+
+/** His own named modes ("save this as weekend mode"): the talk mix, gap, line length and personality, kept by name. */
+export interface SavedMode { ambient: Pick<Config['ambient'], 'banterWeight' | 'tourGuideWeight' | 'silenceWeight'>; gapMs: number; maxSpokenSentences: number; persona: { tars: number; humour: number } }
+export const currentDials = (): SavedMode => ({
+  ambient: { banterWeight: CONFIG.ambient.banterWeight, tourGuideWeight: CONFIG.ambient.tourGuideWeight, silenceWeight: CONFIG.ambient.silenceWeight },
+  gapMs: CONFIG.ambientCooldownMs, maxSpokenSentences: CONFIG.maxSpokenSentences, persona: { ...CONFIG.persona },
+});
+export const applyMode = (m: SavedMode) => {
+  Object.assign(CONFIG.ambient, m.ambient); CONFIG.ambientCooldownMs = m.gapMs; CONFIG.maxSpokenSentences = m.maxSpokenSentences; Object.assign(CONFIG.persona, m.persona);
+};
+/** The saved mode the dials match right now, if any. */
+export const currentMode = (): string | null => {
+  const now = JSON.stringify(currentDials());
+  return Object.entries(CONFIG.modes).find(([, m]) => JSON.stringify(m) === now)?.[0] ?? null;
+};
 export const applyTalkPreset = (k: TalkPreset) => {
   Object.assign(CONFIG.ambient, TALK_PRESETS[k].ambient);
   CONFIG.ambientCooldownMs = TALK_PRESETS[k].gapMs;
@@ -337,7 +370,8 @@ What he asked you to remember and the spots he marked are in the situation when 
 If he asks what he can tell you to do: "repeat that", "quiet for ten minutes" (or "be quiet", then "talk to me"),
 "mark this spot", "remember that...", "forget that", "humour 60 percent" (or "humour up"), "more TARS", "more JARVIS",
 "status" (you read out your settings), "switch to stories" (or minimal, balanced), "banter up", "more stories", "less chatty",
-"anything ahead?" (Horizon read out), "end ride", "chain done", "consumption 4.6".
+"anything ahead?" (Horizon read out), "end ride", "chain done", "consumption 4.6", "shorter answers", "banter 70 percent",
+"save this as weekend mode" / "switch to weekend mode".
 Those work at once, even without signal.
 You cannot change your own settings by saying so: only those commands do. If he asks for a change in other words
 ("dial it back", "be less polite"), do not claim it is done; tell him the command to say.

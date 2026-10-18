@@ -18,6 +18,12 @@ export type Command =
   | { kind: 'end' }
   /** "Anything ahead?": Horizon read out, from the phone */
   | { kind: 'ahead' }
+  /** "Shorter answers" / "longer answers" */
+  | { kind: 'length'; step: 1 | -1 }
+  /** "Banter 70 percent", "set stories to 50 percent", "silence 30 percent" */
+  | { kind: 'mixset'; what: 'banter' | 'stories' | 'silence'; pct: number }
+  /** "Save this as weekend mode", "switch to weekend mode", "what mode are you in?" */
+  | { kind: 'mode'; action: 'save' | 'use' | 'which'; name?: string }
   /** "Chain done", "I lubed the chain", "the bike was serviced": a service reminder done (which one: findReminder) */
   | { kind: 'done'; what: string }
   /** "Chain not done", "undo the oil": take back the last Done of that reminder */
@@ -106,7 +112,7 @@ export function parseCommand(said: string): Command | null {
     return { kind: 'repeat' };
   }
 
-  if (n <= 12 && /^(be quiet|quiet|keep quiet|go quiet|stay quiet|shut up|hush|shh+|stop talking|stop chatting|silence|mute|mute yourself|give me (some )?(peace|quiet|silence)|no (more )?(talking|chatting|chatter|banter)|less talking|enough talking|not now)\b/.test(low)) {
+  if (n <= 12 && /^(be quiet|quiet|keep quiet|go quiet|stay quiet|shut up|hush|shh+|stop talking|stop chatting|silence(?! (?:to |at )?\d)|mute|mute yourself|give me (some )?(peace|quiet|silence)|no (more )?(talking|chatting|chatter|banter)|less talking|enough talking|not now)\b/.test(low)) {
     return { kind: 'quiet', minutes: minutesIn(low) };
   }
 
@@ -127,6 +133,16 @@ export function parseCommand(said: string): Command | null {
     return { kind: 'persona', step: towardTars ? 25 : -25 };
   }
   if (n <= 6 && /^(full|be|all|pure) (tars|jarvis)$/.test(low)) return { kind: 'persona', set: /tars$/.test(low) ? 100 : 0 };
+  if (n <= 6 && /^(shorter|briefer|less long|keep it short(er)?)( answers| lines| please)?$|^(be )?(more )?(brief|concise)$/.test(low)) return { kind: 'length', step: -1 };
+  if (n <= 6 && /^(longer|more detailed|tell me more each time)( answers| lines)?$/.test(low)) return { kind: 'length', step: 1 };
+  const share = low.match(/^(?:set )?(banter|stories|story|tour guide|silence)(?: to| at)? (\d{1,3})\s*(?:%|percent|per cent)$/);
+  if (n <= 8 && share) return { kind: 'mixset', what: share[1] === 'banter' ? 'banter' : share[1] === 'silence' ? 'silence' : 'stories', pct: Math.min(100, Number(share[2])) };
+  const save = low.match(/^(?:save|keep|remember) (?:this|these|the|my)?\s*(?:settings|setup|dials|mix)?\s*as (?:my |the |a )?([a-z][a-z ]{0,24}?)(?: mode)?$/);
+  if (n <= 10 && save) return { kind: 'mode', action: 'save', name: save[1].trim() };
+  if (n <= 8 && /^(what|which) mode (are you in|is this|is on)$|^what('?s| is) (the|your) mode$/.test(low)) return { kind: 'mode', action: 'which' };
+  const use = low.match(/^(?:switch to|go to|use|put on|change to) (?:my |the )?([a-z][a-z ]{0,24}?) mode$/);
+  if (n <= 8 && use && !/^(minimal|balanced|stories|story)$/.test(use[1].trim())) return { kind: 'mode', action: 'use', name: use[1].trim() };
+
   // Talk mix by voice: presets as on the Settings screen, and nudges.
   const preset = low.match(/^(?:switch to |go to |use |set |put on |change to )?(minimal|balanced|stories|story)(?: mode| setting| preset)?$/);
   if (n <= 6 && preset) return { kind: 'preset', preset: preset[1] === 'story' ? 'stories' : preset[1] as 'minimal' | 'balanced' | 'stories' };

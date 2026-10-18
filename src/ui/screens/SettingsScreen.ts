@@ -1,4 +1,4 @@
-import { CONFIG, TALK_PRESETS, TalkPreset, applyTalkPreset, currentTalkPreset, mixSummary } from '../../config/betty';
+import { CONFIG, TALK_PRESETS, TalkPreset, applyMode, applyTalkPreset, currentMode, currentTalkPreset, mixSummary } from '../../config/betty';
 import { saveConfig } from '../../config/persist';
 import { TALK_LABELS } from '../copy';
 import type { Shell } from '../Shell';
@@ -25,18 +25,24 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   const glance = $<HTMLInputElement>('glanceswitch');
   const changed = () => { saveConfig(); doc.defaultView?.dispatchEvent(new (doc.defaultView as Window & typeof globalThis).Event('betty-config')); };
 
-  preset.innerHTML = (Object.keys(TALK_PRESETS) as TalkPreset[]).map((k) => `<option value="${k}">${TALK_LABELS[k]}</option>`).join('')
-    + `<option value="${CUSTOM}" disabled>Custom (TUNING)</option>`;
+  // The presets, then his own saved modes ("save this as weekend mode"), then Custom.
+  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const fillPresets = () => {
+    preset.innerHTML = (Object.keys(TALK_PRESETS) as TalkPreset[]).map((k) => `<option value="${k}">${TALK_LABELS[k]}</option>`).join('')
+      + Object.keys(CONFIG.modes).map((n) => `<option value="mode:${esc(n)}">${esc(n[0].toUpperCase() + n.slice(1))} (yours)</option>`).join('')
+      + `<option value="${CUSTOM}" disabled>Custom</option>`;
+  };
 
   const paint = () => {
     humour.value = String(CONFIG.persona.humour);
     $('humourval').textContent = `${CONFIG.persona.humour}%`;
     blend.value = String(CONFIG.persona.tars);
     $('blendval').textContent = `${CONFIG.persona.tars}% TARS`;
-    const p = currentTalkPreset();
-    preset.value = p ?? CUSTOM;
+    fillPresets();
+    const p = currentTalkPreset(), mine = currentMode();
+    preset.value = p ?? (mine ? `mode:${mine}` : CUSTOM);
     // What the setting actually does (owner, 2026-10-18: "does that have any effect?"): how often she talks, and what.
-    $('talkhint').textContent = `${p ? '' : 'A custom mix (by voice or in the Workshop). '}${mixSummary()} Alerts and answers are not affected.`;
+    $('talkhint').textContent = `${p || mine ? '' : 'A custom mix (by voice or in the Workshop). '}${mixSummary()} Alerts and answers are not affected.`;
     glance.checked = CONFIG.showGlance;
     $<HTMLInputElement>('mapborders').checked = CONFIG.mapBorders;
     $<HTMLInputElement>('cardplaces').checked = CONFIG.cardPlaces;
@@ -60,7 +66,12 @@ export function mountSettingsScreen(doc: Document, shell: Shell, ctx: SettingsCo
   humour.addEventListener('change', () => { CONFIG.persona.humour = Number(humour.value); changed(); });
   blend.addEventListener('input', () => { $('blendval').textContent = `${blend.value}% TARS`; });
   blend.addEventListener('change', () => { CONFIG.persona.tars = Number(blend.value); changed(); });
-  preset.addEventListener('change', () => { if (preset.value !== CUSTOM) { applyTalkPreset(preset.value as TalkPreset); changed(); } });
+  preset.addEventListener('change', () => {
+    if (preset.value === CUSTOM) return;
+    if (preset.value.startsWith('mode:')) { const m = CONFIG.modes[preset.value.slice(5)]; if (m) applyMode(m); }
+    else applyTalkPreset(preset.value as TalkPreset);
+    changed();
+  });
   glance.addEventListener('change', () => { CONFIG.showGlance = glance.checked; changed(); });
   $<HTMLInputElement>('mapborders').addEventListener('change', (e) => { CONFIG.mapBorders = (e.target as HTMLInputElement).checked; changed(); });
   $<HTMLSelectElement>('listenvoice').addEventListener('change', (e) => { CONFIG.listenVoice = (e.target as HTMLSelectElement).value as typeof CONFIG.listenVoice; changed(); });

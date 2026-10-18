@@ -33,6 +33,9 @@ export const VOICE_COMMANDS: CommandGroup[] = [
     { say: ['More TARS', 'More JARVIS', 'Full TARS', 'TARS 70 percent'], does: 'Blunt and deadpan (TARS) or polished and courteous (JARVIS).', kind: 'persona' },
     { say: ['Switch to stories', 'Minimal', 'Balanced'], does: 'The talk presets from Garage: mostly stories, mostly quiet, or a mix.', kind: 'preset' },
     { say: ['More banter', 'Fewer stories', 'Less chatty', 'Talk more'], does: 'Nudges the mix of banter, stories and silence, or how often she speaks.', kind: 'mix' },
+    { say: ['Banter 70 percent', 'Set stories to 50 percent', 'Silence 30 percent'], does: 'Sets that part of the mix exactly; the other two share the rest as before.', kind: 'mixset' },
+    { say: ['Shorter answers', 'Longer answers'], does: 'How many sentences she uses a line (1 to 5).', kind: 'length' },
+    { say: ['Save this as weekend mode', 'Switch to weekend mode', 'What mode are you in?'], does: 'Your own modes: the mix, how often she talks, line length and personality, kept under a name (also in Garage > Narration).', kind: 'mode' },
   ] },
   { title: 'Maintenance', items: [
     { say: ['Chain done', 'I lubed the chain', 'Changed the oil', 'The bike was serviced', 'Checked the tyre pressures', 'Brake fluid done'], does: 'Marks a reminder done (Garage > Reminders) and tells you when the next one is due.', kind: 'done' },
@@ -87,6 +90,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Briefing</b> when you set off: weather, rain, traffic, fuel, anything worth knowing.',
       '<b>Alerts</b>, always straight: rain coming, traffic on your way, fuel getting low (with the stations ahead), sunset within 45 minutes, a spot you marked coming up, leaving your planned route, the next stop and arriving.',
       '<b>Company</b>, now and then: stories about the area (researched the first time you ride through), places nearby, banter about the ride, and time checks.',
+      '<b>Looking after you:</b> after two hours riding without a real break (15 minutes stopped), one hour late at night, she suggests a stop, naming the next one on your route; again every hour you ride on. Strong crosswind gusts (40 km/h and up across the bike) get a heads-up, and once a ride she mentions it when the wind chill at your speed makes it feel 5 °C or colder.',
       '<b>Parked:</b> after 10 minutes standing still she asks once whether you have parked, then keeps quiet until you ride off.',
       '<b>Sign-off</b> when you end the ride.',
       '<b>Narration</b> (Garage &gt; Betty\'s personality) sets how often she talks on her own and what about: Minimal (banter 20, stories 20, silence 60, a remark every 4 minutes), Balanced (40 / 40 / 20, every 2 minutes) or Storyteller (25 / 60 / 15, every 2 minutes). Alerts, answers, the briefing and the sign-off are not affected; time checks have their own interval. "Less chatty", "more stories" or "quiet for twenty minutes" change the same mix.',

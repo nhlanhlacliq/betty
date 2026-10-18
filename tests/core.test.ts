@@ -2139,7 +2139,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal(parseCommand(said)?.kind, c.kind, `Help says "${said}" does ${c.kind}`);
   }
   const kinds = new Set(VOICE_COMMANDS.flatMap((g) => g.items.map((c) => c.kind)));
-  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done', 'undone', 'ahead']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
+  for (const k of ['repeat', 'quiet', 'talk', 'mark', 'remember', 'forget', 'humour', 'persona', 'settings', 'preset', 'mix', 'end', 'fuelset', 'done', 'undone', 'ahead', 'length', 'mixset', 'mode']) assert.ok(kinds.has(k as any), `Help lists the ${k} command`);
   assert.equal(searchHelp('headset buttons')[0].id, 'talk');
   assert.equal(searchHelp('petrol')[0].id, 'fuel');
   assert.ok(searchHelp('quiet').some((t) => t.id === 'commands'), 'commands are searchable');
@@ -2396,6 +2396,56 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const stops = A.rideAgainStops(pts.map((x) => [x[0], x[1]] as [number, number]), 6);
   assert.equal(stops.length, 6); assert.equal(stops[0], '-26.00000,28.00000'); assert.equal(stops[5], '-28.70000,28.00000');
   assert.deepEqual(A.rideAgainStops([[-26, 28]]), []);
+  resetConfig();
+}
+
+// ---- voice settings: line length, exact shares, his own named modes (2026-10-18)
+{
+  const B = await import('../src/config/betty');
+  resetConfig();
+  assert.deepEqual(parseCommand('Banter 70 percent'), { kind: 'mixset', what: 'banter', pct: 70 });
+  assert.deepEqual(parseCommand('set stories to 50%'), { kind: 'mixset', what: 'stories', pct: 50 });
+  assert.deepEqual(parseCommand('Shorter answers please'), { kind: 'length', step: -1 }); assert.deepEqual(parseCommand('Longer answers'), { kind: 'length', step: 1 });
+  assert.deepEqual(parseCommand('Save this as weekend mode'), { kind: 'mode', action: 'save', name: 'weekend' });
+  assert.deepEqual(parseCommand('Hey Betty, switch to weekend mode'), { kind: 'mode', action: 'use', name: 'weekend' });
+  assert.deepEqual(parseCommand('What mode are you in?'), { kind: 'mode', action: 'which' });
+  assert.equal(parseCommand('Switch to stories mode')?.kind, 'preset', 'the built-in presets stay presets');
+  B.setMixShare('banter', 70); // from 40 / 40 / 20: the other two keep their 2:1
+  assert.deepEqual([CONFIG.ambient.banterWeight, CONFIG.ambient.tourGuideWeight, CONFIG.ambient.silenceWeight], [70, 20, 10]);
+  assert.equal(B.nudgeLength(-1), 1); assert.equal(B.nudgeLength(-1), 1, 'never under one'); B.nudgeLength(1);
+  CONFIG.modes = { weekend: B.currentDials() };
+  assert.equal(B.currentMode(), 'weekend');
+  B.applyTalkPreset('minimal'); assert.equal(B.currentMode(), null);
+  B.applyMode(CONFIG.modes.weekend); assert.equal(CONFIG.ambient.banterWeight, 70); assert.equal(CONFIG.maxSpokenSentences, 2);
+  resetConfig();
+}
+
+// ---- comfort: fatigue, crosswind, wind chill (2026-10-18)
+{
+  const K = await import('../src/core/Comfort');
+  assert.equal(K.crosswind(50, 90, 0), 50, 'from the east, riding north: all of it across'); assert.equal(K.crosswind(50, 0, 0), 0, 'head wind: none across');
+  assert.equal(K.feelsLikeC(20, 100), 20, 'above 10 C: just the air');
+  assert.equal(K.feelsLikeC(8, 100), 1, '8 C at 100 km/h feels about 1 C');
+  assert.ok(K.feelsLikeC(8, 100, 30, 0, 0) < K.feelsLikeC(8, 100), 'a head wind makes it colder');
+  assert.equal(K.fatigueDueMin(23), 60); assert.equal(K.fatigueDueMin(14), 120);
+  // fatigue: two hours of riding without a break, again an hour later; a 15 minute stop starts the count again
+  resetConfig(); clock = new Date(2026, 9, 18, 9, 0).getTime(); CONFIG.milestoneEveryMin = 10_000;
+  const e = new TriggerEngine(now, () => 0.99);
+  const ride = (min: number, kmh = 80) => { const got: string[] = []; for (let i = 0; i < min * 6; i++) { clock += 10_000; got.push(...e.evaluate({ ...initialState(), speedKmh: kmh }).map((x) => x.id)); } return got.filter((x) => x === 'fatigue').length; };
+  assert.equal(ride(119), 0); assert.equal(ride(2), 1, 'two hours in');
+  assert.equal(ride(50), 0); assert.equal(ride(12), 1, 'an hour later, still no break');
+  ride(16, 0); // a real break
+  assert.equal(ride(110), 0, 'the count started again');
+  assert.match(e.force('fatigue', { ...initialState(), speedKmh: 80 }).context, /without a proper break.*Do not lecture/);
+  // wind: gusts across the bike; cold: once a ride
+  resetConfig(); clock = new Date(2026, 9, 18, 9, 0).getTime();
+  const c = new TriggerEngine(now, () => 0.99);
+  const wx = (over: any) => ({ tempC: 6, windKmh: 20, windGustKmh: 55, windFromDeg: 90, rainNowMm: 0, rainChanceNextHourPct: 0, summary: 'clear', fetchedAt: 0, sunriseAt: null, sunsetAt: null, ...over });
+  const ids = (st: any) => c.evaluate({ ...initialState(), speedKmh: 90, headingDeg: 0, ...st }).filter((x) => x.id === 'wind_cold');
+  const first = ids({ weather: wx({}) });
+  assert.equal(first.length, 2, 'crosswind and cold'); assert.match(first[0].context, /gusts of about 55 km\/h from the side/); assert.match(first[1].context, /feel about -?\d+ C on the bike/);
+  clock += 60_000; assert.equal(ids({ weather: wx({}) }).length, 0, 'not again so soon, and the cold once a ride');
+  clock += 31 * 60_000; assert.equal(ids({ weather: wx({}) }).length, 1, 'the wind again after half an hour');
   resetConfig();
 }
 

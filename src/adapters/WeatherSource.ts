@@ -50,7 +50,7 @@ export class WeatherSource implements DataSource {
     try {
       const url = 'https://api.open-meteo.com/v1/forecast'
         + `?latitude=${pos.lat.toFixed(3)}&longitude=${pos.lon.toFixed(3)}`
-        + '&current=temperature_2m,precipitation,wind_speed_10m,weather_code'
+        + '&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m,weather_code'
         + '&hourly=precipitation_probability&forecast_hours=3&daily=sunrise,sunset&forecast_days=2'
         + '&wind_speed_unit=kmh&timezone=auto';
       const res = await fetch(url);
@@ -67,6 +67,8 @@ export class WeatherSource implements DataSource {
         fetchedAt: now,
         sunriseAt: nextTime(j.daily?.sunrise, now),
         sunsetAt: nextTime(j.daily?.sunset, now),
+        ...(typeof c.wind_gusts_10m === 'number' ? { windGustKmh: Math.round(c.wind_gusts_10m) } : {}),
+        ...(typeof c.wind_direction_10m === 'number' ? { windFromDeg: Math.round(c.wind_direction_10m) } : {}),
       };
       this.push?.({ weather });
       this.lastAt = now; this.lastPos = pos;

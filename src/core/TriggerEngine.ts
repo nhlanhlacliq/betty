@@ -5,6 +5,7 @@ import { profileUse } from './Profile';
 import { ServiceBook, describeDue } from './Reminders';
 import { LiveRecords, kmMilestoneCrossed } from './Records';
 import { CheckpointWeather, describeRouteWeather, rainAhead } from './RouteAhead';
+import { BREAK_MS, COLD_FEELS_C, CROSSWIND_KMH, crosswind, fatigueDueMin, feelsLikeC } from './Comfort';
 import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
 import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
 import { RideRecord } from './RideMemory';
@@ -107,7 +108,7 @@ export class TriggerEngine {
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
     this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.saidLongest = false; this.lastDistance = 0;
-    this.rainWarned.clear();
+    this.rainWarned.clear(); this.movingAtBreak = 0; this.fatigueAtMoving = null; this.coldSaid = false;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
     this.fuelBaseKm = carried; this.fuelOffsetKm = 0;
@@ -195,6 +196,12 @@ export class TriggerEngine {
   private rainNow: CheckpointWeather | null = null;
   setRouteWeather(list: CheckpointWeather[]) { this.routeWx = list; }
   routeWeather() { return this.routeWx; }
+  /** Fatigue: riding minutes at the end of his last real break, and when she last said so. */
+  private movingAtBreak = 0;
+  private fatigueAtMoving: number | null = null;
+  /** Wind and cold: what she is about to say, and whether the cold was said this ride. */
+  private comfortNow: { kind: 'wind'; cross: number } | { kind: 'cold'; feels: number } | null = null;
+  private coldSaid = false;
   /** His records before this ride (longest, total km), for "your longest ride yet" and "1,000 km together". */
   private live: LiveRecords | null = null;
   private saidLongest = false;
@@ -344,9 +351,37 @@ export class TriggerEngine {
       try { out.push(this.force('marked_spot', s)); } finally { this.spotNow = null; }
     }
 
+    // Fatigue (P2): two hours riding without a real break (one at night), then again every hour without one.
+    if (s.speedKmh >= MOVING_AGAIN_KMH) {
+      const moving = this.stats.snapshot().movingMin;
+      const due = fatigueDueMin(new Date(this.now()).getHours());
+      if (moving - this.movingAtBreak >= due && (this.fatigueAtMoving === null || moving - this.fatigueAtMoving >= 60)) {
+        this.fatigueAtMoving = moving;
+        out.push(this.force('fatigue', s));
+      }
+    }
+    // Wind across the bike (gusts) and the cold he feels at speed (P2).
+    const wx = s.weather;
+    if (wx && s.speedKmh >= 30) {
+      const heading = s.headingDeg;
+      if (heading != null && wx.windGustKmh != null && wx.windFromDeg != null) {
+        const cross = crosswind(wx.windGustKmh, wx.windFromDeg, heading);
+        if (cross >= CROSSWIND_KMH && this.ready('wind_cold')) {
+          this.comfortNow = { kind: 'wind', cross };
+          try { out.push(this.force('wind_cold', s)); } finally { this.comfortNow = null; }
+        }
+      }
+      const feels = feelsLikeC(wx.tempC, s.speedKmh, wx.windKmh, wx.windFromDeg ?? null, heading);
+      if (!this.coldSaid && feels <= COLD_FEELS_C && s.speedKmh >= 40) {
+        this.coldSaid = true; this.comfortNow = { kind: 'cold', feels };
+        try { out.push(this.force('wind_cold', s)); } finally { this.comfortNow = null; }
+      }
+    }
     // Parked: after PARKED_MS standing still she asks once, then stays quiet until he moves off again.
     if (s.speedKmh < STILL_KMH) this.stillSince ??= this.now();
     else if (s.speedKmh >= MOVING_AGAIN_KMH) {
+      // A stop of 15 minutes or more was a real break: the fatigue count starts again.
+      if (this.stillSince !== null && this.now() - this.stillSince >= BREAK_MS) { this.movingAtBreak = this.stats.snapshot().movingMin; this.fatigueAtMoving = null; }
       this.stillSince = null;
       if (this.parked) { this.parked = false; this.lastAmbientSlot = this.now(); }
     }
@@ -505,6 +540,23 @@ export class TriggerEngine {
           context: `He has just passed ${r.km.toLocaleString('en-US')} km of riding with you in total, over ${(this.live?.rides ?? 0) + 1} rides.`,
           fallback: `That's ${r.km.toLocaleString('en-US')} kilometres together.`,
         };
+      }
+      case 'fatigue': {
+        const r = this.stats.snapshot();
+        const since = Math.round(r.movingMin - this.movingAtBreak);
+        const next = this.progress?.next;
+        const night = fatigueDueMin(new Date(this.now()).getHours()) === 60;
+        return {
+          context: `He has been riding for ${minutesText(since)} without a proper break${night ? ', and it is late' : ''}. Suggest a break, kindly and briefly${next ? `; his next planned stop, ${next.name}, is ${Math.round(next.km)} km ahead` : ''}. Do not lecture.`,
+          fallback: `${minutesText(since)} in the saddle without a break. Worth stopping soon${next ? `, ${next.name} is ${Math.round(next.km)} kilometres on` : ''}.`,
+        };
+      }
+      case 'wind_cold': {
+        const c = this.comfortNow;
+        if (!c) return { context: '', fallback: '' };
+        return c.kind === 'wind'
+          ? { context: `Strong wind across his line of travel: gusts of about ${c.cross} km/h from the side. Warn him plainly in a line; do not tell him how to ride.`, fallback: `Strong crosswind gusts, around ${c.cross} km/h.` }
+          : { context: `At this speed the wind chill makes it feel about ${c.feels} C on the bike (air ${s.weather?.tempC} C). Mention it plainly in a line, in case he wants another layer at the next stop.`, fallback: `It feels about ${c.feels} degrees at this speed.` };
       }
       case 'route_weather': {
         const w = this.rainNow;

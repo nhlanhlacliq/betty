@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyTalkPreset, cleanBikeName, cleanRiderName, chirpVoice, libraryVoice, mixSummary, nudgeMix, voiceStyle } from './config/betty';
+import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyMode, applyTalkPreset, cleanBikeName, currentDials, currentMode, currentTalkPreset, nudgeLength, setMixShare, cleanRiderName, chirpVoice, libraryVoice, mixSummary, nudgeMix, voiceStyle } from './config/betty';
 import { LIBRARY_ACCENTS, LIBRARY_VOICES } from './config/voiceLibrary';
 import { CloudSpeaker, ElementPlayer, SOUND_TEST_LINES, STOCK_LINES } from './adapters/CloudSpeaker';
 import { IdbClipStore } from './adapters/ClipStore';
@@ -1057,6 +1057,34 @@ async function beginRide(desk: boolean) {
         ServiceStore.save(next);
         engine.setServiceBook(next);
         reply(`${r.name}: not done after all. Back to ${dueText(dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now()))}.`, 'undone');
+        return;
+      }
+      case 'length': {
+        const n = nudgeLength(c.step);
+        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+        reply(n === 1 ? 'One sentence at a time.' : `Up to ${n} sentences a line.`, 'length');
+        return;
+      }
+      case 'mixset': {
+        setMixShare(c.what, c.pct);
+        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+        reply(mixSummary(), 'mixset');
+        return;
+      }
+      case 'mode': {
+        if (c.action === 'save' && c.name) {
+          CONFIG.modes = { ...CONFIG.modes, [c.name]: currentDials() };
+          saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+          reply(`Saved as ${c.name} mode. Say "switch to ${c.name} mode" to come back to it.`, 'mode');
+        } else if (c.action === 'use' && c.name) {
+          const m = CONFIG.modes[c.name];
+          if (!m) { reply(`I don't have a ${c.name} mode. Set me up how you like, then say "save this as ${c.name} mode".`, 'mode'); return; }
+          applyMode(m); saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
+          reply(`${c.name[0].toUpperCase()}${c.name.slice(1)} mode. ${mixSummary()}`, 'mode');
+        } else {
+          const name = currentMode() ?? currentTalkPreset();
+          reply(name ? `${name[0].toUpperCase()}${name.slice(1)} mode. ${mixSummary()}` : `A custom mix. ${mixSummary()}`, 'mode');
+        }
         return;
       }
       case 'ahead': {

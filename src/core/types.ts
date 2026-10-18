@@ -5,14 +5,14 @@ export type TriggerId =
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
   | 'ambient_banter' | 'local_fact' | 'area_story' | 'marked_spot'
   | 'off_route' | 'route_stop' | 'route_arrived'
-  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather';
+  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
   'ambient_banter', 'local_fact', 'area_story', 'marked_spot',
   'off_route', 'route_stop', 'route_arrived',
-  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather',
+  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold',
 ];
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */
@@ -30,6 +30,9 @@ export interface WeatherState {
   /** Next sunrise and sunset at the rider's location (epoch ms), when the feed supplies them */
   sunriseAt: number | null;
   sunsetAt: number | null;
+  /** Gusts (km/h) and where the wind blows FROM (degrees), for crosswind and wind chill (2026-10-18) */
+  windGustKmh?: number;
+  windFromDeg?: number;
 }
 
 export interface TrafficIncident {
