@@ -15,6 +15,49 @@ from pipecat.frames.frames import ErrorFrame, Frame, TTSAudioRawFrame
 from pipecat.services.tts_service import TTSService
 
 
+# ---- Leading silence (2026-10-19): Chirp clips start with ~0.26-0.4 s of near-silence, heard as extra delay. Drop it,
+# keeping 20 ms before the first real sound so the first word is not clipped. 16-bit little-endian mono PCM.
+SILENCE_LEVEL = 300  # of 32767: about -40 dB
+LEAD_IN_BYTES = 960  # 20 ms at 24 kHz
+
+
+def first_sound(pcm: bytes) -> int:
+    """Byte offset of the first sample louder than SILENCE_LEVEL, or -1 if the chunk is all silence."""
+    import array
+    a = array.array("h")
+    a.frombytes(pcm[: len(pcm) - len(pcm) % 2])
+    for i, v in enumerate(a):
+        if v > SILENCE_LEVEL or v < -SILENCE_LEVEL:
+            return i * 2
+    return -1
+
+
+def trim_lead(pcm: bytes) -> bytes:
+    """A whole clip without its leading silence (fillers)."""
+    i = first_sound(pcm)
+    return pcm if i < 0 else pcm[max(0, i - LEAD_IN_BYTES):]
+
+
+def trimmed(service_cls):
+    """A TTS service class whose every utterance starts at its first sound instead of ~0.3 s of silence."""
+    class Trimmed(service_cls):
+        async def run_tts(self, text: str, context_id: str):
+            started = False
+            held = b""
+            async for frame in super().run_tts(text, context_id):
+                if not started and isinstance(frame, TTSAudioRawFrame):
+                    held = (held + frame.audio)[-LEAD_IN_BYTES:] if first_sound(frame.audio) < 0 else held
+                    i = first_sound(frame.audio)
+                    if i < 0:
+                        continue  # still silence: drop it (keep the last 20 ms for the lead-in)
+                    started = True
+                    lead = (held + frame.audio[:i])[-LEAD_IN_BYTES:]
+                    frame = TTSAudioRawFrame(lead + frame.audio[i:], frame.sample_rate, frame.num_channels, context_id=context_id)
+                yield frame
+    Trimmed.__name__ = f"Trimmed{service_cls.__name__}"
+    return Trimmed
+
+
 class ChirpKeyTTSService(TTSService):
     def __init__(self, *, api_key: str, voice: str = "en-US-Chirp3-HD-Zephyr", sample_rate: int = 24000, **kwargs):
         super().__init__(sample_rate=sample_rate, push_start_frame=True, push_stop_frames=True, **kwargs)

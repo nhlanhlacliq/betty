@@ -97,3 +97,7 @@ first audio 0.31-0.51 s on the server (Mac: 0.35-0.38 s after the first connecti
 0.26-0.4 s of silence: trimming it is the next small win. chirp_tts.py (API key, whole sentences) stays as the fallback
 when there is no service-account file. Pipecat warns that VAD stop 0.4 s (set to stop fragments) is above its STT
 wait budget: if words get lost at the end of a turn, go back to 0.2.
+
+Trimmed (same day): `trimmed(...)` in chirp_tts.py drops Chirp's leading silence per utterance (keeps a 20 ms lead-in),
+and `trim_lead` does the same for the filler clips. Live: leading silence 0.26-0.40 s -> 0.02-0.04 s, text-to-heard
+0.57-0.91 s -> 0.31-0.54 s. VAD stop back to 0.2 s (owner).

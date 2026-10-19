@@ -48,7 +48,7 @@ from pipecat.services.anthropic.llm import AnthropicLLMService, AnthropicThinkin
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
 
-from chirp_tts import ChirpKeyTTSService
+from chirp_tts import ChirpKeyTTSService, trim_lead, trimmed
 from pipecat.services.google.tts import GoogleTTSService
 from pipecat.transcriptions.language import Language
 from pipecat.services.llm_service import FunctionCallParams
@@ -179,7 +179,7 @@ async def make_fillers():
                                           "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000}}) as r:
                 if r.status == 200:
                     import base64
-                    CLIPS[key] = base64.b64decode((await r.json())["audioContent"])[44:]
+                    CLIPS[key] = trim_lead(base64.b64decode((await r.json())["audioContent"])[44:])
                 logger.info(f"filler '{text}': HTTP {r.status}, {len(CLIPS.get(key, b''))} bytes")
         except Exception as e:
             logger.warning(f"filler '{text}' not made: {e}")
@@ -250,13 +250,13 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         )
     elif CREDS.exists():
         # STREAMED Chirp with the service account: first audio ~0.35 s (measured 2026-10-19) instead of ~1 s a sentence.
-        tts = GoogleTTSService(
+        tts = trimmed(GoogleTTSService)(
             credentials_path=str(CREDS),
             sample_rate=24000,
             settings=GoogleTTSService.Settings(voice=os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr"), language=Language.EN_US),
         )
     else:  # no service-account file: whole sentences with the plain API key (chirp_tts.py)
-        tts = ChirpKeyTTSService(api_key=os.getenv("GOOGLE_TTS_API_KEY"), voice=os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr"))
+        tts = trimmed(ChirpKeyTTSService)(api_key=os.getenv("GOOGLE_TTS_API_KEY"), voice=os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr"))
 
     # LLM service: Claude Haiku 5.5 as Betty. Thinking OFF explicitly: Haiku 5.5 thinks by default and Pipecat only
     # switches it off for Sonnet, which would add seconds before every answer. Her instructions are prompt-cached.
@@ -289,9 +289,9 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         # Interrupt on ANY speech (Pipecat's default, ~0.3 s). Tried "2 words" on 2026-10-19 against echo from the phone's
         # loudspeaker: it worked but took ~1.5-2 s to stop her; the owner uses earphones/the helmet (no echo), so instant
         # it is. For the loudspeaker: UserTurnStrategies(start=[MinWordsUserTurnStartStrategy(min_words=2)]).
-        # 0.4 s of silence (default 0.2) before the end-of-turn model judges whether he has finished: on 2026-10-19 a short
-        # pause mid-sentence handed her fragments ("Do you think", "Not at the moment, but") and she answered those.
-        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.4))),
+        # VAD stop 0.2 s (Pipecat's default and recommendation). 0.4 s was tried on 2026-10-19 against fragments ("Do you
+        # think", "Not at the moment, but"), but Pipecat warned it eats the STT wait budget; owner chose 0.2 again.
+        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2))),
     )
 
     # Pipeline - assembled from reusable components
