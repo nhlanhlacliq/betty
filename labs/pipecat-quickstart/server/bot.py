@@ -142,11 +142,25 @@ async def get_weather(params: FunctionCallParams):
 
 
 # ---- Fillers made ONCE in her Chirp voice and played straight into the audio output (queued through the TTS service
-# "Let me check." only started after ~3.5 s). If a search is still running 2.5 s later: "Hmm, one moment." (owner's
-# idea, 2026-10-19: a short thinking sound rather than silence).
-FILLERS = {"check": "Let me check.", "hmm": "Hmm, one moment."}
+# "Let me check." only started after ~3.5 s). If a search is still running 3 s later, one of ten "still here" lines,
+# never the same twice in a row (owner, 2026-10-19: "Hmm, one moment." alone was stale and predictable).
+FILLERS = {"check": "Let me check."}
+STILL_HERE = [
+    "Hmm, one moment.",
+    "Mm, nearly there.",
+    "Bear with me.",
+    "Uh, just a second.",
+    "Hmm, digging a little deeper.",
+    "One sec.",
+    "Hmm, let me see.",
+    "Almost got it.",
+    "Mm, hang tight.",
+    "Right, just a moment more.",
+]
+FILLERS.update({f"still{i}": t for i, t in enumerate(STILL_HERE)})
 CLIPS: dict[str, bytes] = {}
-STILL_WAITING_AFTER = 2.5
+STILL_WAITING_AFTER = 3.0
+_last_still = {"key": ""}
 OUT: dict = {}  # the transport's output processor, set per session in run_bot
 
 
@@ -177,7 +191,11 @@ async def web_search(params: FunctionCallParams):
 
     async def still_waiting():
         await asyncio.sleep(STILL_WAITING_AFTER)
-        await play_clip("hmm")
+        import random
+        options = [k for k in CLIPS if k.startswith("still") and k != _last_still["key"]]
+        if options:
+            _last_still["key"] = random.choice(options)
+            await play_clip(_last_still["key"])
     waiting = asyncio.create_task(still_waiting())
     try:
         msg = await _search_client.messages.create(

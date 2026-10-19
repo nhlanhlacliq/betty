@@ -4,3 +4,7 @@ dist
 !.env.example
 .vercel
 .DS_Store
+
+# Google service account for the voice lab (labs/pipecat-quickstart): never commit
+google-service-account.json
+*service-account*.json
