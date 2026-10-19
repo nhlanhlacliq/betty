@@ -90,3 +90,10 @@ Johannesburg (~1 ms) at ~5x real time: `chirp_tts.py` (ChirpKeyTTSService, Betty
 sentence, ~1 s a sentence; the streaming API would start sooner but needs a service-account file). BETTY_TTS=deepgram
 brings Aura back. Fillers are Chirp clips played straight to the output: "Let me check." when a search starts and
 "Hmm, one moment." if it is still running after 2.5 s (owner's idea).
+
+Streamed Chirp (same day): Google service account `betty-voice` (file google-service-account.json: repo root on the
+Mac, /opt/betty/bot on the server, mode 600, never in git; deploy.sh leaves it alone) -> Pipecat GoogleTTSService,
+first audio 0.31-0.51 s on the server (Mac: 0.35-0.38 s after the first connection). Chirp clips start with
+0.26-0.4 s of silence: trimming it is the next small win. chirp_tts.py (API key, whole sentences) stays as the fallback
+when there is no service-account file. Pipecat warns that VAD stop 0.4 s (set to stop fragments) is above its STT
+wait budget: if words get lost at the end of a turn, go back to 0.2.

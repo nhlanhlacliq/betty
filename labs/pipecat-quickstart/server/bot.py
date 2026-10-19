@@ -49,6 +49,8 @@ from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
 
 from chirp_tts import ChirpKeyTTSService
+from pipecat.services.google.tts import GoogleTTSService
+from pipecat.transcriptions.language import Language
 from pipecat.services.llm_service import FunctionCallParams
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
@@ -58,6 +60,8 @@ from pipecat.workers.runner import WorkerRunner
 load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 load_dotenv(override=True)
 BETTY_PROMPT = (Path(__file__).parent / "betty_prompt.txt").read_text()
+# Google service account (never in git): next to bot.py on the server, the repo root on the Mac.
+CREDS = next((p for p in [Path(__file__).parent / "google-service-account.json", Path(__file__).resolve().parents[3] / "google-service-account.json"] if p.exists()), Path("/nonexistent"))
 
 # ---- Web search, as a Pipecat function (2026-10-19). Pipecat's Claude service does not pass Claude's own server-side
 # web search through, so Betty calls this function, which asks Claude Haiku WITH web search and returns the answer as
@@ -244,7 +248,14 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
             api_key=os.getenv("DEEPGRAM_API_KEY"),
             settings=DeepgramTTSService.Settings(voice=os.getenv("BETTY_VOICE", "aura-2-helena-en")),
         )
-    else:
+    elif CREDS.exists():
+        # STREAMED Chirp with the service account: first audio ~0.35 s (measured 2026-10-19) instead of ~1 s a sentence.
+        tts = GoogleTTSService(
+            credentials_path=str(CREDS),
+            sample_rate=24000,
+            settings=GoogleTTSService.Settings(voice=os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr"), language=Language.EN_US),
+        )
+    else:  # no service-account file: whole sentences with the plain API key (chirp_tts.py)
         tts = ChirpKeyTTSService(api_key=os.getenv("GOOGLE_TTS_API_KEY"), voice=os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr"))
 
     # LLM service: Claude Haiku 5.5 as Betty. Thinking OFF explicitly: Haiku 5.5 thinks by default and Pipecat only
