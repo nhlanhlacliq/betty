@@ -65,3 +65,7 @@ Fix deployed: interruptions need WORDS (`MinWordsUserTurnStartStrategy(min_words
 also right for wind/engine noise on the bike. If it is still patchy on the loudspeaker, test with earphones; then
 Daily's transport (better echo cancellation and mobile resilience, recommended by Pipecat for production) is the
 next lever.
+
+Switched back the same day (owner): instant interruption on any speech (~0.3 s); he tests with earphones, where there
+is no echo. The 2-word rule took ~1.5-2 s to stop her. Native app: pick by audio route (loudspeaker = words, earphones /
+helmet = instant); Krisp "interruption prediction" (paid) is the smarter option for both.
