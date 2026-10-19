@@ -1129,6 +1129,17 @@ next is in `native/README.md`: it is the native app's CLAUDE.md, keep it current
   three codes a line), `ElmSession` (init logs the reader version and the PIDs the bike lists; a PID with 3 misses in a
   row is dropped; a value the bike does not give is left out, never zero). `ObdTransport` = send a command, get the
   text up to ">". Not yet: battery voltage (`ATRV`), gear from rpm/speed.
+- READER TEST ON THE BIKE (2026-10-19, owner, Android + Car Scanner, then raw commands in Serial Bluetooth Terminal):
+  the 2018 G 310 GS speaks STANDARD OBD2: ISO 15765-4 CAN 11-bit 500 kbaud (ATSP6), engine ECU replies from 7E8, VIN
+  starts WB3 (BMW Motorrad). Its ECU only joins with the ENGINE RUNNING (ignition only: UNABLE TO CONNECT). 0100 ->
+  `41 00 BE 1E F0 13` = supports 01 03 04 05 06 07 0C 0D 0E 0F 11 12 13 14 1C 1F 20 (coolant 05, rpm 0C, speed 0D,
+  throttle 11, load 04, intake air 0F; more beyond 20). One live RPM read: `7E8 04 41 0C 19 D0` = 1,652 rpm at idle.
+  BUT the cheap "ELM327 v2.1" clone was UNRELIABLE: most requests NO DATA / UNABLE TO CONNECT, a final 10-in-a-row test
+  0/10 with ATST FF. Battery voltage (ATRV, dongle-side) always works: 12.5 V off, 14.3 V running. Car Scanner showed
+  no sensors because of the flaky link, not missing support. Next: the second dongle from the box; else a well-made
+  reader (Vgate iCar Pro BLE: iPhone too; or OBDLink). Code consequences for core/Elm327.ts ElmSession: wait for engine
+  start (retry 0100 until it answers), ATST FF, optional ATSH 7E0, NEVER drop a PID the bike lists as supported after
+  3 misses (it would drop rpm at once on this link), space requests, add ATRV (charging/battery warning).
 - OPEN DECISION after the reader test: if the bike gives no fuel PID (012F), `obd: true` would switch off the km-based
   fuel range (the engine uses the estimate only when `s.obd` is false). Then fuel needs its own flag.
 - Server: `fromBetty` also accepts `x-betty-origin` (the app has no page origin); `ClaudeClient` takes `proxyHeaders`.
