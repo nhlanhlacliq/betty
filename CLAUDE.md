@@ -1226,6 +1226,12 @@ Everything buildable in the web app is built (see the sections above), except th
      2026-10-19 later: scratchy audio over SmallWebRTC on the 1-core VPS (event-loop stalls) -> DAILY transport (free
      10k participant-min/month, then $0.00099; owner chose Vultr + Daily over Pipecat Cloud at $0.01/min). Tools added:
      web_search (Claude + search, ~4-7 s) and get_weather (Open-Meteo, more accurate than search). See labs/README.md.
+     FINAL LAB SETUP, owner 2026-10-19: "works amazingly well, the fillers are also perfect": Daily transport, Deepgram
+     hearing, Claude Haiku as Betty, STREAMED Chirp 3 HD (Zephyr) via a Google service account (Deepgram's voice was
+     ~290 ms away and delivered slower than real time = the scratches), Chirp's leading silence trimmed (her voice
+     ~0.3-0.5 s after a sentence is written), fillers in her voice ("Let me check." at once, then one of 12 hmm/uhh
+     lines after 3 s, never repeated twice running), instant interruption, VAD stop 0.2 s. Not in the lab: her ride
+     context (GPS, route, fuel...), which the app would send with each question.
    - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
      no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
      asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact
