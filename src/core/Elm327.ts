@@ -100,44 +100,81 @@ export function parseDtcs(raw: string): string[] {
   return [...new Set(out)];
 }
 
-/** A PID that gave no value this many times in a row is not asked again this connection (it slows every round). */
+/** A PID the bike does NOT list as supported is dropped after this many misses in a row. One it lists is never dropped:
+ *  on the owner's G 310 GS (2026-10-19) a cheap clone missed most answers, and dropping after 3 would lose rpm at once. */
 const GIVE_UP_AFTER = 3;
+
+export interface ElmOptions {
+  /** ATSP value: '0' = automatic (default); '6' = ISO 15765-4 CAN 11-bit 500k, what the G 310 GS speaks. */
+  protocol?: string;
+  /** ATST value in hex (x 4 ms): 'FF' = ~1 s, for ECUs slower than the reader's default ~200 ms. */
+  timeout?: string;
+  /** ATSH value: ask one ECU directly (e.g. '7E0', the engine) instead of everyone. */
+  header?: string;
+}
+
+/** Battery / charging voltage from the reader's ATRV answer ("14.3V"), or null. Works even when the ECU is silent. */
+export function readVoltage(raw: string): number | null {
+  const m = raw.match(/(\d{1,2}\.\d)\s*V/i);
+  return m ? Number(m[1]) : null;
+}
 
 /**
  * One connection to the reader: set it up, then read a round of values every poll. Values the bike does not give are
- * left out of the update (and dropped from later rounds), so nothing made up reaches Betty.
+ * left out of the update, so nothing made up reaches Betty. Learned on the bike (2026-10-19): its ECU only answers with
+ * the ENGINE RUNNING, so until it answers 0100 each poll tries again (and reports only the voltage); a longer answer
+ * timeout and a fixed protocol help.
  */
 export class ElmSession {
   private misses: Partial<Record<PidName, number>> = {};
   private round = 0;
   supported: string[] = [];
   version = '';
-  constructor(private t: ObdTransport, private log: (msg: string) => void = () => {}) {}
+  constructor(private t: ObdTransport, private log: (msg: string) => void = () => {}, private opt: ElmOptions = {}) {}
 
   async init(): Promise<void> {
-    for (const c of ELM_INIT) {
+    const cmds = ELM_INIT.map((c) => (c === 'ATSP0' && this.opt.protocol ? `ATSP${this.opt.protocol}` : c));
+    if (this.opt.timeout) cmds.push(`ATST${this.opt.timeout}`);
+    if (this.opt.header) cmds.push(`ATSH${this.opt.header}`);
+    for (const c of cmds) {
       const r = await this.t.send(c);
       if (c === 'ATZ') this.version = r.replace(/[>\r\n]+/g, ' ').trim();
     }
-    this.supported = [...supportedPids(await this.t.send('0100')), ...supportedPids(await this.t.send('0120'), 0x20)];
-    this.log(`reader ${this.version || '(no version)'}, bike supports PIDs ${this.supported.join(' ') || 'none reported'}`);
+    await this.discover();
+    this.log(`reader ${this.version || '(no version)'}, ${this.supported.length ? `bike supports PIDs ${this.supported.join(' ')}` : 'bike not answering yet (engine off?)'}`);
   }
 
-  /** Is this PID worth asking: not given up on, and (when the bike sent its list) on that list. */
+  /** Ask which PIDs the bike supports; true once it has answered. */
+  private async discover(): Promise<boolean> {
+    const first = supportedPids(await this.t.send('0100'));
+    if (!first.length) return false;
+    this.supported = [...first, ...(first.includes('20') ? supportedPids(await this.t.send('0120'), 0x20) : [])];
+    return true;
+  }
+
+  /** Is this PID worth asking: on the bike's list (never dropped), or not given up on while there is no list. */
   wants(name: PidName): boolean {
-    if ((this.misses[name] ?? 0) >= GIVE_UP_AFTER) return false;
-    return !this.supported.length || this.supported.includes(PIDS[name].pid);
+    if (this.supported.length) return this.supported.includes(PIDS[name].pid);
+    return (this.misses[name] ?? 0) < GIVE_UP_AFTER;
   }
 
-  /** One round: rpm, coolant, throttle, fuel (and fault codes every 30th round). */
-  async poll(): Promise<{ state: Partial<BikeState>; speedKmh: number | null }> {
+  /**
+   * One round: battery voltage, then (once the bike answers) rpm, coolant, throttle, fuel, speed, and fault codes every
+   * 30th round. Before the bike answers, only the voltage and another try at 0100.
+   */
+  async poll(): Promise<{ state: Partial<BikeState>; speedKmh: number | null; voltage: number | null }> {
+    const voltage = readVoltage(await this.t.send('ATRV'));
+    if (!this.supported.length) {
+      if (!(await this.discover())) return { state: {}, speedKmh: null, voltage };
+      this.log(`bike answering now: supports PIDs ${this.supported.join(' ')}`);
+    }
     const state: Partial<BikeState> = { obd: true };
     const get = async (name: PidName) => {
       if (!this.wants(name)) return null;
       const v = readPid(name, await this.t.send(`01${PIDS[name].pid}`));
       if (v == null) {
         this.misses[name] = (this.misses[name] ?? 0) + 1;
-        if (this.misses[name] === GIVE_UP_AFTER) this.log(`no ${name} from the bike, not asking again`);
+        if (this.misses[name] === 10) this.log(`no ${name} for 10 rounds in a row (reader or connection?)`);
       } else this.misses[name] = 0;
       return v;
     };
@@ -151,6 +188,6 @@ export class ElmSession {
     if (fuel != null) state.fuelPct = fuel;
     const speedKmh = await get('speedKmh');
     if (this.round++ % 30 === 0) state.dtcs = parseDtcs(await this.t.send('03'));
-    return { state, speedKmh };
+    return { state, speedKmh, voltage };
   }
 }

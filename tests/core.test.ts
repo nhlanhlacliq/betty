@@ -2668,6 +2668,38 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(r.speedKmh, 60);
   assert.ok(!asked.includes('012F'));
 }
+// ---- the reader on the owner's G 310 GS (2026-10-19): silent until the engine runs, then a flaky clone link
+{
+  const { ElmSession, readVoltage } = await import('../src/core/Elm327');
+  assert.equal(readVoltage('14.3V\r\r>'), 14.3); assert.equal(readVoltage('?\r>'), null);
+  let engineOn = false, rpmMiss = 0;
+  const asked: string[] = [];
+  const bike = async (c: string) => {
+    asked.push(c);
+    if (c === 'ATRV') return engineOn ? '14.3V>' : '12.5V>';
+    if (!engineOn && /^0[1-9]/.test(c)) return 'UNABLE TO CONNECT>';
+    if (c === '0100') return '7E8 06 41 00 BE 1E F0 13>';
+    if (c === '0120') return 'NO DATA>';
+    if (c === '010C') return rpmMiss-- > 0 ? 'NO DATA>' : '7E8 04 41 0C 19 D0 AA AA AA>';
+    if (c === '0105') return '7E8 03 41 05 5A>';
+    if (c === '03') return '7E8 02 43 00>';
+    return 'OK>';
+  };
+  const s = new ElmSession({ send: bike }, () => {}, { protocol: '6', timeout: 'FF', header: '7E0' });
+  await s.init();
+  assert.ok(asked.includes('ATSP6') && asked.includes('ATSTFF') && asked.includes('ATSH7E0'));
+  assert.equal(s.supported.length, 0, 'engine off: no list yet');
+  let r = await s.poll();
+  assert.deepEqual(r.state, {}); assert.equal(r.voltage, 12.5, 'voltage even with the engine off');
+  engineOn = true; rpmMiss = 5;
+  r = await s.poll();
+  assert.ok(s.supported.includes('0C') && s.supported.includes('05'), 'the list arrives once the engine runs');
+  assert.equal(r.voltage, 14.3); assert.equal(r.state.engineTempC, 50);
+  for (let i = 0; i < 4; i++) await s.poll(); // rpm missed 5 times in a row
+  assert.ok(s.wants('rpm'), 'a supported PID is never dropped');
+  r = await s.poll();
+  assert.equal(r.state.rpm, 1652, 'and comes back when the link does (7E8 04 41 0C 19 D0)');
+}
 
 // ---- "heard": the ride screen shows her words when her voice is actually audible, not when her turn starts
 {
