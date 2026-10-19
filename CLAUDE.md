@@ -2,6 +2,51 @@
 
 Context for any Claude Code instance picking this project up. Read this first.
 
+## WHERE WE LEFT OFF (handoff, 2026-10-19): read this first
+
+Current focus: Betty's FAST VOICE (Pipecat) in the NATIVE APP. Everything below is committed; details live in
+`voice/README.md` (voice server + evals), `native/README.md` (the app), `labs/README.md` (the Pipecat lab and the VPS).
+
+What is live and working:
+- Web app (the one he rides with today): https://betty-zeta.vercel.app, deployed with `npx vercel deploy --prod --yes`.
+- Voice server `voice/` at https://voice.forme.africa (Vultr Johannesburg 1 GB, Ubuntu 26.04, systemd `betty-voice`,
+  Caddy HTTPS + two logins: browser `betty` / VOICE_ACCESS_CODE and app `app` / EXPO_PUBLIC_VOICE_TOKEN). Daily audio,
+  Deepgram hearing, Claude Haiku as Betty with 14 tools (3 server, 11 phone), streamed Chirp 3 HD (Zephyr) with
+  leading silence trimmed, hmm/uhh fillers, situation from the app on the newest question after the cached prompt.
+  Redeploy: `voice/deploy.sh`. Logs: `ssh root@139.84.250.9 journalctl -u betty-voice -f` (server clock is UTC).
+- Native app `native/` (Expo 58, React Native): "Hold to talk to Betty" works end to end on his iPhone 12 (RELEASE
+  build, because his Wi-Fi is down and Metro over the phone hotspot does not reach: `npx expo run:ios --device
+  --configuration Release`; free Apple ID = rebuild every 7 days). Talking verified 2026-10-19: real situation used,
+  web search with fillers, ~1.5-2.5 s from end of question to her voice.
+- Evals: `cd voice && uv run evals/run.py --repeat 3` (24 cases, rules + Sonnet judge, ~$1 a 3x run). Last result:
+  old and new prompt both 55/72 (76%).
+
+Just changed, NOT yet tried on the phone: the talk BUTTON decides his turn (app sends `ptt` down/up; server uses
+ExternalUserTurnStrategies when body.ptt): fixes half sentences seen in his session. Needs one more Release build.
+
+Waiting on the OWNER:
+1. Pick the next eval step: (a) one targeted rule so weather_along_route is called reliably again (3/3 -> 1/3 after
+   the last prompt change), (b) an eval run with Sonnet answering (~$2) to see how much of the 24% is Haiku (Sonnet
+   ~1.5-2.5 s to first words vs ~0.9 s), (c) a real ride with earphones/helmet and the button.
+2. OBD: the bike speaks standard OBD2 (CAN 11-bit 500k, ECU 7E8, only with the ENGINE RUNNING; supports rpm, coolant,
+   speed, throttle, load, intake air) but his cheap ELM327 v2.1 clone dropped almost every answer (0/10 in the last
+   test). He is getting a Vgate iCar Pro BLE (works with iPhone too). core/Elm327.ts already updated from the test.
+   iPhone OBD needs a BLE transport (react-native-ble-plx behind ObdTransport): NOT built yet.
+3. Android test APK: he needs an Expo account and `npx eas-cli login`; then add eas.json (preview profile, apk) and
+   `npx eas-cli build -p android --profile preview`. Not started.
+4. Rotate the Deepgram key (it was pasted in chat): new key in the repo `.env` AND /opt/betty/bot/.env on the server.
+
+Known open issues: station distances sometimes said as "5.1 km further on" (beyond the first station); travel_time gave
+Edenvale -> Cullinan 88 km (check which "Cullinan" TomTom matched); "tell me something interesting" invents facts
+(Haiku); she sometimes adds unasked ride facts or long story answers; phone tools recall_ride, maintenance_due and
+weather_along_route answer "not on this phone yet" (that data lives in the web app; the native app has no stores for
+rides, reminders or routes yet); no music ducking for her answers yet; no fallback to the old path without signal yet.
+
+How the owner works (also in memory): direct, concise; explain big architecture changes so he can own them (he is
+doing Scott Moss's agent/evals course and reading "Designing Voice User Interfaces"); never strip her personality to
+fix a log; every user-visible change in the WEB app gets a changelog entry AND a Help update; confirm before
+outward-facing actions; commits end with the Co-Authored-By / Claude-Session trailer given in the session.
+
 ## What Betty is
 
 An always-on voice co-pilot for a motorcycle (owner: Nhlanhla, 2018 BMW G 310 GS, Gauteng, South Africa).
