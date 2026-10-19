@@ -1133,7 +1133,9 @@ Running cost per rider per month (~R55-90, i.e. $3-5):
   for ~100k credits). Gemini TTS: dearer and Tier 1 = 10 requests/min, unusable for 100 riders (owner is considering
   dropping Gemini entirely to run as cheaply as possible).
 - Hearing: Groq Whisper free tier likely still covers it; Deepgram ~$0.005-0.008 a listening minute (~$0.10/rider).
-- Pipecat Cloud: $0.01 per CONNECTED minute: ~$1.20/rider if connected per conversation (~15 min a ride), ~$12 if
+- PIPECAT ITSELF IS FREE (open source, BSD-2); the cost below is only if HOSTED on Pipecat Cloud (Daily). Self-hosted
+  on a R100-150/month Johannesburg VPS (or Oracle's free tier) it is a small fixed server cost instead, and one
+  cheap server serves many riders (the heavy work is at Claude/Google/Deepgram). Pipecat Cloud: $0.01 per CONNECTED minute: ~$1.20/rider if connected per conversation (~15 min a ride), ~$12 if
   connected the whole ride. Decide per-conversation vs per-ride before adopting it.
 
 What breaks at 100 riders: free tiers are per account (above); OpenStreetMap Nominatim forbids heavy use (1 req/s,
