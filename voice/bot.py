@@ -17,7 +17,9 @@ from loguru import logger
 from pipecat.adapters.schemas.tools_schema import ToolsSchema
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
-from pipecat.frames.frames import Frame, LLMContextFrame, LLMRunFrame, LLMUpdateSettingsFrame
+from pipecat.frames.frames import (
+    Frame, LLMContextFrame, LLMRunFrame, LLMUpdateSettingsFrame, ProposedUserStartedSpeakingFrame, ProposedUserStoppedSpeakingFrame,
+)
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -32,6 +34,7 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.transcriptions.language import Language
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
+from pipecat.turns.user_turn_strategies import ExternalUserTurnStrategies
 from pipecat.workers.runner import WorkerRunner
 
 from betty_voice import prompt, server_tools
@@ -138,10 +141,17 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
             await FILLERS.play(CHECK)
 
     context = LLMContext(tools=ToolsSchema(standard_tools=ALL_TOOLS))
+    # PUSH-TO-TALK (the app, body.ptt): the BUTTON decides the turn. Press = his turn starts (and interrupts her),
+    # release = it ends, once Deepgram's last words are in. On 2026-10-19 the automatic end-of-turn guess sent half
+    # sentences ("No. I think I", "What were you saying about the" + "heart train again?"). The browser playground
+    # has no button: there the model guesses (VAD stop 0.2 s, Pipecat's recommendation).
+    ptt = bool(body.get("ptt"))
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
-        # VAD stop 0.2 s, Pipecat's default and recommendation (0.4 s was tried; it eats the STT wait budget).
-        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2))),
+        user_params=LLMUserAggregatorParams(
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+            **({"user_turn_strategies": ExternalUserTurnStrategies()} if ptt else {}),
+        ),
     )
 
     pipeline = Pipeline([
@@ -164,6 +174,9 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
             phone["p"].result(data)
         elif msg.type == "situation":
             situation.update(data)
+        elif msg.type == "ptt":  # the talk button: down = his turn starts (interrupts her), up = it ends
+            frame = ProposedUserStartedSpeakingFrame() if data.get("down") else ProposedUserStoppedSpeakingFrame()
+            await worker.queue_frames([frame])
         elif msg.type == "setup":
             if data.get("system"):  # the app's own prompt, with the rider's settings
                 await worker.queue_frames([LLMUpdateSettingsFrame(delta=AnthropicLLMService.Settings(system_instruction=prompt.build(str(data["system"]))))])

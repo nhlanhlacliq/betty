@@ -56,7 +56,7 @@ export class VoiceSession {
       await client.startBotAndConnect({
         endpoint: `${URL}/start`,
         headers: new Headers({ Authorization: AUTH }),
-        requestData: { transport: 'daily', createDailyRoom: true, body: { system: this.setup.system, greet: false, situation: this.setup.situation() } },
+        requestData: { transport: 'daily', createDailyRoom: true, body: { system: this.setup.system, greet: false, ptt: true, situation: this.setup.situation() } },
       });
       this.client = client;
       this.set('ready');
@@ -77,6 +77,7 @@ export class VoiceSession {
     if (!c) return;
     c.sendClientMessage('situation', this.setup.situation());
     c.enableMic(true);
+    c.sendClientMessage('ptt', { down: true }); // his turn starts: she stops talking
     this.set('listening');
   }
 
@@ -86,6 +87,8 @@ export class VoiceSession {
     this.releaseTimer = setTimeout(() => {
       this.releaseTimer = null;
       this.client?.enableMic(false);
+      // His turn ends on release, not on a guessed pause: she answers what he said, whole (no half sentences).
+      this.client?.sendClientMessage('ptt', { down: false });
       if (this.client) this.set('ready');
     }, RELEASE_TAIL_MS);
   }

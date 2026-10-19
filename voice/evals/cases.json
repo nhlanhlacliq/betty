@@ -5,7 +5,8 @@
   "riding_no_route": "Local time 14:10, afternoon. Speed 54 km/h on the M37 near Edenvale, heading south. Weather here: 27 C, clear, rain chance in the next hour 0%. Fuel: about 35 km to reserve. No route planned. Area: Edenvale, Ekurhuleni. Ride so far: 20 min, 14 km.",
   "off_route": "Local time 10:05, morning. Speed 40 km/h on Zambesi Drive, heading west. Off his planned route to Cullinan by 0.6 km for the last 2 minutes. Weather here: 25 C, partly cloudy. Fuel: about 120 km to reserve. Area: Mamelodi, Tshwane.",
   "with_area_notes": "Local time 11:20, morning. Speed 70 km/h on the R104 near Cullinan, heading east. Weather here: 26 C, clear. Fuel: about 110 km to reserve. Area: Cullinan, Tshwane. Notes on the area he is in: Cullinan grew around the Premier Mine, where the 3,106-carat Cullinan Diamond, the largest gem diamond ever found, was dug up in 1905. The town is named after Sir Thomas Cullinan, who owned the mine. Many of the old miners' cottages on Oak Avenue are now cafes and shops.",
-  "riding_quiet": "Local time 09:40, morning. Speed 62 km/h on the R25 near Bapsfontein, heading north-east. Weather here: 24 C, partly cloudy, rain chance in the next hour 10%. Fuel: about 140 km to reserve (filled up 95 km ago). Route: Loop to Cullinan, 38 km and about 41 min left, next stop Cullinan in 21 km. Area: Bapsfontein, Ekurhuleni. Ride so far: 46 min, 52 km. You are being quiet: he asked for peace 20 minutes ago (alerts and answers still go)."
+  "riding_quiet": "Local time 09:40, morning. Speed 62 km/h on the R25 near Bapsfontein, heading north-east. Weather here: 24 C, partly cloudy, rain chance in the next hour 10%. Fuel: about 140 km to reserve (filled up 95 km ago). Route: Loop to Cullinan, 38 km and about 41 min left, next stop Cullinan in 21 km. Area: Bapsfontein, Ekurhuleni. Ride so far: 46 min, 52 km. You are being quiet: he asked for peace 20 minutes ago (alerts and answers still go).",
+  "raining_ride": "Local time: 13:29, afternoon. Speed 48 km/h on the R21 near Kempton Park, heading north. Weather here: 17 C, light rain, rain chance in the next hour 43%. Altitude 1,580 m. No engine data connected. No route planned. Area: Kempton Park, Ekurhuleni. Ride so far: 35 min, 28 km."
  },
  "cases": [
   {
@@ -368,6 +369,31 @@
    "said": "How are you doing, Betty?",
    "tools": [],
    "facts": "A short, warm, dry reply in character. No ride statistics he did not ask for."
+  },
+  {
+   "id": "something-interesting",
+   "situation": "raining_ride",
+   "said": "Tell me something interesting.",
+   "must_not": [
+    "\\bengine\\b",
+    "\\bnot connected\\b",
+    "\\b43\\b"
+   ],
+   "facts": "Any one genuine, interesting fact (about the area, history, riding or the world), told briefly in her voice. From the 2026-10-19 phone session she read out 'the situation shows it is raining' and 'no engine data connected': none of that unless asked."
+  },
+  {
+   "id": "misheard-gautrain",
+   "situation": "raining_ride",
+   "said": "What's the heart train?",
+   "must": [
+    "Gautrain"
+   ],
+   "fixtures": {
+    "web_search": {
+     "answer": "The Gautrain is an 80 km rapid rail line linking Johannesburg, Sandton, OR Tambo Airport and Pretoria, with ten stations; trains run every 12 minutes at peak."
+    }
+   },
+   "facts": "Treats 'heart train' as the Gautrain and answers straight away (from knowledge or one search): the rapid rail line linking Johannesburg, Sandton, the airport and Pretoria. On 2026-10-19 she asked 'Did you mean the Gautrain? I can look that up for you if you like.' instead."
   }
  ]
 }

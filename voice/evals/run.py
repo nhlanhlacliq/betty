@@ -45,6 +45,8 @@ NEVER = {  # things she must never say, whatever the question (from real ride lo
     "reads the situation out": r"\[Situation|\bthe situation\b",
     "offers navigation": r"\b(shall I|I can|let me) (guide|direct|navigate)\b",
     "markdown": r"(\*\*|^\s*[-*] |#)",
+    "offers a lookup instead of doing it": r"\b(I can|shall I|want me to|happy to) (look|check|search)",
+    "talks about her notes or inputs": r"\b(my|the area) notes\b|\bwhat I (was|have been) given\b",
 }
 
 
@@ -139,10 +141,27 @@ def run_case(case: dict, situations: dict) -> dict:
 
 def main():
     data = json.loads((HERE / "cases.json").read_text())
-    only = set(sys.argv[1:])
+    args = sys.argv[1:]
+    # --repeat N: every case N times. Her answers vary run to run, so one run is not proof (2026-10-19: the same prompt
+    # scored 19/22 and 17/24). Compare prompts on pass RATES.
+    repeat = int(args[args.index("--repeat") + 1]) if "--repeat" in args else 1
+    only = {a for a in args if not a.startswith("--") and not a.isdigit()}
     cases = [c for c in data["cases"] if not only or c["id"] in only]
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        results = list(pool.map(lambda c: run_case(c, data["situations"]), cases))
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(lambda c: run_case(c, data["situations"]), [c for c in cases for _ in range(repeat)]))
+    if repeat > 1:
+        print(f"Pass rates over {repeat} runs each:")
+        total = 0
+        for c in cases:
+            rs = [r for r in results if r["id"] == c["id"]]
+            ok = sum(r["pass"] for r in rs)
+            total += ok
+            print(f"  {ok}/{repeat}  {c['id']}" + ("" if ok == repeat else f"   e.g. {next(f for r in rs if not r['pass'] for f in r['fails'])[:110]}"))
+        print(f"\n{total} of {len(results)} runs passed ({round(100 * total / len(results))}%)")
+        out = HERE / "results"
+        out.mkdir(exist_ok=True)
+        (out / "latest.json").write_text(json.dumps({"at": time.strftime("%Y-%m-%d %H:%M"), "repeat": repeat, "passed": total, "total": len(results), "results": results}, indent=1))
+        sys.exit(0 if total == len(results) else 1)
     for r in results:
         print(f"{'PASS' if r['pass'] else 'FAIL'}  {r['id']}  ({r['seconds']} s)")
         print(f"      he:   {r['said']}")

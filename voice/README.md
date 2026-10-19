@@ -46,3 +46,13 @@ invented): calibrate it on cases the owner agrees with. Add a case for every bad
 Open: "Shell 5.1 km further on" (reads as beyond the first station) still slips through; travel_time matched
 Edenvale -> "Cullinan" as 88 km (check which place TomTom picked); auth for the app (the server still has the browser
 login only).
+
+Phone session 2026-10-19 (first app conversation; release build, no Metro): worked end to end with the real situation
+(altitude, rain) and a web search with both fillers. Fixed from it: half sentences ("No. I think I") -> the app's
+BUTTON now decides the turn (body.ptt; press = ProposedUserStartedSpeakingFrame, release = ProposedUserStoppedSpeaking
+Frame, ExternalUserTurnStrategies waits for the final transcript); reading the situation out / "my notes" / "not
+connected", offering a lookup instead of doing it, commenting on her own answer -> prompt + never-say list + 2 cases.
+`--repeat N` added: old vs new prompt both 55/72 (76%): the new one fixed reading-out and the Gautrain case but cost
+rain-on-route's tool call (3/3 -> 1/3) and once called talk_again after set_quiet. Haiku-limited failures in both:
+invented facts for "tell me something interesting" (0/3), padding in small talk and stories. Next candidates: one
+targeted rule for weather_along_route; an eval run with Sonnet answering to see how much is the model.
