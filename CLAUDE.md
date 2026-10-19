@@ -1268,6 +1268,14 @@ Everything buildable in the web app is built (see the sections above), except th
 5. **A planning map in Where to?** (Mapbox was the owner's direction, drawn in the sketch style): see and adjust the
    route while planning. Left for the native app (a native map library there).
 
+**Later, owner liked (2026-10-19):**
+- **Share live location:** "tell Thandi I'm 20 minutes out". The phone posts its position to Betty's server during a
+  ride; the server serves a live link (map, speed, ETA; ends with the ride). Sending it hands-free: iPhone apps cannot
+  send SMS/WhatsApp without a tap, so either the server sends an SMS (SA gateway such as Clickatell, ~R0.30 each) to
+  contacts chosen once in the app, or Siri sends it (App Intents, native list).
+- **Music control by voice:** "skip this song", "what's playing?". Android: media controls for any player. iPhone: Apple
+  Music directly; Spotify via its iOS SDK (registration with Spotify); other apps generally not. Ducking works for all.
+
 **Hardware (Phase 4):** tyre pressure sensors (TPMS BLE), Raspberry Pi, Piper TTS, Porcupine wake word, a physical
 handlebar button, camera clips on a hard brake or a "mark this" press. Hardware BOM was estimated around R2,180.
 
