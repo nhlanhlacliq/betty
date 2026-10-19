@@ -6,3 +6,4 @@
 # The native app (Expo) is not part of the web deploy
 native
 labs
+voice
