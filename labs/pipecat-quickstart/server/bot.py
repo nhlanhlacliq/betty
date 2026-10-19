@@ -200,9 +200,13 @@ async def bot(runner_args: RunnerArguments):
             audio_in_enabled=True,
             audio_out_enabled=True,
         ),
+        # Audio out in 100 ms packets (default 40 ms) at Deepgram's own 24 kHz (no resampling): on the 1-core VPS her
+        # voice sounded like a scratched CD (2026-10-19). Fewer, larger packets ride over brief CPU stalls.
         "webrtc": lambda: TransportParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
+            audio_out_sample_rate=24000,
+            audio_out_10ms_chunks=10,
         ),
     }
 
