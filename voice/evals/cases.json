@@ -1,0 +1,373 @@
+{
+ "_about": "Betty's voice evals (2026-10-19). Each case: the ride situation the app would send, what he said, and what a good answer must do. tools = must be called (any order); tools: [] = must answer WITHOUT a tool; omit tools = either is fine. args = a tool argument must contain this text. fixtures = what each tool returns in this test (no real calls, so results are repeatable). facts = what the judge checks the answer against. Add a case for every bad answer found in a ride log.",
+ "situations": {
+  "riding": "Local time 09:40, morning. Speed 62 km/h on the R25 near Bapsfontein, heading north-east. Weather here: 24 C, partly cloudy, rain chance in the next hour 10%. Fuel: about 140 km to reserve (filled up 95 km ago). Route: Loop to Cullinan, 38 km and about 41 min left, next stop Cullinan in 21 km. Area: Bapsfontein, Ekurhuleni. Ride so far: 46 min, 52 km.",
+  "riding_no_route": "Local time 14:10, afternoon. Speed 54 km/h on the M37 near Edenvale, heading south. Weather here: 27 C, clear, rain chance in the next hour 0%. Fuel: about 35 km to reserve. No route planned. Area: Edenvale, Ekurhuleni. Ride so far: 20 min, 14 km.",
+  "off_route": "Local time 10:05, morning. Speed 40 km/h on Zambesi Drive, heading west. Off his planned route to Cullinan by 0.6 km for the last 2 minutes. Weather here: 25 C, partly cloudy. Fuel: about 120 km to reserve. Area: Mamelodi, Tshwane.",
+  "with_area_notes": "Local time 11:20, morning. Speed 70 km/h on the R104 near Cullinan, heading east. Weather here: 26 C, clear. Fuel: about 110 km to reserve. Area: Cullinan, Tshwane. Notes on the area he is in: Cullinan grew around the Premier Mine, where the 3,106-carat Cullinan Diamond, the largest gem diamond ever found, was dug up in 1905. The town is named after Sir Thomas Cullinan, who owned the mine. Many of the old miners' cottages on Oak Avenue are now cafes and shops.",
+  "riding_quiet": "Local time 09:40, morning. Speed 62 km/h on the R25 near Bapsfontein, heading north-east. Weather here: 24 C, partly cloudy, rain chance in the next hour 10%. Fuel: about 140 km to reserve (filled up 95 km ago). Route: Loop to Cullinan, 38 km and about 41 min left, next stop Cullinan in 21 km. Area: Bapsfontein, Ekurhuleni. Ride so far: 46 min, 52 km. You are being quiet: he asked for peace 20 minutes ago (alerts and answers still go)."
+ },
+ "cases": [
+  {
+   "id": "weather-elsewhere",
+   "situation": "riding",
+   "said": "What's the weather like in Clarens today?",
+   "tools": [
+    "get_weather"
+   ],
+   "args": {
+    "get_weather": {
+     "place": "clarens"
+    }
+   },
+   "fixtures": {
+    "get_weather": {
+     "place": "Clarens, Free State",
+     "now": "18 C, partly cloudy, wind 12 km/h (gusts 25), rain 0 mm",
+     "today": "9 to 21 C, rain chance up to 40%, sunset 18:20",
+     "tomorrow": "8 to 19 C, rain chance up to 70%, rain"
+    }
+   },
+   "facts": "Clarens: 18 C now, partly cloudy, 9 to 21 C today, up to 40% chance of rain."
+  },
+  {
+   "id": "rain-here",
+   "situation": "riding",
+   "said": "Is it going to rain soon?",
+   "tools": [],
+   "facts": "The situation gives a 10% chance of rain in the next hour: unlikely."
+  },
+  {
+   "id": "rain-on-route",
+   "situation": "riding",
+   "said": "Will it rain on the way to Cullinan?",
+   "tools": [
+    "weather_along_route"
+   ],
+   "fixtures": {
+    "weather_along_route": {
+     "stops": [
+      {
+       "place": "Cullinan",
+       "arrive": "10:01",
+       "weather": "25 C, partly cloudy, rain chance 15%"
+      },
+      {
+       "place": "Back home (Edenvale)",
+       "arrive": "11:30",
+       "weather": "27 C, thunderstorms, rain chance 65%"
+      }
+     ]
+    }
+   },
+   "facts": "Dry to Cullinan (15%), but thunderstorms likely (65%) around 11:30 on the way home."
+  },
+  {
+   "id": "travel-time",
+   "situation": "riding",
+   "said": "How long would it take me to get to Hartbeespoort from here?",
+   "tools": [
+    "travel_time"
+   ],
+   "args": {
+    "travel_time": {
+     "destination": "hartbeespoort"
+    }
+   },
+   "fixtures": {
+    "travel_time": {
+     "to": "Hartbeespoort, North West",
+     "km": 96,
+     "minutes": 78,
+     "of which traffic delay minutes": 6
+    }
+   },
+   "facts": "About 96 km, about an hour and 18 minutes (78 min), including about 6 min of traffic."
+  },
+  {
+   "id": "eta-route",
+   "situation": "riding",
+   "said": "How much further to Cullinan?",
+   "tools": [],
+   "facts": "Cullinan is 21 km away (next stop); the whole loop has 38 km / about 41 min left."
+  },
+  {
+   "id": "fuel-stations",
+   "situation": "riding_no_route",
+   "said": "Where can I fill up around here?",
+   "tools": [
+    "fuel_stations_ahead"
+   ],
+   "fixtures": {
+    "fuel_stations_ahead": {
+     "range_km_to_reserve": 35,
+     "stations": [
+      {
+       "name": "Engen Edenvale",
+       "km_from_you": 2.4,
+       "where": "ahead on the M37"
+      },
+      {
+       "name": "Shell Linksfield",
+       "km_from_you": 5.1,
+       "where": "ahead"
+      }
+     ]
+    }
+   },
+   "facts": "Engen Edenvale 2.4 km ahead on the M37 (Shell Linksfield 5.1 km). Range about 35 km to reserve."
+  },
+  {
+   "id": "fuel-range",
+   "situation": "riding",
+   "said": "How much fuel have I got left?",
+   "tools": [],
+   "facts": "About 140 km before reserve, by her estimate (no gauge)."
+  },
+  {
+   "id": "filled-up",
+   "situation": "riding_no_route",
+   "said": "Just topped up the tank.",
+   "tools": [
+    "filled_up"
+   ],
+   "fixtures": {
+    "filled_up": {
+     "ok": true,
+     "range_km_to_reserve": 227
+    }
+   },
+   "facts": "Confirms briefly; range reset to about 227 km before reserve."
+  },
+  {
+   "id": "mark-spot",
+   "situation": "riding",
+   "said": "Mark this spot, there's gravel on the bend.",
+   "tools": [
+    "mark_spot"
+   ],
+   "args": {
+    "mark_spot": {
+     "note": "gravel"
+    }
+   },
+   "fixtures": {
+    "mark_spot": {
+     "ok": true,
+     "near": "Bapsfontein"
+    }
+   },
+   "facts": "Confirms in a few words that the gravel spot is marked."
+  },
+  {
+   "id": "remember-note",
+   "situation": "riding",
+   "said": "Remember that my left mirror is loose.",
+   "tools": [
+    "remember_note"
+   ],
+   "args": {
+    "remember_note": {
+     "note": "mirror"
+    }
+   },
+   "fixtures": {
+    "remember_note": {
+     "ok": true
+    }
+   },
+   "facts": "Confirms briefly that she will remember the loose left mirror."
+  },
+  {
+   "id": "quiet-until",
+   "situation": "riding",
+   "said": "Give me some peace till Heidelberg.",
+   "tools": [
+    "set_quiet"
+   ],
+   "args": {
+    "set_quiet": {
+     "until_place": "heidelberg"
+    }
+   },
+   "fixtures": {
+    "set_quiet": {
+     "ok": true
+    }
+   },
+   "facts": "Agrees in a few words to be quiet until Heidelberg (alerts still come)."
+  },
+  {
+   "id": "talk-again",
+   "situation": "riding_quiet",
+   "said": "Okay, you can talk again.",
+   "tools": [
+    "talk_again"
+   ],
+   "fixtures": {
+    "talk_again": {
+     "ok": true
+    }
+   },
+   "facts": "A short welcome-back."
+  },
+  {
+   "id": "chain-done",
+   "situation": "riding_no_route",
+   "said": "I lubed the chain yesterday.",
+   "tools": [
+    "reminder_done"
+   ],
+   "args": {
+    "reminder_done": {
+     "what": "chain"
+    }
+   },
+   "fixtures": {
+    "reminder_done": {
+     "ok": true,
+     "item": "Chain (clean and lube)",
+     "next": "in 600 km"
+    }
+   },
+   "facts": "Chain marked done; next in 600 km."
+  },
+  {
+   "id": "maintenance",
+   "situation": "riding_no_route",
+   "said": "When's the oil change due?",
+   "tools": [
+    "maintenance_due"
+   ],
+   "fixtures": {
+    "maintenance_due": {
+     "items": [
+      {
+       "name": "Engine oil and filter",
+       "due": "in 416 km"
+      },
+      {
+       "name": "Tyre pressures",
+       "due": "in 3 days"
+      }
+     ]
+    }
+   },
+   "facts": "Engine oil and filter in 416 km."
+  },
+  {
+   "id": "recall-saturday",
+   "situation": "riding",
+   "said": "What did we talk about on Saturday?",
+   "tools": [
+    "recall_ride"
+   ],
+   "args": {
+    "recall_ride": {
+     "when": "saturday"
+    }
+   },
+   "fixtures": {
+    "recall_ride": {
+     "ride": "Saturday 17 October, 93 km through Sandton and Midrand",
+     "he asked": [
+      "how far is Midrand",
+      "is J. Cole touring South Africa"
+     ],
+     "you said": [
+      "Sandton was farmland until the 1960s.",
+      "The Gautrain runs from Sandton to the airport in about 15 minutes."
+     ]
+    }
+   },
+   "facts": "Saturday's ride: Sandton and Midrand; they talked about Midrand's distance, J. Cole's tour, Sandton's farmland past, the Gautrain."
+  },
+  {
+   "id": "find-pothole",
+   "situation": "riding_no_route",
+   "said": "Where was that pothole I marked?",
+   "tools": [
+    "my_notes_and_spots"
+   ],
+   "fixtures": {
+    "my_notes_and_spots": {
+     "spots": [
+      {
+       "note": "pothole, left lane",
+       "near": "Modderfontein Road, Edenvale",
+       "km_away": 1.8,
+       "direction": "ahead"
+      }
+     ],
+     "notes": [
+      "left mirror is loose"
+     ]
+    }
+   },
+   "facts": "The pothole (left lane) on Modderfontein Road, about 1.8 km ahead. No steering advice."
+  },
+  {
+   "id": "common-knowledge",
+   "situation": "riding",
+   "said": "Who wrote Animal Farm?",
+   "tools": [],
+   "must": [
+    "Orwell"
+   ],
+   "facts": "George Orwell (1945)."
+  },
+  {
+   "id": "search-current",
+   "situation": "with_area_notes",
+   "said": "Is the diamond mine tour open on Sundays?",
+   "tools": [
+    "web_search"
+   ],
+   "fixtures": {
+    "web_search": {
+     "answer": "Cullinan Diamond Mine surface tours run daily including Sundays, at 10:30 and 14:00; booking is recommended. Adults about R170."
+    }
+   },
+   "facts": "Yes, daily including Sundays, 10:30 and 14:00, about R170, book ahead."
+  },
+  {
+   "id": "misheard-name",
+   "situation": "riding_no_route",
+   "said": "What's the history of Dremiston?",
+   "must": [
+    "Germiston"
+   ],
+   "fixtures": {
+    "web_search": {
+     "answer": "Germiston was founded in 1887 after the gold discovery and named by John Jack after his Scottish birthplace farm near Glasgow; it became a major railway junction."
+    }
+   },
+   "facts": "Treats 'Dremiston' as Germiston: founded 1887 in the gold rush, named by John Jack after a farm near Glasgow, a big railway junction."
+  },
+  {
+   "id": "no-directions",
+   "situation": "off_route",
+   "said": "I think I'm lost, how do I get back on the route?",
+   "tools": [],
+   "must_not": [
+    "\\bturn (left|right)\\b",
+    "\\btake the\\b"
+   ],
+   "facts": "She cannot give directions: says he is about 0.6 km off the route and that Google Maps on his screen will get him back. No turn-by-turn, no offer to guide."
+  },
+  {
+   "id": "area-story",
+   "situation": "with_area_notes",
+   "said": "Tell me something about this place.",
+   "tools": [],
+   "facts": "A fact from the area notes, e.g. the 3,106-carat Cullinan Diamond found here in 1905, or the town named after Sir Thomas Cullinan. Told as her own knowledge."
+  },
+  {
+   "id": "small-talk",
+   "situation": "riding",
+   "said": "How are you doing, Betty?",
+   "tools": [],
+   "facts": "A short, warm, dry reply in character. No ride statistics he did not ask for."
+  }
+ ]
+}

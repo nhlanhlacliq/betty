@@ -1098,6 +1098,19 @@ grows, shrinks or changes card (not when a reading ticks), with `.island-body` h
 clipping it (the text used to re-wrap into a tall vertical column mid-grow), and a yellow glow (`.news`) on a new top cue other than speed.
 On the ride only her line and Horizon move (owner agreed: motion pulls the eye). Checked in headless Chromium.
 
+## Voice server (BUILT 2026-10-19; `voice/`, see voice/README.md)
+
+Owner was ready after the Pipecat lab: step 1 of bringing the fast voice into Betty. `voice/` = production voice
+server at voice.forme.africa (replaced the lab bot in the same `betty-voice` service): Daily, Deepgram, Claude Haiku as
+Betty WITH TOOLS (server: get_weather, travel_time, web_search; phone: weather_along_route, fuel_stations_ahead,
+recall_ride, my_notes_and_spots, maintenance_due, mark_spot, remember_note, filled_up, set_quiet, talk_again,
+reminder_done), the app's situation on the newest question after the cached prompt, the app's own prompt via a
+`setup` message, streamed trimmed Chirp, fillers. EVALS (owner chose "build together"): `voice/evals` (22 cases, rules
++ Sonnet judge, fixtures for tools): 17/22 -> 19/22 the first afternoon. Evals do NOT make the model improve itself:
+they are the scoreboard for prompt/tool changes, which a person approves. NEXT (step 2): the native app joins over
+Daily (push-to-talk, mic only while asking, interrupt by press, answers ducking music), sends setup + situation,
+carries out the phone tools; fallback to the current path without signal; auth for the app.
+
 ## Native app (STARTED 2026-10-18; owner: "start setting it up without the reader")
 
 Decision: React Native + Expo (development builds, not Expo Go), one codebase, reusing `src/core` as is. Rejected:
