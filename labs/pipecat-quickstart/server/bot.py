@@ -42,6 +42,8 @@ from pipecat.services.anthropic.llm import AnthropicLLMService, AnthropicThinkin
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
+from pipecat.turns.user_start.min_words_user_turn_start_strategy import MinWordsUserTurnStartStrategy
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.transports.daily.transport import DailyParams
 from pipecat.workers.runner import WorkerRunner
 
@@ -88,7 +90,14 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     context = LLMContext()
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
-        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer()),
+        user_params=LLMUserAggregatorParams(
+            vad_analyzer=SileroVADAnalyzer(),
+            # Interrupt her only on WORDS, not on sound (2026-10-19): on the phone's loudspeaker her own voice came back
+            # through the mic, the default "any speech" start cut her off every few seconds (patchy audio) and, with no
+            # words to answer, her old sentence played on. While she speaks: 2 words to interrupt; when she is quiet: 1.
+            # Also right for the bike: wind and engine noise are not words.
+            user_turn_strategies=UserTurnStrategies(start=[MinWordsUserTurnStartStrategy(min_words=2)]),
+        ),
     )
 
     # Pipeline - assembled from reusable components

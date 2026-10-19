@@ -56,3 +56,12 @@ in the repo `.env`). Measured there: question -> her voice ~1.55 s (Claude ~0.9 
 - Redeploy after changing the bot or her prompt: `labs/pipecat-quickstart/deploy.sh`.
 - No TURN relay yet: the server has a public IP, so phones behind carrier NAT should still connect directly. If a
   phone on mobile data connects but hears nothing, add coturn on this server.
+
+Phone test, same day: patchy audio and "stops, then carries on with the old sentence" on the phone (Wi-Fi and mobile),
+seamless from the Mac's browser. Not CPU (~10% during a conversation, no steal) and not NAT (it connected): the log
+showed "user started speaking" every few seconds while she spoke = her own voice from the phone's loudspeaker coming
+back through the mic (echo), each one an interruption; with no words to answer, the audio already sent played on.
+Fix deployed: interruptions need WORDS (`MinWordsUserTurnStartStrategy(min_words=2)` while she speaks, 1 when quiet),
+also right for wind/engine noise on the bike. If it is still patchy on the loudspeaker, test with earphones; then
+Daily's transport (better echo cancellation and mobile resilience, recommended by Pipecat for production) is the
+next lever.
