@@ -1120,6 +1120,43 @@ next is in `native/README.md`: it is the native app's CLAUDE.md, keep it current
   bundling the Android and iOS JavaScript only.
 - `.vercelignore` excludes `native/`: it is not part of the web deploy.
 
+## Scaling and pricing (owner's questions, 2026-10-19; ESTIMATES, not measured)
+
+Assumptions: ~20 h riding a month per rider, ~800 lines/answers a month, ~120 characters a line, R18 to the dollar.
+Prices checked 2026-10-19 (several from third-party pages: re-check before relying on them).
+
+Running cost per rider per month (~R55-90, i.e. $3-5):
+- Claude Haiku 5.5 ($0.10 in / $0.50 out per MTok; cache reads 0.1x): ~3,000 tokens a line + ~30 web searches at
+  $0.01 -> ~$1-1.50. Area stories (Haiku + search, ~5c a new area, ~10 a month) ~$0.50, far less if shared.
+- Chirp 3 HD: $30 per 1M characters after 1M free A MONTH PER ACCOUNT (not per rider). ~80k characters a rider: free
+  for the owner alone; 100 riders ~8M -> ~$210/month (~$2 a rider). Cartesia would cost more at his volume (Pro ~$5
+  for ~100k credits). Gemini TTS: dearer and Tier 1 = 10 requests/min, unusable for 100 riders (owner is considering
+  dropping Gemini entirely to run as cheaply as possible).
+- Hearing: Groq Whisper free tier likely still covers it; Deepgram ~$0.005-0.008 a listening minute (~$0.10/rider).
+- Pipecat Cloud: $0.01 per CONNECTED minute: ~$1.20/rider if connected per conversation (~15 min a ride), ~$12 if
+  connected the whole ride. Decide per-conversation vs per-ride before adopting it.
+
+What breaks at 100 riders: free tiers are per account (above); OpenStreetMap Nominatim forbids heavy use (1 req/s,
+no apps at scale: paid geocoder or self-host); TomTom free 2,500/month vs ~24,000 traffic polls (share per area);
+Open-Meteo and Vercel Hobby are non-commercial (paid plans if charging; Vercel Pro ~$20); iPhone distribution needs
+the Apple Developer Program ($99/yr; TestFlight up to 10,000 testers), Android Play account $25 once; accounts and
+per-rider caps (the server only checks the origin today: a leaked copy could run up the bill), spend alerts on every
+key; onboarding instead of his defaults ("sir", G 310 GS schedule, 11 L tank, inland petrol); POPIA (location data),
+privacy notice and terms. Helps: shared server caches per area (stories, traffic, place names), common voice lines
+made once, push-to-talk so hearing/Pipecat bill per question. Data stays on the phones: no big database to run.
+
+Pricing (owner "just curious"; nothing decided):
+- Fixed ~R700-1,500/month (Apple ~R150/month, Vercel Pro ~R360, paid traffic/geocoding, a small server, domain).
+  App stores take 15% (small business). VAT only past R1M turnover.
+- At ~R70 running cost, 100 riders, ~R1,000 fixed: R79 = loss; R99 = about break-even (~R400/month); R149 = ~R4,700
+  profit/month; R199 = ~R8,900.
+- Suggested shape: FREE (phone voice, safety alerts, reminders, journeys, a few questions a day: runs mostly on the
+  phone, costs almost nothing); RIDER ~R99-129 (Chirp voice, personality, stories, ask anything, route planning, fair
+  use ~30 h/month); PRO ~R199 (realtime Pipecat talk, smarter searched answers, OBD, higher limits); annual ~10
+  months' price for 12 (riding is seasonal). Protect margin with a fair-use cap (an 80 h/month rider costs ~4x) and
+  shared caching. Before pricing: measure real cost per ride (below), ask riders/clubs what they'd pay, check
+  competitors' prices (not checked), start with a 10-20 rider beta at a founder price.
+
 ## Backlog (open items only; cleaned 2026-10-18)
 
 Everything buildable in the web app is built (see the sections above), except the planning map. Next: THE NATIVE APP.
@@ -1142,6 +1179,10 @@ Everything buildable in the web app is built (see the sections above), except th
    2-sentence answers the Claude-side gain is small (~0.1-0.7 s), and caching mostly cuts cost (reads at 0.1x); the
    bigger remaining wins are (c) voice and (d) transcription. Native: RN fetch cannot stream, so the early sentence
    arrives with the whole answer until expo/fetch is used.
+0a. **Cost per ride, measured** (owner, 2026-10-19: before any pricing decision): log per ride Claude input/output and
+   cache-read tokens (from `usage`), web searches, voice characters per engine (Chirp/Gemini/phone), transcription
+   seconds, traffic/route/place/geocoding calls; turn them into rand with the prices in "Scaling and pricing"; show
+   "this ride cost about R2.40" in the Workshop log/ride story and keep a monthly total. Replaces the estimates above.
 0b. **Owner learns first, then we build** (owner, 2026-10-19: he wants to understand and explain these himself before
    they are coded, "rather than just hope you coded them properly"). Do NOT start these until he says so:
    - Betty as an agent for HIS QUESTIONS (not for triggers/safety, which stay in code): Claude gets tools to look up
