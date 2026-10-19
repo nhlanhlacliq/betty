@@ -38,3 +38,21 @@ voice first audio 0.38-0.45 s over Pipecat's socket -> she speaks ~1.5-1.6 s aft
 including transcription). Streaming hearing adds roughly 0.2-0.5 s after he stops talking (not measured here). Her
 prompt is exported with voice tags OFF (Deepgram would read <laugh> out loud). Known gap: no web search wired in, so
 she says she will "look it up" and cannot: adding it as a Pipecat function call is a good first exercise.
+
+## The server: voice.forme.africa (2026-10-19)
+
+The same bot, live at **https://voice.forme.africa/client** (browser login: user `betty`, password = `VOICE_ACCESS_CODE`
+in the repo `.env`). Measured there: question -> her voice ~1.55 s (Claude ~0.9 s, Deepgram voice ~0.4 s).
+
+- Vultr, Johannesburg, Regular Performance 1 GB / 1 vCPU / 25 GB (~$5-6 a month), Ubuntu 26.04, IP 139.84.250.9.
+  DNS: A record `voice` -> that IP at Namecheap (forme.africa's DNS is at Namecheap; the main site is on Vercel).
+- Access: root over SSH with the Mac's ed25519 key, AND root password login KEPT ON (owner's choice); fail2ban guards
+  SSH. ufw allows 22, 80, 443 and UDP 32768-60999 (WebRTC media: aiortc uses the kernel's ephemeral ports). 2 GB
+  swap (the 1 GB of RAM is tight with Pipecat ~880 MB installed). Unattended security upgrades on.
+- Caddy 2.6 (Ubuntu package: the directive is `basicauth`, not `basic_auth`) does HTTPS (Let's Encrypt, automatic)
+  and the login, and proxies to the bot on 127.0.0.1:7860.
+- The bot runs as the `betty` system user from `/opt/betty/bot`, systemd unit `betty-voice` (restarts itself; logs:
+  `journalctl -u betty-voice -f`). Keys in `/opt/betty/bot/.env` (mode 600): only ANTHROPIC_API_KEY and DEEPGRAM_API_KEY.
+- Redeploy after changing the bot or her prompt: `labs/pipecat-quickstart/deploy.sh`.
+- No TURN relay yet: the server has a public IP, so phones behind carrier NAT should still connect directly. If a
+  phone on mobile data connects but hears nothing, add coturn on this server.

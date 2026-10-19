@@ -1219,7 +1219,10 @@ Everything buildable in the web app is built (see the sections above), except th
      LAB BUILT 2026-10-19 (`labs/pipecat-quickstart`, see labs/README.md): Deepgram hearing + Deepgram Aura voice +
      Claude Haiku with her prompt, cache on, thinking off. MEASURED on the Mac: question -> she speaks ~1.5-1.6 s
      (Claude 0.8-0.9 s, voice first audio ~0.4 s). Not yet: web search as a function call, Chirp (needs a Google
-     service-account JSON), the helmet test.
+     service-account JSON). Helmet test skipped (owner: push-to-talk through the V6 is already proven on the web app).
+     LIVE 2026-10-19 at https://voice.forme.africa/client (Vultr Johannesburg 1 GB, ~R100/month; owner chose Vultr over
+     Lightsail/Absolute Hosting/Datakeepers; login user betty + VOICE_ACCESS_CODE in .env): ~1.55 s question to voice.
+     Server details, access, firewall and redeploy: labs/README.md. Root password login stays ON (owner's choice).
    - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
      no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
      asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact
