@@ -32,6 +32,9 @@ README's commit for the exact one-liner).
 
 Checked 2026-10-19 (from the Mac, keys live): Deepgram heard a recorded question word for word; Aura voice first
 byte ~1.2 s over plain HTTP (Pipecat streams over a socket); Claude first words ~1.0 s, cache read from the second
-question (2,225 tokens). The browser playground itself was not driven end to end (automated Chromium never finished
-its device setup); run it by hand. Known gap: no web search wired in, so she promises to "search" and cannot: adding
-it as a Pipecat function call is a good first exercise.
+question (2,225 tokens). Driven end to end the same day (owner allowed mic access; questions typed into the playground, since the automated
+browser's fake mic sends no audio): question -> Claude first words 0.81-0.88 s (cache read ~2,100 tokens) -> Deepgram
+voice first audio 0.38-0.45 s over Pipecat's socket -> she speaks ~1.5-1.6 s after the question (Betty today: ~5-7 s
+including transcription). Streaming hearing adds roughly 0.2-0.5 s after he stops talking (not measured here). Her
+prompt is exported with voice tags OFF (Deepgram would read <laugh> out loud). Known gap: no web search wired in, so
+she says she will "look it up" and cannot: adding it as a Pipecat function call is a good first exercise.

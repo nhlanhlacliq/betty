@@ -1216,6 +1216,10 @@ Everything buildable in the web app is built (see the sections above), except th
      Bluetooth helmet in CALL MODE (what broke the headset button on 2026-10-16), so on the bike it is probably still
      push-to-talk: test on his V6 first. Suggested learning path: Pipecat quickstart on the Mac with Claude, then her
      personality prompt, then decide.
+     LAB BUILT 2026-10-19 (`labs/pipecat-quickstart`, see labs/README.md): Deepgram hearing + Deepgram Aura voice +
+     Claude Haiku with her prompt, cache on, thinking off. MEASURED on the Mac: question -> she speaks ~1.5-1.6 s
+     (Claude 0.8-0.9 s, voice first audio ~0.4 s). Not yet: web search as a function call, Chirp (needs a Google
+     service-account JSON), the helmet test.
    - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
      no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
      asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact
