@@ -2781,4 +2781,17 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   } finally { globalThis.fetch = realFetch; }
 }
 
+// ---- the voice server's situation: the same picture an answer gets, quiet state included
+{
+  resetConfig();
+  const e = new TriggerEngine(() => new Date('2026-10-19T09:40:00').getTime());
+  const st = { ...initialState(), speedKmh: 62, lat: -26.0, lon: 28.4, weather: { tempC: 24, windKmh: 10, rainNowMm: 0, rainChanceNextHourPct: 10, summary: 'partly cloudy', fetchedAt: 0, sunriseAt: null, sunsetAt: null } as WeatherState };
+  e.evaluate(st);
+  let v = e.voiceSituation(st);
+  assert.match(v, /^Local time: 09:40/); assert.match(v, /partly cloudy/); assert.match(v, /No route planned/);
+  assert.doesNotMatch(v, /He just said/, 'no question in it: the server adds his words');
+  e.setQuiet(Infinity);
+  assert.match(e.voiceSituation(st), /You are being quiet/);
+}
+
 console.log('all core tests passed');

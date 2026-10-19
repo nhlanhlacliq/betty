@@ -3,5 +3,13 @@
   "compilerOptions": {
     "strict": true
   },
-  "include": ["App.tsx", "index.ts", "src", "../src/core", "../src/config", "../src/adapters/WeatherSource.ts"]
+  "include": [
+    "App.tsx",
+    "index.ts",
+    "src",
+    "../src/core",
+    "../src/config",
+    "../src/adapters/WeatherSource.ts",
+    "../src/adapters/StationSource.ts"
+  ]
 }

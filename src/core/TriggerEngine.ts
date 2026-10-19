@@ -294,6 +294,22 @@ export class TriggerEngine {
     try { return { ...this.force('rider_query', s), riderSaid: this.riderText }; } finally { this.riderText = null; this.riderNoted = []; }
   }
 
+  /**
+   * The ride situation for the voice server (voice/, Pipecat), sent with each question: what an answer gets here, minus
+   * the parts that depend on the question (maintenance, earlier rides), which are tools there. Local time first.
+   */
+  voiceSituation(s: BikeState): string {
+    const digest = situationDigest({
+      s, ride: this.stats.snapshot(), history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
+      fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
+    });
+    const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
+    const kept = describeMemory(this.memory, here, this.now());
+    const route = this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ' No route planned.';
+    const quiet = this.quietLeftMin() > 0 ? ' You are being quiet: he asked for peace (alerts and answers still go).' : '';
+    return `Local time: ${clockNote(new Date(this.now()))}. ${digest}${kept ? ` ${kept}` : ''}${route}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${quiet}`;
+  }
+
   /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
   force(id: TriggerId, s: BikeState, incident?: TrafficIncident): TriggerEvent {
     this.lastFired.set(id, this.now());

@@ -20,6 +20,7 @@ export default function App() {
   const [lines, setLines] = useState<Line[]>([]);
   const [ask, setAsk] = useState('');
   const [readers, setReaders] = useState<{ name: string; address: string }[] | null>(null);
+  const [voice, setVoice] = useState<'off' | 'connecting' | 'ready' | 'listening'>('off');
   const [reader, setReader] = useState<string | null>(null);
 
   const add = (l: Line) => setLines((x) => [l, ...x].slice(0, 200));
@@ -39,6 +40,7 @@ export default function App() {
     }
     await activateKeepAwakeAsync();
     ride.current = await startRide({ line: add, state: setS, obd });
+    ride.current.voice.onState = setVoice;
     setRiding(true);
   };
 
@@ -79,6 +81,17 @@ export default function App() {
       </Pressable>
 
       {riding && (
+        // Hold to talk (push-to-talk): the mic is on only while held; holding while she speaks interrupts her.
+        <Pressable
+          style={[st.talk, voice === 'listening' && st.talkOn]}
+          onPressIn={() => void ride.current?.voice.press().catch(() => {})}
+          onPressOut={() => ride.current?.voice.release()}
+        >
+          <Text style={st.talkText}>{voice === 'listening' ? 'Listening… let go when done' : voice === 'connecting' ? 'Connecting to Betty…' : 'Hold to talk to Betty'}</Text>
+        </Pressable>
+      )}
+
+      {riding && (
         <View style={st.askRow}>
           <TextInput style={st.input} value={ask} onChangeText={setAsk} placeholder="Ask Betty…" returnKeyType="send"
             onSubmitEditing={() => { if (ask.trim()) { ride.current?.ask(ask.trim()); setAsk(''); } }} />
@@ -115,6 +128,9 @@ const st = StyleSheet.create({
   end: { backgroundColor: '#e8ede2' },
   buttonText: { fontSize: 18, fontWeight: '700', color: '#273f39' },
   askRow: { marginBottom: 8 },
+  talk: { backgroundColor: '#273f39', borderRadius: 28, paddingVertical: 22, alignItems: 'center', marginBottom: 12 },
+  talkOn: { backgroundColor: '#819b77' },
+  talkText: { color: '#fffdf1', fontSize: 17, fontWeight: '700' },
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   list: { flex: 1 },
   line: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#d8cfc2' },

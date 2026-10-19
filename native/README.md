@@ -41,6 +41,24 @@ GPS and weather live; but SILENT (the default iOS audio session obeys the silent
 and the screen. Crash reports: `xcrun devicectl device info files --device <id>
 --domain-type systemCrashLogs`, then `devicectl device copy from ...` (the .ips JSON has the faulting thread).
 
+TALKING TO BETTY, step 2 (2026-10-19; NOT YET RUN ON A PHONE): `src/voice/VoiceSession.ts` joins the voice server
+(voice/ in the repo, voice.forme.africa) with Pipecat's React Native client over Daily. Push-to-talk ("Hold to talk to
+Betty" in App.tsx): the mic is on only while held (+0.4 s tail), so the helmet is in call mode only then; holding while
+she speaks interrupts her (the server stops when it hears him). The connection opens on the first press and lasts the
+ride (the server ends it when idle; the next press reconnects). `/start` gets {transport: daily, createDailyRoom, body:
+{system (bettySystemPrompt + rider_query flavour, cloudVoice forced to chirp so no voice tags), greet: false,
+situation}}; each press sends `situation` (`engine.voiceSituation`, src/core, shared with the web app). Phone tools in
+`src/voice/phoneTools.ts`: filled_up, set_quiet (minutes; "until a place" falls back to until told), talk_again,
+mark_spot / remember_note (kept in AsyncStorage `betty.memory.v1`), my_notes_and_spots, fuel_stations_ahead (the web
+app's StationSource through the server); weather_along_route / recall_ride / maintenance_due answer "not on this phone
+yet" (that data lives in the web app). Login: Basic `app` + EXPO_PUBLIC_VOICE_TOKEN in `native/.env` (git-ignored; a
+second Caddy user on the server, separate from the browser login). Packages: @pipecat-ai/client-js 1.14,
+@pipecat-ai/react-native-daily-transport 1.8, @daily-co/react-native-daily-js 0.88.0 (Daily's table for Expo 57; the
+Pipecat transport asks for 0.86), @daily-co/react-native-webrtc 124.0.6-daily.2, async-storage 3.x, background-timer,
+get-random-values 1.x (imported first in index.ts), Expo plugin @daily-co/config-plugin-rn-daily-js 0.0.13 (lists Expo
+55-57; we are on 58: the main risk) with mic only; iOS UIBackgroundModes audio + voip. Installed with --legacy-peer-deps.
+Not yet: music ducking for her answers (Daily's audio session), the fallback to the current path without signal.
+
 Known risks:
 - `react-native-bluetooth-classic` (1.73.0-rc.17) is a legacy native module, "untested on New Architecture"
   (expo-doctor). If it fails on RN 0.88, replace it with a small local Expo module in Kotlin (`npx create-expo-module

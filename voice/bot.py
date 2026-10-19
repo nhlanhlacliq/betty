@@ -82,6 +82,13 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     logger.info("Starting Betty voice session")
     situation = Situation()
     setup = {"greet": True, "got": asyncio.Event()}
+    # The app sends its prompt (with the rider's settings) and greet: false in the /start body; the browser sends none.
+    body = runner_args.body if isinstance(getattr(runner_args, "body", None), dict) else {}
+    if "greet" in body:
+        setup["greet"] = bool(body["greet"])
+        setup["got"].set()
+    if isinstance(body.get("situation"), dict):
+        situation.update(body["situation"])
     phone: dict[str, Phone] = {}
 
     stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
@@ -94,7 +101,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("VITE_ANTHROPIC_API_KEY"),
         settings=AnthropicLLMService.Settings(
             model=os.getenv("BETTY_MODEL", "claude-haiku-5-5"),
-            system_instruction=prompt.build(),
+            system_instruction=prompt.build(str(body["system"]) if body.get("system") else None),
             enable_prompt_caching=True,  # her instructions + the tools: ~2-5k tokens read at a tenth of the price
             max_tokens=300,
             thinking=AnthropicThinkingConfig(type="disabled"),  # Haiku 5.5 thinks by default: seconds before every answer
@@ -145,8 +152,9 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     await runner.add_workers(worker)
 
     FILLERS.out = transport.output()
-    if not FILLERS.clips:
-        await FILLERS.make()
+    if not FILLERS.clips and not FILLERS.making:
+        FILLERS.making = True
+        asyncio.create_task(FILLERS.make())  # in the background: the first session after a restart must not wait ~7 s
     phone["p"] = Phone(worker.rtvi)
 
     @worker.rtvi.event_handler("on_client_message")

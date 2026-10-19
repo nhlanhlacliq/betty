@@ -9,6 +9,9 @@ import { WeatherSource } from '../../src/adapters/WeatherSource';
 import { ExpoGeoSource } from './adapters/ExpoGeoSource';
 import { ExpoSpeaker, setUpAudio } from './adapters/ExpoSpeaker';
 import { SERVER_HEADERS, api } from './server';
+import { FLAVOUR_PROMPTS, bettySystemPrompt } from '../../src/config/betty';
+import { VoiceSession } from './voice/VoiceSession';
+import { loadMemory, phoneTools } from './voice/phoneTools';
 
 /**
  * A ride in the native app: the same pipeline as the web app's main.ts (sources -> StateAggregator -> TriggerEngine
@@ -69,12 +72,25 @@ export async function startRide(h: RideHooks) {
     if (!ended) void say(engine.startup(agg.current));
   })();
 
+  // Talking to her: the voice server (push-to-talk, ~2 s answers, tools). The memory she keeps is on the phone.
+  CONFIG.cloudVoice = 'chirp'; // her voice here is Chirp (no <laugh> tags: it would read them out)
+  const memory = { current: await loadMemory() };
+  engine.setMemory(memory.current);
+  const voice = new VoiceSession({
+    system: `${bettySystemPrompt(2)}\n\n${(FLAVOUR_PROMPTS as Record<string, string>).rider_query ?? ''}`,
+    situation: () => ({ text: engine.voiceSituation(agg.current), lat: agg.current.lat, lon: agg.current.lon }),
+    tools: phoneTools(engine, agg, memory),
+    log: (m) => log('[voice]', m),
+  });
+
   return {
+    voice,
     ask: (text: string) => void say(engine.ask(text, agg.current)),
     /** Stop reacting, say the sign-off, then tear down (as main.ts does). */
     async end() {
       ended = true;
       unsub();
+      void voice.end();
       const item = await say(engine.force('ride_debrief', agg.current));
       const until = Date.now() + 45_000;
       while (item && (item.fate === 'queued' || item.fate === 'speaking') && Date.now() < until) await new Promise((r) => setTimeout(r, 250));

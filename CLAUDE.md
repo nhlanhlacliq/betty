@@ -1110,6 +1110,11 @@ reminder_done), the app's situation on the newest question after the cached prom
 they are the scoreboard for prompt/tool changes, which a person approves. NEXT (step 2): the native app joins over
 Daily (push-to-talk, mic only while asking, interrupt by press, answers ducking music), sends setup + situation,
 carries out the phone tools; fallback to the current path without signal; auth for the app.
+STEP 2 BUILT 2026-10-19 (not yet on a phone; details in native/README.md): native `VoiceSession` (Pipecat RN + Daily,
+push-to-talk, situation per press from the new shared `engine.voiceSituation(s)` in core, phone tools in
+native/src/voice/phoneTools.ts), the app's own login to the server (Caddy user `app`, token in native/.env), the bot reads
+{system, greet, situation} from the /start body; fillers are made in the background (the first session after a restart
+waited ~8 s). Verified from the Mac: /start with the app login returns a Daily room and the bot joins; no login = 401.
 
 ## Native app (STARTED 2026-10-18; owner: "start setting it up without the reader")
 

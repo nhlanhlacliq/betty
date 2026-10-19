@@ -29,6 +29,7 @@ class Fillers:
         self.clips: dict[str, bytes] = {}
         self.out = None  # the transport output, set per session
         self._last = ""
+        self.making = False
 
     async def make(self):
         voice = os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr")

@@ -10,7 +10,12 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.nhlanhla.betty",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Betty uses your location for your speed, the weather and the places on your ride."
+        "NSLocationWhenInUseUsageDescription": "Betty uses your location for your speed, the weather and the places on your ride.",
+        "NSMicrophoneUsageDescription": "Betty listens only while you hold the talk button.",
+        "UIBackgroundModes": [
+          "audio",
+          "voip"
+        ]
       },
       "appleTeamId": "6DHA6234P3"
     },
@@ -41,7 +46,15 @@
         }
       ],
       "expo-dev-client",
-      "expo-audio"
+      "expo-audio",
+      [
+        "@daily-co/config-plugin-rn-daily-js",
+        {
+          "enableCamera": false,
+          "enableMicrophone": true,
+          "enableScreenShare": false
+        }
+      ]
     ]
   }
 }
