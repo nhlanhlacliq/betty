@@ -145,17 +145,19 @@ async def get_weather(params: FunctionCallParams):
 # "Let me check." only started after ~3.5 s). If a search is still running 3 s later, one of ten "still here" lines,
 # never the same twice in a row (owner, 2026-10-19: "Hmm, one moment." alone was stale and predictable).
 FILLERS = {"check": "Let me check."}
-STILL_HERE = [
-    "Hmm, one moment.",
-    "Mm, nearly there.",
-    "Bear with me.",
-    "Uh, just a second.",
-    "Hmm, digging a little deeper.",
-    "One sec.",
-    "Hmm, let me see.",
-    "Almost got it.",
-    "Mm, hang tight.",
-    "Right, just a moment more.",
+STILL_HERE = [  # owner: hmm and uhh sound far more natural than full phrases
+    "Hmm...",
+    "Uhh...",
+    "Hmmm, let's see.",
+    "Uhh, one sec.",
+    "Hmm, hang on.",
+    "Uhm...",
+    "Hmm, nearly there.",
+    "Uhh, bear with me.",
+    "Mmm, just a moment.",
+    "Hmm, still looking.",
+    "Uh, almost.",
+    "Hmm, okay...",
 ]
 FILLERS.update({f"still{i}": t for i, t in enumerate(STILL_HERE)})
 CLIPS: dict[str, bytes] = {}
