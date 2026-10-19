@@ -22,6 +22,7 @@ Run the bot using::
     uv run bot.py
 """
 
+import asyncio
 import os
 from pathlib import Path
 
@@ -46,6 +47,8 @@ from pipecat.runner.utils import create_transport
 from pipecat.services.anthropic.llm import AnthropicLLMService, AnthropicThinkingConfig
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
+
+from chirp_tts import ChirpKeyTTSService
 from pipecat.services.llm_service import FunctionCallParams
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
@@ -138,26 +141,44 @@ async def get_weather(params: FunctionCallParams):
         await params.result_callback({"error": "Weather service not reachable just now."})
 
 
-# ---- "Let me check." made ONCE (Deepgram, raw 24 kHz PCM) and played at once when a lookup starts: queued through
-# the TTS service it only started after ~3.5 s on 2026-10-19.
-FILLER = {"pcm": b""}
+# ---- Fillers made ONCE in her Chirp voice and played straight into the audio output (queued through the TTS service
+# "Let me check." only started after ~3.5 s). If a search is still running 2.5 s later: "Hmm, one moment." (owner's
+# idea, 2026-10-19: a short thinking sound rather than silence).
+FILLERS = {"check": "Let me check.", "hmm": "Hmm, one moment."}
+CLIPS: dict[str, bytes] = {}
+STILL_WAITING_AFTER = 2.5
+OUT: dict = {}  # the transport's output processor, set per session in run_bot
 
 
-async def make_filler():
-    voice = os.getenv("BETTY_VOICE", "aura-2-helena-en")
-    try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as http:
-            async with http.post(f"https://api.deepgram.com/v1/speak?model={voice}&encoding=linear16&sample_rate=24000&container=none",
-                                 headers={"Authorization": f"Token {os.getenv('DEEPGRAM_API_KEY')}"}, json={"text": "Let me check."}) as r:
+async def make_fillers():
+    voice = os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr")
+    for key, text in FILLERS.items():
+        try:
+            async with _http().post("https://texttospeech.googleapis.com/v1/text:synthesize", params={"key": os.getenv("GOOGLE_TTS_API_KEY")},
+                                    json={"input": {"text": text}, "voice": {"languageCode": "en-US", "name": voice},
+                                          "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000}}) as r:
                 if r.status == 200:
-                    FILLER["pcm"] = await r.read()
-                logger.info(f"filler clip: HTTP {r.status}, {len(FILLER['pcm'])} bytes")
-    except Exception as e:
-        logger.warning(f"filler clip not made: {e}")
+                    import base64
+                    CLIPS[key] = base64.b64decode((await r.json())["audioContent"])[44:]
+                logger.info(f"filler '{text}': HTTP {r.status}, {len(CLIPS.get(key, b''))} bytes")
+        except Exception as e:
+            logger.warning(f"filler '{text}' not made: {e}")
+
+
+async def play_clip(key: str):
+    out = OUT.get("out")
+    if out is not None and CLIPS.get(key):
+        logger.info(f"filler: playing '{FILLERS[key]}'")
+        await out.queue_frame(OutputAudioRawFrame(audio=CLIPS[key], sample_rate=24000, num_channels=1))
 
 
 async def web_search(params: FunctionCallParams):
     query = str(params.arguments.get("query", "")).strip()
+
+    async def still_waiting():
+        await asyncio.sleep(STILL_WAITING_AFTER)
+        await play_clip("hmm")
+    waiting = asyncio.create_task(still_waiting())
     try:
         msg = await _search_client.messages.create(
             model="claude-haiku-5-5",
@@ -173,8 +194,10 @@ async def web_search(params: FunctionCallParams):
         blocks = list(msg.content)
         last = max((i for i, b in enumerate(blocks) if b.type == "web_search_tool_result"), default=-1)
         answer = "".join(b.text for b in blocks[last + 1:] if b.type == "text").strip()
+        waiting.cancel()
         await params.result_callback({"answer": answer or "Nothing useful found."})
     except Exception as e:  # never leave her hanging: tell her it failed, she says so plainly
+        waiting.cancel()
         logger.warning(f"web_search failed: {e}")
         await params.result_callback({"answer": "The search failed; tell him you could not find out just now."})
 
@@ -194,11 +217,15 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     # Speech-to-Text service
     stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
 
-    # Text-to-Speech service: Deepgram Aura, streamed (BETTY_VOICE to try another, e.g. aura-2-thalia-en)
-    tts = DeepgramTTSService(
-        api_key=os.getenv("DEEPGRAM_API_KEY"),
-        settings=DeepgramTTSService.Settings(voice=os.getenv("BETTY_VOICE", "aura-2-helena-en")),
-    )
+    # Text-to-Speech: Google Chirp 3 HD (Betty's voice), from Johannesburg (chirp_tts.py says why not Deepgram).
+    # BETTY_TTS=deepgram brings back Deepgram Aura (BETTY_VOICE e.g. aura-2-thalia-en).
+    if os.getenv("BETTY_TTS", "chirp") == "deepgram":
+        tts = DeepgramTTSService(
+            api_key=os.getenv("DEEPGRAM_API_KEY"),
+            settings=DeepgramTTSService.Settings(voice=os.getenv("BETTY_VOICE", "aura-2-helena-en")),
+        )
+    else:
+        tts = ChirpKeyTTSService(api_key=os.getenv("GOOGLE_TTS_API_KEY"), voice=os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr"))
 
     # LLM service: Claude Haiku 5.5 as Betty. Thinking OFF explicitly: Haiku 5.5 thinks by default and Pipecat only
     # switches it off for Sonnet, which would add seconds before every answer. Her instructions are prompt-cached.
@@ -215,16 +242,15 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
 
     llm.register_function("web_search", web_search, cancel_on_interruption=True, timeout_secs=20)
     llm.register_function("get_weather", get_weather, cancel_on_interruption=True, timeout_secs=10)
-    if not FILLER["pcm"]:
-        await make_filler()
+    OUT["out"] = transport.output()
+    if not CLIPS:
+        await make_fillers()
 
     # "Let me check." the moment a web search starts (the weather is quick enough without it), played from the clip.
     @llm.event_handler("on_function_calls_started")
     async def on_function_calls_started(service, function_calls):
-        if FILLER["pcm"] and any(c.function_name == "web_search" for c in function_calls):
-            logger.info("filler: playing 'Let me check.'")
-            # Straight into the audio output: pushed from the TTS service it was held until the answer came (~3.7 s).
-            await transport.output().queue_frame(OutputAudioRawFrame(audio=FILLER["pcm"], sample_rate=24000, num_channels=1))
+        if any(c.function_name == "web_search" for c in function_calls):
+            await play_clip("check")
 
     context = LLMContext(tools=ToolsSchema(standard_tools=[GET_WEATHER, WEB_SEARCH]))
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(

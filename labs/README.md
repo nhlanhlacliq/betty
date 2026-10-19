@@ -83,3 +83,10 @@ and the server .env; the runner serves both transports: pick "Daily" in the play
 Cost (daily.co video-sdk pricing): 10,000 participant-minutes free a month, then audio-only $0.00099/participant-min;
 bot + rider = 2 participant-minutes a minute. Joining a room takes ~2.7 s per session. Also added: get_weather tool
 (Open-Meteo, places cached, one kept-open session), "Let me check." pre-made clip sent straight to the output.
+
+Root cause of the scratches (same day): DEEPGRAM is ~290 ms from the Johannesburg VPS and sometimes delivered audio
+slower than real time (45 s for 14.5 s of speech), so the output ran dry, on any transport. Google Chirp answers from
+Johannesburg (~1 ms) at ~5x real time: `chirp_tts.py` (ChirpKeyTTSService, Betty's GOOGLE_TTS_API_KEY, REST per
+sentence, ~1 s a sentence; the streaming API would start sooner but needs a service-account file). BETTY_TTS=deepgram
+brings Aura back. Fillers are Chirp clips played straight to the output: "Let me check." when a search starts and
+"Hmm, one moment." if it is still running after 2.5 s (owner's idea).
