@@ -27,8 +27,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from loguru import logger
+import anthropic
+from pipecat.adapters.schemas.function_schema import FunctionSchema
+from pipecat.adapters.schemas.tools_schema import ToolsSchema
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.frames.frames import LLMRunFrame, TTSSpeakFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -41,6 +45,7 @@ from pipecat.runner.utils import create_transport
 from pipecat.services.anthropic.llm import AnthropicLLMService, AnthropicThinkingConfig
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
+from pipecat.services.llm_service import FunctionCallParams
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
 from pipecat.workers.runner import WorkerRunner
@@ -49,6 +54,44 @@ from pipecat.workers.runner import WorkerRunner
 load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 load_dotenv(override=True)
 BETTY_PROMPT = (Path(__file__).parent / "betty_prompt.txt").read_text()
+
+# ---- Web search, as a Pipecat function (2026-10-19). Pipecat's Claude service does not pass Claude's own server-side
+# web search through, so Betty calls this function, which asks Claude Haiku WITH web search and returns the answer as
+# plain facts; she then says it in her own words. Same rules as the app's searched answers (ClaudeClient): Gauteng,
+# km and rand, no sources read out.
+WEB_SEARCH = FunctionSchema(
+    name="web_search",
+    description=(
+        "Look something up on the web: anything current or specific you do not know for sure (weather, opening "
+        "hours, prices, places further away, distances and travel times, events, news). Returns the answer as facts."
+    ),
+    properties={"query": {"type": "string", "description": "What to find out, as a full question."}},
+    required=["query"],
+)
+_search_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("VITE_ANTHROPIC_API_KEY"))
+
+
+async def web_search(params: FunctionCallParams):
+    query = str(params.arguments.get("query", "")).strip()
+    try:
+        msg = await _search_client.messages.create(
+            model="claude-haiku-5-5",
+            max_tokens=400,
+            thinking={"type": "disabled"},
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2,
+                    "user_location": {"type": "approximate", "country": "ZA", "region": "Gauteng", "timezone": "Africa/Johannesburg"}}],
+            system=("Search the web and answer the question in at most three short plain sentences of facts. Use km, "
+                    "km/h, degrees Celsius and rand. No web addresses, no citations, no mention of searching."),
+            messages=[{"role": "user", "content": query}],
+        )
+        # The answer is the text after the last search result (before it is "let me look").
+        blocks = list(msg.content)
+        last = max((i for i, b in enumerate(blocks) if b.type == "web_search_tool_result"), default=-1)
+        answer = "".join(b.text for b in blocks[last + 1:] if b.type == "text").strip()
+        await params.result_callback({"answer": answer or "Nothing useful found."})
+    except Exception as e:  # never leave her hanging: tell her it failed, she says so plainly
+        logger.warning(f"web_search failed: {e}")
+        await params.result_callback({"answer": "The search failed; tell him you could not find out just now."})
 
 
 async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> None:
@@ -85,13 +128,22 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         ),
     )
 
-    context = LLMContext()
+    llm.register_function("web_search", web_search, cancel_on_interruption=True, timeout_secs=20)
+
+    # "Let me check." the moment she starts a search, so a 2-4 s lookup is not silence.
+    @llm.event_handler("on_function_calls_started")
+    async def on_function_calls_started(service, function_calls):
+        await tts.queue_frame(TTSSpeakFrame("Let me check."))
+
+    context = LLMContext(tools=ToolsSchema(standard_tools=[WEB_SEARCH]))
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         # Interrupt on ANY speech (Pipecat's default, ~0.3 s). Tried "2 words" on 2026-10-19 against echo from the phone's
         # loudspeaker: it worked but took ~1.5-2 s to stop her; the owner uses earphones/the helmet (no echo), so instant
         # it is. For the loudspeaker: UserTurnStrategies(start=[MinWordsUserTurnStartStrategy(min_words=2)]).
-        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer()),
+        # 0.4 s of silence (default 0.2) before the end-of-turn model judges whether he has finished: on 2026-10-19 a short
+        # pause mid-sentence handed her fragments ("Do you think", "Not at the moment, but") and she answered those.
+        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.4))),
     )
 
     # Pipeline - assembled from reusable components

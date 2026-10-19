@@ -69,3 +69,9 @@ next lever.
 Switched back the same day (owner): instant interruption on any speech (~0.3 s); he tests with earphones, where there
 is no echo. The 2-word rule took ~1.5-2 s to stop her. Native app: pick by audio route (loudspeaker = words, earphones /
 helmet = instant); Krisp "interruption prediction" (paid) is the smarter option for both.
+
+Web search (same day): `web_search` Pipecat function -> Claude Haiku with web search (Gauteng, km, rand), "Let me
+check." spoken when it starts; VAD stop 0.4 s (was 0.2) so a pause mid-sentence does not hand her a fragment. Live:
+Cullinan weather answered correctly, BUT slow: search ~7.5 s on the server (3.3 s from the Mac), and "Let me check"
+only started after ~3.5 s (Deepgram TTS held it). Next: a pre-made "let me check" clip (instant), and fast specific
+tools before web search (weather from Open-Meteo ~0.3 s, as the app does; places; route), web search as the fallback.
