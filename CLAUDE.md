@@ -1223,6 +1223,9 @@ Everything buildable in the web app is built (see the sections above), except th
      LIVE 2026-10-19 at https://voice.forme.africa/client (Vultr Johannesburg 1 GB, ~R100/month; owner chose Vultr over
      Lightsail/Absolute Hosting/Datakeepers; login user betty + VOICE_ACCESS_CODE in .env): ~1.55 s question to voice.
      Server details, access, firewall and redeploy: labs/README.md. Root password login stays ON (owner's choice).
+     2026-10-19 later: scratchy audio over SmallWebRTC on the 1-core VPS (event-loop stalls) -> DAILY transport (free
+     10k participant-min/month, then $0.00099; owner chose Vultr + Daily over Pipecat Cloud at $0.01/min). Tools added:
+     web_search (Claude + search, ~4-7 s) and get_weather (Open-Meteo, more accurate than search). See labs/README.md.
    - Voice design review against Cathy Pearl, "Designing Voice User Interfaces" (O'Reilly, 2016): escalating
      no-match/no-input replies, implicit vs explicit confirmation (e.g. "we're done for today" ends the ride without
      asking: confirm?), teaching commands in the moment, barge-in (does a talk press stop her mid-line?), key fact

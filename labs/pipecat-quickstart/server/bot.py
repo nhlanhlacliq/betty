@@ -27,12 +27,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from loguru import logger
+import aiohttp
 import anthropic
 from pipecat.adapters.schemas.function_schema import FunctionSchema
 from pipecat.adapters.schemas.tools_schema import ToolsSchema
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
-from pipecat.frames.frames import LLMRunFrame, TTSSpeakFrame
+from pipecat.frames.frames import LLMRunFrame, OutputAudioRawFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -69,6 +70,90 @@ WEB_SEARCH = FunctionSchema(
     required=["query"],
 )
 _search_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("VITE_ANTHROPIC_API_KEY"))
+
+
+# ---- Weather, fast (2026-10-19): Open-Meteo (free, no key; what the Betty app uses) answers in ~0.3 s where a web
+# search took 4-7 s. Geocode the place (South Africa first), then now + the rest of today, hour by hour.
+GET_WEATHER = FunctionSchema(
+    name="get_weather",
+    description="Weather now and the forecast for the rest of today (and tomorrow) at a named town or suburb. Use this, not web search, for any weather question.",
+    properties={"place": {"type": "string", "description": "Town or suburb, e.g. Cullinan or Edenvale."}},
+    required=["place"],
+)
+WMO = [(0, "clear"), (3, "partly cloudy"), (48, "foggy"), (57, "drizzle"), (67, "rain"), (77, "snow"), (82, "showers"), (86, "snow showers"), (99, "thunderstorms")]
+
+
+_PLACES: dict[str, dict] = {}  # place name -> geocoding hit (towns do not move: saves ~0.7 s from Johannesburg)
+_HTTP: dict[str, aiohttp.ClientSession] = {}
+
+
+def _http() -> aiohttp.ClientSession:
+    """One kept-open session: a new TLS connection to Open-Meteo (Europe) costs ~0.2-0.3 s each time."""
+    if "s" not in _HTTP or _HTTP["s"].closed:
+        _HTTP["s"] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=6))
+    return _HTTP["s"]
+
+
+def _sky(code) -> str:
+    return next((name for top, name in WMO if (code or 0) <= top), "unknown")
+
+
+async def get_weather(params: FunctionCallParams):
+    place = str(params.arguments.get("place", "")).strip()
+    try:
+        http = _http()
+        g = _PLACES.get(place.lower())
+        if g is None:
+            async with http.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": place, "count": 1, "countryCode": "ZA"}) as r:
+                hits = (await r.json()).get("results") or []
+            if not hits:
+                async with http.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": place, "count": 1}) as r:
+                    hits = (await r.json()).get("results") or []
+            if not hits:
+                await params.result_callback({"error": f"No place called {place} found."})
+                return
+            g = _PLACES[place.lower()] = hits[0]
+        if True:
+            async with http.get("https://api.open-meteo.com/v1/forecast", params={
+                "latitude": g["latitude"], "longitude": g["longitude"], "timezone": "auto", "forecast_days": 2,
+                "current": "temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m",
+                "hourly": "temperature_2m,precipitation_probability,weather_code",
+                "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,sunset",
+            }) as r:
+                w = await r.json()
+        cur, hr, day = w["current"], w["hourly"], w["daily"]
+        now = cur["time"][:13]
+        start = next((i for i, t in enumerate(hr["time"]) if t[:13] >= now), 0)
+        hours = [f"{hr['time'][i][11:16]} {round(hr['temperature_2m'][i])} C, rain {hr['precipitation_probability'][i]}%, {_sky(hr['weather_code'][i])}"
+                 for i in range(start, min(start + 12, len(hr["time"])), 3)]
+        await params.result_callback({
+            "place": f"{g['name']}, {g.get('admin1', '')}".strip(", "),
+            "now": f"{round(cur['temperature_2m'])} C, {_sky(cur['weather_code'])}, wind {round(cur['wind_speed_10m'])} km/h (gusts {round(cur['wind_gusts_10m'])}), rain {cur['precipitation']} mm",
+            "next hours": hours,
+            "today": f"{round(day['temperature_2m_min'][0])} to {round(day['temperature_2m_max'][0])} C, rain chance up to {day['precipitation_probability_max'][0]}%, sunset {day['sunset'][0][11:16]}",
+            "tomorrow": f"{round(day['temperature_2m_min'][1])} to {round(day['temperature_2m_max'][1])} C, rain chance up to {day['precipitation_probability_max'][1]}%, {_sky(day['weather_code'][1])}",
+        })
+    except Exception as e:
+        logger.warning(f"get_weather failed: {e}")
+        await params.result_callback({"error": "Weather service not reachable just now."})
+
+
+# ---- "Let me check." made ONCE (Deepgram, raw 24 kHz PCM) and played at once when a lookup starts: queued through
+# the TTS service it only started after ~3.5 s on 2026-10-19.
+FILLER = {"pcm": b""}
+
+
+async def make_filler():
+    voice = os.getenv("BETTY_VOICE", "aura-2-helena-en")
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as http:
+            async with http.post(f"https://api.deepgram.com/v1/speak?model={voice}&encoding=linear16&sample_rate=24000&container=none",
+                                 headers={"Authorization": f"Token {os.getenv('DEEPGRAM_API_KEY')}"}, json={"text": "Let me check."}) as r:
+                if r.status == 200:
+                    FILLER["pcm"] = await r.read()
+                logger.info(f"filler clip: HTTP {r.status}, {len(FILLER['pcm'])} bytes")
+    except Exception as e:
+        logger.warning(f"filler clip not made: {e}")
 
 
 async def web_search(params: FunctionCallParams):
@@ -129,13 +214,19 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     )
 
     llm.register_function("web_search", web_search, cancel_on_interruption=True, timeout_secs=20)
+    llm.register_function("get_weather", get_weather, cancel_on_interruption=True, timeout_secs=10)
+    if not FILLER["pcm"]:
+        await make_filler()
 
-    # "Let me check." the moment she starts a search, so a 2-4 s lookup is not silence.
+    # "Let me check." the moment a web search starts (the weather is quick enough without it), played from the clip.
     @llm.event_handler("on_function_calls_started")
     async def on_function_calls_started(service, function_calls):
-        await tts.queue_frame(TTSSpeakFrame("Let me check."))
+        if FILLER["pcm"] and any(c.function_name == "web_search" for c in function_calls):
+            logger.info("filler: playing 'Let me check.'")
+            # Straight into the audio output: pushed from the TTS service it was held until the answer came (~3.7 s).
+            await transport.output().queue_frame(OutputAudioRawFrame(audio=FILLER["pcm"], sample_rate=24000, num_channels=1))
 
-    context = LLMContext(tools=ToolsSchema(standard_tools=[WEB_SEARCH]))
+    context = LLMContext(tools=ToolsSchema(standard_tools=[GET_WEATHER, WEB_SEARCH]))
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         # Interrupt on ANY speech (Pipecat's default, ~0.3 s). Tried "2 words" on 2026-10-19 against echo from the phone's

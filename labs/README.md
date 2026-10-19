@@ -75,3 +75,11 @@ check." spoken when it starts; VAD stop 0.4 s (was 0.2) so a pause mid-sentence 
 Cullinan weather answered correctly, BUT slow: search ~7.5 s on the server (3.3 s from the Mac), and "Let me check"
 only started after ~3.5 s (Deepgram TTS held it). Next: a pre-made "let me check" clip (instant), and fast specific
 tools before web search (weather from Open-Meteo ~0.3 s, as the app does; places; route), web search as the fallback.
+
+Daily transport (same day): scratches and skipped words remained on SmallWebRTC; a Deepgram TTS websocket then dropped on a
+"keepalive ping timeout" = the Python event loop stalling on the 1 shared core (the same stalls drop audio packets).
+Fix: Daily WebRTC (audio sent by daily-python native code; better AEC/mobile handling). DAILY_API_KEY in the repo .env
+and the server .env; the runner serves both transports: pick "Daily" in the playground dropdown next to Connect.
+Cost (daily.co video-sdk pricing): 10,000 participant-minutes free a month, then audio-only $0.00099/participant-min;
+bot + rider = 2 participant-minutes a minute. Joining a room takes ~2.7 s per session. Also added: get_weather tool
+(Open-Meteo, places cached, one kept-open session), "Let me check." pre-made clip sent straight to the output.
