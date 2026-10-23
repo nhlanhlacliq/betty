@@ -63,6 +63,12 @@ export class VoiceSession {
         callbacks: {
           onDisconnected: () => { this.client = null; this.stopSituation(); this.set('off'); this.setup.log('voice: disconnected'); },
           onServerMessage: (data: unknown) => void this.onServerMessage(data),
+          // The conversation on the phone's screen too (owner, 2026-10-23: only the old path's lines showed).
+          onUserTranscript: (d) => { if (d.final && d.text.trim()) this.setup.log(`you: ${d.text.trim()}`); },
+          onBotOutput: (d) => {
+            const kind = d.text_type ?? d.aggregated_by;
+            if (kind === 'sentence' && d.text.trim()) this.setup.log(`betty: ${d.text.trim()}`);
+          },
           onError: (e: unknown) => this.setup.log(`voice error: ${JSON.stringify(e).slice(0, 200)}`),
         },
       });

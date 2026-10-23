@@ -66,8 +66,18 @@ OPEN_MIC_PAUSE_SECS = 1.0
 INTERRUPT_WORDS = 3
 
 
+class LoggedWake(WakePhraseUserTurnStartStrategy):
+    """The wake strategy, logging what it threw away: to tell "he did not say Betty" from "Deepgram misheard her name"."""
+
+    def _check_wake_phrase(self, text: str) -> bool:
+        woke = super()._check_wake_phrase(text)
+        if not woke:
+            logger.info(f"open mic: ignored (no name) {text!r}")
+        return woke
+
+
 def open_mic_strategies() -> UserTurnStrategies:
-    wake = WakePhraseUserTurnStartStrategy(phrases=WAKE_PHRASES, timeout=FOLLOW_UP_SECS)
+    wake = LoggedWake(phrases=WAKE_PHRASES, timeout=FOLLOW_UP_SECS)
 
     @wake.event_handler("on_wake_phrase_detected")
     async def on_wake(strategy, phrase):
@@ -189,6 +199,15 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
             **turns,
         ),
     )
+
+    # The conversation in the journal (owner, 2026-10-23: the first open-mic test showed turns but not his words).
+    @user_aggregator.event_handler("on_user_turn_stopped")
+    async def on_user_turn_stopped(aggregator, strategy, message):
+        logger.info(f"heard: {message.content!r}")
+
+    @assistant_aggregator.event_handler("on_assistant_turn_stopped")
+    async def on_assistant_turn_stopped(aggregator, message):
+        logger.info(f"said: {message.content!r}{' (cut off)' if message.interrupted else ''}")
 
     pipeline = Pipeline([
         transport.input(), stt, user_aggregator, SituationInjector(situation), llm, tts, transport.output(), assistant_aggregator,
