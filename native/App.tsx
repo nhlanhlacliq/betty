@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRef, useState } from 'react';
-import { FlatList, Platform, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Platform, Pressable, SafeAreaView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import type { BikeState } from '../src/core/types';
 import { ElmClassicTransport } from './src/adapters/ElmClassicTransport';
 import { ObdSource } from './src/adapters/ObdSource';
@@ -22,6 +22,12 @@ export default function App() {
   const [readers, setReaders] = useState<{ name: string; address: string }[] | null>(null);
   const [voice, setVoice] = useState<'off' | 'connecting' | 'ready' | 'listening'>('off');
   const [reader, setReader] = useState<string | null>(null);
+  const [openMic, setOpenMic] = useState(false);
+
+  const pickOpenMic = (on: boolean) => {
+    setOpenMic(on);
+    void ride.current?.voice.setMode(on ? 'open' : 'ptt');
+  };
 
   const add = (l: Line) => setLines((x) => [l, ...x].slice(0, 200));
 
@@ -41,6 +47,7 @@ export default function App() {
     await activateKeepAwakeAsync();
     ride.current = await startRide({ line: add, state: setS, obd });
     ride.current.voice.onState = setVoice;
+    if (openMic) void ride.current.voice.setMode('open');
     setRiding(true);
   };
 
@@ -80,7 +87,22 @@ export default function App() {
         <Text style={st.buttonText}>{ending ? 'Ending ride…' : riding ? 'End ride' : "Let's ride"}</Text>
       </Pressable>
 
-      {riding && (
+      <View style={st.switchRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={st.switchLabel}>Open mic</Text>
+          <Text style={st.muted}>{openMic ? 'Say "Betty…" to talk. Helmet stays in call mode.' : 'Off: hold the button to talk.'}</Text>
+        </View>
+        <Switch value={openMic} onValueChange={pickOpenMic} />
+      </View>
+
+      {riding && openMic && (
+        // Open mic: the mic stays on; she answers sentences with her name. The button mutes and unmutes.
+        <Pressable style={[st.talk, voice === 'listening' && st.talkOn]} onPress={() => void ride.current?.voice.toggleMic()}>
+          <Text style={st.talkText}>{voice === 'listening' ? 'Listening for "Betty…" (tap to mute)' : voice === 'connecting' ? 'Connecting to Betty…' : voice === 'off' ? 'Tap to connect' : 'Muted (tap to listen)'}</Text>
+        </Pressable>
+      )}
+
+      {riding && !openMic && (
         // Hold to talk (push-to-talk): the mic is on only while held; holding while she speaks interrupts her.
         <Pressable
           style={[st.talk, voice === 'listening' && st.talkOn]}
@@ -128,6 +150,8 @@ const st = StyleSheet.create({
   end: { backgroundColor: '#e8ede2' },
   buttonText: { fontSize: 18, fontWeight: '700', color: '#273f39' },
   askRow: { marginBottom: 8 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  switchLabel: { fontSize: 16, fontWeight: '700', color: '#273f39' },
   talk: { backgroundColor: '#273f39', borderRadius: 28, paddingVertical: 22, alignItems: 'center', marginBottom: 12 },
   talkOn: { backgroundColor: '#819b77' },
   talkText: { color: '#fffdf1', fontSize: 17, fontWeight: '700' },

@@ -24,6 +24,10 @@ What is live and working:
 Just changed, NOT yet tried on the phone: the talk BUTTON decides his turn (app sends `ptt` down/up; server uses
 ExternalUserTurnStrategies when body.ptt): fixes half sentences seen in his session. Needs one more Release build.
 
+Also NOT yet tried on the phone (2026-10-23): OPEN MIC, a switch in the app: the mic stays on and she answers only
+sentences with "Betty" in them (follow-ups 8 s without the name; 1 s pause ends a turn; button = mute). Server
+deployed; needs the same Release build. Details: voice/README.md, native/README.md.
+
 Waiting on the OWNER:
 1. Pick the next eval step: (a) one targeted rule so weather_along_route is called reliably again (3/3 -> 1/3 after
    the last prompt change), (b) an eval run with Sonnet answering (~$2) to see how much of the 24% is Haiku (Sonnet

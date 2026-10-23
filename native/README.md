@@ -58,6 +58,13 @@ Pipecat transport asks for 0.86), @daily-co/react-native-webrtc 124.0.6-daily.2,
 get-random-values 1.x (imported first in index.ts), Expo plugin @daily-co/config-plugin-rn-daily-js 0.0.13 (lists Expo
 55-57; we are on 58: the main risk) with mic only; iOS UIBackgroundModes audio + voip. Installed with --legacy-peer-deps.
 Not yet: music ducking for her answers (Daily's audio session), the fallback to the current path without signal.
+OPEN MIC (2026-10-23, owner: to test hands-free on the bike; NOT YET RUN ON A PHONE): an "Open mic" switch in App.tsx
+(off by default, not saved). On: `VoiceSession.setMode('open')` reconnects with body {mode: 'open', ptt: false} and the
+mic ON for the whole connection; the server answers only sentences with "Betty" in them, then follow-ups for 8 s
+without the name, a turn ends after 1 s of quiet, talking over her needs 3 words (voice/bot.py `open_mic_strategies`).
+The big button becomes mute/unmute (robots, phone calls). The situation is sent every 15 s (no presses to carry it).
+Costs: the helmet stays in CALL MODE all ride (music at call quality, its button sends call controls), Deepgram bills
+every open minute (~R8 an hour). Push-to-talk is unchanged when the switch is off.
 
 Known risks:
 - `react-native-bluetooth-classic` (1.73.0-rc.17) is a legacy native module, "untested on New Architecture"

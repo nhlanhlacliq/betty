@@ -56,3 +56,13 @@ connected", offering a lookup instead of doing it, commenting on her own answer 
 rain-on-route's tool call (3/3 -> 1/3) and once called talk_again after set_quiet. Haiku-limited failures in both:
 invented facts for "tell me something interesting" (0/3), padding in small talk and stories. Next candidates: one
 targeted rule for weather_along_route; an eval run with Sonnet answering to see how much is the model.
+
+OPEN MIC with the "Betty" wake word (2026-10-23; body.mode == "open"; NOT YET TRIED ON THE BIKE). Turn rules in
+`open_mic_strategies` (bot.py), all Pipecat 1.12 built-ins: `WakePhraseUserTurnStartStrategy` (WAKE_PHRASES: betty and
+Deepgram's mishearings, e.g. "Pitty"; awake for FOLLOW_UP_SECS 8 after activity, so follow-ups need no name; other
+speech is dropped from the context), then `MinWordsUserTurnStartStrategy` (INTERRUPT_WORDS 3 while she speaks: turns
+start on words, never on sound, so wind cannot cut her off), stop = `SpeechTimeoutUserTurnStopStrategy`
+(OPEN_MIC_PAUSE_SECS 1.0; 0.2 s gave half sentences). Deepgram gets keyterm "Betty". The ptt message is ignored in this
+mode. Test: `uv run python tests/test_open_mic.py` (the real aggregator: no name = no turn, "Betty"/"Pitty" = a turn
+with the whole sentence, a follow-up in the window). Tune the four constants from the bike logs
+(`journalctl -u betty-voice | grep "open mic"`).

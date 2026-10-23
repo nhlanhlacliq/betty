@@ -34,7 +34,9 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.transcriptions.language import Language
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
-from pipecat.turns.user_turn_strategies import ExternalUserTurnStrategies
+from pipecat.turns.user_start import MinWordsUserTurnStartStrategy, WakePhraseUserTurnStartStrategy
+from pipecat.turns.user_stop import SpeechTimeoutUserTurnStopStrategy
+from pipecat.turns.user_turn_strategies import ExternalUserTurnStrategies, UserTurnStrategies
 from pipecat.workers.runner import WorkerRunner
 
 from betty_voice import prompt, server_tools
@@ -51,6 +53,34 @@ load_dotenv(HERE / ".env", override=True)  # the server's own (only the keys it 
 CREDS = next((p for p in [HERE / "google-service-account.json", HERE.parent / "google-service-account.json"] if p.exists()), None)
 VOICE = os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr")
 FILLERS = Fillers()  # made once per server process
+
+# OPEN MIC (the app, body.mode == "open"; owner, 2026-10-23: test hands-free on the bike). The mic stays on, so wind,
+# traffic and other people are heard too. She only takes a turn when a sentence has her name in it (Deepgram's
+# spellings of "Betty" seen so far, "Hello, Pitty" on 2026-10-16); after that he has FOLLOW_UP_SECS of quiet (counted
+# from the end of her answer) to follow up without the name. A turn ends after OPEN_MIC_PAUSE_SECS of quiet: the
+# 0.2 s guess gave half sentences. Turns start on WORDS, not on sound (no VAD start), so wind cannot cut her off;
+# to talk over her he needs INTERRUPT_WORDS words.
+WAKE_PHRASES = ["betty", "bettie", "betti", "beti", "beddy", "pitty"]
+FOLLOW_UP_SECS = 8.0
+OPEN_MIC_PAUSE_SECS = 1.0
+INTERRUPT_WORDS = 3
+
+
+def open_mic_strategies() -> UserTurnStrategies:
+    wake = WakePhraseUserTurnStartStrategy(phrases=WAKE_PHRASES, timeout=FOLLOW_UP_SECS)
+
+    @wake.event_handler("on_wake_phrase_detected")
+    async def on_wake(strategy, phrase):
+        logger.info(f"open mic: woke on {phrase!r}")
+
+    @wake.event_handler("on_wake_phrase_timeout")
+    async def on_sleep(strategy):
+        logger.info("open mic: waiting for her name again")
+
+    return UserTurnStrategies(
+        start=[wake, MinWordsUserTurnStartStrategy(min_words=INTERRUPT_WORDS)],
+        stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=OPEN_MIC_PAUSE_SECS)],
+    )
 
 
 class SituationInjector(FrameProcessor):
@@ -94,7 +124,12 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         situation.update(body["situation"])
     phone: dict[str, Phone] = {}
 
-    stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
+    open_mic = body.get("mode") == "open"
+    ptt = bool(body.get("ptt")) and not open_mic
+    logger.info(f"turns: {'open mic, wake word' if open_mic else 'push-to-talk' if ptt else 'automatic (browser)'}")
+    # Her name boosted in hearing, so the wake word is caught in wind.
+    stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"),
+                             settings=DeepgramSTTService.Settings(keyterm=["Betty"]) if open_mic else None)
     if CREDS:  # streamed: first audio ~0.3-0.5 s
         tts = trimmed(GoogleTTSService)(credentials_path=str(CREDS), sample_rate=24000,
                                         settings=GoogleTTSService.Settings(voice=VOICE, language=Language.EN_US))
@@ -144,13 +179,14 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     # PUSH-TO-TALK (the app, body.ptt): the BUTTON decides the turn. Press = his turn starts (and interrupts her),
     # release = it ends, once Deepgram's last words are in. On 2026-10-19 the automatic end-of-turn guess sent half
     # sentences ("No. I think I", "What were you saying about the" + "heart train again?"). The browser playground
-    # has no button: there the model guesses (VAD stop 0.2 s, Pipecat's recommendation).
-    ptt = bool(body.get("ptt"))
+    # has no button: there the model guesses (VAD stop 0.2 s, Pipecat's recommendation). Open mic: see open_mic_strategies.
+    turns = {"user_turn_strategies": open_mic_strategies()} if open_mic else \
+        {"user_turn_strategies": ExternalUserTurnStrategies()} if ptt else {}
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
             vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
-            **({"user_turn_strategies": ExternalUserTurnStrategies()} if ptt else {}),
+            **turns,
         ),
     )
 
@@ -174,7 +210,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
             phone["p"].result(data)
         elif msg.type == "situation":
             situation.update(data)
-        elif msg.type == "ptt":  # the talk button: down = his turn starts (interrupts her), up = it ends
+        elif msg.type == "ptt" and ptt:  # the talk button: down = his turn starts (interrupts her), up = it ends
             frame = ProposedUserStartedSpeakingFrame() if data.get("down") else ProposedUserStoppedSpeakingFrame()
             await worker.queue_frames([frame])
         elif msg.type == "setup":

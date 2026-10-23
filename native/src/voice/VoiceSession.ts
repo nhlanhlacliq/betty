@@ -10,7 +10,14 @@ import { RNDailyTransport } from '@pipecat-ai/react-native-daily-transport';
  * The connection opens on the first press and stays up for the ride (the server ends it after a few idle minutes; the
  * next press reconnects). With each press the phone sends the ride situation; the server asks the phone to carry out
  * phone tools ({t: 'tool', id, name, args}) and gets the result back as a 'tool-result' message.
+ *
+ * OPEN MIC (owner, 2026-10-23, to test hands-free on the bike): mode 'open' keeps the mic on for the whole connection
+ * and the server only answers a sentence with "Betty" in it (then follow-ups for a few seconds without the name; see
+ * voice/bot.py). Costs: a helmet stays in CALL MODE (music at call quality, its button sends call controls) and hearing
+ * is billed for every minute. The situation goes every SITUATION_EVERY_MS instead of per press. Switching mode
+ * reconnects (the server picks its turn rules when the session starts).
  */
+export type VoiceMode = 'ptt' | 'open';
 export type PhoneTool = (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 export interface VoiceSetup {
   /** Betty's prompt with the rider's settings (bettySystemPrompt + the rider_query flavour) */
@@ -24,11 +31,16 @@ const URL = process.env.EXPO_PUBLIC_VOICE_URL ?? 'https://voice.forme.africa';
 const AUTH = `Basic ${btoa(`${process.env.EXPO_PUBLIC_VOICE_USER ?? 'app'}:${process.env.EXPO_PUBLIC_VOICE_TOKEN ?? ''}`)}`;
 /** Keep the mic open this long after release, so the last word is not cut off. */
 const RELEASE_TAIL_MS = 400;
+/** Open mic: how often the ride situation is sent (there are no presses to carry it). */
+const SITUATION_EVERY_MS = 15_000;
 
 export class VoiceSession {
   private client: PipecatClient | null = null;
   private connecting: Promise<void> | null = null;
   private releaseTimer: ReturnType<typeof setTimeout> | null = null;
+  private situationTimer: ReturnType<typeof setInterval> | null = null;
+  private micOn = false;
+  mode: VoiceMode = 'ptt';
   state: 'off' | 'connecting' | 'ready' | 'listening' = 'off';
   onState: (s: VoiceSession['state']) => void = () => {};
 
@@ -41,14 +53,15 @@ export class VoiceSession {
     if (this.connecting) return this.connecting;
     this.set('connecting');
     const t0 = Date.now();
+    const mode = this.mode;
     this.connecting = (async () => {
       const client = new PipecatClient({
         // Cast: RN's MediaDeviceInfo type differs from the DOM one the client is typed against; same at runtime.
         transport: new RNDailyTransport() as unknown as Transport,
-        enableMic: false, // push-to-talk: on only while the button is held
+        enableMic: this.mode === 'open', // push-to-talk: on only while the button is held
         enableCam: false,
         callbacks: {
-          onDisconnected: () => { this.client = null; this.set('off'); this.setup.log('voice: disconnected'); },
+          onDisconnected: () => { this.client = null; this.stopSituation(); this.set('off'); this.setup.log('voice: disconnected'); },
           onServerMessage: (data: unknown) => void this.onServerMessage(data),
           onError: (e: unknown) => this.setup.log(`voice error: ${JSON.stringify(e).slice(0, 200)}`),
         },
@@ -56,11 +69,14 @@ export class VoiceSession {
       await client.startBotAndConnect({
         endpoint: `${URL}/start`,
         headers: new Headers({ Authorization: AUTH }),
-        requestData: { transport: 'daily', createDailyRoom: true, body: { system: this.setup.system, greet: false, ptt: true, situation: this.setup.situation() } },
+        requestData: { transport: 'daily', createDailyRoom: true, body: { system: this.setup.system, greet: false, ptt: this.mode === 'ptt', mode: this.mode, situation: this.setup.situation() } },
       });
+      if (mode !== this.mode) { await client.disconnect().catch(() => {}); this.set('off'); return; } // switched meanwhile
       this.client = client;
-      this.set('ready');
-      this.setup.log(`voice: connected in ${Date.now() - t0} ms`);
+      this.micOn = this.mode === 'open';
+      if (this.mode === 'open') this.startSituation();
+      this.set(this.micOn ? 'listening' : 'ready');
+      this.setup.log(`voice: connected in ${Date.now() - t0} ms (${this.mode === 'open' ? 'open mic, say "Betty"' : 'push-to-talk'})`);
     })().catch((e) => {
       this.client = null; this.set('off');
       this.setup.log(`voice: could not connect: ${(e as Error)?.message ?? e}`);
@@ -69,8 +85,40 @@ export class VoiceSession {
     return this.connecting;
   }
 
+  /** Pick push-to-talk or open mic. A live connection is closed and, for open mic, opened again in the new mode. */
+  async setMode(mode: VoiceMode) {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    this.setup.log(`voice: ${mode === 'open' ? 'open mic on (say "Betty...")' : 'back to push-to-talk'}`);
+    if (this.connecting) await this.connecting.catch(() => {}); // let a connect in flight finish (it notices the switch)
+    await this.end();
+    if (mode === 'open') await this.connect().catch(() => {});
+  }
+
+  /** Open mic: the button mutes and unmutes (a robot, a phone call). Connects if the connection had dropped. */
+  async toggleMic() {
+    if (this.mode !== 'open') return;
+    if (!this.client) { await this.connect().catch(() => {}); return; }
+    this.micOn = !this.micOn;
+    this.client.enableMic(this.micOn);
+    if (this.micOn) this.client.sendClientMessage('situation', this.setup.situation());
+    this.setup.log(`voice: mic ${this.micOn ? 'on' : 'muted'}`);
+    this.set(this.micOn ? 'listening' : 'ready');
+  }
+
+  private startSituation() {
+    this.stopSituation();
+    this.situationTimer = setInterval(() => this.client?.sendClientMessage('situation', this.setup.situation()), SITUATION_EVERY_MS);
+  }
+
+  private stopSituation() {
+    if (this.situationTimer) clearInterval(this.situationTimer);
+    this.situationTimer = null;
+  }
+
   /** Talk button pressed: connect if needed, send the situation, open the mic. */
   async press() {
+    if (this.mode !== 'ptt') return;
     if (this.releaseTimer) { clearTimeout(this.releaseTimer); this.releaseTimer = null; }
     await this.connect();
     const c = this.client;
@@ -83,6 +131,7 @@ export class VoiceSession {
 
   /** Talk button released: close the mic a moment later (the end of the last word). */
   release() {
+    if (this.mode !== 'ptt') return;
     if (this.releaseTimer) clearTimeout(this.releaseTimer);
     this.releaseTimer = setTimeout(() => {
       this.releaseTimer = null;
@@ -111,6 +160,8 @@ export class VoiceSession {
 
   async end() {
     if (this.releaseTimer) clearTimeout(this.releaseTimer);
+    this.stopSituation();
+    this.micOn = false;
     try { await this.client?.disconnect(); } catch { /* already gone */ }
     this.client = null;
     this.set('off');
