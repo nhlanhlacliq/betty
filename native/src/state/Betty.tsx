@@ -10,6 +10,9 @@ import { ObdSource } from '../adapters/ObdSource';
 import { ChirpSpeaker } from '../adapters/ChirpSpeaker';
 import { ExpoSpeaker, setUpAudio } from '../adapters/ExpoSpeaker';
 import { Ride, startRide } from '../rig';
+import { HeadsetButtons } from '../adapters/HeadsetButtons';
+import { CONFIG } from '../../../src/config/betty';
+import { saveConfig } from '../../../src/config/persist';
 
 export type VoiceState = 'off' | 'connecting' | 'ready' | 'listening';
 export type RideMode = 'real' | 'sim';
@@ -30,6 +33,9 @@ interface BettyCtx {
   setMode(m: RideMode): void;
   openMic: boolean;
   setOpenMic(on: boolean): void;
+  /** Headset buttons for Betty this ride (pauses his music while she holds them) */
+  buttons: boolean;
+  setButtons(on: boolean): void;
   /** Android: the paired OBD2 reader to use (Bluetooth address), or none */
   reader: string | null;
   setReader(a: string | null): void;
@@ -73,6 +79,8 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   const [ending, setEnding] = useState(false);
   const [mode, setMode] = useState<RideMode>('real');
   const [openMic, setOpenMicState] = useState(false);
+  const [buttons, setButtonsState] = useState(false);
+  const headset = useRef<HeadsetButtons | null>(null);
   const [reader, setReader] = useState<string | null>(null);
   const [ended, setEnded] = useState<{ rideId: number; kept: boolean } | null>(null);
   const [helloSpeaking, setHelloSpeaking] = useState(false);
@@ -90,7 +98,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   const busy = useRef(false);
 
   // Betty's data (rides, notes, reminders, settings...) is read into memory before anything uses it.
-  useEffect(() => { void openStore((m) => logger.add('[store]', m)).then(() => { loadConfig(); setReady(true); }); }, [logger]);
+  useEffect(() => { void openStore((m) => logger.add('[store]', m)).then(() => { loadConfig(); setButtonsState(CONFIG.headsetButtons); setReady(true); }); }, [logger]);
 
   // Repaints at most every 250 ms: the ride says "changed" on every update and every line's fate.
   const pending = useRef(false);
@@ -114,10 +122,40 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       return out;
     } finally {
       rideRef.current = null; setRide(null);
+      void headset.current?.stop(); headset.current = null;
       deactivateKeepAwake();
       setVoice('off'); setEnding(false); busy.current = false;
     }
   }, [toast, touch]);
+
+  /**
+   * The helmet's buttons for the ride: play/pause talks (hold-to-talk mode: she listens until your sentence is heard,
+   * 10 s at most, or the next press; open mic: mute/unmute), next track repeats her, previous gives the buttons back.
+   */
+  const startButtons = async (r: Ride) => {
+    const hb = new HeadsetButtons((m) => logger.add('[voice]', m));
+    let talking: ReturnType<typeof setTimeout> | undefined;
+    const done = () => { clearTimeout(talking); talking = undefined; r.voice.release(); setTimeout(() => hb.resume(), 400); };
+    r.voice.onHeardRider = () => { if (talking) done(); };
+    const ok = await hb.start({
+      talk: () => {
+        if (r.voice.mode === 'open') { void r.voice.toggleMic(); return; }
+        if (talking) { done(); return; }
+        void r.voice.press().catch(() => {});
+        talking = setTimeout(done, 10_000);
+      },
+      repeat: () => { if (!r.ride.repeat()) toast("She hasn't said anything yet."); },
+      letGo: () => { void hb.stop(); headset.current = null; logger.add('[voice]', 'previous track: Betty let go of the headset buttons'); toast('Headset buttons are back with your music.'); },
+    });
+    if (ok) { headset.current = hb; logger.add('[voice]', 'headset buttons: play/pause talks, next track repeats her, previous track lets go'); }
+    else toast('Headset buttons could not start.');
+  };
+  const setButtons = useCallback((on: boolean) => {
+    setButtonsState(on); CONFIG.headsetButtons = on; saveConfig();
+    const r = rideRef.current;
+    if (r && on && !headset.current) void startButtons(r);
+    if (!on && headset.current) { void headset.current.stop(); headset.current = null; }
+  }, []);
 
   const start = useCallback(async () => {
     if (rideRef.current || busy.current) return;
@@ -136,8 +174,9 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       r.voice.onState = setVoice;
       if (openMic) void r.voice.setMode('open');
       rideRef.current = r; setRide(r);
+      if (buttons) void startButtons(r);
     } finally { busy.current = false; }
-  }, [logger, changed, end, reader, mode, openMic, toast]);
+  }, [logger, changed, end, reader, mode, openMic, buttons, toast]);
 
   const setOpenMic = useCallback((on: boolean) => {
     setOpenMicState(on);
@@ -170,7 +209,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   }, [logger]);
 
   return (
-    <Ctx.Provider value={{ ready, ride, tick, state, voice, ending, mode, setMode, openMic, setOpenMic, reader, setReader, lines, logger, start, end, ended, hello, helloSpeaking, listen, toast, toastMsg, data, touch, pendingWhere, setPendingWhere }}>
+    <Ctx.Provider value={{ ready, ride, tick, state, voice, ending, mode, setMode, openMic, setOpenMic, buttons, setButtons, reader, setReader, lines, logger, start, end, ended, hello, helloSpeaking, listen, toast, toastMsg, data, touch, pendingWhere, setPendingWhere }}>
       {children}
     </Ctx.Provider>
   );

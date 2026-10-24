@@ -89,9 +89,14 @@ saved routes / plan-with-Betty / stop weather in Where to?, the ride's story aft
   a 600 ms tail; a cut-off line lets the music back up), doNotMix kept for headset buttons later (`setExclusive`).
   UNVERIFIED: how it sits with the open voice-server call (Daily's playAndRecord session), and whether iOS lifts the
   duck when the mode goes back to mix while the session stays active.
-- HEADSET BUTTONS: left out (owner, 2026-10-24: "I'll just use open mic mode"). The way in, when wanted: an expo-audio
-  playlist on the lock screen (doNotMix, so it pauses his music; a per-ride switch like the web), play/pause = talk,
-  next track = repeat (`trackChanged`), previous = let go.
+- HEADSET BUTTONS (built after all, owner: "as long as I can try headset buttons mode and open mic"):
+  `adapters/HeadsetButtons.ts`, a switch in "How are we riding?" (`CONFIG.headsetButtons`, saved; works mid-ride). An
+  expo-audio playlist of three copies of `assets/silence.wav` (a minute, near-silent), looping, on the lock screen
+  with next/previous shown; doNotMix (AudioFocus.setExclusive), so it PAUSES his music. Play/pause = the playlist
+  pausing (not by us, 1.5 s quiet window after our own play/skip): hold-to-talk mode presses the mic and releases on
+  his final transcript (`VoiceSession.onHeardRider`), after 10 s, or on the next press; open mic = mute/unmute.
+  Next track = repeat her last line; previous = let go (buttons and music back, toast). UNVERIFIED: whether presses
+  still arrive once the voice server's mic has opened (call mode, the web's old problem).
 
 ## Status (first slice, 2026-10-18; NOTHING RUN ON A PHONE YET)
 

@@ -45,6 +45,8 @@ export class VoiceSession {
   onState: (s: VoiceSession['state']) => void = () => {};
   /** Each sentence she says in the conversation (the ride screen shows it as her line) */
   onSaid: (text: string) => void = () => {};
+  /** His words, once the server has the final transcript (the headset button ends his turn on it) */
+  onHeardRider: (text: string) => void = () => {};
   /** She starts or stops talking in the conversation (the orb) */
   onSpeaking: (on: boolean) => void = () => {};
 
@@ -68,7 +70,7 @@ export class VoiceSession {
           onDisconnected: () => { this.client = null; this.stopSituation(); this.set('off'); this.setup.log('voice: disconnected'); },
           onServerMessage: (data: unknown) => void this.onServerMessage(data),
           // The conversation on the phone's screen too (owner, 2026-10-23: only the old path's lines showed).
-          onUserTranscript: (d) => { if (d.final && d.text.trim()) this.setup.log(`you: ${d.text.trim()}`); },
+          onUserTranscript: (d) => { if (d.final && d.text.trim()) { this.setup.log(`you: ${d.text.trim()}`); this.onHeardRider(d.text.trim()); } },
           onBotOutput: (d) => {
             const kind = d.text_type ?? d.aggregated_by;
             if (kind === 'sentence' && d.text.trim()) { this.setup.log(`betty: ${d.text.trim()}`); this.onSaid(d.text.trim()); }

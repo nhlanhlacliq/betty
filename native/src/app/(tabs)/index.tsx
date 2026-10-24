@@ -128,7 +128,7 @@ export default function Home() {
           <Icon name={b.mode === 'real' ? 'ride' : 'wrench'} color="#7f9082" />
           <View style={{ flex: 1 }}>
             <Text style={st.destSmall}>{HOME.pickerLabel}</Text>
-            <Text style={st.destTitle} numberOfLines={1}>{route ? `${modeTitle} · ${route.name}` : modeTitle}{b.openMic ? ' · open mic' : ''}</Text>
+            <Text style={st.destTitle} numberOfLines={1}>{route ? `${modeTitle} · ${route.name}` : modeTitle}{b.openMic ? ' · open mic' : ''}{b.buttons ? ' · buttons' : ''}</Text>
           </View>
           <Icon name="chev" color="#909b8d" />
         </Pressable>
@@ -160,7 +160,7 @@ function readiness(b: ReturnType<typeof useBetty>, gps: string): ReadyRow[] {
   return [
     { icon: 'pin', label: 'GPS', value: b.mode === 'sim' ? 'Simulated (desk test)' : gps || 'Phone GPS', ok: !/Not allowed/.test(gps) },
     { icon: 'volume', label: 'Voice', value: `Chirp, ${chirpVoice().name}`, ok: true },
-    { icon: 'headset', label: 'Talking to her', value: b.openMic ? 'Open mic: say "Betty…"' : 'Hold the talk button', ok: true },
+    { icon: 'headset', label: 'Talking to her', value: `${b.openMic ? 'Open mic: say "Betty…"' : 'Hold the talk button'}${b.buttons ? ', headset buttons' : ''}`, ok: true },
     { icon: 'spark', label: 'Brain', value: 'Claude, keys on the server', ok: true },
     { icon: 'gauge', label: 'Engine data', value: b.reader ? 'OBD2 reader' : 'Off: GPS only', ok: true },
     { icon: 'wrench', label: 'Maintenance', ...(book ? readinessRow(book, Date.now()) : { value: '-', ok: true }) },
@@ -222,6 +222,13 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
           <Text style={st.optionSub}>{b.openMic ? 'Say "Betty…" to talk. The helmet stays in call mode.' : 'Off: hold the talk button to speak to her.'}</Text>
         </View>
         <Switch value={b.openMic} onValueChange={b.setOpenMic} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
+      </View>
+      <View style={st.switchRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={st.optionTitle}>Headset buttons</Text>
+          <Text style={st.optionSub}>Play/pause talks to Betty{b.openMic ? ' (with open mic: mutes and unmutes)' : ''}, next track repeats her, previous track hands the buttons back. Pauses your music while she has them.</Text>
+        </View>
+        <Switch value={b.buttons} onValueChange={b.setButtons} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
       </View>
 
       {Platform.OS === 'android' && !riding && (
