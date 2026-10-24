@@ -2,12 +2,8 @@ import { ClaudeRequest, Phrase } from '../core/ClaudeClient';
 import { TriggerEvent } from '../core/types';
 import { button, checkbox, el } from './dom';
 
-/** One thing on the chat timeline: something he typed, or something she said (asked or unprompted). */
-export type ChatEntry =
-  | { from: 'rider'; text: string; at: number }
-  | { from: 'betty'; text: string; at: number; ev: TriggerEvent; phrase: Phrase }
-  /** Her reply to a command ("quiet for ten minutes"): carried out on the phone, no Claude call */
-  | { from: 'betty'; text: string; at: number; command: string };
+import type { ChatEntry } from '../app/RideSession';
+export type { ChatEntry };
 
 export interface ChatContext {
   /** Send what he typed through the same path voice input will use: rider_query -> Claude -> queue -> speaker. */

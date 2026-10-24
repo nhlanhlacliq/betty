@@ -1,51 +1,37 @@
 import { loadConfig, saveConfig } from './config/persist';
-import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, applyMode, applyTalkPreset, cleanBikeName, currentDials, currentMode, currentTalkPreset, nudgeLength, nudgeVoice, setMixShare, cleanRiderName, chirpVoice, libraryVoice, mixSummary, nudgeMix, voiceStyle } from './config/betty';
+import { CLOUD_VOICES, CONFIG, CloudVoiceMode, ObdMode, cleanBikeName, cleanRiderName, chirpVoice, libraryVoice, voiceStyle } from './config/betty';
 import { LIBRARY_ACCENTS, LIBRARY_VOICES } from './config/voiceLibrary';
 import { CloudSpeaker, ElementPlayer, SOUND_TEST_LINES, STOCK_LINES } from './adapters/CloudSpeaker';
 import { IdbClipStore } from './adapters/ClipStore';
 import { PcmPlayer } from './adapters/PcmPlayer';
 import { NO_OBD, StateAggregator } from './core/StateAggregator';
-import { TriggerEngine, isSafeWindow } from './core/TriggerEngine';
-import { placesFromHere, travelDirection } from './core/ambient';
-import { Command, addMark, addNote, forgetLast, parseCommand } from './core/Commands';
-import { saysDetour, saysFilledUp } from './core/Heard';
+import { TriggerEngine } from './core/TriggerEngine';
+import { travelDirection } from './core/ambient';
 import { describeFuelPlan, fuelLeft, kmToReserve, routeFuelPlan } from './core/Fuel';
-import { StationSource } from './adapters/StationSource';
 import { refreshFuelPrice } from './adapters/FuelPrice';
 import { ServiceStore } from './adapters/ServiceStore';
-import { ServiceBook, canUndo, dueInfo, dueText, findReminder, islandReminder, markDone, undoDone } from './core/Reminders';
 import { RiderMemoryStore } from './adapters/RiderMemoryStore';
 import { compassPoint } from './core/geo';
-import { AudioQueue, Fate, QueueItem } from './core/AudioQueue';
-import { ClaudeClient, restAfter, voiceTags } from './core/ClaudeClient';
-import { LatLon } from './core/geo';
-import { AMBIENT_IDS, AreaNote, TriggerEvent } from './core/types';
+import { AudioQueue } from './core/AudioQueue';
+import { ClaudeClient, voiceTags } from './core/ClaudeClient';
+import { AreaNote, BikeState } from './core/types';
 import { MockObdSource } from './adapters/MockObdSource';
 import { WebGeoSource } from './adapters/WebGeoSource';
 import { WebMotionSource } from './adapters/WebMotionSource';
 import { WebSpeaker } from './adapters/WebSpeaker';
 import { SwitchableSpeaker } from './adapters/SwitchableSpeaker';
-import { WeatherSource } from './adapters/WeatherSource';
-import { TrafficSource } from './adapters/TrafficSource';
-import { PlaceSource } from './adapters/PlaceSource';
-import { AreaSource, AreaStore, ToldStore, researchAhead } from './adapters/AreaSource';
+import { AreaStore, ToldStore, researchAhead } from './adapters/AreaSource';
 import { TrackStore } from './adapters/TrackStore';
 import { RoadStore } from './adapters/RoadStore';
 import { JourneyStore } from './adapters/JourneyStore';
-import { liveRecords } from './core/Records';
-import { RoadMemory } from './core/RoadMemory';
-import { pastRecall } from './core/PastRides';
-import { roughSpots } from './core/RoughSpots';
 import { SharePack, makePack, mergeSpots, mergeStories, rideAsRoute } from './core/Share';
-import { RoadCells } from './adapters/RoadCells';
 import { LineBankStore } from './adapters/LineBankStore';
 import { checkpoints, rideAgainStops, weatherLine } from './core/RouteAhead';
 import { fetchRouteWeather } from './adapters/RouteWeather';
 import { groupByMonth } from './core/Journeys';
 import { drawMonthCard } from './ui/monthCard';
-import { TrackPoint, addTrackPoint } from './core/Track';
 import { RideLog } from './adapters/RideLog';
-import { rideMinutes, toRecord } from './core/RideMemory';
+import { rideMinutes } from './core/RideMemory';
 import { TomTomTrafficProvider } from './adapters/TomTomTraffic';
 import { WakeLock, WakeStatus } from './adapters/WakeLock';
 import { mountSimPanel } from './ui/SimPanel';
@@ -62,9 +48,9 @@ import { FuelStore } from './adapters/FuelStore';
 import { HeadsetButtons } from './adapters/HeadsetButtons';
 import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushToTalk';
 import { beep } from './adapters/audio';
-import { IncidentMemory } from './adapters/IncidentMemory';
-import { HorizonDismissed } from './adapters/HorizonDismissed';
-import { LogEntry, formatLog } from './core/LineLog';
+import { formatLog } from './core/LineLog';
+import { RideSession } from './app/RideSession';
+import { FATE_LABELS, LineLogger } from './app/LineLogger';
 import { ScreenId, copyText, downloadText, mountShell } from './ui/Shell';
 import { ReadyRow, mountHomeScreen } from './ui/screens/HomeScreen';
 import { RideActions, mountRideScreen } from './ui/screens/RideScreen';
@@ -78,14 +64,14 @@ import { mountBackup, shareJson } from './ui/backup';
 import { RouteStore, mountRoutePlanner } from './ui/RoutePlanner';
 import { BorderTiles } from './adapters/BorderTiles';
 import { ProfileStore, mountKnowMe } from './ui/KnowMe';
-import { PlannedRoute, stopsAhead } from './core/Route';
+import { PlannedRoute } from './core/Route';
 import { rideTitle } from './ui/screens/HomeScreen';
 import { drawRideCard, shareRideCard } from './ui/rideCard';
 import { CardExtras, CardExtrasSource } from './adapters/CardExtras';
 import { pickLabels } from './core/RideCard';
 import { spanFor } from './ui/mapView';
 import { mountEdgeStretch, mountPullToRefresh, mountSheetDrag, mountSwipeBack, rememberSpot, takeSpot } from './ui/gestures';
-import { Glance, RideInput, SaidLine, glanceCues, horizonLine, horizonSpoken, rideView } from './ui/rideView';
+import { glanceCues, horizonLine, rideView } from './ui/rideView';
 import { BRAND, END_BUTTON, HOME, sampleLine } from './ui/copy';
 import { applyMotion, mountPressFeel } from './ui/motion';
 
@@ -98,9 +84,6 @@ window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('chan
 const ENV: Record<string, string | undefined> = import.meta.env ?? {};
 /** Deployed: keys live on Betty's server (api/), not in this page. Local development uses VITE_ keys from .env. */
 const SERVER = ENV.VITE_USE_SERVER === '1';
-/** What she says when an answer is slow (usually a web search), and how slow counts. */
-const HANG_ON = 'Hang on, let me check.';
-const HANG_ON_AFTER_MS = 2500;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 // The app shell: screens, sheets and the toast (markup in index.html, see ui/Shell.ts).
@@ -116,49 +99,24 @@ const setStatus = (msg: string, err = false) => {
   if (msg) shell.toast(msg, err);
 };
 
-const feed = { weather: 'idle', traffic: 'idle', places: 'idle', areas: 'idle' };
-const feedStatus = () => `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places} | Area stories: ${feed.areas}`;
+const IDLE_FEEDS = { weather: 'idle', traffic: 'idle', places: 'idle', areas: 'idle' };
+const feedStatus = () => { const feed = rig?.s.feeds ?? IDLE_FEEDS; return `Weather: ${feed.weather} | Traffic: ${feed.traffic} | Places: ${feed.places} | Area stories: ${feed.areas}`; };
 
+/** A ride (app/RideSession, shared with the native app) plus what only the web app has around it. */
 interface Rig {
-  agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: (ev: TriggerEvent, now?: boolean) => Promise<QueueItem | null>;
-  setObd: (mode: ObdMode) => void; unsub: () => void; real: boolean; /** A desk session for the Workshop chat: not a ride */ desk: boolean; unmountSim: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock; remember: () => void; memTimer: number; logSensors: () => void; sensorTimer: number; paintTimer: number; routeWxTimer: number;
+  s: RideSession; agg: StateAggregator; engine: TriggerEngine; queue: AudioQueue; say: RideSession['say'];
+  setObd: (mode: ObdMode) => void; real: boolean; /** A desk session for the Workshop chat: not a ride */ desk: boolean; unmountSim: () => void; buttons: HeadsetButtons; releaseMic: () => void; wake: WakeLock;
 }
 let rig: Rig | null = null;
-interface LogLine { id: string; at: number; rideId: number; head: string; text: string; item: QueueItem | null }
-/** What the screen shows: the current ride, newest first. */
-const lines: LogLine[] = [];
-/** Lines from this page session whose saved copy may be out of date (new, or still waiting to be spoken). */
-let unsaved: LogLine[] = [];
-let currentRideId = 0;
-let lineSeq = 0;
-const newLine = (head: string, text: string): LogLine => {
-  const at = Date.now();
-  const line: LogLine = { id: `${at}-${++lineSeq}`, at, rideId: currentRideId || at, head, text, item: null };
-  lines.unshift(line);
-  unsaved.push(line);
-  saveLogSoon();
-  return line;
-};
-const FATE_LABELS: Record<Fate, string> = {
-  queued: 'waiting to speak', speaking: 'speaking now', spoken: 'spoken', expired: 'not spoken: waited too long',
-  interrupted: 'cut off by a critical alert', cleared: 'cleared',
-};
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const renderLog = () => {
-  logEl.innerHTML = lines.slice(0, 10)
+  logEl.innerHTML = logger.lines.slice(0, 10)
     .map((l) => `<div>${esc(l.head)}: ${esc(l.text)}${l.item ? ` <span class="fate">[${FATE_LABELS[l.item.fate]}]</span>` : ''}</div>`).join('');
 };
-const toEntry = (l: LogLine): LogEntry => ({
-  id: l.id, at: l.at, rideId: l.rideId, head: l.head, text: l.text, fate: l.item ? FATE_LABELS[l.item.fate] : '',
-});
-const SETTLED: Fate[] = ['spoken', 'expired', 'interrupted', 'cleared'];
-/** Write the log to the phone. Lines still waiting or playing stay on the list so their final fate gets saved too. */
-const saveLog = () => {
-  LineLogStore.save(unsaved.map(toEntry));
-  unsaved = unsaved.filter((l) => l.item && !SETTLED.includes(l.item.fate));
-};
-let saveTimer: number | undefined;
-const saveLogSoon = () => { if (saveTimer === undefined) saveTimer = window.setTimeout(() => { saveTimer = undefined; saveLog(); }, 2000); };
+/** Everything she said and every note, saved on the phone (app/LineLogger). */
+const logger = new LineLogger(() => renderLog());
+const newLine = (head: string, text: string) => logger.add(head, text);
+const saveLog = () => logger.save();
 // A phone browser can drop the tab without warning; save whenever the page is hidden.
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveLog(); });
 window.addEventListener('pagehide', saveLog);
@@ -186,7 +144,7 @@ const toChat = (e: ChatEntry) => chatListeners.forEach((f) => f(e));
 mountLogPanel($('logpanel'), {
   entries: () => { saveLog(); return LineLogStore.load(); },
   rides: () => RideLog.load(),
-  clear: () => { unsaved = []; LineLogStore.clear(); },
+  clear: () => { logger.forgetUnsaved(); LineLogStore.clear(); },
 });
 const memoryCtx = {
   load: () => RiderMemoryStore.load(),
@@ -347,7 +305,7 @@ const journeys = mountJourneysScreen(document, shell, {
   deleteRide: (rideId) => {
     if (rig && !rig.desk && rig.engine.rideSnapshot().startedAt === rideId) return false;
     saveLog();
-    unsaved = unsaved.filter((l) => l.rideId !== rideId); // or the next save would put its lines back
+    logger.forgetRide(rideId); // or the next save would put its lines back
     RideLog.remove(rideId); LineLogStore.removeRide(rideId); TrackStore.remove(rideId); RoadStore.remove(rideId);
     JourneyStore.forget(rideId); cardExtras.forget(rideId);
     return true;
@@ -379,8 +337,7 @@ let talkNow: (() => void) | null = null;
 const lockScreen = mountLockScreen($('lockroot'), 1000, () => talkNow?.());
 $('lock').addEventListener('click', () => lockScreen.lock());
 document.querySelectorAll('[data-lock]').forEach((b) => b.addEventListener('click', () => { shell.closeSheet(); lockScreen.lock(); }));
-let lastLine = '';
-const showLocked = (speed: number) => lockScreen.setInfo(String(speed), voiceTags(lastLine, false));
+const showLocked = (speed: number) => lockScreen.setInfo(String(speed), voiceTags(rig?.s.lastLine ?? '', false));
 
 // What Betty calls the rider. Applies from the next line she speaks.
 const nameInput = $<HTMLInputElement>('ridername');
@@ -403,12 +360,15 @@ const fuelText = () => {
   const f = fuelLeft(since, CONFIG.fuel);
   return f.onReserve ? `On reserve: about ${f.kmToEmpty} km to empty` : `${f.kmToReserve} km to reserve · ${f.litres} L left`;
 };
-document.querySelectorAll('[data-filled]').forEach((b) => b.addEventListener('click', () => {
-  rig?.engine.filledUp();
-  FuelStore.save(0);
+/** After a fill-up (the button, Horizon, or said in passing during a ride): what the screens show. */
+const afterFill = () => {
   showRange(0);
   for (const id of ['readyfuel', 'garagefuel']) { const out = document.getElementById(id); if (out) out.textContent = fuelText(); }
   setStatus(`Fill-up noted. Range reset to ${Math.round(kmToReserve(CONFIG.fuel))} km.`);
+};
+document.querySelectorAll('[data-filled]').forEach((b) => b.addEventListener('click', () => {
+  if (rig) rig.s.filledUp(); // tells afterFill
+  else { FuelStore.save(0); afterFill(); }
 }));
 
 const bikeInput = $<HTMLInputElement>('bikename');
@@ -670,11 +630,6 @@ function paintBrand() {
 
 // ---- the rider screens
 const VOICE_MODES: Record<CloudVoiceMode, string> = { stream: 'Gemini', mixed: 'Gemini + Chirp', chirp: 'Chirp', gemini: 'Gemini', off: 'Phone voice' };
-/** The island's maintenance cue: overdue, or due within 500 km or a week. */
-const islandService = (book: ServiceBook | null) => {
-  const d = book ? islandReminder(book, Date.now()) : null;
-  return d ? { name: d.r.name, text: dueText(d), due: d.state === 'due', kmLeft: d.kmLeft, key: d.r.id } : null;
-};
 const readiness = (): ReadyRow[] => {
   const real = realBox.checked;
   const nav = window.navigator;
@@ -758,37 +713,9 @@ const workshopChat = mountChatPanel($('chat'), {
     : rig ? { text: rig.real ? 'Talking to the ride in progress.' : 'Talking to the desk test in progress.' }
       : { text: 'No ride running: sending a message starts a desk chat session.', action: { label: 'Start desk chat', run: () => void start({ desk: true }) } },
 });
-/** The road ridden so far (for the map, and kept with the ride afterwards). */
-let rideTrack: TrackPoint[] = [];
 /** Marked spots, for the map (re-read when memory changes, not every second). */
 let markPins = RiderMemoryStore.load().marks;
 window.addEventListener('betty-memory', () => { markPins = RiderMemoryStore.load().marks; });
-/** What she is saying now, and the last line she finished (for the ride screen). */
-let speakingNow: SaidLine | null = null;
-/** Traffic he dismissed from Horizon (read once, updated when he dismisses one) */
-let dismissedKeys = HorizonDismissed.load();
-let lastSaid: SaidLine | null = null;
-let talkState: 'off' | 'listening' | 'thinking' = 'off';
-/** Horizon's cards as last painted, for "anything ahead?" */
-let horizonNow: Glance[] = [];
-/** Her turn has started but her voice may not be audible yet (a cloud clip can take seconds): the ride screen shows
- *  the line from `onHeard`, or after 6 s regardless so a speaker that never reports cannot hide it. */
-let heardTimer: ReturnType<typeof setTimeout> | undefined;
-const onHeard = (item: QueueItem) => {
-  clearTimeout(heardTimer);
-  if (item.fate !== 'speaking') return;
-  speakingNow = { text: item.text, tag: item.tag, priority: item.priority, at: Date.now() };
-  paintRide();
-};
-const onFate = (item: QueueItem, fate: Fate) => {
-  const said: SaidLine = { text: item.text, tag: item.tag, priority: item.priority, at: Date.now() };
-  if (fate === 'speaking') { clearTimeout(heardTimer); heardTimer = setTimeout(() => onHeard(item), 6000); }
-  else {
-    if (speakingNow && speakingNow.text === item.text) speakingNow = null;
-    if (fate === 'spoken') { lastSaid = said; clearTimeout(heardTimer); }
-  }
-  paintRide();
-};
 /** The ride-in-progress bar and the Ride tab's live dot: on while a real ride runs (not during the sign-off). */
 let rideBarText = '';
 function paintRideBar() {
@@ -808,25 +735,11 @@ function paintRide() {
   if (!r) return;
   paintRideBar(); // only once a ride exists: at load, `endNow` and `riding` further down are not set up yet
   const s = r.agg.current;
-  const told = new Set(r.engine.toldNoteIds());
-  const quietMin = r.engine.quietLeftMin();
-  const snap = r.engine.rideSnapshot();
-  const routeNow = r.engine.routeNow();
-  const input: RideInput = {
-    now: Date.now(), state: s, speaking: speakingNow, lastSaid, talk: talkState, quietMin, ending: endNow !== null,
-    distanceKm: snap.distanceKm, minutesOut: CONFIG.ridingTimeOnly ? snap.movingMin : snap.minutesOut, fuelKmLeft: s.obd ? null : r.engine.fuelKmLeft(), fuelWarnKm: CONFIG.fuel.warnKmLeft,
-    rainChancePct: CONFIG.thresholds.rainChancePct, trafficRadiusKm: CONFIG.thresholds.trafficRadiusKm,
-    untoldStories: s.areaNotes.filter((n) => !told.has(n.id)).length, showGlance: CONFIG.showGlance,
-    route: routeNow?.progress ? { name: routeNow.route.name, leftKm: routeNow.progress.leftKm, leftMin: routeNow.progress.leftMin, next: routeNow.progress.next, offKm: routeNow.progress.offKm, doneKm: routeNow.progress.doneKm, detour: r.engine.onDetour() } : null,
-    fuelRangeKm: Math.round(kmToReserve(CONFIG.fuel)),
-    service: islandService(r.engine.serviceBook()),
-    dismissed: dismissedKeys,
-  };
+  const input = r.s.rideInput();
   const view = rideView(input);
-  // Read out and on the lock screens even with the card hidden (a phone in the pocket).
-  horizonNow = glanceCues(input);
   // Horizon's top card on Betty's Lock screen and the phone's (Now Playing), unless switched off in Garage.
-  const top = CONFIG.island.lockLine ? horizonLine(horizonNow) : '';
+  // Read out and on the lock screens even with the card hidden (a phone in the pocket).
+  const top = CONFIG.island.lockLine ? horizonLine(glanceCues(input)) : '';
   lockScreen.setHorizon(top);
   r.buttons.setNowPlaying(top);
   const minLabel = document.getElementById('rideminlabel');
@@ -835,22 +748,48 @@ function paintRide() {
   const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : r.real ? null : CONFIG.feeds.fallbackLocation;
   const voiceName = libraryVoice(CONFIG.cloudVoiceName)?.name ?? CONFIG.cloudVoiceName;
   const where = [s.area?.suburb, s.area?.town].filter(Boolean).join(', ');
+  const routeNow = r.engine.routeNow();
   rideScreen.paint(view, {
     status: moving, mode: r.real ? 'Live' : 'Desk test',
     line: [where || (r.real ? 'Free ride' : 'Desk test, simulated'), s.weather ? `${Math.round(s.weather.tempC)}°, ${s.weather.summary}` : '',
       r.real && !wakeOk ? 'screen may sleep' : '', r.real && !here ? 'waiting for GPS' : '', voiceName].filter(Boolean).join(' · '),
-    quiet: quietMin > 0, listening: talkState === 'listening',
+    quiet: input.quietMin > 0, listening: r.s.talk === 'listening',
   }, {
-    center: here, here, headingDeg: travelDirection(s), track: rideTrack,
+    center: here, here, headingDeg: travelDirection(s), track: r.s.track,
     places: s.nearbyPlaces.map((p) => ({ lat: p.lat, lon: p.lon, label: p.name })),
     incidents: s.incidents.map((i) => ({ lat: i.lat, lon: i.lon, label: i.description })),
     marks: markPins,
     route: routeNow?.route.points, routeStops: routeNow?.route.stops.filter((x) => x.named).map((x) => ({ lat: x.lat, lon: x.lon, label: x.name })),
   });
-  chatScreen.setState(view.state, view.orb, talkState === 'listening');
+  chatScreen.setState(view.state, view.orb, r.s.talk === 'listening');
   paintBrand();
 }
 
+/** The dashboard numbers in the Workshop, on every update. */
+const paintDash = (s: BikeState, engine: TriggerEngine) => {
+  showLocked(s.speedKmh);
+  $('speed').textContent = String(s.speedKmh);
+  $('lean').textContent = s.leanDeg.toFixed(0);
+  $('rpm').textContent = s.obd ? String(s.rpm) : '-';
+  $('temp').textContent = s.obd ? String(s.engineTempC) : '-';
+  $('fuel').textContent = s.obd ? String(Math.round(s.fuelPct)) : '-';
+  $('rain').textContent = s.weather ? String(s.weather.rainChanceNextHourPct) : '-';
+  $('alt').textContent = s.altitudeM == null ? '-' : String(s.altitudeM);
+  const dir = travelDirection(s);
+  $('dir').textContent = dir == null ? '-' : compassPoint(dir).split('-').map((w) => w[0].toUpperCase()).join('');
+  $('dirsrc').textContent = dir == null ? ' ' : s.headingDeg != null && s.speedKmh >= 10 ? 'GPS course' : 'compass';
+  $('jolts').textContent = String(engine.rideSnapshot().jolts);
+  showRange(engine.kmSinceFill());
+  // Where he is and how many area stories she has (or what the area feed is doing: researching, an error).
+  const told = new Set(engine.toldNoteIds());
+  const areaNames = [s.area?.town, s.area?.suburb].filter(Boolean).join(', ');
+  const areaLine = s.areaNotes.length
+    ? `Area: ${areaNames}, ${s.areaNotes.filter((n) => !told.has(n.id)).length} of ${s.areaNotes.length} stories untold`
+    : `Area stories: ${rig?.s.feeds.areas ?? 'idle'}`;
+  $('feeds').textContent = s.weather
+    ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby | ${areaLine}`
+    : feedStatus();
+};
 
 let starting = false;
 async function start(opts: { desk?: boolean } = {}) {
@@ -863,8 +802,9 @@ async function start(opts: { desk?: boolean } = {}) {
 }
 
 /**
- * Build the ride. A desk session (the Workshop chat with no ride running) is the same rig, simulated, without the
- * briefing, the screen lock or the ride screen, and is never saved as a ride.
+ * Build the ride: the shared RideSession (app/RideSession.ts) with the browser's sensors, voice, mock OBD, headset
+ * buttons and push-to-talk around it. A desk session (the Workshop chat with no ride running) is the same rig,
+ * simulated, without the briefing, the screen lock or the ride screen, and is never saved as a ride.
  */
 async function beginRide(desk: boolean) {
   // Must run synchronously inside the tap (iOS speech, sound and motion permission rules).
@@ -878,398 +818,79 @@ async function beginRide(desk: boolean) {
   const real = !desk && realBox.checked;
   const motionOk = real ? await WebMotionSource.requestPermission() : false;
 
-  const agg = new StateAggregator();
-  rideTrack = [];
   const motion = new WebMotionSource();
   const obd = new MockObdSource();
-  const pos = (): LatLon => {
-    const s = agg.current;
-    return s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : CONFIG.feeds.fallbackLocation;
-  };
-  const weather = new WeatherSource(pos, (m) => { feed.weather = m; });
   const key = ENV.VITE_TOMTOM_API_KEY as string | undefined;
   const provider = key ? new TomTomTrafficProvider(key) : SERVER ? new TomTomTrafficProvider(null) : null;
-  // Live traffic only on a real ride (not desk or simulated sessions), every 5 minutes, and not while parked.
-  const traffic = new TrafficSource(real ? provider : null, pos, (m) => { feed.traffic = m; }, () => agg.current.speedKmh >= 5);
+  const sensors = real ? [new WebGeoSource((m) => setStatus(m, true)), ...(motionOk ? [motion] : [])] : [];
+  if (real && !motionOk) setStatus('Motion sensors unavailable: no jolt count or compass. GPS still gives speed, lean and heading.', true);
 
-  const places = new PlaceSource(pos, (m) => { feed.places = m; });
-
-  if (real) {
-    agg.addSource(new WebGeoSource((m) => setStatus(m, true)));
-    if (motionOk) agg.addSource(motion); else setStatus('Motion sensors unavailable: no jolt count or compass. GPS still gives speed, lean and heading.', true);
-  }
-  agg.addSource(weather);
-  agg.addSource(traffic);
-  agg.addSource(places);
-
-  // The OBD feed is started and stopped by the mode switch, so it is not one of the aggregator's own sources.
-  const setObd = (mode: ObdMode) => {
-    obd.stop();
-    if (mode === 'mock') { obd.reset(); obd.start((p) => agg.push(p)); } else agg.push(NO_OBD);
-  };
-
-  const engine = new TriggerEngine();
-  engine.setHistory(RideLog.load());
-  if (!desk && real) engine.setRecords(liveRecords(RideLog.load())); // "your longest ride yet", "1,000 km together"
-  engine.setKnownIncidents([...IncidentMemory.load(), ...HorizonDismissed.load()]);
-  currentRideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
-  engine.setFuelKm(FuelStore.load());
-  engine.setMemory(RiderMemoryStore.load());
-  engine.setToldNotes(ToldStore.load());
-  engine.setRoute(RouteStore.get()); // the route he planned, if any
-  // The weather where he will be along the route, at the time he gets there: now, then every 30 minutes; and stories
-  // for the towns on it researched before he arrives (if they were not when he planned it).
-  const routeWx = async () => {
-    const now = engine.routeNow();
-    if (!now || desk) return;
-    const l = await fetchRouteWeather(checkpoints(now.route, now.progress));
-    if (l && rig?.engine === engine) { engine.setRouteWeather(l); newLine('[route]', `weather ahead: ${l.map((w) => `${w.name} ${w.rainPct}%`).join(', ') || 'nothing ahead'}`); renderLog(); }
-  };
-  void routeWx();
-  const routeWxTimer = window.setInterval(() => void routeWx(), 30 * 60_000);
-  if (SERVER && !desk) { const r0 = engine.routeNow()?.route; if (r0) void researchAhead(r0.stops.filter((s, i) => s.named && i > 0), (msg) => { newLine('[areas]', msg); renderLog(); }); }
-  // Where he has ridden before: new roads, familiar ones (real rides only). Saved each minute and at the end.
-  const roadMem = !desk && real ? new RoadMemory(RoadCells.load(() => {
-    const detailed = TrackStore.all(), rough = RoadStore.all(); // the detailed road where kept, the rough copy for older rides
-    return [...Object.values(detailed), ...Object.entries(rough).filter(([id]) => !detailed[id]).map(([, t]) => t)];
-  })) : null;
-  engine.setRoadMemory(roadMem);
-  engine.setRoughSpots(roughSpots(RideLog.load())); // bumps and hard brakes that keep happening in the same place
-  // "What did we talk about on Saturday?": the saved log of the ride his words point at.
-  engine.setPastRecall((said) => { saveLog(); return pastRecall(RideLog.load(), LineLogStore.load(), said, Date.now()); });
-  engine.setServiceBook(ServiceStore.load()); // what is due (the briefing, answers and sign-off mention it)
-  engine.setProfile(CONFIG.useProfile ? ProfileStore.get() : null); // what he chose to share, used lightly
-  // History and culture of the area (researched on Betty's server, so only when deployed with it).
-  // Each change of what the area feed is doing goes in the saved log too ("researching Germiston", "ok, ...").
-  if (SERVER) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { if (m !== feed.areas) { newLine('[areas]', m); renderLog(); } feed.areas = m; }));
-  // Saved as the ride goes, not only at END RIDE: a phone browser can kill the tab without warning.
-  let odoSaved = 0;
-  const remember = () => {
-    const w = agg.current.weather;
-    const rec = desk ? null : toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null, CONFIG.fuel);
-    if (rec) RideLog.save(rec);
-    FuelStore.save(engine.kmSinceFill());
-    // Betty's odometer (service reminders): only real rides count, as a delta so an odometer set mid-ride is kept.
-    if (!desk && real) { const km = engine.rideSnapshot().distanceKm; ServiceStore.addKm(km - odoSaved); odoSaved = km; engine.setServiceBook(ServiceStore.load()); }
-    IncidentMemory.save(engine.announcedIncidents());
-    if (roadMem?.cellsThisRide) RoadCells.save(roadMem.merged());
-    TrackStore.save(engine.rideSnapshot().startedAt, rideTrack);
-    if (!desk) RoadStore.save(engine.rideSnapshot().startedAt, rideTrack);
-    ToldStore.save(engine.toldNoteIds());
-  };
-  const memTimer = window.setInterval(remember, 60_000);
-  // What the sensors actually delivered, written into the log now and then and at END RIDE.
-  const logSensors = () => {
-    const s = agg.current; const r = engine.rideSnapshot();
-    newLine('[sensors]', `${real ? (motionOk ? motion.diagnostics() : 'motion sensor: permission not granted') : 'simulated session'}; `
-      + `GPS altitude ${s.altitudeM ?? 'none'}, course ${s.headingDeg == null ? 'none' : Math.round(s.headingDeg) + ' deg'}; `
-      + `ride so far: deepest lean ${r.maxLeanDeg} deg, ${r.stops} stops, ${r.hardBrakes} hard brakes, ${r.hardAccels} hard pulls, ${r.jolts} jolts`);
-    renderLog();
-  };
-  const sensorTimer = window.setInterval(logSensors, 15 * 60_000);
-  const paintTimer = window.setInterval(paintRide, 5000); // lets a finished line settle back to idle
-  const claude = new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined);
-  claude.useBank(LineBankStore); // her own alert lines when Claude cannot be asked (no signal, or a P1 alert)
   // The cloud voice plays on the headset buttons' own track while they are Betty's (another sound source could take
   // the buttons away), otherwise on its own element. The phone voice is its backup for every line.
   const cloud = new CloudSpeaker(new WebSpeaker(speechProblem), () => (buttons.holding ? buttons : player), speechProblem, undefined, undefined, undefined, pcm, undefined, clipStore);
   // Her stock phrases in her Gemini voice, ready before they are needed (from the phone after the first ride).
   if (CONFIG.cloudVoice !== 'off' && CONFIG.cloudVoice !== 'chirp') for (const l of STOCK_LINES) cloud.prefetch(l, { priority: 4, id: 'voice' });
   const speaker = new SwitchableSpeaker(cloud);
-  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => { onFate(item, fate); renderLog(); saveLogSoon(); }, onHeard);
 
-  /**
-   * `now`: cut off whatever she is saying (AudioQueue.interrupt; never a P1), e.g. the sign-off. His questions are
-   * streamed: the answer's first sentence is queued the moment it is written (`onFirst` is told, to cancel "Hang on"),
-   * and only the rest once the answer is complete.
-   */
-  const say = async (ev: TriggerEvent, now = false, onFirst?: () => void) => {
-    const tag = { priority: ev.priority, id: ev.id };
-    let earlyItem: QueueItem | null = null;
-    const early = ev.riderSaid ? (sentence: string) => {
-      onFirst?.();
-      if (speaker.aloud) cloud.prefetch(sentence, tag);
-      earlyItem = now ? queue.interrupt(sentence, ev.priority, ev.id) : queue.enqueue(sentence, ev.priority, ev.id);
-      lastLine = sentence; showLocked(agg.current.speedKmh);
-    } : undefined;
-    const p = await claude.phrase(ev, agg.current, { early });
-    // Her own lines (Gemini, 5 to 7 s) are queued only once their audio is in, so they never block an answer.
-    if (p.text && speaker.aloud && ev.priority === 3) await cloud.ready(p.text, tag);
-    // Safety stays serious: an ambient line that comes back while a critical condition is active is dropped. So is
-    // one that arrives after he asked for quiet.
-    const critical = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
-    const hushed = ev.priority === 3 && engine.quietLeftMin() > 0;
-    const text = critical || hushed ? '' : p.text;
-    const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
-    const line = newLine(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : '(silent)'));
-    // What is still to be said: all of it, or what follows the first sentence that already went ahead.
-    const toSay = p.early && earlyItem ? restAfter(text, p.early) : text;
-    if (toSay && speaker.aloud) cloud.prefetch(toSay, tag); // fetch the audio while it waits its turn
-    // The item carries its fate: waiting, speaking, spoken, or why not (the first sentence's, when that is all there is).
-    const rest = !toSay ? null : now && !earlyItem ? queue.interrupt(toSay, ev.priority, ev.id) : queue.enqueue(toSay, ev.priority, ev.id);
-    line.item = rest ?? earlyItem;
-    toChat({ from: 'betty', text: line.text, at: Date.now(), ev, phrase: p });
-    renderLog();
-    if (text) { lastLine = text; showLocked(agg.current.speedKmh); }
-    return line.item;
-  };
-
-  const stations = new StationSource();
-  const unsub = agg.subscribe((s) => {
-    if (s.lat != null && s.lon != null) addTrackPoint(rideTrack, { lat: s.lat, lon: s.lon });
-    $('speed').textContent = String(s.speedKmh);
-    showLocked(s.speedKmh);
-    $('lean').textContent = s.leanDeg.toFixed(0);
-    $('rpm').textContent = s.obd ? String(s.rpm) : '-';
-    $('temp').textContent = s.obd ? String(s.engineTempC) : '-';
-    $('fuel').textContent = s.obd ? String(Math.round(s.fuelPct)) : '-';
-    $('rain').textContent = s.weather ? String(s.weather.rainChanceNextHourPct) : '-';
-    $('alt').textContent = s.altitudeM == null ? '-' : String(s.altitudeM);
-    const dir = travelDirection(s);
-    $('dir').textContent = dir == null ? '-' : compassPoint(dir).split('-').map((w) => w[0].toUpperCase()).join('');
-    $('dirsrc').textContent = dir == null ? '\u00a0' : s.headingDeg != null && s.speedKmh >= 10 ? 'GPS course' : 'compass';
-    $('jolts').textContent = String(engine.rideSnapshot().jolts);
-    showRange(engine.kmSinceFill());
-    // Where he is and how many area stories she has (or what the area feed is doing: researching, an error).
-    const told = new Set(engine.toldNoteIds());
-    const areaNames = [s.area?.town, s.area?.suburb].filter(Boolean).join(', ');
-    const areaLine = s.areaNotes.length
-      ? `Area: ${areaNames}, ${s.areaNotes.filter((n) => !told.has(n.id)).length} of ${s.areaNotes.length} stories untold`
-      : `Area stories: ${feed.areas}`;
-    $('feeds').textContent = s.weather
-      ? `${s.weather.summary}, ${s.weather.tempC}°C, wind ${s.weather.windKmh} km/h | ${s.incidents.length} traffic incident(s) nearby | ${areaLine}`
-      : feedStatus();
-    // Petrol stations ahead once the fuel is getting low (within 40 km of the warning), for her warning and answers.
-    const toReserve = s.obd ? null : engine.fuelKmLeft();
-    if (SERVER && !desk && toReserve !== null && toReserve <= CONFIG.fuel.warnKmLeft + 40 && s.lat != null && s.lon != null) {
-      void stations.near(s.lat, s.lon).then((l) => engine.setStations(l));
-    }
-    engine.evaluate(s).forEach((ev) => void say(ev));
-    queue.pump();
-    paintRide();
+  const s: RideSession = new RideSession({
+    real, desk, server: SERVER, logger,
+    claude: new ClaudeClient(ENV.VITE_ANTHROPIC_API_KEY || undefined, 2500, 6000, SERVER ? '/api/phrase' : undefined),
+    voice: { speaker, aloud: () => speaker.aloud, prefetch: (t, tag) => cloud.prefetch(t, tag), ready: (t, tag) => cloud.ready(t, tag) },
+    sensors, traffic: provider,
+    sensorNote: () => (motionOk ? motion.diagnostics() : 'motion sensor: permission not granted'),
+    // The OBD feed is started and stopped by the mode switch, so it is not one of the aggregator's own sources.
+    setObd: (mode, push) => { obd.stop(); if (mode === 'mock') { obd.reset(); obd.start(push); } else push(NO_OBD); },
+    events: {
+      changed: () => paintRide(),
+      state: (st) => paintDash(st, s.engine),
+      chat: toChat,
+      lastLine: () => showLocked(s.agg.current.speedKmh),
+      fuelChanged: afterFill,
+      memoryChanged: () => window.dispatchEvent(new window.Event('betty-memory')),
+      configChanged: () => window.dispatchEvent(new window.Event('betty-config')),
+      endRequested: () => void stop(),
+      toast: (m) => shell.toast(m),
+    },
   });
+  const { agg, engine, queue } = s;
 
   const unmountSim = mountSimPanel($('sim'), {
-    agg, engine, queue, say,
+    agg, engine, queue, say: s.say,
     aloud: speaker.aloud,
     setAloud: (on) => { speaker.aloud = on; },
-    refreshFeeds: () => { weather.refresh(); traffic.refresh(); places.refresh(); },
-    resetRide: () => {
-      engine.reset(); claude.forgetTalk(); obd.reset(); queue.clear(); lines.length = 0; renderLog();
-      currentRideId = engine.rideSnapshot().startedAt; // the screen starts clean; the saved log keeps the earlier lines
-    },
+    refreshFeeds: () => s.refreshFeeds(),
+    resetRide: () => { s.reset(); obd.reset(); },
     feedStatus,
     lastPhrase: () => {
-      const p = claude.last;
+      const p = s.claude.last;
       return p ? `${p.source}${p.detail ? ' (' + p.detail + ')' : ''}, ${p.latencyMs} ms` : 'none yet';
     },
   });
 
   const wake = new WakeLock(showWake);
   if (!desk) await wake.enable();
-  await agg.start();
-  setObd(CONFIG.obdMode);
-  // The pre-ride briefing: wait (briefly) for the weather and a GPS fix, so she has something to tell him.
-  void (async () => {
-    const until = Date.now() + CONFIG.feeds.briefingWaitMs;
-    const readyToBrief = () => agg.current.weather !== null && (!real || agg.current.lat != null);
-    await new Promise((r) => setTimeout(r, 0)); // let the ride finish setting up first
-    while (Date.now() < until && !readyToBrief()) await new Promise((r) => setTimeout(r, 250));
-    if (rig?.engine === engine && !desk) say(engine.startup(agg.current)); // not if the ride ended while waiting
-  })();
   /** Tones go through the headset buttons' own track when it is running, so they do not steal the buttons. */
   const tone = (freq: number) => { if (!buttons.tone(freq)) beep(freq); };
-  /** `now`: cut off whatever she is saying and say this at once (going quiet, coming back), never over a P1. */
-  const sayNow = (text: string, now = false) => {
-    if (speaker.aloud) cloud.prefetch(text, { priority: 4, id: 'voice' });
-    newLine('[P4] voice', text).item = now ? queue.interrupt(text, 4, 'voice') : queue.enqueue(text, 4, 'voice'); renderLog();
-  };
-  /** Her reply to a command: instant, from the phone, no Claude call (so it also works without signal). */
-  const reply = (text: string, command: string, now = false) => { sayNow(text, now); toChat({ from: 'betty', text, at: Date.now(), command }); };
-  const remembered = (m: ReturnType<typeof RiderMemoryStore.load>) => { RiderMemoryStore.save(m); engine.setMemory(m); window.dispatchEvent(new window.Event('betty-memory')); };
-  const howLong = (min: number) => min === 60 ? 'an hour' : min === 30 ? 'half an hour' : min % 60 === 0 ? `${min / 60} hours` : `${min} minute${min === 1 ? '' : 's'}`;
-  /** Voice stage 3: things he tells her to do rather than asks. */
-  const obey = (c: Command) => {
-    newLine('[command]', c.kind === 'preset' ? `preset ${c.preset}` : c.kind === 'mix' ? `${c.what} ${c.step > 0 ? 'up' : 'down'}` : c.kind === 'humour' || c.kind === 'persona' ? `${c.kind} ${c.set !== undefined ? `set ${c.set}` : `step ${c.step}`}` : c.kind === 'quiet' ? `quiet ${c.minutes === null ? 'until told' : `for ${c.minutes} min`}` : c.kind === 'mark' ? `mark${c.note ? `: ${c.note}` : ''}` : c.kind === 'remember' ? `remember: ${c.fact}` : c.kind);
-    switch (c.kind) {
-      case 'repeat': reply(lastLine || "I haven't said anything yet.", 'repeat', true); return;
-      case 'quiet':
-        engine.setQuiet(c.minutes === null ? Infinity : Date.now() + c.minutes * 60_000);
-        queue.dropAmbient();
-        reply(c.minutes === null
-          ? "Going quiet. Say talk to me when you want me back. Alerts still come through."
-          : `Quiet for ${howLong(c.minutes)}. Alerts still come through.`, 'quiet', true);
-        return;
-      case 'talk':
-        if (engine.quietLeftMin() > 0) { engine.setQuiet(0); reply("I'm back.", 'talk again', true); } else reply('I never left.', 'talk again', true);
-        return;
-      case 'mark': {
-        const s = agg.current;
-        if (s.lat == null || s.lon == null) { reply("I've got no GPS fix, so I can't mark this spot.", 'mark'); return; }
-        const near = placesFromHere(s).filter((p) => p.distanceKm <= 3).sort((a, b) => a.distanceKm - b.distanceKm)[0]?.name ?? null;
-        remembered(addMark(RiderMemoryStore.load(), { at: Date.now(), lat: s.lat, lon: s.lon, note: c.note, near }));
-        reply(`Marked${near ? `, near ${near}` : ''}.`, 'mark');
-        return;
-      }
-      case 'remember':
-        remembered(addNote(RiderMemoryStore.load(), c.fact, Date.now()));
-        reply("Noted. I'll remember that.", 'remember');
-        return;
-      case 'humour': case 'persona': {
-        const pz = CONFIG.persona;
-        const field = c.kind === 'humour' ? 'humour' : 'tars';
-        pz[field] = Math.min(100, Math.max(0, c.set ?? pz[field] + (c.step ?? 0)));
-        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-        reply(c.kind === 'humour'
-          ? pz.humour === 0 ? 'Humour at zero. Facts only.' : pz.humour === 100 ? 'Humour at a hundred percent. You asked for it.' : `Humour at ${pz.humour} percent.`
-          : `${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS.`, c.kind);
-        return;
-      }
-      case 'settings': {
-        const pz = CONFIG.persona;
-        const quiet = engine.quietLeftMin();
-        reply(`Humour ${pz.humour} percent. ${100 - pz.tars} percent JARVIS, ${pz.tars} TARS. ${mixSummary()}`
-          + (quiet === Infinity ? ' Quiet until you say otherwise.' : quiet > 0 ? ` Quiet for another ${quiet} minutes.` : ''), 'settings');
-        return;
-      }
-      case 'preset': case 'mix': {
-        // The Settings screen's "How often should I talk?" by voice, and nudges to the mix (owner, 2026-10-17).
-        if (c.kind === 'preset') applyTalkPreset(c.preset); else nudgeMix(c.what, c.step);
-        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-        const name = c.kind === 'preset' ? `${c.preset[0].toUpperCase()}${c.preset.slice(1)}. ` : '';
-        reply(`${name}${mixSummary()}`, c.kind);
-        return;
-      }
-      case 'fuelset': {
-        if (c.what === 'consumption') CONFIG.fuel.lPer100 = c.value;
-        else { CONFIG.fuel.pricePerL = c.value; CONFIG.fuel.priceSource = 'manual'; CONFIG.fuel.priceAt = Date.now(); }
-        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-        reply(c.what === 'consumption'
-          ? `${c.value} litres per hundred. That's about ${Math.round(kmToReserve(CONFIG.fuel))} kilometres to reserve on a full tank.`
-          : `Petrol at R${c.value.toFixed(2)} a litre. Noted.`, 'fuelset');
-        return;
-      }
-      case 'done': {
-        const book = ServiceStore.load();
-        const r = findReminder(book.items, c.what);
-        if (!r) { reply("I don't have a reminder for that. They're in the Garage.", 'done'); return; }
-        const next = markDone(book, r.id, Date.now());
-        ServiceStore.save(next);
-        engine.setServiceBook(next);
-        const d = dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now());
-        reply(`${r.name}: done. Next one ${dueText(d)}.`, 'done');
-        return;
-      }
-      case 'undone': {
-        const book = ServiceStore.load();
-        const r = findReminder(book.items, c.what);
-        if (!r || !canUndo(r)) { reply(r ? `${r.name} wasn't marked done, so there's nothing to take back.` : "I don't have a reminder for that.", 'undone'); return; }
-        const next = undoDone(book, r.id);
-        ServiceStore.save(next);
-        engine.setServiceBook(next);
-        reply(`${r.name}: not done after all. Back to ${dueText(dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now()))}.`, 'undone');
-        return;
-      }
-      case 'volume': {
-        const was = CONFIG.voiceBoostDb;
-        const db = nudgeVoice(c);
-        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-        const phone = CONFIG.cloudVoice === 'off' ? ' The phone voice cannot go louder, though.' : '';
-        reply(db === was ? (db >= 16 ? "That's as loud as I go." : "That's as soft as I go.")
-          : db === 0 ? 'Back to my plain level.' : `${db > was ? 'Louder' : 'Softer'}: plus ${db} decibels. Better?${db > was ? phone : ''}`, 'volume');
-        return;
-      }
-      case 'length': {
-        const n = nudgeLength(c.step);
-        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-        reply(n === 1 ? 'One sentence at a time.' : `Up to ${n} sentences a line.`, 'length');
-        return;
-      }
-      case 'mixset': {
-        setMixShare(c.what, c.pct);
-        saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-        reply(mixSummary(), 'mixset');
-        return;
-      }
-      case 'mode': {
-        if (c.action === 'save' && c.name) {
-          CONFIG.modes = { ...CONFIG.modes, [c.name]: currentDials() };
-          saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-          reply(`Saved as ${c.name} mode. Say "switch to ${c.name} mode" to come back to it.`, 'mode');
-        } else if (c.action === 'use' && c.name) {
-          const m = CONFIG.modes[c.name];
-          if (!m) { reply(`I don't have a ${c.name} mode. Set me up how you like, then say "save this as ${c.name} mode".`, 'mode'); return; }
-          applyMode(m); saveConfig(); window.dispatchEvent(new window.Event('betty-config'));
-          reply(`${c.name[0].toUpperCase()}${c.name.slice(1)} mode. ${mixSummary()}`, 'mode');
-        } else {
-          const name = currentMode() ?? currentTalkPreset();
-          reply(name ? `${name[0].toUpperCase()}${name.slice(1)} mode. ${mixSummary()}` : `A custom mix. ${mixSummary()}`, 'mode');
-        }
-        return;
-      }
-      case 'ahead': {
-        reply(rig?.engine === engine ? horizonSpoken(horizonNow) : 'No ride running, so nothing on the horizon yet.', 'ahead');
-        return;
-      }
-      case 'end': {
-        if (rig?.engine !== engine || rig.desk) { reply('There is no ride to end.', 'end'); return; }
-        void stop(); // her sign-off follows, and the ride's story opens
-        return;
-      }
-      case 'forget': {
-        const { memory, gone } = forgetLast(RiderMemoryStore.load());
-        if (gone) remembered(memory);
-        reply(gone === 'note' ? 'Forgotten.' : gone === 'mark' ? "That spot's unmarked." : "There's nothing to forget.", 'forget');
-      }
-    }
-  };
-  /** Something he said to her, typed or spoken: one path for both. */
-  const askBetty = async (text: string) => {
-    toChat({ from: 'rider', text, at: Date.now() });
-    // Said in passing, anywhere in a sentence: "I was just filling up", "we're taking a bit of a detour".
-    const noted: string[] = [];
-    if (saysFilledUp(text)) {
-      (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click();
-      newLine('[heard]', `fill-up: range reset to ${Math.round(kmToReserve(CONFIG.fuel))} km`);
-      noted.push(`The phone has just recorded his fill-up from what he said: fuel range reset to about ${Math.round(kmToReserve(CONFIG.fuel))} km.`);
-    }
-    if (saysDetour(text) && engine.routeNow() && !engine.onDetour()) {
-      engine.setDetour(true);
-      newLine('[heard]', 'detour: no off-route lines until he is back on the route');
-      noted.push('He is taking a detour on purpose: you will not mention being off the route until he is back on it.');
-    }
-    let command = parseCommand(text);
-    // "Checked the weather?" is not maintenance: a "done" with no reminder of that name is a question for her.
-    if ((command?.kind === 'done' || command?.kind === 'undone') && !findReminder(ServiceStore.load().items, command.what)) command = null;
-    if (command) { obey(command); renderLog(); return null; }
-    // "Where can I fill up?": the stations near him, if they can be had in a couple of seconds.
-    const here = agg.current;
-    if (SERVER && !desk && /\b(fuel|petrol|gas|garage|station|fill up|filling|refuel|reserve|tank)\b/i.test(text) && here.lat != null && here.lon != null) {
-      engine.setStations(await within(stations.near(here.lat, here.lon), 2500, 'stations').catch(() => stations.list));
-    }
-    // A web search takes a few seconds: rather than silence, she says she is on it.
-    const slow = window.setTimeout(() => sayNow(HANG_ON), HANG_ON_AFTER_MS);
-    try { return await say(engine.ask(text, agg.current, noted), false, () => window.clearTimeout(slow)); } finally { window.clearTimeout(slow); }
-  };
 
   // ---- talking to her: headset play/pause (if switched on) or the lock screen's talk button
   const ptt = new PushToTalk(browserPttDeps(), () => ({ id: CONFIG.micDeviceId, label: CONFIG.micLabel, raw: CONFIG.micRaw }));
+  const setTalk = (t: RideSession['talk']) => { s.talk = t; paintRide(); };
   const talk = async () => {
     if (ptt.listening) { ptt.stop(); return; } // second press: done talking
     queue.hold(true); // she must not start a line over him
     lockScreen.setTalk(true, true);
-    talkState = 'listening'; paintRide();
+    setTalk('listening');
     tone(880);
-    newLine('[voice]', 'listening'); renderLog();
+    newLine('[voice]', 'listening');
     try {
       const clip = await ptt.record();
       if (clip.stalled) newLine('[voice]', 'the recorder did not stop cleanly; the mic will be reopened next time');
       buttons.resume(); // the mic stopped the loop: without it the next press never arrives
       tone(440);
       lockScreen.setTalk(true, false);
-      talkState = 'thinking'; paintRide();
+      setTalk('thinking');
       queue.hold(true, true); // he has finished: his answer (and "hang on") may go, banter still waits
-      if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); sayNow("I didn't hear anything. Try again?"); return; }
+      if (!clip.heardSpeech) { newLine('[voice]', `heard nothing (${clip.ms} ms from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`); s.sayNow("I didn't hear anything. Try again?"); return; }
       const t0 = Date.now();
       let text: string;
       try {
@@ -1278,62 +899,46 @@ async function beginRide(desk: boolean) {
         const why = (e as Error).message;
         newLine('[voice]', `could not turn speech into words: ${why}`);
         queue.hold(false);
-        sayNow(/not set up/.test(why) ? "Talking to me isn't set up yet." : "Sorry, I couldn't make that out. Try again?");
+        s.sayNow(/not set up/.test(why) ? "Talking to me isn't set up yet." : "Sorry, I couldn't make that out. Try again?");
         return;
       }
       newLine('[voice]', `heard "${text}" in ${Date.now() - t0} ms (${Math.round(clip.ms / 100) / 10} s from ${clip.mic}, loudest ${clip.peakDb ?? '?'} dB)`);
-      if (!text) { queue.hold(false); sayNow("Sorry, I didn't catch that."); return; }
-      await askBetty(text); // her answer is queued before anything she was holding back
+      if (!text) { queue.hold(false); s.sayNow("Sorry, I didn't catch that."); return; }
+      await s.ask(text); // her answer is queued before anything she was holding back
     } catch (e) {
       newLine('[voice]', `mic did not open: ${(e as Error).name}: ${(e as Error).message}`);
     } finally {
       buttons.resume();
       lockScreen.setTalk(true, false);
       queue.hold(false);
-      talkState = 'off'; paintRide();
-      renderLog();
+      setTalk('off');
     }
   };
   /** Next track: say the last line again, as it was. */
-  const repeat = () => { if (lastLine) sayNow(lastLine, true); };
+  const repeat = () => { s.repeat(); };
   talkNow = () => void talk();
   rideHooks = {
     talk: () => void talk(),
-    repeat: () => { if (lastLine) sayNow(lastLine, true); else shell.toast("She hasn't said anything yet."); },
-    ask: (text) => { void askBetty(text); },
-    toggleQuiet: () => { obey(engine.quietLeftMin() > 0 ? { kind: 'talk' } : { kind: 'quiet', minutes: null }); renderLog(); paintRide(); },
-    // Horizon: he dismissed a traffic card. Hidden for a week, and she will not announce or brief him on it.
-    dismiss: (key) => { HorizonDismissed.add(key); dismissedKeys = HorizonDismissed.load(); engine.knowIncident(key); paintRide(); shell.toast('Dismissed for a week.'); },
-    // The island's one button per card.
-    island: (kind, g) => {
-      if (kind === 'filled') { (document.querySelector('[data-filled]') as HTMLButtonElement | null)?.click(); shell.toast(`Fill-up noted: about ${Math.round(kmToReserve(CONFIG.fuel))} km of range.`); paintRide(); }
-      else if (kind === 'ask-rain') void askBetty('Is the rain going to last, and will it catch me on this ride?');
-      else if (kind === 'ask-traffic') void askBetty('Tell me about the traffic on my way.');
-      else if (kind === 'ask-place') void askBetty(`Tell me about ${g.value}.`);
-      else if (kind === 'story') {
-        const ev = engine.force('area_story', agg.current);
-        if (ev.context) void say(ev); else void askBetty('Tell me something about this area.');
-      } else if (kind === 'upahead') { fillUpAhead(); shell.openSheet('upahead'); }
-    },
+    repeat: () => { if (!s.repeat()) shell.toast("She hasn't said anything yet."); },
+    ask: (text) => { void s.ask(text); },
+    toggleQuiet: () => s.toggleQuiet(),
+    dismiss: (key) => { s.dismiss(key); shell.toast('Dismissed for a week.'); },
+    // The island's one button per card (Up ahead is a sheet of this page; the rest is the ride's).
+    island: (kind, g) => { if (!s.island(kind, g) && kind === 'upahead') { fillUpAhead(); shell.openSheet('upahead'); } },
   };
   /** The "Up ahead" sheet: the route's named stops still to come, how far and when he gets there. */
   const fillUpAhead = () => {
     const now = engine.routeNow();
     const list = document.getElementById('upaheadlist')!;
     if (!now) { list.innerHTML = '<p class="sub">No route planned. Plan one in How are we riding? on the Ride screen.</p>'; return; }
-    const { route, progress } = now;
-    const p = progress;
-    const at = (kmAhead: number) => (p && p.leftKm > 0 ? new Date(Date.now() + (p.leftMin * kmAhead / p.leftKm) * 60_000).toTimeString().slice(0, 5) : '');
-    const esc2 = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const { route, progress: p } = now;
     document.getElementById('upaheadtitle')!.textContent = route.name;
     document.getElementById('upaheadsub')!.textContent = p ? `${Math.round(p.leftKm)} km and about ${p.leftMin >= 60 ? `${Math.floor(p.leftMin / 60)} h ${String(p.leftMin % 60).padStart(2, '0')}` : `${p.leftMin} min`} to go${p.offKm > 0.4 ? ` · ${p.offKm.toFixed(1)} km off the route` : ''}` : `${Math.round(route.km)} km planned`;
     (document.getElementById('upaheadmaps') as HTMLAnchorElement).href = route.mapsUrl;
     // What is ahead: the named stops and a point every 40 km, with arrival time (stays counted) and the weather there then.
     const wx = engine.routeWeather();
-    const cps = checkpoints(route, p, 40, 12);
-    const rows = cps.map((c) => ({ ...c, w: wx.find((w) => w.name === c.name) ?? null }));
-    void stopsAhead; void at;
-    list.innerHTML = rows.length ? rows.map((x) => `<div class="sheet-row${x.named ? '' : ' minor'}"><b>${esc2(x.name)}</b><span>${x.km} km · ${new Date(Date.now() + x.inMin * 60_000).toTimeString().slice(0, 5)}${x.w ? ` · ${esc2(weatherLine(x.w))}` : ''}</span></div>`).join('')
+    const rows = checkpoints(route, p, 40, 12).map((c) => ({ ...c, w: wx.find((w) => w.name === c.name) ?? null }));
+    list.innerHTML = rows.length ? rows.map((x) => `<div class="sheet-row${x.named ? '' : ' minor'}"><b>${esc(x.name)}</b><span>${x.km} km · ${new Date(Date.now() + x.inMin * 60_000).toTimeString().slice(0, 5)}${x.w ? ` · ${esc(weatherLine(x.w))}` : ''}</span></div>`).join('')
       : '<p class="sub">Nothing left but the road.</p>';
   };
   lockScreen.setTalk(true);
@@ -1341,7 +946,7 @@ async function beginRide(desk: boolean) {
   // whichever app plays next. She keeps working; a tap on "Give Betty the buttons back" takes them again (a page can
   // only start sound from a tap, and once music plays the buttons are the music app's).
   const backBtn = document.getElementById('buttonsback') as HTMLButtonElement | null;
-  const takeButtons = () => buttons.start({ talk: () => void talk(), repeat, letGo }, (msg) => { newLine('[voice]', msg); renderLog(); });
+  const takeButtons = () => buttons.start({ talk: () => void talk(), repeat, letGo }, (msg) => { newLine('[voice]', msg); });
   const letGo = () => {
     if (!buttons.holding) return;
     buttons.tone(330);
@@ -1349,7 +954,6 @@ async function beginRide(desk: boolean) {
       ptt.release();
       buttons.stop();
       newLine('[voice]', 'previous track: Betty let go of the mic and the headset buttons (tap "Give Betty the buttons back" to take them again)');
-      renderLog();
       if (backBtn) backBtn.hidden = false;
     }, 350);
   };
@@ -1361,7 +965,6 @@ async function beginRide(desk: boolean) {
       backBtn.hidden = ok;
       newLine('[voice]', ok ? 'headset buttons are Betty\'s again' : 'could not take the headset buttons back');
       shell.toast(ok ? 'The buttons are Betty\'s again.' : 'Could not take the buttons back.');
-      renderLog();
     };
   }
   if (CONFIG.headsetButtons) {
@@ -1369,7 +972,8 @@ async function beginRide(desk: boolean) {
     newLine('[voice]', ok ? 'headset buttons: play/pause talks to Betty, next track repeats her last line, previous track lets go' : 'headset buttons are not available in this browser');
   }
 
-  rig = { agg, engine, queue, say, setObd, unsub, real, desk, unmountSim, buttons, releaseMic: () => ptt.release(), wake, remember, memTimer, logSensors, sensorTimer, paintTimer, routeWxTimer };
+  rig = { s, agg, engine, queue, say: s.say, setObd: (m) => s.setObd(m), real, desk, unmountSim, buttons, releaseMic: () => ptt.release(), wake };
+  await s.start();
   endText.textContent = END_BUTTON.idle;
   workshopChat.refresh();
   paintRide();
@@ -1381,8 +985,6 @@ async function beginRide(desk: boolean) {
   if (!statusEl.textContent) setStatus(real ? 'Keep this screen open while riding.' : 'Simulated session: no phone sensors in use.');
 }
 
-/** Longest END RIDE will wait for the sign-off before shutting down regardless. */
-const SIGN_OFF_LIMIT_MS = 45_000;
 /** Set while END RIDE is waiting for her to finish; calling it ends the ride at once. */
 let endNow: (() => void) | null = null;
 
@@ -1397,46 +999,21 @@ async function stop() {
   endNow = () => { hurry = true; };
   endText.textContent = END_BUTTON.ending;
   shell.closeSheet();
-  paintRide();
-  window.clearInterval(r.memTimer);
-  window.clearInterval(r.sensorTimer);
-  window.clearInterval(r.paintTimer);
-  window.clearInterval(r.routeWxTimer);
-  r.remember();
-  r.logSensors();
-  r.unsub(); // no new alerts or banter from here on; the queue and speaker stay alive
+  const { rideId, kept } = r.s.wrapUp(); // no new alerts or banter from here on; the queue and voice stay alive
   // The story of the ride opens NOW, while she signs off (owner, 2026-10-17: the summary sometimes never came: it
   // waited up to 45 s for the sign-off, and only opened if he was still on the ride screen by then).
-  const rideId = r.engine.rideSnapshot().startedAt;
-  const kept = !r.desk && RideLog.load().some((x) => x.startedAt === rideId);
   if (kept) { journeys.renderStory(rideId); shell.show('story'); }
+  // Her sign-off cuts in (owner, 2026-10-18); a tap on "stop now" counts while it is still being written, too.
+  await r.s.signOff(() => hurry);
 
-  // A sign-off for any ride worth remembering.
-  const debrief = !r.desk && toRecord(r.engine.rideSnapshot(), null) ? r.engine.force('ride_debrief', r.agg.current) : null;
-  // Her sign-off cuts in (owner, 2026-10-18). A tap on "stop now" counts while it is still being written, too: it
-  // used to wait for Claude (up to 8 s) before the tap was looked at.
-  let item: QueueItem | null = null;
-  if (debrief) {
-    const said = r.say(debrief, true).then((it) => { item = it; });
-    while (!hurry && item === null) { if (await Promise.race([said.then(() => true), new Promise<boolean>((res) => setTimeout(() => res(false), 150))])) break; }
-  }
-  const deadline = Date.now() + SIGN_OFF_LIMIT_MS;
-  while (item && !SETTLED.includes((item as QueueItem).fate) && !hurry && Date.now() < deadline) {
-    await new Promise((res) => setTimeout(res, 150));
-  }
-
-  r.queue.clear(); // anything still waiting belongs to a ride that is over (and cuts her off if the wait was skipped)
-  r.setObd('off');
-  r.agg.stop();
+  r.s.shutdown();
   r.unmountSim();
   r.buttons.stop();
   r.releaseMic();
   const back = document.getElementById('buttonsback'); if (back) { back.hidden = true; (back as HTMLButtonElement).onclick = null; }
   talkNow = null;
   rideHooks = null;
-  speakingNow = null; lastSaid = null; talkState = 'off';
   lockScreen.setTalk(false);
-  saveLog();
   if (!r.desk) await r.wake.disable();
   showWake(null);
   rig = null;
@@ -1454,7 +1031,7 @@ async function stop() {
   const onRide = shell.current === 'ride' || shell.current === 'chat';
   if (kept) { if (shell.current === 'story') journeys.renderStory(rideId); else if (onRide) { journeys.renderStory(rideId); shell.show('story'); } }
   else if (!r.desk) {
-    if (shell.current === 'ride' || shell.current === 'chat') shell.show('home');
+    if (onRide) shell.show('home');
     shell.toast('A short one: rides under 3 minutes and 1 km are not kept in My journeys.');
   }
   setStatus('');
