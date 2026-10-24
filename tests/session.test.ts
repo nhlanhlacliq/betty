@@ -67,6 +67,16 @@ void (async () => {
   assert.ok(ride.rideInput().state === ride.agg.current, 'the ride screen input is built');
   assert.ok(changes > 0, 'the screen is told to repaint');
 
+  // One voice at a time: while the voice server's conversation talks, her own lines wait, then play.
+  ride.conversation(true);
+  const before = spoken.length;
+  ride.sayNow('A status update.');
+  await wait(30);
+  assert.equal(spoken.length, before, 'her line waits while the conversation talks');
+  ride.conversation(false);
+  await wait(30);
+  assert.equal(spoken.at(-1), 'A status update.', 'and plays once it is over');
+
   // END RIDE: too short to keep, but everything kept as it went is on the "phone".
   const { kept } = ride.wrapUp();
   assert.equal(kept, false, 'a ride of seconds is not kept');

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONFIG, chirpVoice } from '../../../src/config/betty';
 import { travelDirection } from '../../../src/core/ambient';
@@ -169,6 +169,22 @@ export default function Ride() {
             </Pressable>
           ))}
         </View>
+        {/* Owner, 2026-10-24: the talk mode could only be picked before the ride. Switching reconnects (~10 s). */}
+        <Text style={[T.eyebrow, { marginTop: 8, marginBottom: 4 }]}>Talking to Betty</Text>
+        <View style={st.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={st.optionTitle}>Open mic</Text>
+            <Text style={st.optionSub}>{b.openMic ? 'Say "Betty…" to talk. The helmet stays in call mode.' : 'Off: hold the talk button to speak to her.'}</Text>
+          </View>
+          <Switch value={b.openMic} onValueChange={b.setOpenMic} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
+        </View>
+        <View style={st.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={st.optionTitle}>Headset buttons</Text>
+            <Text style={st.optionSub}>Play/pause talks, next track repeats her, previous track hands the buttons back. Pauses your music.</Text>
+          </View>
+          <Switch value={b.buttons} onValueChange={b.setButtons} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
+        </View>
       </Sheet>
 
       <UpAhead open={sheet === 'upahead'} onClose={() => setSheet(null)} />
@@ -289,6 +305,9 @@ const st = StyleSheet.create({
   menu: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   menuButton: { flex: 1, minHeight: 96, borderRadius: 20, backgroundColor: C.card, borderWidth: 1, borderColor: '#e1e4d8', alignItems: 'center', justifyContent: 'center', gap: 10 },
   menuText: { fontSize: 13, color: C.ink },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#e6eade' },
+  optionTitle: { fontSize: 14, fontWeight: '500', color: C.ink },
+  optionSub: { fontSize: 11, color: C.muted, marginTop: 5 },
   aheadRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#e6eade' },
   aheadName: { fontSize: 13, fontWeight: '500', color: C.ink, flexShrink: 0 },
   aheadValue: { fontSize: 12, color: C.muted, textAlign: 'right', flexShrink: 1 },

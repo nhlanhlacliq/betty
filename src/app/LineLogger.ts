@@ -7,7 +7,7 @@ export interface LogLine { id: string; at: number; rideId: number; head: string;
 
 export const FATE_LABELS: Record<Fate, string> = {
   queued: 'waiting to speak', speaking: 'speaking now', spoken: 'spoken', expired: 'not spoken: waited too long',
-  interrupted: 'cut off by a critical alert', cleared: 'cleared',
+  interrupted: 'cut off', cleared: 'cleared',
 };
 const SETTLED: Fate[] = ['spoken', 'expired', 'interrupted', 'cleared'];
 export const settled = (f: Fate) => SETTLED.includes(f);

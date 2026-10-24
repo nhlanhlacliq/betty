@@ -50,6 +50,10 @@ export class VoiceSession {
   onHeardRider: (text: string) => void = () => {};
   /** She starts or stops talking in the conversation (the orb) */
   onSpeaking: (on: boolean) => void = () => {};
+  /** His turn starts (talk pressed) or ends (released): her own lines wait meanwhile */
+  onRiderTurn: (on: boolean) => void = () => {};
+  /** The last sentence reported: the server sends each one twice (written, then spoken), shown once */
+  private lastOut = { text: '', at: 0 };
 
   constructor(private setup: VoiceSetup) {}
 
@@ -74,7 +78,11 @@ export class VoiceSession {
           onUserTranscript: (d) => { if (d.final && d.text.trim()) { this.setup.log(`you: ${d.text.trim()}`); this.onHeardRider(d.text.trim()); } },
           onBotOutput: (d) => {
             const kind = d.text_type ?? d.aggregated_by;
-            if (kind === 'sentence' && d.text.trim()) { this.setup.log(`betty: ${d.text.trim()}`); this.onSaid(d.text.trim()); }
+            const text = d.text.trim();
+            if (kind !== 'sentence' || !text) return;
+            if (text === this.lastOut.text && Date.now() - this.lastOut.at < 30_000) return; // the second copy
+            this.lastOut = { text, at: Date.now() };
+            this.setup.log(`betty: ${text}`); this.onSaid(text);
           },
           onBotStartedSpeaking: () => this.onSpeaking(true),
           onBotStoppedSpeaking: () => this.onSpeaking(false),
@@ -135,6 +143,7 @@ export class VoiceSession {
   async press() {
     if (this.mode !== 'ptt') return;
     if (this.releaseTimer) { clearTimeout(this.releaseTimer); this.releaseTimer = null; }
+    this.onRiderTurn(true);
     await this.connect();
     const c = this.client;
     if (!c) return;
@@ -148,6 +157,7 @@ export class VoiceSession {
   release() {
     if (this.mode !== 'ptt') return;
     if (this.releaseTimer) clearTimeout(this.releaseTimer);
+    this.onRiderTurn(false);
     this.releaseTimer = setTimeout(() => {
       this.releaseTimer = null;
       this.client?.enableMic(false);

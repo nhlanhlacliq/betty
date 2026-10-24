@@ -91,6 +91,15 @@ export class AudioQueue {
   /** Hold her lines while he talks. riderThrough: he has finished, so his answer (P4) may go, nothing else. */
   hold(on: boolean, riderThrough = false) { this.held = on; this.riderThrough = on && riderThrough; this.pump(); }
   get isHeld() { return this.held; }
+  /** Stop the line she is saying now (never a P1), e.g. the voice conversation is about to talk. True if one was cut. */
+  cutOff(): boolean {
+    if (!this.speaking || this.speaking.priority === 1) return false;
+    this.speaker.stop();
+    this.onFate(this.speaking, 'interrupted');
+    this.speaking = null;
+    this.gen++;
+    return true;
+  }
 
   /** Call periodically (e.g. each state tick) so deferred items get their safe window. */
   pump() {

@@ -68,8 +68,14 @@ export async function startRide(h: RideHooks) {
     if (ride.speaking?.tag === 'rider_query') ride.speaking = { ...ride.speaking, text: said.text };
     h.changed();
   };
+  // One voice at a time: while he talks to her or she answers through the call, her own lines (status updates,
+  // stories) wait and one already playing stops. Each phase has an upper limit, so a lost event cannot mute her.
+  let convo: ReturnType<typeof setTimeout> | undefined;
+  const busyFor = (ms: number) => { clearTimeout(convo); ride.conversation(true); convo = setTimeout(() => ride.conversation(false), ms); };
+  voice.onRiderTurn = (on) => busyFor(on ? 30_000 : 8_000); // released: her answer is on its way (or nothing came)
   voice.onSpeaking = (on) => {
     ride.speaking = on ? { text: '…', tag: 'rider_query', priority: 4, at: Date.now() } : null;
+    busyFor(on ? 60_000 : 1_500); // a moment after her answer, for a follow-up
     h.changed();
   };
   await ride.start();
@@ -80,6 +86,7 @@ export async function startRide(h: RideHooks) {
     ask: (text: string) => void ride.ask(text),
     /** Stop reacting, say the sign-off (up to 45 s), then shut down (as the web app does). */
     async end(hurry: () => boolean = () => false) {
+      clearTimeout(convo);
       void voice.end();
       const out = ride.wrapUp();
       await ride.signOff(hurry);

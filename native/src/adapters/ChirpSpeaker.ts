@@ -83,10 +83,18 @@ export class ChirpSpeaker implements Speaker {
         this.release();
         this.player = player;
         let started = false;
+        let retries = 0;
+        let retrying = false;
         player.addListener('playbackStatusUpdate', (st) => {
-          if (my !== this.gen) return;
+          if (my !== this.gen || done) return;
           if (st.playing && !started) { started = true; tag?.heard?.(); }
-          if (st.didJustFinish) finish();
+          if (st.didJustFinish) { finish(); return; }
+          // Paused by the phone, not by us: the voice call opening takes the sound over for a moment (her briefing
+          // stopped halfway in both tests of 2026-10-24). Carry on from where she was.
+          if (started && !st.playing && !st.isBuffering && !retrying && retries < 3) {
+            retrying = true; retries++;
+            setTimeout(() => { retrying = false; if (my === this.gen && !done) { this.log('Chirp: paused by the phone, carrying on'); try { player.play(); } catch { /* gone */ } } }, 600);
+          }
         });
         player.play();
         // Written off after a deadline from its length (about 12 characters a second plus 5 s).

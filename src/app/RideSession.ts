@@ -345,6 +345,17 @@ export class RideSession {
     return line.item;
   };
 
+  /**
+   * The voice server's conversation is talking (his turn, or her answer through the call): her own lines wait and the
+   * one playing stops, so two voices never talk at once (first phone tests, 2026-10-24: a status update and her answer
+   * played together). A critical alert still goes. Off: the waiting lines play in the usual order.
+   */
+  conversation(on: boolean) {
+    if (on === this.queue.isHeld) return;
+    if (on) this.queue.cutOff();
+    this.queue.hold(on);
+  }
+
   /** A line said at once from the phone. `now`: cut off whatever she is saying (going quiet, coming back), never a P1. */
   sayNow(text: string, now = false) {
     if (this.d.voice.aloud()) this.d.voice.prefetch?.(text, { priority: 4, id: 'voice' });
@@ -602,7 +613,9 @@ export class RideSession {
       while (!hurry() && item === null) { if (await Promise.race([said.then(() => true), new Promise<boolean>((res) => setTimeout(() => res(false), 150))])) break; }
     }
     const deadline = Date.now() + SIGN_OFF_LIMIT_MS;
+    this.queue.hold(false); // a conversation that was still talking must not hold the sign-off back
     while (item && !settled((item as QueueItem).fate) && !hurry() && Date.now() < deadline) await new Promise((res) => setTimeout(res, 150));
+    if (item && !settled((item as QueueItem).fate)) this.log('[audio]', `sign-off not finished: ${hurry() ? 'stopped by a second tap on End ride' : 'still playing after 45 s'}`);
   }
 
   /** Step 3: shut down (anything still waiting belongs to a ride that is over, and is cut off). */

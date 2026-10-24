@@ -108,6 +108,26 @@ foreground-only GPS, JS was suspended (a time check took 99 s): fixed by (3).
   Next track = repeat her last line; previous = let go (buttons and music back, toast). UNVERIFIED: whether presses
   still arrive once the voice server's mic has opened (call mode, the web's old problem).
 
+PHONE TESTS, 2026-10-24 evening (owner, standing still; logs in his Downloads):
+- WORKS: hold-to-talk and open mic hear him (the setRecording fix), background GPS ("running in the background too"),
+  web search through the voice server, open mic ignoring sentences without "Betty".
+- FIXED after: (1) each of her sentences logged twice (the server sends a sentence when written and when spoken):
+  `VoiceSession` shows it once. (2) Two voices at once (her status line and the conversation's answer): the rig calls
+  `RideSession.conversation(on)` on his turn (`onRiderTurn`) and while she answers (`onSpeaking`), which cuts off the
+  line playing (`AudioQueue.cutOff`, never a P1) and holds the queue; limits 30 s / 8 s / 60 s / 1.5 s so a lost event
+  cannot mute her. (3) The briefing stopped when the call connected ("Chirp: no end after 275 chars"): ChirpSpeaker
+  plays on when the phone pauses a clip (up to 3 times). (4) Talk mode and headset buttons are switches in the ride's
+  menu sheet too. (5) The sign-off was "cleared" on both rides (unknown why): `signOff` now logs the reason.
+- HEADSET BUTTONS DO NOT WORK WITH THE VOICE SERVER: the Daily call keeps the helmet in CALL MODE (HFP) for as long as
+  it is connected, in every talk mode, so play/pause becomes a call control: the first press dropped the helmet's link
+  (she played on the phone speaker), on the next ride one press worked, then none. The same cause as the web on
+  2026-10-16. Fix options (OWNER'S CALL): buttons mode uses the web's old path (record with expo-audio only while he
+  talks, Whisper, Claude, Chirp: ~5-7 s instead of ~2 s, helmet back in media mode after each question), or the call
+  is closed between questions (reconnect ~10-14 s a press: too slow), or drop the buttons on iPhone.
+- MUSIC: open mic puts the music at call quality (the helmet is in call mode the whole time; nothing the app can
+  change), and the music sometimes paused while she spoke (likely the duck switching the audio session under the
+  call). Ducking without the call works.
+
 ## Status (first slice, 2026-10-18; NOTHING RUN ON A PHONE YET)
 
 Built: a plain ride screen (`App.tsx`): Let's ride / End ride, speed, rpm, engine temperature, rain chance, her lines
