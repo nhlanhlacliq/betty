@@ -1,3 +1,4 @@
+import { serverFetch } from './server';
 import { haversineKm, bboxAround } from '../core/geo';
 import { TrafficIncident } from '../core/types';
 import { TrafficProvider } from './TrafficSource';
@@ -55,7 +56,7 @@ export class TomTomTrafficProvider implements TrafficProvider {
   async fetchIncidents(lat: number, lon: number, radiusKm: number): Promise<TrafficIncident[]> {
     const b = bboxAround(lat, lon, radiusKm);
     if (!this.key) {
-      const res = await fetch(`${this.proxyUrl}?bbox=${[b.minLon, b.minLat, b.maxLon, b.maxLat].map((n) => n.toFixed(5)).join(',')}`);
+      const res = await serverFetch(`${this.proxyUrl}?bbox=${[b.minLon, b.minLat, b.maxLon, b.maxLat].map((n) => n.toFixed(5)).join(',')}`);
       if (!res.ok) throw new Error(`traffic server HTTP ${res.status}`);
       return parseTomTom(await res.json(), lat, lon, radiusKm);
     }

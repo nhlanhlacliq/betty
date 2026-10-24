@@ -1,3 +1,4 @@
+import { serverFetch } from './server';
 import type { Station } from '../core/Fuel';
 import { haversineKm } from '../core/geo';
 
@@ -13,7 +14,7 @@ export class StationSource {
   private busy: Promise<Station[]> | null = null;
   list: Station[] = [];
 
-  constructor(private fetcher: typeof fetch = (...a) => fetch(...a)) {}
+  constructor(private fetcher: typeof fetch = serverFetch) {}
 
   near(lat: number, lon: number, force = false): Promise<Station[]> {
     if (this.busy) return this.busy;

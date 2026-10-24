@@ -1,3 +1,5 @@
+import { kv } from './kv';
+import { serverFetch } from './server';
 import type { LatLon } from '../core/geo';
 
 /** Suburb centres and the real metro boundary lines for part of the map (api/borders.ts). */
@@ -37,8 +39,8 @@ export class BorderTiles {
   private queue: string[] = [];
   private busy = false;
 
-  constructor(private onUpdate: () => void, private fetcher: typeof fetch = (...a) => fetch(...a), private store: Pick<Storage, 'getItem' | 'setItem'> | null = null) {
-    try { this.kept = JSON.parse((this.store ?? localStorage).getItem(KEY) ?? '{}') ?? {}; } catch { this.kept = {}; }
+  constructor(private onUpdate: () => void, private fetcher: typeof fetch = serverFetch, private store: Pick<Storage, 'getItem' | 'setItem'> | null = null) {
+    try { this.kept = JSON.parse((this.store ?? kv).getItem(KEY) ?? '{}') ?? {}; } catch { this.kept = {}; }
   }
 
   /** What is known for this view (merged tiles), asking for missing tiles if the view is close enough. */
@@ -65,7 +67,7 @@ export class BorderTiles {
       if (!res.ok) throw new Error(String(res.status));
       const d = (await res.json()) as BorderData;
       this.kept[t] = { suburbs: d.suburbs ?? [], metro: d.metro ?? [] };
-      try { (this.store ?? localStorage).setItem(KEY, JSON.stringify(this.kept)); } catch { /* full or blocked: kept for this visit */ }
+      try { (this.store ?? kv).setItem(KEY, JSON.stringify(this.kept)); } catch { /* full or blocked: kept for this visit */ }
       this.onUpdate();
     } catch { this.failed.set(t, Date.now()); }
     finally { this.loading.delete(t); this.busy = false; void this.pump(); }

@@ -1,18 +1,10 @@
+import { serverFetch } from '../adapters/server';
 import type { LatLon } from '../core/geo';
 import { PlannedRoute, minutesText } from '../core/Route';
 import { CheckpointWeather, checkpoints, wantedMinutes, weatherLine } from '../core/RouteAhead';
 
-const KEY = 'betty.route.v1';
-/** The planned route, kept on the phone until he clears it (it is in the data backup, like everything betty.*). */
-export const RouteStore = {
-  get(): PlannedRoute | null { try { const v = JSON.parse(localStorage.getItem(KEY) ?? 'null'); return v?.points?.length ? v : null; } catch { return null; } },
-  set(r: PlannedRoute | null) { try { if (r) localStorage.setItem(KEY, JSON.stringify(r)); else localStorage.removeItem(KEY); } catch { /* storage full or blocked */ } },
-  /** Routes he saved to ride again (newest first, 20), with their stays (Route: what is ahead, 2026-10-18). */
-  saved(): PlannedRoute[] { try { const v = JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
-  save(r: PlannedRoute) { try { localStorage.setItem(SAVED_KEY, JSON.stringify([r, ...RouteStore.saved().filter((x) => x.plannedAt !== r.plannedAt && x.name !== r.name)].slice(0, 20))); } catch { /* full */ } },
-  unsave(plannedAt: number) { try { localStorage.setItem(SAVED_KEY, JSON.stringify(RouteStore.saved().filter((x) => x.plannedAt !== plannedAt))); } catch { /* ignore */ } },
-};
-const SAVED_KEY = 'betty.routes.saved.v1';
+export { RouteStore } from '../adapters/RouteStore';
+import { RouteStore } from '../adapters/RouteStore';
 /** How long he can stay at a stop: ride through, or minutes (counted in the time left and the arrival times). */
 export const STAYS = [0, 10, 15, 30, 45, 60, 90];
 
@@ -127,7 +119,7 @@ export function mountRoutePlanner(doc: Document, ctx: PlannerContext) {
     if (!input.value.trim() || go.disabled) return;
     go.disabled = true; go.textContent = 'Planning...';
     try {
-      const res = await (ctx.fetcher ?? fetch)('/api/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(routeRequest(input.value, twisty.checked, await ctx.position())) });
+      const res = await (ctx.fetcher ?? serverFetch)('/api/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(routeRequest(input.value, twisty.checked, await ctx.position())) });
       const out: any = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(out?.error || `HTTP ${res.status}`);
       const r: PlannedRoute = { ...out, plannedAt: Date.now() };
@@ -144,7 +136,7 @@ export function mountRoutePlanner(doc: Document, ctx: PlannerContext) {
     if (!text) { ctx.toast('Describe the ride in the box first: "a two-hour breakfast run, twisty roads".'); input.focus(); return; }
     if (ask.disabled) return;
     const label = ask.textContent; ask.disabled = true; ask.textContent = 'Betty is planning...';
-    const f = ctx.fetcher ?? fetch;
+    const f = ctx.fetcher ?? serverFetch;
     try {
       const from = await ctx.position();
       const want = wantedMinutes(text);

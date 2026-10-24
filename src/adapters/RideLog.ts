@@ -1,3 +1,4 @@
+import { kv } from './kv';
 import { RideRecord, upsertRide } from '../core/RideMemory';
 
 const KEY = 'betty.rides.v1';
@@ -6,18 +7,18 @@ const KEY = 'betty.rides.v1';
 export const RideLog = {
   load(): RideRecord[] {
     try {
-      const v = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+      const v = JSON.parse(kv.getItem(KEY) ?? '[]');
       return Array.isArray(v) ? v : [];
     } catch { return []; }
   },
   save(rec: RideRecord) {
-    try { localStorage.setItem(KEY, JSON.stringify(upsertRide(RideLog.load(), rec))); } catch { /* ignore */ }
+    try { kv.setItem(KEY, JSON.stringify(upsertRide(RideLog.load(), rec))); } catch { /* ignore */ }
   },
   /** Delete one ride (My journeys > Delete this ride). */
   remove(rideId: number) {
-    try { localStorage.setItem(KEY, JSON.stringify(RideLog.load().filter((r) => r.startedAt !== rideId))); } catch { /* ignore */ }
+    try { kv.setItem(KEY, JSON.stringify(RideLog.load().filter((r) => r.startedAt !== rideId))); } catch { /* ignore */ }
   },
   clear() {
-    try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+    try { kv.removeItem(KEY); } catch { /* ignore */ }
   },
 };

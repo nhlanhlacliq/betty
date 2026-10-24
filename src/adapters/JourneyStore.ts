@@ -1,3 +1,4 @@
+import { kv } from './kv';
 const KEY = 'betty.journeys.v1';
 
 /** Favourite rides and names he gave them (Journeys 7, 2026-10-18). On this phone, in the backup. */
@@ -5,11 +6,11 @@ interface Meta { starred: number[]; names: Record<string, string> }
 let cache: Meta | null = null;
 const load = (): Meta => {
   if (cache) return cache;
-  try { const v = JSON.parse(localStorage.getItem(KEY) ?? 'null'); cache = { starred: Array.isArray(v?.starred) ? v.starred : [], names: v?.names && typeof v.names === 'object' ? v.names : {} }; }
+  try { const v = JSON.parse(kv.getItem(KEY) ?? 'null'); cache = { starred: Array.isArray(v?.starred) ? v.starred : [], names: v?.names && typeof v.names === 'object' ? v.names : {} }; }
   catch { cache = { starred: [], names: {} }; }
   return cache;
 };
-const save = (m: Meta) => { cache = m; try { localStorage.setItem(KEY, JSON.stringify(m)); } catch { /* full or blocked */ } };
+const save = (m: Meta) => { cache = m; try { kv.setItem(KEY, JSON.stringify(m)); } catch { /* full or blocked */ } };
 
 export const JourneyStore = {
   starred(id: number) { return load().starred.includes(id); },

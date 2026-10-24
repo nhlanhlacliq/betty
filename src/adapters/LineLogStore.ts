@@ -1,3 +1,4 @@
+import { kv } from './kv';
 import { LogEntry, mergeLog } from '../core/LineLog';
 
 const KEY = 'betty.log.v1';
@@ -6,19 +7,19 @@ const KEY = 'betty.log.v1';
 export const LineLogStore = {
   load(): LogEntry[] {
     try {
-      const v = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+      const v = JSON.parse(kv.getItem(KEY) ?? '[]');
       return Array.isArray(v) ? v : [];
     } catch { return []; }
   },
   save(fresh: LogEntry[]) {
     if (!fresh.length) return;
-    try { localStorage.setItem(KEY, JSON.stringify(mergeLog(LineLogStore.load(), fresh))); } catch { /* storage full or blocked */ }
+    try { kv.setItem(KEY, JSON.stringify(mergeLog(LineLogStore.load(), fresh))); } catch { /* storage full or blocked */ }
   },
   /** Everything said on one ride, gone (the ride was deleted). */
   removeRide(rideId: number) {
-    try { localStorage.setItem(KEY, JSON.stringify(LineLogStore.load().filter((e) => e.rideId !== rideId))); } catch { /* ignore */ }
+    try { kv.setItem(KEY, JSON.stringify(LineLogStore.load().filter((e) => e.rideId !== rideId))); } catch { /* ignore */ }
   },
   clear() {
-    try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+    try { kv.removeItem(KEY); } catch { /* ignore */ }
   },
 };

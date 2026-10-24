@@ -1,3 +1,5 @@
+import { kv } from './kv';
+import { serverFetch } from './server';
 import { AreaSample, samplesAlong, trimEnds } from '../core/RideCard';
 import type { TrackPoint } from '../core/Track';
 
@@ -34,9 +36,9 @@ export function boxFor(track: TrackPoint[]): string | null {
 export class CardExtrasSource {
   private busy = new Map<number, Promise<CardExtras>>();
 
-  constructor(private fetcher: typeof fetch = (...a) => fetch(...a), private store: Store | null = null, private gapMs = 1100) {}
+  constructor(private fetcher: typeof fetch = serverFetch, private store: Store | null = null, private gapMs = 1100) {}
 
-  private get st(): Store { return this.store ?? localStorage; }
+  private get st(): Store { return this.store ?? kv; }
 
   /** A deleted ride: drop what was kept for its card. */
   forget(rideId: number) {

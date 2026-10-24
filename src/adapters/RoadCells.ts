@@ -1,3 +1,4 @@
+import { kv } from './kv';
 import { countsFromTracks } from '../core/RoadMemory';
 import type { TrackPoint } from '../core/Track';
 
@@ -10,12 +11,12 @@ const KEY = 'betty.cells.v1';
 export const RoadCells = {
   load(seed: () => TrackPoint[][]): Record<string, number> {
     try {
-      const v = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+      const v = JSON.parse(kv.getItem(KEY) ?? 'null');
       if (v && typeof v === 'object') return v;
     } catch { /* fall through */ }
     const counts = countsFromTracks(seed());
     RoadCells.save(counts);
     return counts;
   },
-  save(counts: Record<string, number>) { try { localStorage.setItem(KEY, JSON.stringify(counts)); } catch { /* full: the next ride tries again */ } },
+  save(counts: Record<string, number>) { try { kv.setItem(KEY, JSON.stringify(counts)); } catch { /* full: the next ride tries again */ } },
 };

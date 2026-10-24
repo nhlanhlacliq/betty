@@ -1,13 +1,11 @@
+import { serverFetch } from '../adapters/server';
 /**
  * Garage > Let Betty know me: give her context about him (an answer from ChatGPT or Claude, notes, or an export),
  * distilled once into a short profile he can read and edit (api/profile.ts). Kept on the phone (`betty.profile.v1`,
  * in the backup); how much she uses it is decided per line in core/Profile.ts.
  */
-const KEY = 'betty.profile.v1';
-export const ProfileStore = {
-  get(): string | null { try { const v = JSON.parse(localStorage.getItem(KEY) ?? 'null'); return typeof v?.text === 'string' && v.text.trim() ? v.text : null; } catch { return null; } },
-  set(text: string | null) { try { if (text && text.trim()) localStorage.setItem(KEY, JSON.stringify({ text: text.trim(), updatedAt: Date.now() })); else localStorage.removeItem(KEY); } catch { /* blocked */ } },
-};
+export { ProfileStore } from '../adapters/ProfileStore';
+import { ProfileStore } from '../adapters/ProfileStore';
 
 /** The question to ask ChatGPT or Claude, offered with a Copy button. */
 export const ASK_ABOUT_ME = 'Summarise what you know about me for my motorcycle co-pilot: who I am, my riding, my interests, my sense of humour, and anything I would not want brought up. Leave out anything sensitive.';
@@ -52,7 +50,7 @@ export function mountKnowMe(doc: Document, ctx: KnowMeContext) {
     if (text.length < 20) { ctx.toast('Paste what ChatGPT or Claude knows about you first.', true); return; }
     distil.disabled = true; distil.textContent = 'Distilling...';
     try {
-      const res = await (ctx.fetcher ?? fetch)('/api/profile', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+      const res = await (ctx.fetcher ?? serverFetch)('/api/profile', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
       const out: any = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(out?.error || `HTTP ${res.status}`);
       profile.value = out.profile; source.value = '';

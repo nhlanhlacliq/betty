@@ -1,3 +1,5 @@
+import { kv } from './kv';
+import { serverFetch } from './server';
 import { haversineKm, LatLon } from '../core/geo';
 import { AreaInfo, AreaNote, BikeState, DataSource } from '../core/types';
 
@@ -14,23 +16,23 @@ interface Kept { notes: AreaNote[]; at: number; lat?: number; lon?: number }
 const TOLD_KEY = 'betty.told.v1';
 /** Ids of the area stories already told, kept across rides (the newest 500). */
 export const ToldStore = {
-  load(): string[] { try { const v = JSON.parse(localStorage.getItem(TOLD_KEY) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
-  save(ids: string[]) { try { localStorage.setItem(TOLD_KEY, JSON.stringify(ids.slice(-500))); } catch { /* storage blocked */ } },
+  load(): string[] { try { const v = JSON.parse(kv.getItem(TOLD_KEY) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+  save(ids: string[]) { try { kv.setItem(TOLD_KEY, JSON.stringify(ids.slice(-500))); } catch { /* storage blocked */ } },
 };
 
 export const AreaStore = {
-  all(): Record<string, Kept> { try { return JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { return {}; } },
+  all(): Record<string, Kept> { try { return JSON.parse(kv.getItem(KEY) ?? '{}'); } catch { return {}; } },
   get(area: string): AreaNote[] | null { return this.all()[area]?.notes ?? null; },
   put(area: string, notes: AreaNote[], pos?: LatLon) {
     try {
       const a = this.all(); const old = a[area];
       a[area] = { notes, at: old?.at ?? Date.now(), ...(pos ? { lat: pos.lat, lon: pos.lon } : old?.lat != null ? { lat: old.lat, lon: old.lon } : {}) };
-      localStorage.setItem(KEY, JSON.stringify(a));
+      kv.setItem(KEY, JSON.stringify(a));
     } catch { /* storage blocked */ }
   },
   /** Where an area is, for one found before positions were kept. */
   place(area: string, pos: LatLon) {
-    try { const a = this.all(); if (a[area]) { a[area] = { ...a[area], lat: pos.lat, lon: pos.lon }; localStorage.setItem(KEY, JSON.stringify(a)); } } catch { /* storage blocked */ }
+    try { const a = this.all(); if (a[area]) { a[area] = { ...a[area], lat: pos.lat, lon: pos.lon }; kv.setItem(KEY, JSON.stringify(a)); } } catch { /* storage blocked */ }
   },
 };
 
@@ -47,7 +49,7 @@ export function areasOf(a: AreaInfo): Array<{ name: string; key: string }> {
  * Research an area once (api/story: Claude with web search, about 5 cents) into notes. Shared by the ride's area feed
  * and the route's "stories ahead" (towns on a planned route, researched before he gets there).
  */
-export async function researchArea(name: string, key: string, exclude: string[], fetcher: typeof fetch = (...a) => fetch(...a)): Promise<AreaNote[]> {
+export async function researchArea(name: string, key: string, exclude: string[], fetcher: typeof fetch = serverFetch): Promise<AreaNote[]> {
   const region = key.split('|')[1] ?? '';
   const res = await fetcher('/api/story', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ area: name, region, exclude }) });
   const out: any = await res.json().catch(() => ({}));
@@ -61,7 +63,7 @@ export async function researchArea(name: string, key: string, exclude: string[],
  * there (api/area), researched once if the phone has nothing on them yet. One place at a time; returns how many
  * stories each stop has. Server only (api/area, api/story).
  */
-export async function researchAhead(stops: Array<{ name: string; lat: number; lon: number }>, onStatus: (msg: string) => void = () => {}, fetcher: typeof fetch = (...a) => fetch(...a)): Promise<Record<string, number>> {
+export async function researchAhead(stops: Array<{ name: string; lat: number; lon: number }>, onStatus: (msg: string) => void = () => {}, fetcher: typeof fetch = serverFetch): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   for (const s of stops) {
     try {
@@ -99,7 +101,7 @@ export class AreaSource implements DataSource {
     private getPos: () => LatLon,
     private told: () => ReadonlySet<string>,
     private onStatus: (msg: string) => void = () => {},
-    private fetcher: typeof fetch = (...a) => fetch(...a),
+    private fetcher: typeof fetch = serverFetch,
   ) {}
 
   start(onUpdate: (p: Partial<BikeState>) => void) {

@@ -1,3 +1,5 @@
+import { kv } from './kv';
+import { serverFetch } from './server';
 import { CONFIG, bettySystemPrompt } from '../config/betty';
 import { extractText } from '../core/ClaudeClient';
 import { Bank, Slots, bankPrompt, needs, parseBank, take } from '../core/LineBank';
@@ -12,11 +14,11 @@ const BATCH = 4;
  * used when Claude cannot be asked. Refilled at most once a day, a few alerts per request, through api/phrase.
  */
 export const LineBankStore = {
-  load(): Bank { try { const v = JSON.parse(localStorage.getItem(KEY) ?? '{}'); return v?.lines && typeof v.lines === 'object' ? v.lines : {}; } catch { return {}; } },
+  load(): Bank { try { const v = JSON.parse(kv.getItem(KEY) ?? '{}'); return v?.lines && typeof v.lines === 'object' ? v.lines : {}; } catch { return {}; } },
   save(lines: Bank, filledAt?: number) {
-    try { const old = JSON.parse(localStorage.getItem(KEY) ?? '{}'); localStorage.setItem(KEY, JSON.stringify({ lines, filledAt: filledAt ?? old?.filledAt ?? 0 })); } catch { /* full or blocked */ }
+    try { const old = JSON.parse(kv.getItem(KEY) ?? '{}'); kv.setItem(KEY, JSON.stringify({ lines, filledAt: filledAt ?? old?.filledAt ?? 0 })); } catch { /* full or blocked */ }
   },
-  filledAt(): number { try { return JSON.parse(localStorage.getItem(KEY) ?? '{}')?.filledAt ?? 0; } catch { return 0; } },
+  filledAt(): number { try { return JSON.parse(kv.getItem(KEY) ?? '{}')?.filledAt ?? 0; } catch { return 0; } },
   /** A filled line for an alert, marked used (ClaudeClient.useBank). */
   take(id: TriggerId, slots: Slots): string | null {
     const got = take(LineBankStore.load(), id, slots);
@@ -25,7 +27,7 @@ export const LineBankStore = {
     return got.text;
   },
   /** Write the missing variants (server only), at most once a day. Returns how many alerts got lines. */
-  async refill(now = Date.now(), fetcher: typeof fetch = (...a) => fetch(...a)): Promise<number> {
+  async refill(now = Date.now(), fetcher: typeof fetch = serverFetch): Promise<number> {
     if (now - LineBankStore.filledAt() < 86_400_000) return 0;
     let bank = LineBankStore.load();
     const want = needs(bank);

@@ -1,3 +1,4 @@
+import { kv } from './kv';
 import { EMPTY_MEMORY, RiderMemory } from '../core/Commands';
 
 const KEY = 'betty.memory.v1';
@@ -6,9 +7,9 @@ const KEY = 'betty.memory.v1';
 export const RiderMemoryStore = {
   load(): RiderMemory {
     try {
-      const v = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+      const v = JSON.parse(kv.getItem(KEY) ?? 'null');
       return v && Array.isArray(v.notes) && Array.isArray(v.marks) ? v : EMPTY_MEMORY;
     } catch { return EMPTY_MEMORY; }
   },
-  save(m: RiderMemory) { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch { /* storage blocked */ } },
+  save(m: RiderMemory) { try { kv.setItem(KEY, JSON.stringify(m)); } catch { /* storage blocked */ } },
 };

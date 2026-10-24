@@ -1,3 +1,4 @@
+import { serverFetch } from './server';
 import { CONFIG } from '../config/betty';
 import { extractText, WEB_SEARCH } from '../core/ClaudeClient';
 import { parsePrice, priceDue } from '../core/Fuel';
@@ -8,7 +9,7 @@ import { parsePrice, priceDue } from '../core/Fuel';
  * looked up again: Claude with a forced web search for the regulated inland ULP 95 price (Gauteng is inland).
  * Returns the new price, or null if nothing was due or the lookup failed (the old price stays).
  */
-export async function refreshFuelPrice(now = Date.now(), fetcher: typeof fetch = (...a) => fetch(...a)): Promise<number | null> {
+export async function refreshFuelPrice(now = Date.now(), fetcher: typeof fetch = serverFetch): Promise<number | null> {
   if (!priceDue(CONFIG.fuel, now)) return null;
   const month = new Date(now).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
   const body = {

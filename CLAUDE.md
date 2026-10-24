@@ -29,7 +29,8 @@ sentences with "Betty" in them (follow-ups 8 s without the name; 1 s pause ends 
 deployed; needs the same Release build. Details: voice/README.md, native/README.md.
 
 Waiting on the OWNER:
-1. Pick the next eval step: (a) one targeted rule so weather_along_route is called reliably again (3/3 -> 1/3 after
+1. PARKED (owner, 2026-10-24: "look at the eval stuff later, keep it on a to do"). Also from the open-mic test: eval cases for
+   claiming actions without a tool (no end-ride tool), padding with unasked ride facts, narrating tool use. Then pick the next eval step: (a) one targeted rule so weather_along_route is called reliably again (3/3 -> 1/3 after
    the last prompt change), (b) an eval run with Sonnet answering (~$2) to see how much of the 24% is Haiku (Sonnet
    ~1.5-2.5 s to first words vs ~0.9 s), (c) a real ride with earphones/helmet and the button.
 2. OBD: the bike speaks standard OBD2 (CAN 11-bit 500k, ECU 7E8, only with the ENGINE RUNNING; supports rpm, coolant,

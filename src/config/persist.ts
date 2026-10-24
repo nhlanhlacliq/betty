@@ -1,3 +1,4 @@
+import { kv } from '../adapters/kv';
 import { CONFIG, applyConfig, resetConfig } from './betty';
 
 const KEY = 'betty.config.v1';
@@ -11,9 +12,9 @@ const pick = () => ({
 });
 
 export function loadConfig() {
-  try { const raw = localStorage.getItem(KEY); if (raw) applyConfig(JSON.parse(raw)); } catch { /* ignore */ }
+  try { const raw = kv.getItem(KEY); if (raw) applyConfig(JSON.parse(raw)); } catch { /* ignore */ }
 }
 export function saveConfig() {
-  try { localStorage.setItem(KEY, JSON.stringify(pick())); } catch { /* ignore */ }
+  try { kv.setItem(KEY, JSON.stringify(pick())); } catch { /* ignore */ }
 }
 export function resetAndSave() { resetConfig(); saveConfig(); }

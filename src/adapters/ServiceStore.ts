@@ -1,3 +1,4 @@
+import { kv } from './kv';
 import { DEFAULT_BIKE, ServiceBook, bikeBook, upgradeBook } from '../core/Reminders';
 
 const KEY = 'betty.service.v1';
@@ -9,7 +10,7 @@ const KEY = 'betty.service.v1';
 export const ServiceStore = {
   load(now = Date.now()): ServiceBook {
     try {
-      const v = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+      const v = JSON.parse(kv.getItem(KEY) ?? 'null');
       if (v && typeof v.odoKm === 'number' && Array.isArray(v.items)) {
         const up = upgradeBook(v as ServiceBook, now); // saved before the handbook schedule: add it
         if (up !== v) ServiceStore.save(up);
@@ -21,7 +22,7 @@ export const ServiceStore = {
     return book;
   },
   save(book: ServiceBook) {
-    try { localStorage.setItem(KEY, JSON.stringify(book)); } catch { /* full or blocked */ }
+    try { kv.setItem(KEY, JSON.stringify(book)); } catch { /* full or blocked */ }
     try { window.dispatchEvent(new window.Event('betty-service')); } catch { /* no window (tests) */ }
   },
   /** Adds km ridden (a delta, so an odometer he set mid-ride is kept). */
