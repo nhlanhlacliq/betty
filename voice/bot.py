@@ -9,6 +9,7 @@ Run locally:  cd voice && uv run bot.py      then open http://localhost:7860/cli
 """
 
 import asyncio
+import json
 import os
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.frames.frames import (
     Frame, LLMContextFrame, LLMRunFrame, LLMUpdateSettingsFrame, ProposedUserStartedSpeakingFrame, ProposedUserStoppedSpeakingFrame,
+    TTSSpeakFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
@@ -34,6 +36,7 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.transcriptions.language import Language
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
+from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
 from pipecat.turns.user_start import MinWordsUserTurnStartStrategy, WakePhraseUserTurnStartStrategy
 from pipecat.turns.user_stop import SpeechTimeoutUserTurnStopStrategy
 from pipecat.turns.user_turn_strategies import ExternalUserTurnStrategies, UserTurnStrategies
@@ -42,6 +45,7 @@ from pipecat.workers.runner import WorkerRunner
 from betty_voice import prompt, server_tools
 from betty_voice.chirp import ChirpKeyTTSService, trimmed
 from betty_voice.fillers import CHECK, SLOW_TOOLS, Fillers
+from betty_voice.link import IN_RATE, OUT_RATE, BettyLinkSerializer
 from betty_voice.phone import Phone
 from betty_voice.situation import TAG, Situation, strip_situation, with_situation
 from betty_voice.tools import ALL_TOOLS, PHONE_TOOL_NAMES
@@ -245,6 +249,10 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         elif msg.type == "ptt" and ptt:  # the talk button: down = his turn starts (interrupts her), up = it ends
             frame = ProposedUserStartedSpeakingFrame() if data.get("down") else ProposedUserStoppedSpeakingFrame()
             await worker.queue_frames([frame])
+        elif msg.type == "say" and str(data.get("text", "")).strip():
+            # One of her own lines (briefing, alert, story) said IN the conversation: one voice, queued after whatever
+            # she is saying, cut off when he talks, and kept in her context so "tell me more" knows what she said.
+            await worker.queue_frames([TTSSpeakFrame(text=str(data["text"]).strip())])
         elif msg.type == "setup":
             if data.get("system"):  # the app's own prompt, with the rider's settings
                 await worker.queue_frames([LLMUpdateSettingsFrame(delta=AnthropicLLMService.Settings(system_instruction=prompt.build(str(data["system"]))))])
@@ -274,6 +282,22 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
 
 
 async def bot(runner_args: RunnerArguments):
+    # Betty Link (the app's own WebSocket audio, see betty_voice/link.py): the first message carries the start body.
+    if getattr(runner_args, "transport_type", None) == "websocket":
+        ws = runner_args.websocket
+        try:
+            first = json.loads(await asyncio.wait_for(ws.receive_text(), 10))
+        except Exception as e:
+            logger.warning(f"link: no start message ({e})")
+            await ws.close(code=4000)
+            return
+        runner_args.body = first.get("body", {}) if isinstance(first, dict) else {}
+        logger.info("link: Betty Link session (WebSocket audio)")
+        transport = FastAPIWebsocketTransport(websocket=ws, params=FastAPIWebsocketParams(
+            audio_in_enabled=True, audio_out_enabled=True, audio_in_sample_rate=IN_RATE, audio_out_sample_rate=OUT_RATE,
+            add_wav_header=False, serializer=BettyLinkSerializer(), session_timeout=None))
+        await run_bot(transport, runner_args)
+        return
     transport = await create_transport(runner_args, {
         "daily": lambda: DailyParams(audio_in_enabled=True, audio_out_enabled=True),
         # SmallWebRTC kept for local tests only (scratchy on the 1-core VPS): 100 ms packets at 24 kHz help a little.

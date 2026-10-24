@@ -72,7 +72,8 @@ export default function Garage() {
         <Link icon="book" title="How Betty works" sub="Getting started, talking to her, every voice command, fuel, routes and fixes." onPress={() => router.push('/help')} />
         <Link icon="mic" title="Voice commands" sub="Everything you can tell her to do." onPress={() => router.push('/help?topic=commands')} />
         <Link icon="spark" title="What's new" sub={unread ? `${unread} new` : 'Latest updates'} badge={unread} onPress={() => setSheet('news')} />
-        <Link icon="wrench" title="The log" sub="What she said and heard this session, to share after a ride." onPress={() => router.push('/log')} last />
+        <Link icon="wrench" title="The log" sub="What she said and heard this session, to share after a ride." onPress={() => router.push('/log')} />
+        <Link icon="mic" title="Voice lab" sub="Experiment: Betty over our own connection, the helmet hands-free only while you talk." onPress={() => router.push('/lab')} last />
       </Card>
 
       <Card title="Betty's personality">

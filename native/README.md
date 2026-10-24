@@ -279,3 +279,23 @@ the repo root (the shared core is tested there).
   to a docs URL for plain text) before using an Expo API. See `AGENTS.md` (Expo's own notes).
 - Same conventions as the web app: changelog + Help for anything the owner would notice (once the app has its own
   What's new / Help, they come from the same `src/changelog.ts` and `src/ui/help.ts` data), CLAUDE.md kept current.
+
+## Voice lab: Betty Link (option C, 2026-10-25; BUILT, NOT YET RUN ON THE PHONE)
+
+Owner, after the call-based voice kept breaking in new ways: "explore C on the side". Garage > Voice lab
+(`src/app/lab.tsx`), separate from rides (refuses to run during one). Her conversation over ONE plain WebSocket to the
+same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead of Daily/WebRTC:
+- `modules/betty-link` (Swift, iPhone only) owns ALL the phone's sound: `.playback` + A2DP (stereo, music mixes on)
+  except while he holds the button: `.playAndRecord` + hands-free (helmet mic, waits up to 1.5 s for it), a separate
+  capture engine taps the mic -> 16 kHz 16-bit mono binary frames; off again = engine dropped, back to `.playback`.
+  Her voice: binary 24 kHz 16-bit frames (paced in real time by the server) on one player node, flushed on
+  "bot-interrupted". Logs: mic on/off in N ms with the route, loudest level of the turn, "her first sound N ms after
+  you let go".
+- Server: `voice/betty_voice/link.py` (BettyLinkSerializer: binary = audio, JSON = RTVI messages) and bot.py's
+  websocket branch (first text message = the start body), same pipeline as Daily. New client message `say` (also for
+  option A): one of her own lines spoken IN the conversation (TTSSpeakFrame, added to her context).
+- Checked from the Mac against a local server (scratch script): "say" -> 1.6 s of her voice; a spoken question ->
+  heard, interrupted her, answer's first audio 2.4 s after release.
+- Not in the lab yet: open mic, the phone tools (answer "not available"), ducking (music mixes at full level),
+  background/lock screen, headset buttons (the lab is about the audio path first).
+

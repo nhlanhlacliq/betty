@@ -20,6 +20,7 @@ export default function Root() {
           <Stack.Screen name="story/[id]" />
           <Stack.Screen name="help" />
           <Stack.Screen name="log" />
+          <Stack.Screen name="lab" />
         </Stack>
         <Toast />
       </BettyProvider>
