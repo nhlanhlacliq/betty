@@ -45,10 +45,11 @@ export default function Ride() {
   if (b.ride) hadRide.current = true;
   useEffect(() => {
     if (b.ride || b.ending) return;
-    if (hadRide.current) { router.replace('/'); return; }
+    // A ride worth keeping opens its story (as on the web); a short one goes back to the Ride tab.
+    if (hadRide.current) { router.replace(b.ended?.kept ? `/story/${b.ended.rideId}` : '/'); return; }
     const t = setTimeout(() => router.replace('/'), 1500);
     return () => clearTimeout(t);
-  }, [b.ride, b.ending]);
+  }, [b.ride, b.ending, b.ended]);
   if (!ride) return <View style={st.screen} />;
 
   // His side of the conversation, for the companion's state (hold to talk; open mic listens all ride, so it is not "his turn").

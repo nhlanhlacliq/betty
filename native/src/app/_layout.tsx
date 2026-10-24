@@ -17,6 +17,9 @@ export default function Root() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="ride" options={{ animation: 'fade', gestureEnabled: false }} />
+          <Stack.Screen name="story/[id]" />
+          <Stack.Screen name="help" />
+          <Stack.Screen name="log" />
         </Stack>
         <Toast />
       </BettyProvider>

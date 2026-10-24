@@ -24,7 +24,7 @@ import { AreaStore, ToldStore, researchAhead } from './adapters/AreaSource';
 import { TrackStore } from './adapters/TrackStore';
 import { RoadStore } from './adapters/RoadStore';
 import { JourneyStore } from './adapters/JourneyStore';
-import { SharePack, makePack, mergeSpots, mergeStories, rideAsRoute } from './core/Share';
+import { SharePack, makePack, rideAsRoute } from './core/Share';
 import { LineBankStore } from './adapters/LineBankStore';
 import { checkpoints, rideAgainStops, weatherLine } from './core/RouteAhead';
 import { fetchRouteWeather } from './adapters/RouteWeather';
@@ -50,6 +50,7 @@ import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushT
 import { beep } from './adapters/audio';
 import { formatLog } from './core/LineLog';
 import { RideSession } from './app/RideSession';
+import { mergeSharePack } from './app/backup';
 import { FATE_LABELS, LineLogger } from './app/LineLogger';
 import { ScreenId, copyText, downloadText, mountShell } from './ui/Shell';
 import { ReadyRow, mountHomeScreen } from './ui/screens/HomeScreen';
@@ -557,16 +558,11 @@ mountBackup(document, localStorage, avatarStore, {
   confirm: (m) => window.confirm(m), reload: () => setTimeout(() => location.reload(), 600),
   // A friend's Betty shared routes, spots or stories: add them to hers (owner's backlog, 2026-10-18).
   mergeShare: (p) => {
-    for (const r of p.routes) RouteStore.save(r);
-    const mem = RiderMemoryStore.load();
-    const marks = mergeSpots(mem.marks, p.spots, p.from);
-    const spotsAdded = marks.length - mem.marks.length;
-    if (spotsAdded) { RiderMemoryStore.save({ ...mem, marks }); rig?.engine.setMemory({ ...mem, marks }); }
-    const { merged, added } = mergeStories(AreaStore.all(), p.stories);
-    for (const [k, a] of Object.entries(merged)) if (p.stories[k]) AreaStore.put(k, a.notes, a.lat != null && a.lon != null ? { lat: a.lat, lon: a.lon } : undefined);
+    const out = mergeSharePack(p);
+    if (out.memoryChanged) rig?.engine.setMemory(RiderMemoryStore.load());
     window.dispatchEvent(new window.Event('betty-memory'));
     planner.paint();
-    return `Added from ${p.from}: ${[p.routes.length && `${p.routes.length} route${p.routes.length === 1 ? '' : 's'} (in Where to?)`, spotsAdded && `${spotsAdded} spot${spotsAdded === 1 ? '' : 's'}`, added && `${added} stor${added === 1 ? 'y' : 'ies'}`].filter(Boolean).join(', ') || 'nothing new'}.`;
+    return out.text;
   },
 });
 /** The name a shared file goes out under ("sir" is Betty's default for him, not a name). */

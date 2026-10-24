@@ -16,8 +16,8 @@ const Art = memo(function Art({ xml }: { xml: string }) {
  * picture is shifted and scaled; when they lift, `onView` gets the new view and the sketch is drawn again, sharp.
  * `fade` is the web's soft wash at the top, so the words over the map stay readable.
  */
-export function MapSketch({ input, label, onView, fade = 'home' }: { input: MapInput; label?: string; onView?: (v: MapView) => void; fade?: 'home' | 'ride' }) {
-  const xml = useMemo(() => mapSvg(input, label, fade), [input, label, fade]);
+export function MapSketch({ input, label, onView, onTap, fade = 'home', id }: { input: MapInput; label?: string; id?: string; onView?: (v: MapView) => void; onTap?: (p: { x: number; y: number }, box: { w: number; h: number }) => void; fade?: 'home' | 'ride' | 'none' }) {
+  const xml = useMemo(() => mapSvg(input, label, id ?? fade), [input, label, id, fade]);
   const box = useRef({ w: 1, h: 1, x: 0, y: 0 });
   const host = useRef<ComponentRef<typeof View>>(null);
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -33,7 +33,7 @@ export function MapSketch({ input, label, onView, fade = 'home' }: { input: MapI
     if (v && onView) onView(v); else redraw((n) => n + 1);
   };
   const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => !!onView,
+    onStartShouldSetPanResponder: () => !!onView || !!onTap,
     onMoveShouldSetPanResponder: () => !!onView,
     onPanResponderGrant: (e) => {
       const p = pts(e);
@@ -62,13 +62,13 @@ export function MapSketch({ input, label, onView, fade = 'home' }: { input: MapI
         // A double tap zooms in 2x where he tapped.
         const now = Date.now();
         if (v && now - s.lastTap < 300) { s.lastTap = 0; finish(viewAfter(v, w, h, s.origin, 2, { x: 0, y: 0 })); return; }
-        s.lastTap = now; finish(null); return;
+        s.lastTap = now; onTap?.(s.origin, { w, h }); finish(null); return;
       }
       finish(v ? viewAfter(v, w, h, s.origin, s.scale, s.move) : null);
     },
     onPanResponderTerminate: () => finish(null),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [input, onView]);
+  }), [input, onView, onTap]);
 
   return (
     <View ref={host} style={StyleSheet.absoluteFill} onLayout={(e: LayoutChangeEvent) => {
@@ -80,7 +80,7 @@ export function MapSketch({ input, label, onView, fade = 'home' }: { input: MapI
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale: zoom }] }]}>
         <Art xml={xml} />
       </Animated.View>
-      <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      {fade !== 'none' && <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
         <Defs>
           <LinearGradient id={`fade-${fade}`} x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor="#e7eadf" stopOpacity={fade === 'home' ? 0.87 : 0.67} />
@@ -89,7 +89,7 @@ export function MapSketch({ input, label, onView, fade = 'home' }: { input: MapI
           </LinearGradient>
         </Defs>
         <Rect width="100%" height="100%" fill={`url(#fade-${fade})`} />
-      </Svg>
+      </Svg>}
     </View>
   );
 }

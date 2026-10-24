@@ -9,29 +9,9 @@ import { buildTime } from './ChangelogPanel';
  * Read state is the set of entry ids seen (`betty.seen.v2`); the old count (`betty.seen.v1`) means he had been using
  * it, so everything there today counts as read.
  */
-const SEEN_KEY = 'betty.seen.v2';
-const OLD_KEY = 'betty.seen.v1';
-
-export const allIds = (log: ChangeDay[]) => log.flatMap((d) => d.items.map((c) => c.id));
-/** Unread entries that are worth a badge (fixes are not). */
-export const unreadCount = (log: ChangeDay[], seen: ReadonlySet<string>) =>
-  log.reduce((n, d) => n + d.items.filter((c) => c.kind !== 'fixed' && !seen.has(c.id)).length, 0);
-
-export interface SeenStore { get(): string[] | null; set(ids: string[]): void; hadOld(): boolean }
-export const LocalSeen: SeenStore = {
-  get() { try { const v = JSON.parse(localStorage.getItem(SEEN_KEY) ?? 'null'); return Array.isArray(v) ? v : null; } catch { return null; } },
-  set(ids) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(ids)); } catch { /* storage blocked */ } },
-  hadOld() { try { return localStorage.getItem(OLD_KEY) !== null; } catch { return false; } },
-};
-
-/** What he has seen: stored, or (first time with this version) everything if he used the old one, else all but the newest day. */
-export function seenSet(log: ChangeDay[], store: SeenStore): Set<string> {
-  const have = store.get();
-  if (have) return new Set(have);
-  const start = store.hadOld() ? allIds(log) : log.slice(1).flatMap((d) => d.items.map((c) => c.id));
-  store.set(start);
-  return new Set(start);
-}
+export { LocalSeen, allIds, seenSet, unreadCount } from '../app/whatsNew';
+export type { SeenStore } from '../app/whatsNew';
+import { LocalSeen, allIds, seenSet, unreadCount, SeenStore } from '../app/whatsNew';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const KINDS: Array<[ChangeKind, string]> = [['new', 'New'], ['better', 'Better'], ['fixed', 'Fixed']];

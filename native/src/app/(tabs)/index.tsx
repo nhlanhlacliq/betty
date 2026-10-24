@@ -1,10 +1,9 @@
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONFIG, chirpVoice, cleanRiderName } from '../../../../src/config/betty';
-import { fuelLeft } from '../../../../src/core/Fuel';
 import { readinessRow } from '../../../../src/core/Reminders';
 import { PlannedRoute, routeRequest, routeStats } from '../../../../src/core/Route';
 import { FuelStore } from '../../../../src/adapters/FuelStore';
@@ -25,15 +24,9 @@ import { MapSketch } from '../../ui/MapSketch';
 import { Orb } from '../../ui/Orb';
 import { Sheet, SheetRow } from '../../ui/Sheet';
 import { C, T, shadow } from '../../ui/theme';
+import { fuelText } from '../../ui/fuel';
 
 const date = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
-
-/** "227 km to reserve · 10 L left" (the web's fuelText). */
-export function fuelText(kmSinceFill: number | null) {
-  if (kmSinceFill === null) return 'Tap Filled up to start counting';
-  const f = fuelLeft(kmSinceFill, CONFIG.fuel);
-  return f.onReserve ? `On reserve: about ${f.kmToEmpty} km to empty` : `${f.kmToReserve} km to reserve · ${f.litres} L left`;
-}
 
 interface ReadyRow { icon: IconName; label: string; value: string; ok: boolean }
 
@@ -69,6 +62,11 @@ export default function Home() {
     };
     return manual ? { ...base, center: manual.center, spanKm: manual.spanKm } : base;
   }, [b.ready, route, last?.startedAt, manual]);
+
+  // Explore > Ride there: Where to? opens with the place filled in.
+  useEffect(() => { if (b.pendingWhere) setSheet('mode'); }, [b.pendingWhere]);
+  // Kept data changed elsewhere (a ride ended, Ride this again): read the route and fuel again.
+  useEffect(() => { if (b.ready) { setRoute(RouteStore.get()); setFuelSince(FuelStore.load()); } }, [b.ready, b.data]);
 
   const riding = !!b.ride;
   const modeTitle = HOME.modes[b.mode].title;
@@ -182,6 +180,7 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
   const [note, setNote] = useState('');
   const [readers, setReaders] = useState<{ name: string; address: string }[] | null>(null);
   const riding = !!b.ride;
+  useEffect(() => { if (open && b.pendingWhere) { setWhere(b.pendingWhere); b.setPendingWhere(null); } }, [open, b.pendingWhere]);
 
   const plan = async () => {
     if (!where.trim() || busy) return;

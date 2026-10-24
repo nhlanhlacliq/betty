@@ -13,6 +13,7 @@ import type { BikeState, DataSource } from '../src/core/types';
 import { LineLogger } from '../src/app/LineLogger';
 import { ChatEntry, RideSession } from '../src/app/RideSession';
 import { RiderMemoryStore } from '../src/adapters/RiderMemoryStore';
+import { backupOf, collect, describeBackup, parseBackup, restoreStorage } from '../src/app/backup';
 
 assert.equal(typeof (globalThis as any).window, 'undefined', 'runs without a browser');
 assert.equal(typeof (globalThis as any).localStorage, 'undefined');
@@ -74,6 +75,17 @@ void (async () => {
   assert.ok(data.has('betty.told.v1'), 'what she has told is kept as it goes');
   assert.match(data.get('betty.log.v1') ?? '', /\[command\]/, 'the log is saved through the shared store');
   assert.match(data.get('betty.log.v1') ?? '', /\[sensors\]/, 'a sensor line at the end');
+  // The data backup (shared by both apps): out of one store, into another, the same betty.* entries come back.
+  data.set('other.key', 'kept out');
+  const file = JSON.stringify(backupOf(collect([...data.keys()], { getItem: (k) => data.get(k) ?? null, setItem: () => {}, removeItem: () => {} }), null));
+  const back = parseBackup(file);
+  assert.ok(!('other.key' in back.storage), 'only betty.* entries go in a backup');
+  const phone = new Map<string, string>([['betty.old.v1', 'gone after restore'], ['not.betty', 'stays']]);
+  restoreStorage(back, [...phone.keys()], { getItem: (k) => phone.get(k) ?? null, setItem: (k, v) => { phone.set(k, v); }, removeItem: (k) => { phone.delete(k); } });
+  assert.equal(phone.get('betty.log.v1'), data.get('betty.log.v1'), 'the log comes back as it was');
+  assert.ok(!phone.has('betty.old.v1') && phone.get('not.betty') === 'stays', 'restore replaces betty.* entries only');
+  assert.match(describeBackup(back), /^\d+ rides, \d+ lines, 0 notes, 1 marked spots/);
+  assert.throws(() => parseBackup('{"app":"betty","version":1,"storage":{"x":"1"}}'), /damaged/);
   console.log('ride session tests passed');
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -3,6 +3,8 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONFIG } from '../../../../src/config/betty';
+import { CHANGELOG } from '../../../../src/changelog';
+import { LocalSeen, seenSet, unreadCount } from '../../../../src/app/whatsNew';
 import type { IconName } from '../../../../src/ui/icons';
 import { useBetty } from '../../state/Betty';
 import { Icon } from '../../ui/Icon';
@@ -25,6 +27,8 @@ function TabBar({ state, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const { ride, ending } = useBetty();
   const riding = !!ride && !ending;
+  // What's new: unread new/better entries as a badge on the Garage tab (as on the web).
+  const unread = useBetty().ready ? unreadCount(CHANGELOG, seenSet(CHANGELOG, LocalSeen)) : 0;
   const snap = ride?.ride.engine.rideSnapshot();
   const min = snap ? Math.floor(CONFIG.ridingTimeOnly ? snap.movingMin : snap.minutesOut) : 0;
   return (
@@ -48,6 +52,7 @@ function TabBar({ state, navigateToTab }: TabBarProps) {
               <View>
                 <Icon name={t.icon} size={22} color={on ? '#2d493e' : '#92998f'} width={on ? 2 : 1.5} />
                 {r.name === 'index' && riding && <View style={st.tabLive} />}
+                {r.name === 'garage' && unread > 0 && <View style={st.badge}><Text style={st.badgeText}>{unread}</Text></View>}
               </View>
               <Text style={[st.tabText, on && { color: '#2d493e' }]}>{t.label}</Text>
               {on && <View style={st.tabDot} />}
@@ -76,6 +81,8 @@ const st = StyleSheet.create({
   tabText: { fontSize: 10, fontWeight: '500', color: '#92998f' },
   tabDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: C.ink, marginTop: -2 },
   tabLive: { position: 'absolute', top: -2, right: -6, width: 7, height: 7, borderRadius: 4, backgroundColor: C.live, borderWidth: 2, borderColor: '#f9f9f3' },
+  badge: { position: 'absolute', top: -4, left: 14, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 9, fontWeight: '700', color: '#3d3618' },
   rideBar: { marginHorizontal: 10, marginBottom: 6, height: 40, borderRadius: 14, backgroundColor: C.inkDeep, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14,
     shadowColor: '#203931', shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 6 } },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.live },

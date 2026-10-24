@@ -7,8 +7,8 @@ import { serverFetch } from '../adapters/server';
 export { ProfileStore } from '../adapters/ProfileStore';
 import { ProfileStore } from '../adapters/ProfileStore';
 
-/** The question to ask ChatGPT or Claude, offered with a Copy button. */
-export const ASK_ABOUT_ME = 'Summarise what you know about me for my motorcycle co-pilot: who I am, my riding, my interests, my sense of humour, and anything I would not want brought up. Leave out anything sensitive.';
+export { ASK_ABOUT_ME } from '../adapters/ProfileStore';
+import { ASK_ABOUT_ME } from '../adapters/ProfileStore';
 /** Short enough to use as it is, without distilling. */
 const USE_AS_IS = 1400;
 

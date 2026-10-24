@@ -43,9 +43,17 @@ interface BettyCtx {
   /** A line in her voice outside a ride (the home orb) */
   hello(text: string): void;
   helloSpeaking: boolean;
+  /** Read something out outside a ride (Explore's Listen); `onEnd(true)` when heard to the end. Returns stop. */
+  listen(text: string, onEnd: (heard: boolean) => void): () => void;
   /** A short message at the top of the screen (the web's toast) */
   toast(msg: string): void;
   toastMsg: string | null;
+  /** Bumped when kept data changes (a ride ended, a ride deleted, a note, a reminder): screens read the stores again */
+  data: number;
+  touch(): void;
+  /** Where to? text waiting for the Home sheet (Explore > Ride there) */
+  pendingWhere: string | null;
+  setPendingWhere(t: string | null): void;
 }
 
 const Ctx = createContext<BettyCtx | null>(null);
@@ -75,6 +83,9 @@ export function BettyProvider({ children }: { children: ReactNode }) {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastMsg(null), Math.max(2600, 1600 + msg.length * 45)); // longer text stays longer
   }, []);
+  const [data, setData] = useState(0);
+  const touch = useCallback(() => setData((n) => n + 1), []);
+  const [pendingWhere, setPendingWhere] = useState<string | null>(null);
   const hurry = useRef(false);
   const busy = useRef(false);
 
@@ -98,15 +109,15 @@ export function BettyProvider({ children }: { children: ReactNode }) {
     try {
       const out = await r.end(() => hurry.current);
       setEnded(out);
-      const km = Math.round(r.ride.engine.rideSnapshot().distanceKm * 10) / 10;
-      toast(out.kept ? `Ride kept: ${km} km. Its story comes with My journeys.` : 'A short one: rides under 3 minutes and 1 km are not kept in My journeys.');
+      touch();
+      if (!out.kept) toast('A short one: rides under 3 minutes and 1 km are not kept in My journeys.');
       return out;
     } finally {
       rideRef.current = null; setRide(null);
       deactivateKeepAwake();
       setVoice('off'); setEnding(false); busy.current = false;
     }
-  }, [toast]);
+  }, [toast, touch]);
 
   const start = useCallback(async () => {
     if (rideRef.current || busy.current) return;
@@ -146,8 +157,20 @@ export function BettyProvider({ children }: { children: ReactNode }) {
     })();
   }, [logger]);
 
+  const listen = useCallback((text: string, onEnd: (heard: boolean) => void) => {
+    let over = false;
+    const end = (heard: boolean) => { if (over) return; over = true; onEnd(heard); };
+    void (async () => {
+      await setUpAudio();
+      helloVoice.current ??= new ChirpSpeaker(new ExpoSpeaker(), (m) => logger.add('[audio]', m));
+      helloVoice.current.stop();
+      helloVoice.current.speak(text, () => end(true), { priority: 3, id: 'area_story' });
+    })();
+    return () => { if (!over) { helloVoice.current?.stop(); end(false); } };
+  }, [logger]);
+
   return (
-    <Ctx.Provider value={{ ready, ride, tick, state, voice, ending, mode, setMode, openMic, setOpenMic, reader, setReader, lines, logger, start, end, ended, hello, helloSpeaking, toast, toastMsg }}>
+    <Ctx.Provider value={{ ready, ride, tick, state, voice, ending, mode, setMode, openMic, setOpenMic, reader, setReader, lines, logger, start, end, ended, hello, helloSpeaking, listen, toast, toastMsg, data, touch, pendingWhere, setPendingWhere }}>
       {children}
     </Ctx.Provider>
   );

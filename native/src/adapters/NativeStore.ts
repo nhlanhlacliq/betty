@@ -55,6 +55,8 @@ class NativeStore implements KeyValue {
 }
 
 let store: NativeStore | null = null;
+/** The open store (after openStore), for the data backup. */
+export const currentStore = () => store;
 
 /** Load everything Betty keeps and point the shared stores at it. Call (and await) before anything reads a store. */
 export async function openStore(log: (msg: string) => void = () => {}) {

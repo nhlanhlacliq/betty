@@ -55,7 +55,8 @@
           "enableScreenShare": false
         }
       ],
-      "expo-router"
+      "expo-router",
+      "expo-sharing"
     ],
     "scheme": "betty"
   }

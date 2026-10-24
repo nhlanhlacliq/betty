@@ -47,11 +47,31 @@ Expo Router (`index.ts` loads the polyfill, then `expo-router/entry`; scheme `be
   with open mic a tap mutes/unmutes), Lock (cover, hold 1 s to unlock, big Tap to talk), End ride (confirm sheet;
   during the sign-off a tap stops at once), the note line; Up ahead sheet for a route. Her answers from the voice
   server are her line too (`VoiceSession.onSaid/onSpeaking`, wired in rig.ts). No ride -> back to the tabs.
-- `(tabs)/journeys|explore|garage.tsx`: placeholders for stage 4; Garage holds this session's LOG (for testing).
+- STAGE 4 (2026-10-24, NOT YET RUN ON A PHONE): `(tabs)/journeys.tsx` MY JOURNEYS (totals, fuel spend, On this day,
+  month so far with week bars, Records + next milestone, Your roads map with tap-to-open, months (newest open), search
+  + starred, hold a ride to select: Short rides / Star / Delete with confirm); `story/[id].tsx` THE RIDE'S STORY (orb,
+  Star, Rename in place, blurb, numbers, riding/stopped bar, road map with rough spots, moments and her lines folded,
+  Share the log (share sheet, plain text), Ride this again (api/route -> RouteStore -> Ride tab), Delete). After End
+  ride a kept ride opens its story. `(tabs)/explore.tsx` EXPLORE (tally, story of the day, tabs Everything / Area
+  stories / Not heard yet / Notes, search, area cards with heard ring + New tag + stories folded to 3 + Listen (Chirp,
+  heard to the end = told) + Ride there (fills Where to? on Home), spots (Open map, Forget) and notes (Forget), Map mode
+  with area pins + spots, tap a dot for its sheet; areas without a position looked up one a second).
+  `(tabs)/garage.tsx` GARAGE (Help, Voice commands, What's new (sheet, badge on the tab), the log; personality:
+  narration presets + his modes, humour and TARS steppers, little animations, Let Betty know me (+ the sheet: copy the
+  question, paste, Distil via api/profile, Save, Forget), hear her voice; Horizon switches; voice (Chirp voice list,
+  louder); names, fuel (Filled up, tank/reserve, consumption, price), road drawings, riding time only; Reminders
+  (odometer = alignToOdometer, Done/Undo, edit/add sheet, delete, mark as not done); smarter web answers).
+  `help.tsx` HELP (shared HELP_TOPICS drawn by `ui/Html.tsx`, search, `/help?topic=<id>`), `log.tsx` THE LOG (session
+  lines, Share the whole saved log). Shared helpers moved for this: `src/app/rides.ts` (rideTitle, duration,
+  spokenLines, triggerOf, deleteRideData), `src/app/whatsNew.ts` (read state), `ASK_ABOUT_ME` -> adapters/ProfileStore.
+  NOT in the app yet: ride and month picture cards (web canvas), send to a friend's Betty, saved routes / plan with
+  Betty, the map's suburb borders and card place names, her picture in the orb, the Workshop (simulator, tuning),
+  Your data export/import (stage 5).
 UI pieces in `native/src/ui`: `theme.ts` (the web's tokens), `Icon` (the web's icon paths via SvgXml), `Orb` (the
 web's blob as an SVG path + radial gradient, breathing with Animated; still with Little animations off or Reduce
 Motion), `MapSketch` (the shared `mapSvg` string in SvgXml; gestures with PanResponder and the shared `viewAfter`),
-`Sheet`, `Buttons`, `Horizon`, `Toast`, `Soon`. Pure helpers moved out of web DOM files so both apps use them:
+`Sheet`, `Buttons`, `Horizon`, `Toast`, `Card` (Card, Setting, Toggle, Stepper instead of sliders, Field, Choice, Fold,
+Search), `Html`, `fuel.ts`. Pure helpers moved out of web DOM files so both apps use them:
 `islandView` -> src/ui/rideView.ts, `routeRequest`/`routeStats` -> src/core/Route.ts, `readinessRow` ->
 src/core/Reminders.ts (re-exported where they were). Not yet: slim docks, word-by-word line, her picture in the orb,
 saved routes / plan-with-Betty / stop weather in Where to?, the ride's story after End ride (stage 4).
