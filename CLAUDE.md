@@ -32,7 +32,8 @@ NOT YET RUN ON THE PHONE) -> 2 Pipecat as her full voice (DONE 2026-10-24, NOT Y
 on real data, reminder_done handled, end_ride tool on the server (deployed) and phone, Chirp for her own lines via
 native ChirpSpeaker + expo-file-system) -> 3 Ride + Home screens (BUILT 2026-10-24, NOT YET RUN ON THE PHONE: Expo Router, design v3, shared rideView/islandView/
 mapSvg; see native/README.md "Screens") -> 4 the other screens (BUILT 2026-10-24, NOT YET RUN ON THE PHONE: Journeys + ride story, Explore, Garage,
-Help, Log; see native/README.md) -> 5 import the web backup -> 6 native-only (background, ducking,
+Help, Log; see native/README.md) -> 5 import the web backup (BUILT 2026-10-24: src/app/backup.ts shared format; native Garage > Your data export via
+share sheet, import via Files; a friend's share pack is merged; web Help says how to move) -> 6 native-only (background, ducking,
 headset buttons, notifications, BLE OBD). Workshop tools later; same look (design v3). Details: native/README.md.
 
 Also NOT yet tried on the phone (2026-10-23): OPEN MIC, a switch in the app: the mic stays on and she answers only
