@@ -137,6 +137,10 @@ PHONE TESTS, 2026-10-24 evening (owner, standing still; logs in his Downloads):
   buttons: pauses of the silent track within 2.5-3 s of a switch are played on, not taken as presses. Costs: up to
   ~1.5 s from press to mic (first word may clip), and a press during his turn cannot arrive (call mode).
   Android: no module, the old behaviour (recording allowed for the whole call).
+- STILL TWO VOICES (owner, 2026-10-25): the hold worked, but a "cut off" clip kept PLAYING: expo-audio's
+  `player.remove()` only drops the player from its registry (AudioComponentRegistry.swift), it never pauses.
+  ChirpSpeaker now pauses before removing. Open mic: "Betty" in any transcript (interim too) starts his turn at once
+  (her remark stops), instead of waiting for her answer to start.
 - MUSIC: open mic puts the music at call quality (the helmet is in call mode the whole time; nothing the app can
   change), and the music sometimes paused while she spoke (likely the duck switching the audio session under the
   call). Ducking without the call works.

@@ -86,7 +86,11 @@ export class VoiceSession {
           onDisconnected: () => { this.client = null; this.stopSituation(); this.set('off'); this.setup.log('voice: disconnected'); },
           onServerMessage: (data: unknown) => void this.onServerMessage(data),
           // The conversation on the phone's screen too (owner, 2026-10-23: only the old path's lines showed).
-          onUserTranscript: (d) => { if (d.final && d.text.trim()) { this.setup.log(`you: ${d.text.trim()}`); this.onHeardRider(d.text.trim()); } },
+          onUserTranscript: (d) => {
+            // Open mic: the moment "Betty" is heard (even mid-sentence) it is his turn: her remark stops, lines wait.
+            if (this.mode === 'open' && /\bbett(y|ie)\b/i.test(d.text)) { this.onRiderTurn(true); this.onRiderTurn(false); }
+            if (d.final && d.text.trim()) { this.setup.log(`you: ${d.text.trim()}`); this.onHeardRider(d.text.trim()); }
+          },
           onBotOutput: (d) => {
             const kind = d.text_type ?? d.aggregated_by;
             const text = d.text.trim();

@@ -106,7 +106,9 @@ export class ChirpSpeaker implements Speaker {
     });
   }
 
-  private release() { try { this.player?.remove(); } catch { /* gone */ } this.player = null; }
+  /** PAUSE first: expo-audio's remove() only forgets the player, the sound plays on (her remark kept talking over the
+   *  conversation after it was "cut off", 2026-10-25). */
+  private release() { const p = this.player; this.player = null; try { p?.pause(); } catch { /* gone */ } try { p?.remove(); } catch { /* gone */ } }
 
   stop() { this.gen++; this.endLine?.(); this.endLine = null; this.release(); this.backup.stop(); }
 }
