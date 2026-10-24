@@ -1,6 +1,6 @@
 import { PipecatClient, type Transport } from '@pipecat-ai/client-js';
 import { NativeModules } from 'react-native';
-import { reapply, setCall, setTalking } from '../adapters/AudioFocus';
+import { reapply, routeNow, setCall, setTalking } from '../adapters/AudioFocus';
 import { RNDailyTransport } from '@pipecat-ai/react-native-daily-transport';
 
 /**
@@ -173,6 +173,8 @@ export class VoiceSession {
     await setTalking(true); // the helmet switches to hands-free (its mic), up to 1.5 s
     if (!this.held) return; // let go while the helmet was switching: release() closes it all again
     c.enableMic(true);
+    const where = routeNow();
+    if (where) this.setup.log(`mic on: ${where}`); // which mic the call hears (silent turns: was it the helmet's?)
     c.sendClientMessage('ptt', { down: true }); // his turn starts: she stops talking
     this.set('listening');
   }

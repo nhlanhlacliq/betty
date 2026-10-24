@@ -27,7 +27,14 @@ let log: (msg: string) => void = () => {};
 /** Where the route changes are reported (the ride's log) */
 export const setAudioLog = (fn: (msg: string) => void) => { log = fn; };
 
-const apply = async () => {
+/**
+ * One change at a time, always ending on the LATEST wish: two in flight could finish out of order (a music duck
+ * landing after his press put the helmet back to stereo, and the call heard silence: phone test, 2026-10-25).
+ */
+let chain: Promise<void> = Promise.resolve();
+const apply = () => { chain = chain.then(applyNow, applyNow); return chain; };
+
+const applyNow = async () => {
   const mode = exclusive ? 'doNotMix' : speaking > 0 ? 'duckOthers' : 'mixWithOthers';
   if (call && audioRoute) {
     const route = talking ? 'call' : 'media';
@@ -68,3 +75,5 @@ export function setTalking(on: boolean) { if (talking === on) return Promise.res
 export function reapply() { applied = ''; return apply(); }
 /** True when the helmet can be switched per turn (iPhone with our module). */
 export const perTurnHelmet = () => audioRoute != null;
+/** Which mic and speaker the phone is using right now (for the log), or '' where it cannot tell. */
+export const routeNow = () => { try { return audioRoute?.currentRoute() ?? ''; } catch { return ''; } };

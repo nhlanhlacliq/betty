@@ -141,6 +141,11 @@ PHONE TESTS, 2026-10-24 evening (owner, standing still; logs in his Downloads):
   `player.remove()` only drops the player from its registry (AudioComponentRegistry.swift), it never pauses.
   ChirpSpeaker now pauses before removing. Open mic: "Betty" in any transcript (interim too) starts his turn at once
   (her remark stops), instead of waiting for her answer to start.
+- TEST 2026-10-25 00:21-00:36 (server journal + his log): the helmet switch WORKS (stereo 379 ms, hands-free 31-85 ms,
+  routes V6 A2DP / V6 HFP), no two voices (a remark was cut when he said "Betty"), the sign-off played. But
+  hold-to-talk heard nothing on some presses (1st and the last two of six: `heard: ''`). Suspected: two audio
+  changes in flight finishing out of order (AudioFocus now runs them one at a time, ending on the latest); each press
+  logs `[voice] mic on: in: ...; out: ...` to confirm which mic the call got.
 - MUSIC: open mic puts the music at call quality (the helmet is in call mode the whole time; nothing the app can
   change), and the music sometimes paused while she spoke (likely the duck switching the audio session under the
   call). Ducking without the call works.
