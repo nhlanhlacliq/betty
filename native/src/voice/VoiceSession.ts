@@ -1,5 +1,6 @@
 import { PipecatClient, type Transport } from '@pipecat-ai/client-js';
-import { setRecording } from '../adapters/AudioFocus';
+import { NativeModules } from 'react-native';
+import { reapply, setCall, setTalking } from '../adapters/AudioFocus';
 import { RNDailyTransport } from '@pipecat-ai/react-native-daily-transport';
 
 /**
@@ -41,6 +42,8 @@ export class VoiceSession {
   private releaseTimer: ReturnType<typeof setTimeout> | null = null;
   private situationTimer: ReturnType<typeof setInterval> | null = null;
   private micOn = false;
+  /** The talk button is down (a release during the helmet's switch must win) */
+  private held = false;
   mode: VoiceMode = 'ptt';
   state: 'off' | 'connecting' | 'ready' | 'listening' = 'off';
   onState: (s: VoiceSession['state']) => void = () => {};
@@ -57,7 +60,15 @@ export class VoiceSession {
 
   constructor(private setup: VoiceSetup) {}
 
-  private set(s: VoiceSession['state']) { this.state = s; void setRecording(s !== 'off'); this.onState(s); }
+  private set(s: VoiceSession['state']) { this.state = s; void setCall(s !== 'off'); this.onState(s); }
+
+  /**
+   * Daily sets the phone's sound up as a phone call (helmet hands-free) when it joins and whenever the sound restarts.
+   * "idle" makes it leave the sound to us (AudioFocus picks hands-free only while he talks). iPhone only.
+   */
+  private leaveSoundToUs() {
+    try { (NativeModules as { WebRTCModule?: { setDailyAudioMode?: (m: string) => void } }).WebRTCModule?.setDailyAudioMode?.('idle'); } catch { /* not there */ }
+  }
 
   private connect(): Promise<void> {
     if (this.client && this.state !== 'off') return Promise.resolve();
@@ -97,6 +108,9 @@ export class VoiceSession {
       if (mode !== this.mode) { await client.disconnect().catch(() => {}); this.set('off'); return; } // switched meanwhile
       this.client = client;
       this.micOn = this.mode === 'open';
+      this.leaveSoundToUs();
+      await setTalking(this.micOn);
+      await reapply();
       if (this.mode === 'open') this.startSituation();
       this.set(this.micOn ? 'listening' : 'ready');
       this.setup.log(`voice: connected in ${Date.now() - t0} ms (${this.mode === 'open' ? 'open mic, say "Betty"' : 'push-to-talk'})`);
@@ -123,7 +137,9 @@ export class VoiceSession {
     if (this.mode !== 'open') return;
     if (!this.client) { await this.connect().catch(() => {}); return; }
     this.micOn = !this.micOn;
+    if (this.micOn) await setTalking(true); // the helmet's mic first, then the call's
     this.client.enableMic(this.micOn);
+    if (!this.micOn) void setTalking(false); // muted: the helmet goes back to stereo (music, buttons)
     if (this.micOn) this.client.sendClientMessage('situation', this.setup.situation());
     this.setup.log(`voice: mic ${this.micOn ? 'on' : 'muted'}`);
     this.set(this.micOn ? 'listening' : 'ready');
@@ -143,11 +159,15 @@ export class VoiceSession {
   async press() {
     if (this.mode !== 'ptt') return;
     if (this.releaseTimer) { clearTimeout(this.releaseTimer); this.releaseTimer = null; }
+    this.held = true;
     this.onRiderTurn(true);
     await this.connect();
     const c = this.client;
     if (!c) return;
     c.sendClientMessage('situation', this.setup.situation());
+    this.leaveSoundToUs();
+    await setTalking(true); // the helmet switches to hands-free (its mic), up to 1.5 s
+    if (!this.held) return; // let go while the helmet was switching: release() closes it all again
     c.enableMic(true);
     c.sendClientMessage('ptt', { down: true }); // his turn starts: she stops talking
     this.set('listening');
@@ -157,10 +177,12 @@ export class VoiceSession {
   release() {
     if (this.mode !== 'ptt') return;
     if (this.releaseTimer) clearTimeout(this.releaseTimer);
+    this.held = false;
     this.onRiderTurn(false);
     this.releaseTimer = setTimeout(() => {
       this.releaseTimer = null;
       this.client?.enableMic(false);
+      void setTalking(false); // the helmet back to stereo: her answer and his music at full quality, buttons work
       // His turn ends on release, not on a guessed pause: she answers what he said, whole (no half sentences).
       this.client?.sendClientMessage('ptt', { down: false });
       if (this.client) this.set('ready');

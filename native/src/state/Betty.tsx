@@ -135,12 +135,13 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   const startButtons = async (r: Ride) => {
     const hb = new HeadsetButtons((m) => logger.add('[voice]', m));
     let talking: ReturnType<typeof setTimeout> | undefined;
-    const done = () => { clearTimeout(talking); talking = undefined; r.voice.release(); setTimeout(() => hb.resume(), 400); };
+    const done = () => { clearTimeout(talking); talking = undefined; hb.quiet(3000); r.voice.release(); setTimeout(() => hb.resume(), 1200); };
     r.voice.onHeardRider = () => { if (talking) done(); };
     const ok = await hb.start({
       talk: () => {
-        if (r.voice.mode === 'open') { void r.voice.toggleMic(); return; }
+        if (r.voice.mode === 'open') { hb.quiet(3000); void r.voice.toggleMic(); return; }
         if (talking) { done(); return; }
+        hb.quiet(3000); // the helmet goes hands-free now: a pause of the silent track is that, not a press
         void r.voice.press().catch(() => {});
         talking = setTimeout(done, 10_000);
       },

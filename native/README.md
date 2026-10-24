@@ -124,6 +124,19 @@ PHONE TESTS, 2026-10-24 evening (owner, standing still; logs in his Downloads):
   2026-10-16. Fix options (OWNER'S CALL): buttons mode uses the web's old path (record with expo-audio only while he
   talks, Whisper, Claude, Chirp: ~5-7 s instead of ~2 s, helmet back in media mode after each question), or the call
   is closed between questions (reconnect ~10-14 s a press: too slow), or drop the buttons on iPhone.
+- HELMET HANDS-FREE ONLY WHILE HE TALKS (owner chose this, 2026-10-25; BUILT, UNVERIFIED ON THE PHONE): our own
+  local Expo module `modules/betty-audio-route` (Swift, iPhone only; autolinked from modules/, needs prebuild --clean)
+  sets the sound while the call is open: playAndRecord always (the call needs it), but the Bluetooth link "call"
+  (HFP, voiceChat, waits up to 1.5 s for the helmet mic) only while he talks, "media" (A2DP: stereo music, her voice,
+  buttons are play/pause) otherwise; mix / duck / solo for his music. Daily is told `setDailyAudioMode('idle')` after
+  joining and on each press so it stops re-applying its own call setting (it forces HFP + voiceChat:
+  WebRTCModule+Daily.m), and AudioFocus no longer calls expo-audio's setAudioModeAsync during the call (it forces HFP
+  with recording on). Push-to-talk: helmet mic on press, off with the mic after release. Open mic: hands-free while
+  listening, stereo when muted. Her answers through the call duck his music too. Every helmet switch is logged as
+  `[audio] helmet hands-free/stereo in N ms; in: ...; out: ...` (the route names show whether it worked). Headset
+  buttons: pauses of the silent track within 2.5-3 s of a switch are played on, not taken as presses. Costs: up to
+  ~1.5 s from press to mic (first word may clip), and a press during his turn cannot arrive (call mode).
+  Android: no module, the old behaviour (recording allowed for the whole call).
 - MUSIC: open mic puts the music at call quality (the helmet is in call mode the whole time; nothing the app can
   change), and the music sometimes paused while she spoke (likely the duck switching the audio session under the
   call). Ducking without the call works.

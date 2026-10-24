@@ -8,6 +8,7 @@ import type { LineLogger } from '../../src/app/LineLogger';
 import { ExpoGeoSource } from './adapters/ExpoGeoSource';
 import { ExpoSpeaker, setUpAudio } from './adapters/ExpoSpeaker';
 import { ChirpSpeaker } from './adapters/ChirpSpeaker';
+import { lineEnd, lineStart, setAudioLog } from './adapters/AudioFocus';
 import { SERVER_HEADERS, api } from './server';
 import { VoiceSession } from './voice/VoiceSession';
 import { phoneTools } from './voice/phoneTools';
@@ -73,7 +74,10 @@ export async function startRide(h: RideHooks) {
   let convo: ReturnType<typeof setTimeout> | undefined;
   const busyFor = (ms: number) => { clearTimeout(convo); ride.conversation(true); convo = setTimeout(() => ride.conversation(false), ms); };
   voice.onRiderTurn = (on) => busyFor(on ? 30_000 : 8_000); // released: her answer is on its way (or nothing came)
+  setAudioLog((m) => log('[audio]', m));
+  let answering = false; // his music ducks while she answers through the call too
   voice.onSpeaking = (on) => {
+    if (on !== answering) { answering = on; if (on) lineStart(); else lineEnd(); }
     ride.speaking = on ? { text: '…', tag: 'rider_query', priority: 4, at: Date.now() } : null;
     busyFor(on ? 60_000 : 1_500); // a moment after her answer, for a follow-up
     h.changed();
@@ -87,6 +91,7 @@ export async function startRide(h: RideHooks) {
     /** Stop reacting, say the sign-off (up to 45 s), then shut down (as the web app does). */
     async end(hurry: () => boolean = () => false) {
       clearTimeout(convo);
+      if (answering) { answering = false; lineEnd(); }
       void voice.end();
       const out = ride.wrapUp();
       await ride.signOff(hurry);

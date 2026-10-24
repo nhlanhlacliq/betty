@@ -7,12 +7,15 @@ import { setExclusive } from './AudioFocus';
  * screen (three copies of a minute of silence, looping). Play/pause arrives as the playlist pausing, next/previous as
  * a track change. Holding the sound like this PAUSES his music (doNotMix): it is a per-ride switch, as on the web.
  *   play/pause -> talk (open mic: mute/unmute)   next track -> repeat her last line   previous -> let go (music back)
- * UNVERIFIED on the phone: whether the buttons still arrive after the voice server's mic has been open (call mode).
+ * The voice server's call kept the helmet in call mode, where its button sends call controls (phone test 2026-10-24:
+ * the first press dropped the helmet). Since 2026-10-25 the helmet is hands-free only while he talks (AudioFocus), so
+ * presses arrive between questions; a press DURING his turn cannot (call mode), so his turn ends on his words or 10 s.
+ * UNVERIFIED on the phone.
  */
 const SILENCE = require('../../assets/silence.wav');
 const MIDDLE = 1;
-/** A pause right after we started talking or changed track is ours (or the mic's), not a press. */
-const QUIET_MS = 1500;
+/** A pause right after we started talking or changed track is ours (or the helmet switching modes), not a press. */
+const QUIET_MS = 2500;
 
 export interface ButtonHooks { talk(): void; repeat(): void; letGo(): void }
 
@@ -46,7 +49,9 @@ export class HeadsetButtons {
         if (forward) h.repeat(); else h.letGo();
       }));
       this.subs.push(pl.addListener('playlistStatusUpdate', (st) => {
-        if (st.playing || !this.pl || Date.now() < this.ignoreUntil) return;
+        if (st.playing || !this.pl) return;
+        // Paused by the phone (the helmet switching between hands-free and stereo): play on, or the next press is lost.
+        if (Date.now() < this.ignoreUntil) { try { pl.play(); } catch { /* gone */ } return; }
         // Paused, and not by us: the play/pause button. Keep the silence going so the next press arrives too.
         this.log('button: play/pause');
         this.quiet(); pl.play();
@@ -76,5 +81,6 @@ export class HeadsetButtons {
     await setExclusive(false);
   }
 
-  private quiet() { this.ignoreUntil = Date.now() + QUIET_MS; }
+  /** Pauses for a while are ours, not presses (the helmet is about to switch modes). */
+  quiet(ms = QUIET_MS) { this.ignoreUntil = Date.now() + ms; }
 }
