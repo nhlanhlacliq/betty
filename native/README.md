@@ -146,6 +146,12 @@ PHONE TESTS, 2026-10-24 evening (owner, standing still; logs in his Downloads):
   hold-to-talk heard nothing on some presses (1st and the last two of six: `heard: ''`). Suspected: two audio
   changes in flight finishing out of order (AudioFocus now runs them one at a time, ending on the latest); each press
   logs `[voice] mic on: in: ...; out: ...` to confirm which mic the call got.
+- TEST 2026-10-25 00:38: HEADSET BUTTONS WORK (5 presses in a row: hands-free 0.6-0.8 s after the press, stereo after
+  his words). Fixed after: the first press was lost to the ~9 s connect (the app now connects at ride start, and the
+  server has no idle timeout for app sessions: they last the ride, ending when the app leaves); names misheard
+  (Modderfontein, Betty as "Pretty"): Deepgram keyterms in every mode = Betty + LOCAL_NAMES (bot.py) + up to 40 names
+  the app sends at connect (area, nearby places, route stops, bike name); her own lines now wait 4 s (was 1.5 s) after
+  she stops in the conversation (an area story started between two of her sentences).
 - MUSIC: open mic puts the music at call quality (the helmet is in call mode the whole time; nothing the app can
   change), and the music sometimes paused while she spoke (likely the duck switching the audio session under the
   call). Ducking without the call works.

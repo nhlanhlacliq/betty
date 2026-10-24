@@ -56,6 +56,12 @@ export async function startRide(h: RideHooks) {
     system: `${bettySystemPrompt(2)}\n\n${(FLAVOUR_PROMPTS as Record<string, string>).rider_query ?? ''}`,
     situation: () => ({ text: ride.engine.voiceSituation(ride.agg.current), lat: ride.agg.current.lat, lon: ride.agg.current.lon }),
     tools: phoneTools(ride),
+    keyterms: () => {
+      const s = ride.agg.current;
+      const stops = ride.engine.routeNow()?.route.stops.filter((x) => x.named).map((x) => x.name) ?? [];
+      return [s.area?.suburb, s.area?.town, ...s.nearbyPlaces.map((p) => p.name), ...stops, CONFIG.bikeName]
+        .filter((x): x is string => !!x && x.length <= 40).slice(0, 40);
+    },
     log: (m) => log('[voice]', m),
   });
   // Her answers in the conversation are her line on the ride screen too (the queue never sees them), and her orb
@@ -79,7 +85,7 @@ export async function startRide(h: RideHooks) {
   voice.onSpeaking = (on) => {
     if (on !== answering) { answering = on; if (on) lineStart(); else lineEnd(); }
     ride.speaking = on ? { text: '…', tag: 'rider_query', priority: 4, at: Date.now() } : null;
-    busyFor(on ? 60_000 : 1_500); // a moment after her answer, for a follow-up
+    busyFor(on ? 60_000 : 4_000); // a few seconds after her answer: a follow-up, or her next sentence
     h.changed();
   };
   await ride.start();

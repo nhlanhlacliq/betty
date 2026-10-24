@@ -173,7 +173,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       await activateKeepAwakeAsync();
       const r = await startRide({ logger, changed, state: setState, endRequested: () => void end(), obd, real: mode === 'real', toast });
       r.voice.onState = setVoice;
-      if (openMic) void r.voice.setMode('open');
+      if (openMic) void r.voice.setMode('open'); else r.voice.warm(); // connected before the first press
       rideRef.current = r; setRide(r);
       if (buttons) void startButtons(r);
     } finally { busy.current = false; }

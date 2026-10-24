@@ -52,6 +52,12 @@ load_dotenv(HERE / ".env", override=True)  # the server's own (only the keys it 
 # Google service account (never in git): next to bot.py on the server, the repo root on the Mac.
 CREDS = next((p for p in [HERE / "google-service-account.json", HERE.parent / "google-service-account.json"] if p.exists()), None)
 VOICE = os.getenv("BETTY_CHIRP_VOICE", "en-US-Chirp3-HD-Zephyr")
+# Gauteng names Deepgram tends to mishear (the app adds the ones around him per session).
+LOCAL_NAMES = [
+    "Modderfontein", "Greenstone Hill", "Edenvale", "Germiston", "Bedfordview", "Boksburg", "Benoni", "Kempton Park",
+    "Midrand", "Sandton", "Gautrain", "Illiondale", "Tembisa", "Ekurhuleni", "Fourways", "Pretoria", "Centurion",
+    "Krugersdorp", "Heidelberg", "Cullinan", "Hartbeespoort", "Magaliesberg", "Soweto", "Rosebank", "Alberton",
+]
 FILLERS = Fillers()  # made once per server process
 
 # OPEN MIC (the app, body.mode == "open"; owner, 2026-10-23: test hands-free on the bike). The mic stays on, so wind,
@@ -137,9 +143,12 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     open_mic = body.get("mode") == "open"
     ptt = bool(body.get("ptt")) and not open_mic
     logger.info(f"turns: {'open mic, wake word' if open_mic else 'push-to-talk' if ptt else 'automatic (browser)'}")
-    # Her name boosted in hearing, so the wake word is caught in wind.
-    stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"),
-                             settings=DeepgramSTTService.Settings(keyterm=["Betty"]) if open_mic else None)
+    # Words boosted in hearing (Deepgram keyterms): her name (the wake word, caught in wind), local names it got wrong
+    # (2026-10-25: Modderfontein as "Motifantine" / "Ivan Fontein", Betty as "Pretty" / "Preeti"), and the names
+    # around him that the app sends (his area, nearby places, route stops).
+    sent = [str(k).strip()[:40] for k in body.get("keyterms", []) if str(k).strip()] if isinstance(body.get("keyterms"), list) else []
+    terms = list(dict.fromkeys(["Betty", *LOCAL_NAMES, *sent]))[:90]
+    stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"), settings=DeepgramSTTService.Settings(keyterm=terms))
     if CREDS:  # streamed: first audio ~0.3-0.5 s
         tts = trimmed(GoogleTTSService)(credentials_path=str(CREDS), sample_rate=24000,
                                         settings=GoogleTTSService.Settings(voice=VOICE, language=Language.EN_US))
@@ -212,7 +221,11 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     pipeline = Pipeline([
         transport.input(), stt, user_aggregator, SituationInjector(situation), llm, tts, transport.output(), assistant_aggregator,
     ])
-    worker = PipelineWorker(pipeline, params=PipelineParams(enable_metrics=True, enable_usage_metrics=True))
+    # The app's sessions last the ride (2026-10-25: opening one took ~9 s and the first press was lost), so no idle
+    # timeout for them; they end when the app leaves (on_client_disconnected). The browser keeps Pipecat's default.
+    app = bool(body.get("ptt")) or open_mic
+    worker = PipelineWorker(pipeline, params=PipelineParams(enable_metrics=True, enable_usage_metrics=True),
+                            **({"idle_timeout_secs": None} if app else {}))
     runner = WorkerRunner(handle_sigint=runner_args.handle_sigint)
     await runner.add_workers(worker)
 

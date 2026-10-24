@@ -26,6 +26,8 @@ export interface VoiceSetup {
   system: string;
   situation: () => { text: string; lat: number | null; lon: number | null };
   tools: Record<string, PhoneTool>;
+  /** Names around him for the hearing to expect (his area, nearby places, route stops) */
+  keyterms?: () => string[];
   log: (msg: string) => void;
 }
 
@@ -107,7 +109,7 @@ export class VoiceSession {
       await client.startBotAndConnect({
         endpoint: `${URL}/start`,
         headers: new Headers({ Authorization: AUTH }),
-        requestData: { transport: 'daily', createDailyRoom: true, body: { system: this.setup.system, greet: false, ptt: this.mode === 'ptt', mode: this.mode, situation: this.setup.situation() } },
+        requestData: { transport: 'daily', createDailyRoom: true, body: { system: this.setup.system, greet: false, ptt: this.mode === 'ptt', mode: this.mode, situation: this.setup.situation(), keyterms: this.setup.keyterms?.() ?? [] } },
       });
       if (mode !== this.mode) { await client.disconnect().catch(() => {}); this.set('off'); return; } // switched meanwhile
       this.client = client;
@@ -125,6 +127,9 @@ export class VoiceSession {
     }).finally(() => { this.connecting = null; });
     return this.connecting;
   }
+
+  /** Open the connection now (ride start), so the first press is not spent waiting ~9 s for it. */
+  warm() { void this.connect().catch(() => {}); }
 
   /** Pick push-to-talk or open mic. A live connection is closed and, for open mic, opened again in the new mode. */
   async setMode(mode: VoiceMode) {
