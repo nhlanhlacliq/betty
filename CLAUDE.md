@@ -24,6 +24,14 @@ What is live and working:
 Just changed, NOT yet tried on the phone: the talk BUTTON decides his turn (app sends `ptt` down/up; server uses
 ExternalUserTurnStrategies when body.ptt): fixes half sentences seen in his session. Needs one more Release build.
 
+PORT OF THE WEB APP INTO THE NATIVE APP (owner, 2026-10-24: "integrate the pipecat stuff into the current app and then
+reinstate the webapp ui and functionality into the native app"; plan agreed: skip Pipecat in the web app, native is the
+destination). Stages: 1 shared foundation (DONE 2026-10-24: `src/adapters/kv` storage switch, `src/adapters/server`,
+`src/app/RideSession` + `LineLogger` used by BOTH apps, native `NativeStore`; web behaviour unchanged, all tests pass,
+NOT YET RUN ON THE PHONE) -> 2 Pipecat as her full voice (phone tools with real data, Chirp for her own lines, end-ride
+tool) -> 3 Ride + Home screens -> 4 the other screens -> 5 import the web backup -> 6 native-only (background, ducking,
+headset buttons, notifications, BLE OBD). Workshop tools later; same look (design v3). Details: native/README.md.
+
 Also NOT yet tried on the phone (2026-10-23): OPEN MIC, a switch in the app: the mic stays on and she answers only
 sentences with "Betty" in them (follow-ups 8 s without the name; 1 s pause ends a turn; button = mute). Server
 deployed; needs the same Release build. Details: voice/README.md, native/README.md.
@@ -118,6 +126,12 @@ Speaker outputs audio.
 ```
 src/
   main.ts                  Wiring only. Builds the rig on Start riding, mounts screens and panels. No business logic.
+  app/RideSession.ts       THE RIDE, shared with the native app (2026-10-24): pipeline, saving as it goes, commands
+                           (obey), his questions (ask), Horizon buttons, rideInput, wrapUp/signOff/shutdown. Platform
+                           bits come in as RideDeps (sensors, voice, OBD, events). No browser or React Native code.
+  app/LineLogger.ts        The saved log (lines with their fate, saved 2 s after a change), shared
+  adapters/kv.ts           Storage switch: localStorage on the web, NativeStore in the app. Every store uses `kv`
+  adapters/server.ts       `serverFetch`: `/api/...` to Betty's server (the native app sets the address and headers)
   config/betty.ts          CONFIG (live, mutable), DEFAULT_CONFIG, applyConfig/resetConfig, Betty system prompt
   config/persist.ts        localStorage save/load of the tunable subset of CONFIG (UI-only, never imported by core)
   core/                    Pure logic. NO browser/hardware imports. Must stay unit-testable in Node.
@@ -166,6 +180,7 @@ src/
     LockScreen.ts          Full-screen touch cover for riding; hold the unlock button for 1 s to get out
     dom.ts                 el/button/checkbox helpers
 tests/core.test.ts         Pure logic tests
+tests/session.test.ts      A whole RideSession in plain Node (no window/localStorage): guards the native app
 tests/ui.smoke.ts          Drives both panels in jsdom, then loads the real index.html with main.ts (name box, OBD switch)
 ```
 

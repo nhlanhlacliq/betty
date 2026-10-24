@@ -5,14 +5,25 @@ Read the repo's `CLAUDE.md` first: behaviour rules, triggers and the owner's pre
 
 ## How it fits with the web app
 
-- Betty's brain is shared, not copied: the app imports `../src/core` and `../src/config` (and adapters that only use
-  `fetch`, such as `../src/adapters/WeatherSource.ts`). `metro.config.js` adds `../src` to Metro's watch folders;
-  `tsconfig.json` includes those folders so `npm run typecheck` here checks them too.
-- Anything that touches the phone (GPS, speech, Bluetooth, storage, audio) is a NATIVE ADAPTER in `native/src/adapters/`,
+- Betty's brain is shared, not copied: the app imports `../src/core`, `../src/config`, `../src/app` and the adapters
+  that only use `fetch` and the shared store (feeds, all the `*Store`s). `metro.config.js` adds `../src` to Metro's
+  watch folders; `tsconfig.json` includes those folders so `npm run typecheck` here checks them too.
+- THE RIDE ITSELF IS SHARED (2026-10-24, stage 1 of the port): `src/app/RideSession.ts` is the whole ride (sources ->
+  engine -> Claude -> queue -> voice, saving rides/log/fuel/odometer/roads as it goes, her commands, his questions,
+  Horizon's buttons, the sign-off) and `src/app/LineLogger.ts` the saved log. Both apps build one with their own
+  `RideDeps` (sensors, voice, OBD, events). `native/src/rig.ts` is only that wiring plus the voice server.
+- STORAGE: every shared store reads and writes through `src/adapters/kv`. The native app calls `openStore()`
+  (`native/src/adapters/NativeStore.ts`) BEFORE anything reads a store (App.tsx waits for it, then `loadConfig()`):
+  all `betty.*` AsyncStorage entries are loaded into memory, writes go back in batches (0.5 s, and at once when the
+  app goes to the background). Same keys as the web app, so a web backup can be imported as it is (stage 5).
+- SERVER: `native/src/server.ts` calls `setServer()` (src/adapters/server), so every `/api/...` request in the shared
+  code goes to betty-zeta.vercel.app with `x-betty-origin`. Use `serverFetch` (the shared adapters' default fetcher).
+- Anything that touches the phone (GPS, speech, Bluetooth, audio) is a NATIVE ADAPTER in `native/src/adapters/`,
   implementing the same interfaces as the web adapters (`DataSource`, `Speaker`, `ObdTransport`).
-- `native/src/rig.ts` is the ride pipeline (the counterpart of `startRide` in `src/main.ts`): wiring only, no business
-  logic. If something needs logic, put it in `src/core` with tests so the web app gets it too.
-- Never import from `src/ui`, `src/main.ts` or a browser adapter here (they use `window`, `localStorage`, the DOM).
+- If something needs logic, put it in `src/core` or `src/app` with tests so the web app gets it too.
+- Never import from `src/main.ts`, a browser adapter or a DOM screen in `src/ui` (they use `window`, the DOM).
+  Pure helpers in `src/ui` (`rideView.ts`, `copy.ts`, `mapView.ts`) are fine. `tests/session.test.ts` runs a whole
+  RideSession in plain Node (no window, no localStorage): it fails if browser code creeps into the shared ride.
 - The web app stays live at https://betty-zeta.vercel.app until the native app replaces it.
 - The app calls Betty's server (`native/src/server.ts`) for Claude and, later, voices, traffic and transcription. It
   sends `x-betty-origin` because it has no page origin (`api/_shared.ts` `fromBetty`).
@@ -49,7 +60,7 @@ ride (the server ends it when idle; the next press reconnects). `/start` gets {t
 {system (bettySystemPrompt + rider_query flavour, cloudVoice forced to chirp so no voice tags), greet: false,
 situation}}; each press sends `situation` (`engine.voiceSituation`, src/core, shared with the web app). Phone tools in
 `src/voice/phoneTools.ts`: filled_up, set_quiet (minutes; "until a place" falls back to until told), talk_again,
-mark_spot / remember_note (kept in AsyncStorage `betty.memory.v1`), my_notes_and_spots, fuel_stations_ahead (the web
+mark_spot / remember_note (the shared RiderMemoryStore, `betty.memory.v1`), my_notes_and_spots, fuel_stations_ahead (the web
 app's StationSource through the server); weather_along_route / recall_ride / maintenance_due answer "not on this phone
 yet" (that data lives in the web app). Login: Basic `app` + EXPO_PUBLIC_VOICE_TOKEN in `native/.env` (git-ignored; a
 second Caddy user on the server, separate from the browser login). Packages: @pipecat-ai/client-js 1.14,

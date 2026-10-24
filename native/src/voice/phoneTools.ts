@@ -1,11 +1,9 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CONFIG } from '../../../src/config/betty';
-import { EMPTY_MEMORY, RiderMemory, addMark, addNote, describeMemory } from '../../../src/core/Commands';
+import { RiderMemory, addMark, addNote, describeMemory } from '../../../src/core/Commands';
 import { describeStations, kmToReserve, stationsAhead } from '../../../src/core/Fuel';
-import type { StateAggregator } from '../../../src/core/StateAggregator';
-import type { TriggerEngine } from '../../../src/core/TriggerEngine';
 import { StationSource } from '../../../src/adapters/StationSource';
-import { SERVER_HEADERS, api } from '../server';
+import { RiderMemoryStore } from '../../../src/adapters/RiderMemoryStore';
+import type { RideSession } from '../../../src/app/RideSession';
 import type { PhoneTool } from './VoiceSession';
 
 /**
@@ -13,20 +11,17 @@ import type { PhoneTool } from './VoiceSession';
  * ride, its memory and settings. Each returns facts or {error} that she says plainly. Not in the native app yet:
  * earlier rides, maintenance and planned routes (they live in the web app for now).
  */
-const MEMORY_KEY = 'betty.memory.v1';
-
-export async function loadMemory(): Promise<RiderMemory> {
-  try { return { ...EMPTY_MEMORY, ...JSON.parse((await AsyncStorage.getItem(MEMORY_KEY)) ?? '{}') }; } catch { return EMPTY_MEMORY; }
-}
-
-export function phoneTools(engine: TriggerEngine, agg: StateAggregator, memory: { current: RiderMemory }): Record<string, PhoneTool> {
-  const save = async (m: RiderMemory) => { memory.current = m; engine.setMemory(m); await AsyncStorage.setItem(MEMORY_KEY, JSON.stringify(m)); };
+export function phoneTools(ride: RideSession): Record<string, PhoneTool> {
+  const { engine, agg } = ride;
+  // Notes and spots are the shared store's (src/adapters/RiderMemoryStore), the same the web app keeps.
+  const memory = { get current() { return RiderMemoryStore.load(); } };
+  const save = async (m: RiderMemory) => { RiderMemoryStore.save(m); engine.setMemory(m); };
   const here = () => { const s = agg.current; return s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null; };
-  const stations = new StationSource((input, init) => fetch(api(String(input)), { ...init, headers: { ...SERVER_HEADERS } }));
+  const stations = new StationSource(); // through Betty's server (src/adapters/server)
   const notYet = async () => ({ error: 'That is not on this phone yet.' });
 
   return {
-    filled_up: async () => { engine.filledUp(); return { ok: true, range_km_to_reserve: Math.round(kmToReserve(CONFIG.fuel)) }; },
+    filled_up: async () => { ride.filledUp(); return { ok: true, range_km_to_reserve: Math.round(kmToReserve(CONFIG.fuel)) }; },
     set_quiet: async (a) => {
       const min = Number(a.minutes ?? 0);
       engine.setQuiet(min > 0 ? Date.now() + min * 60_000 : Infinity);

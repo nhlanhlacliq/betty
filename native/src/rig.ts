@@ -1,101 +1,69 @@
-import { CONFIG } from '../../src/config/betty';
-import { AudioQueue, QueueItem } from '../../src/core/AudioQueue';
-import { ClaudeClient, restAfter, voiceTags } from '../../src/core/ClaudeClient';
-import type { LatLon } from '../../src/core/geo';
-import { StateAggregator } from '../../src/core/StateAggregator';
-import { TriggerEngine, isSafeWindow } from '../../src/core/TriggerEngine';
-import type { BikeState, DataSource, TriggerEvent } from '../../src/core/types';
-import { WeatherSource } from '../../src/adapters/WeatherSource';
+import { CONFIG, FLAVOUR_PROMPTS, bettySystemPrompt } from '../../src/config/betty';
+import { NO_OBD } from '../../src/core/StateAggregator';
+import { ClaudeClient } from '../../src/core/ClaudeClient';
+import type { BikeState, DataSource } from '../../src/core/types';
+import { TomTomTrafficProvider } from '../../src/adapters/TomTomTraffic';
+import { RideSession } from '../../src/app/RideSession';
+import type { LineLogger } from '../../src/app/LineLogger';
 import { ExpoGeoSource } from './adapters/ExpoGeoSource';
 import { ExpoSpeaker, setUpAudio } from './adapters/ExpoSpeaker';
 import { SERVER_HEADERS, api } from './server';
-import { FLAVOUR_PROMPTS, bettySystemPrompt } from '../../src/config/betty';
 import { VoiceSession } from './voice/VoiceSession';
-import { loadMemory, phoneTools } from './voice/phoneTools';
+import { phoneTools } from './voice/phoneTools';
 
 /**
- * A ride in the native app: the same pipeline as the web app's main.ts (sources -> StateAggregator -> TriggerEngine
- * -> ClaudeClient -> AudioQueue -> Speaker), wired with native adapters. Wiring only, no business logic: that stays
- * in ../src/core so both apps behave the same.
- *
- * First slice (2026-10-18): GPS, weather, Claude through the server, the phone's voice, optional real OBD. Not yet:
- * traffic, places, area stories, routes, push-to-talk, saved rides/log, cloud voices, background running.
+ * A ride in the native app: the shared RideSession (src/app/RideSession.ts, the same one the web app runs) with the
+ * phone's adapters plugged in: GPS (expo-location), the phone's voice (expo-speech; Chirp comes next), a real OBD2
+ * reader when one is picked, and the voice server for talking to her (Pipecat, push-to-talk or open mic).
+ * Wiring only: what Betty does lives in ../src.
  */
-export interface Line { at: number; head: string; text: string; item: QueueItem | null }
 export interface RideHooks {
-  line: (l: Line) => void;
+  logger: LineLogger;
+  /** The ride screen may need repainting */
+  changed: () => void;
   state: (s: BikeState) => void;
+  /** He said "end ride": the screen runs its own end */
+  endRequested: () => void;
   /** An OBD2 source to add (real reader), or none */
   obd?: DataSource;
 }
 
 export async function startRide(h: RideHooks) {
-  const agg = new StateAggregator();
-  const pos = (): LatLon => {
-    const s = agg.current;
-    return s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : CONFIG.feeds.fallbackLocation;
-  };
-  const log = (head: string, text: string) => h.line({ at: Date.now(), head, text, item: null });
-  agg.addSource(new ExpoGeoSource((m) => log('[gps]', m)));
-  agg.addSource(new WeatherSource(pos, () => {}));
-  if (h.obd) agg.addSource(h.obd);
-
-  const engine = new TriggerEngine();
-  const claude = new ClaudeClient(undefined, 2500, 6000, api('/api/phrase'), SERVER_HEADERS);
+  const log = (head: string, text: string) => h.logger.add(head, text);
   await setUpAudio();
+  CONFIG.cloudVoice = 'chirp'; // her voice here is Chirp on the voice server (no <laugh> tags: it would read them out)
   const speaker = new ExpoSpeaker((m) => log('[audio]', m));
-  const queue = new AudioQueue(speaker, () => isSafeWindow(agg.current));
-
-  const say = async (ev: TriggerEvent) => {
-    // His answers: the first sentence is queued as soon as it is written (see ClaudeClient PhraseOptions). React
-    // Native's fetch cannot stream yet, so for now it arrives with the whole answer; expo/fetch streams (next step).
-    let early: QueueItem | null = null;
-    const p = await claude.phrase(ev, agg.current, ev.riderSaid ? { early: (t) => { early = queue.enqueue(t, ev.priority, ev.id); } } : {});
-    const rest = early && p.early ? restAfter(p.text, p.early) : p.text;
-    const item = (rest ? queue.enqueue(rest, ev.priority, ev.id) : null) ?? early;
-    h.line({ at: Date.now(), head: `[P${ev.priority}] ${ev.id} (${p.source}${p.detail ? `: ${p.detail}` : ''}, ${p.latencyMs} ms)`, text: voiceTags(p.text, false) || '(silent)', item });
-    return item;
-  };
-
-  const unsub = agg.subscribe((s) => {
-    h.state(s);
-    engine.evaluate(s).forEach((ev) => void say(ev));
-    queue.pump();
+  const ride = new RideSession({
+    real: true, desk: false, server: true, logger: h.logger,
+    claude: new ClaudeClient(undefined, 2500, 6000, api('/api/phrase'), SERVER_HEADERS),
+    voice: { speaker, aloud: () => true },
+    sensors: [new ExpoGeoSource((m) => log('[gps]', m)), ...(h.obd ? [h.obd] : [])],
+    traffic: new TomTomTrafficProvider(null), // through Betty's server (src/adapters/server)
+    // A real reader is one of the sensors and stops with the ride; without one there is no engine data.
+    setObd: (_mode, push) => { if (!h.obd) push(NO_OBD); },
+    events: { changed: h.changed, state: h.state, endRequested: h.endRequested },
   });
-  await agg.start();
 
-  // The briefing once there is a GPS fix and weather (up to the configured wait), as on the web.
-  let ended = false;
-  void (async () => {
-    const until = Date.now() + CONFIG.feeds.briefingWaitMs;
-    while (!ended && Date.now() < until && (agg.current.weather === null || agg.current.lat == null)) await new Promise((r) => setTimeout(r, 250));
-    if (!ended) void say(engine.startup(agg.current));
-  })();
-
-  // Talking to her: the voice server (push-to-talk, ~2 s answers, tools). The memory she keeps is on the phone.
-  CONFIG.cloudVoice = 'chirp'; // her voice here is Chirp (no <laugh> tags: it would read them out)
-  const memory = { current: await loadMemory() };
-  engine.setMemory(memory.current);
+  // Talking to her: the voice server (push-to-talk or open mic, ~2 s answers, tools carried out on the phone).
   const voice = new VoiceSession({
     system: `${bettySystemPrompt(2)}\n\n${(FLAVOUR_PROMPTS as Record<string, string>).rider_query ?? ''}`,
-    situation: () => ({ text: engine.voiceSituation(agg.current), lat: agg.current.lat, lon: agg.current.lon }),
-    tools: phoneTools(engine, agg, memory),
+    situation: () => ({ text: ride.engine.voiceSituation(ride.agg.current), lat: ride.agg.current.lat, lon: ride.agg.current.lon }),
+    tools: phoneTools(ride),
     log: (m) => log('[voice]', m),
   });
+  await ride.start();
 
   return {
+    ride,
     voice,
-    ask: (text: string) => void say(engine.ask(text, agg.current)),
-    /** Stop reacting, say the sign-off, then tear down (as main.ts does). */
-    async end() {
-      ended = true;
-      unsub();
+    ask: (text: string) => void ride.ask(text),
+    /** Stop reacting, say the sign-off (up to 45 s), then shut down (as the web app does). */
+    async end(hurry: () => boolean = () => false) {
       void voice.end();
-      const item = await say(engine.force('ride_debrief', agg.current));
-      const until = Date.now() + 45_000;
-      while (item && (item.fate === 'queued' || item.fate === 'speaking') && Date.now() < until) await new Promise((r) => setTimeout(r, 250));
-      agg.stop();
-      queue.clear();
+      const out = ride.wrapUp();
+      await ride.signOff(hurry);
+      ride.shutdown();
+      return out;
     },
   };
 }

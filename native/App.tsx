@@ -1,11 +1,15 @@
 import { StatusBar } from 'expo-status-bar';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, SafeAreaView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import type { BikeState } from '../src/core/types';
+import { loadConfig } from '../src/config/persist';
+import { LineLogger, LogLine } from '../src/app/LineLogger';
+import './src/server'; // points the shared code's /api/ calls at Betty's server
+import { openStore } from './src/adapters/NativeStore';
 import { ElmClassicTransport } from './src/adapters/ElmClassicTransport';
 import { ObdSource } from './src/adapters/ObdSource';
-import { Line, Ride, startRide } from './src/rig';
+import { Ride, startRide } from './src/rig';
 
 /**
  * Betty, native (first slice, 2026-10-18). A plain ride screen to prove the shared core runs on the phone: start and
@@ -14,10 +18,17 @@ import { Line, Ride, startRide } from './src/rig';
  */
 export default function App() {
   const ride = useRef<Ride | null>(null);
+  // Everything she says and every note, saved on the phone like the web app's log (src/app/LineLogger).
+  const [lines, setLines] = useState<LogLine[]>([]);
+  const logRef = useRef<LineLogger | null>(null);
+  logRef.current ??= new LineLogger(() => setLines(logRef.current!.lines.slice(0, 200)));
+  const logger = logRef.current;
+  // Betty's data (rides, notes, reminders, settings...) is read into memory before anything uses it.
+  const [ready, setReady] = useState(false);
+  useEffect(() => { void openStore((m) => logger.add('[store]', m)).then(() => { loadConfig(); setReady(true); }); }, []);
   const [riding, setRiding] = useState(false);
   const [ending, setEnding] = useState(false);
   const [s, setS] = useState<BikeState | null>(null);
-  const [lines, setLines] = useState<Line[]>([]);
   const [ask, setAsk] = useState('');
   const [readers, setReaders] = useState<{ name: string; address: string }[] | null>(null);
   const [voice, setVoice] = useState<'off' | 'connecting' | 'ready' | 'listening'>('off');
@@ -29,30 +40,30 @@ export default function App() {
     void ride.current?.voice.setMode(on ? 'open' : 'ptt');
   };
 
-  const add = (l: Line) => setLines((x) => [l, ...x].slice(0, 200));
+  const note = (head: string, text: string) => logger.add(head, text);
 
   const findReaders = async () => {
     try { setReaders(await ElmClassicTransport.paired()); }
-    catch (e) { add({ at: Date.now(), head: '[obd]', text: `Bluetooth: ${(e as Error).message}`, item: null }); }
+    catch (e) { note('[obd]', `Bluetooth: ${(e as Error).message}`); }
   };
 
   const start = async () => {
-    setLines([]);
+    logger.clearScreen();
     let obd: ObdSource | undefined;
     if (reader) {
       const t = new ElmClassicTransport();
-      try { await t.connect(reader); obd = new ObdSource(t, (m) => add({ at: Date.now(), head: '[obd]', text: m, item: null })); }
-      catch (e) { add({ at: Date.now(), head: '[obd]', text: `could not connect: ${(e as Error).message}`, item: null }); }
+      try { await t.connect(reader); obd = new ObdSource(t, (m) => note('[obd]', m)); }
+      catch (e) { note('[obd]', `could not connect: ${(e as Error).message}`); }
     }
     await activateKeepAwakeAsync();
-    ride.current = await startRide({ line: add, state: setS, obd });
+    ride.current = await startRide({ logger, changed: () => {}, state: setS, endRequested: () => void end(), obd });
     ride.current.voice.onState = setVoice;
     if (openMic) void ride.current.voice.setMode('open');
     setRiding(true);
   };
 
   const end = async () => {
-    if (!ride.current) return;
+    if (!ride.current || ending) return;
     setEnding(true);
     await ride.current.end();
     ride.current = null;
@@ -83,7 +94,7 @@ export default function App() {
         </View>
       )}
 
-      <Pressable style={[st.button, riding && st.end]} disabled={ending} onPress={riding ? end : start}>
+      <Pressable style={[st.button, riding && st.end]} disabled={ending || !ready} onPress={riding ? end : start}>
         <Text style={st.buttonText}>{ending ? 'Ending ride…' : riding ? 'End ride' : "Let's ride"}</Text>
       </Pressable>
 
@@ -120,7 +131,7 @@ export default function App() {
         </View>
       )}
 
-      <FlatList style={st.list} data={lines} keyExtractor={(l, i) => `${l.at}-${i}`} renderItem={({ item }) => (
+      <FlatList style={st.list} data={lines} keyExtractor={(l) => l.id} renderItem={({ item }) => (
         <View style={st.line}>
           <Text style={st.head}>{new Date(item.at).toLocaleTimeString()} {item.head}{item.item ? ` · ${item.item.fate}` : ''}</Text>
           <Text style={st.text}>{item.text}</Text>
