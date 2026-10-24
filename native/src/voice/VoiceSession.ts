@@ -1,4 +1,5 @@
 import { PipecatClient, type Transport } from '@pipecat-ai/client-js';
+import { setRecording } from '../adapters/AudioFocus';
 import { RNDailyTransport } from '@pipecat-ai/react-native-daily-transport';
 
 /**
@@ -52,7 +53,7 @@ export class VoiceSession {
 
   constructor(private setup: VoiceSetup) {}
 
-  private set(s: VoiceSession['state']) { this.state = s; this.onState(s); }
+  private set(s: VoiceSession['state']) { this.state = s; void setRecording(s !== 'off'); this.onState(s); }
 
   private connect(): Promise<void> {
     if (this.client && this.state !== 'off') return Promise.resolve();

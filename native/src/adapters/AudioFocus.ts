@@ -7,19 +7,25 @@ import { setAudioModeAsync } from 'expo-audio';
  *   counted, with a short tail so back-to-back lines do not pump the music);
  * - headset buttons on (`setExclusive`): the sound is Betty's alone (iPhone only gives the headset's buttons to the
  *   app that has it), which PAUSES his music: the rider chooses this per ride.
- * Always: plays with the silent switch on, and keeps playing in the background during a ride.
+ * Always: plays with the silent switch on, and keeps playing in the background during a ride. While the voice server's
+ * call is open, the mic stays allowed in every mode (`setRecording`).
  * UNVERIFIED on the phone: how this sits with the voice server's call (Daily) while a conversation is open.
  */
 let exclusive = false;
+/** The voice server's call is open: every mode keeps the mic on (playAndRecord), or her clips would switch it off. */
+let recording = false;
 let speaking = 0;
 let tail: ReturnType<typeof setTimeout> | undefined;
 let applied = '';
 
 const apply = () => {
   const mode = exclusive ? 'doNotMix' : speaking > 0 ? 'duckOthers' : 'mixWithOthers';
-  if (mode === applied) return Promise.resolve();
-  applied = mode;
-  return setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: mode }).catch(() => {});
+  const key = `${mode}:${recording}`;
+  if (key === applied) return Promise.resolve();
+  applied = key;
+  // allowsRecording false = the playback category, which SILENCES the mic the voice call uses (first phone test,
+  // 2026-10-24: every turn reached the server as silence). So while the call is open, recording stays allowed.
+  return setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: mode, allowsRecording: recording }).catch(() => {});
 };
 
 /** Once before her first line (ride start, the home orb). */
@@ -32,3 +38,5 @@ export function lineEnd() {
   tail = setTimeout(() => void apply(), 600); // music back up shortly after her last word
 }
 export function setExclusive(on: boolean) { exclusive = on; return apply(); }
+/** The voice server's call opened or closed (VoiceSession). */
+export function setRecording(on: boolean) { if (recording === on) return Promise.resolve(); recording = on; return apply(); }
