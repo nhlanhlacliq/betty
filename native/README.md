@@ -76,6 +76,23 @@ Search), `Html`, `fuel.ts`. Pure helpers moved out of web DOM files so both apps
 src/core/Reminders.ts (re-exported where they were). Not yet: slim docks, word-by-word line, her picture in the orb,
 saved routes / plan-with-Betty / stop weather in Where to?, the ride's story after End ride (stage 4).
 
+## Stage 6 (2026-10-24; NOT YET RUN ON A PHONE)
+
+- BACKGROUND RUNNING: `ExpoGeoSource` runs the ride's GPS as a background location task (`RIDE_GPS_TASK`, defined at
+  load from index.ts; startLocationUpdatesAsync, 1 s, no auto-pause, blue pill on iOS, foreground-service notification
+  on Android). Needs the "Always" location permission (asked at ride start; else Settings > Betty > Location >
+  Always); without it, the old foreground watch and a `[gps]` log line saying so. app.json: UIBackgroundModes audio,
+  voip, location; NSLocationAlwaysAndWhenInUseUsageDescription; expo-location background options; Android
+  ACCESS_BACKGROUND_LOCATION + FOREGROUND_SERVICE(_LOCATION); expo-audio enableBackgroundPlayback.
+- MUSIC DUCKING: `adapters/AudioFocus.ts` owns the audio mode (plays with the silent switch on, in the background):
+  mixWithOthers when idle, duckOthers while a line of hers plays (ChirpSpeaker/ExpoSpeaker call lineStart/lineEnd;
+  a 600 ms tail; a cut-off line lets the music back up), doNotMix kept for headset buttons later (`setExclusive`).
+  UNVERIFIED: how it sits with the open voice-server call (Daily's playAndRecord session), and whether iOS lifts the
+  duck when the mode goes back to mix while the session stays active.
+- HEADSET BUTTONS: left out (owner, 2026-10-24: "I'll just use open mic mode"). The way in, when wanted: an expo-audio
+  playlist on the lock screen (doNotMix, so it pauses his music; a per-ride switch like the web), play/pause = talk,
+  next track = repeat (`trackChanged`), previous = let go.
+
 ## Status (first slice, 2026-10-18; NOTHING RUN ON A PHONE YET)
 
 Built: a plain ride screen (`App.tsx`): Let's ride / End ride, speed, rpm, engine temperature, rain chance, her lines

@@ -33,8 +33,8 @@ on real data, reminder_done handled, end_ride tool on the server (deployed) and 
 native ChirpSpeaker + expo-file-system) -> 3 Ride + Home screens (BUILT 2026-10-24, NOT YET RUN ON THE PHONE: Expo Router, design v3, shared rideView/islandView/
 mapSvg; see native/README.md "Screens") -> 4 the other screens (BUILT 2026-10-24, NOT YET RUN ON THE PHONE: Journeys + ride story, Explore, Garage,
 Help, Log; see native/README.md) -> 5 import the web backup (BUILT 2026-10-24: src/app/backup.ts shared format; native Garage > Your data export via
-share sheet, import via Files; a friend's share pack is merged; web Help says how to move) -> 6 native-only (background, ducking,
-headset buttons, notifications, BLE OBD). Workshop tools later; same look (design v3). Details: native/README.md.
+share sheet, import via Files; a friend's share pack is merged; web Help says how to move) -> 6 native-only (background GPS + audio and music ducking BUILT 2026-10-24, NOT YET RUN ON THE PHONE; headset
+buttons left out by the owner for now (open mic instead); still to do: notifications, BLE OBD). Workshop tools later; same look (design v3). Details: native/README.md.
 
 Also NOT yet tried on the phone (2026-10-23): OPEN MIC, a switch in the app: the mic stays on and she answers only
 sentences with "Betty" in them (follow-ups 8 s without the name; 1 s pause ends a turn; button = mute). Server

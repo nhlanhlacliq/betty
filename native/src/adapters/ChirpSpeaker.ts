@@ -4,6 +4,7 @@ import { CONFIG, chirpVoice } from '../../../src/config/betty';
 import type { SpeakTag, Speaker } from '../../../src/core/AudioQueue';
 import { voiceTags } from '../../../src/core/ClaudeClient';
 import { serverFetch } from '../../../src/adapters/server';
+import { lineEnd, lineStart } from './AudioFocus';
 
 /** Clips kept on the phone (repeats, "Hang on", a queued line are instant); the oldest go past this. */
 const KEEP = 40;
@@ -20,6 +21,8 @@ export class ChirpSpeaker implements Speaker {
   private clips = new Map<string, Promise<string | null>>();
   private player: AudioPlayer | null = null;
   private gen = 0;
+  /** Lets the music back up when a line is cut off (stop) before it finished */
+  private endLine: (() => void) | null = null;
   private seq = 0;
 
   constructor(private backup: Speaker, private log: (msg: string) => void = () => {}) {}
@@ -63,7 +66,10 @@ export class ChirpSpeaker implements Speaker {
     const my = ++this.gen;
     let done = false;
     let deadline: ReturnType<typeof setTimeout> | undefined;
-    const finish = () => { if (done) return; done = true; clearTimeout(deadline); this.release(); onDone(); };
+    let ducked = false;
+    const unduck = () => { if (ducked) { ducked = false; lineEnd(); } };
+    this.endLine = unduck;
+    const finish = () => { if (done) return; done = true; clearTimeout(deadline); this.release(); unduck(); onDone(); };
     const phone = () => { if (my === this.gen && !done) { done = true; clearTimeout(deadline); this.backup.speak(text, onDone, tag); } };
     const wait = Math.max(3500, 2000 + text.length * 15);
     const late = setTimeout(phone, wait);
@@ -72,6 +78,7 @@ export class ChirpSpeaker implements Speaker {
       if (my !== this.gen || done) return;
       if (!uri) { phone(); return; }
       try {
+        lineStart(); ducked = true; // his music ducks while she speaks
         const player = createAudioPlayer({ uri });
         this.release();
         this.player = player;
@@ -86,12 +93,12 @@ export class ChirpSpeaker implements Speaker {
         deadline = setTimeout(() => { if (my === this.gen) this.log(`Chirp: no end after ${text.length} chars, moving on`); finish(); }, 5000 + text.length * 85);
       } catch (e) {
         this.log(`Chirp: would not play (${(e as Error).message}); the phone voice says it`);
-        phone();
+        unduck(); phone();
       }
     });
   }
 
   private release() { try { this.player?.remove(); } catch { /* gone */ } this.player = null; }
 
-  stop() { this.gen++; this.release(); this.backup.stop(); }
+  stop() { this.gen++; this.endLine?.(); this.endLine = null; this.release(); this.backup.stop(); }
 }

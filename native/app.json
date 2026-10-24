@@ -14,8 +14,10 @@
         "NSMicrophoneUsageDescription": "Betty listens when you talk to her: while you hold the talk button, or all ride with Open mic on.",
         "UIBackgroundModes": [
           "audio",
-          "voip"
-        ]
+          "voip",
+          "location"
+        ],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Betty keeps your speed, route and alerts going while the phone is locked or another app is in front, during a ride only."
       },
       "appleTeamId": "6DHA6234P3"
     },
@@ -32,7 +34,10 @@
         "BLUETOOTH",
         "BLUETOOTH_ADMIN",
         "BLUETOOTH_CONNECT",
-        "BLUETOOTH_SCAN"
+        "BLUETOOTH_SCAN",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -42,11 +47,21 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Betty uses your location for your speed, the weather and the places on your ride."
+          "locationWhenInUsePermission": "Betty uses your location for your speed, the weather and the places on your ride.",
+          "locationAlwaysAndWhenInUsePermission": "Betty keeps your speed, route and alerts going while the phone is locked or another app is in front, during a ride only.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-dev-client",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true,
+          "microphonePermission": "Betty listens when you talk to her: while you hold the talk button, or all ride with Open mic on."
+        }
+      ],
       [
         "@daily-co/config-plugin-rn-daily-js",
         {
