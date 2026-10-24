@@ -7,13 +7,14 @@ import { RideSession } from '../../src/app/RideSession';
 import type { LineLogger } from '../../src/app/LineLogger';
 import { ExpoGeoSource } from './adapters/ExpoGeoSource';
 import { ExpoSpeaker, setUpAudio } from './adapters/ExpoSpeaker';
+import { ChirpSpeaker } from './adapters/ChirpSpeaker';
 import { SERVER_HEADERS, api } from './server';
 import { VoiceSession } from './voice/VoiceSession';
 import { phoneTools } from './voice/phoneTools';
 
 /**
  * A ride in the native app: the shared RideSession (src/app/RideSession.ts, the same one the web app runs) with the
- * phone's adapters plugged in: GPS (expo-location), the phone's voice (expo-speech; Chirp comes next), a real OBD2
+ * phone's adapters plugged in: GPS (expo-location), her Chirp voice (the phone's voice as backup), a real OBD2
  * reader when one is picked, and the voice server for talking to her (Pipecat, push-to-talk or open mic).
  * Wiring only: what Betty does lives in ../src.
  */
@@ -32,11 +33,12 @@ export async function startRide(h: RideHooks) {
   const log = (head: string, text: string) => h.logger.add(head, text);
   await setUpAudio();
   CONFIG.cloudVoice = 'chirp'; // her voice here is Chirp on the voice server (no <laugh> tags: it would read them out)
-  const speaker = new ExpoSpeaker((m) => log('[audio]', m));
+  // Her own lines in her Chirp voice (as on the web), the phone's voice when Chirp is slow or fails.
+  const speaker = new ChirpSpeaker(new ExpoSpeaker((m) => log('[audio]', m)), (m) => log('[audio]', m));
   const ride = new RideSession({
     real: true, desk: false, server: true, logger: h.logger,
     claude: new ClaudeClient(undefined, 2500, 6000, api('/api/phrase'), SERVER_HEADERS),
-    voice: { speaker, aloud: () => true },
+    voice: { speaker, aloud: () => true, prefetch: (t) => speaker.prefetch(t), ready: (t) => speaker.ready(t) },
     sensors: [new ExpoGeoSource((m) => log('[gps]', m)), ...(h.obd ? [h.obd] : [])],
     traffic: new TomTomTrafficProvider(null), // through Betty's server (src/adapters/server)
     // A real reader is one of the sensors and stops with the ride; without one there is no engine data.

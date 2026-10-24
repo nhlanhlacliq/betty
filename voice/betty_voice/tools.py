@@ -42,6 +42,7 @@ PHONE_TOOLS = [
         {"minutes": {"type": "integer", "description": "How long, in minutes. 0 = until he says to talk again."},
          "until_place": {**TEXT, "description": "Or until he reaches this place, e.g. Heidelberg. Empty if not."}}),
     _fn("talk_again", "He wants your chatter back after being quiet."),
+    _fn("end_ride", "End the ride now: the phone says your sign-off and closes the ride. Only when he clearly wants to stop for the day ('end the ride', 'we're done for today'), not for a short stop."),
     _fn("reminder_done", "Mark a maintenance job as done ('I lubed the chain', 'the bike was serviced').",
         {"what": {**TEXT, "description": "The job in his words, e.g. chain, oil, tyre pressures."}}, ["what"]),
 ]

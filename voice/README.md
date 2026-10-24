@@ -10,7 +10,9 @@ phone (Daily) -> Deepgram, streamed hearing -> Claude Haiku as Betty + tools -> 
 - `bot.py`: the pipeline. Interruption instant; VAD stop 0.2 s; prompt caching on; Haiku thinking OFF explicitly.
 - `betty_voice/tools.py`: every tool, one place. SERVER tools: get_weather (Open-Meteo), travel_time (TomTom), web_search
   (Claude + search). PHONE tools (the app carries them out): weather_along_route, fuel_stations_ahead, recall_ride,
-  my_notes_and_spots, maintenance_due, mark_spot, remember_note, filled_up, set_quiet, talk_again, reminder_done.
+  my_notes_and_spots, maintenance_due, mark_spot, remember_note, filled_up, set_quiet, talk_again, reminder_done,
+  end_ride (2026-10-24: the phone says the sign-off and closes the ride; she was saying "ending the ride now" with no
+  tool behind it). Eval cases end-ride and coffee-stop-not-end added, NOT RUN yet (evals are parked).
   Rule: small always-relevant facts come in the situation with each question; tools are for bigger or occasional
   lookups and for actions (each call costs ~1 s).
 - `betty_voice/phone.py`: the message protocol with the app (Pipecat RTVI over Daily):

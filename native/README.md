@@ -59,10 +59,21 @@ she speaks interrupts her (the server stops when it hears him). The connection o
 ride (the server ends it when idle; the next press reconnects). `/start` gets {transport: daily, createDailyRoom, body:
 {system (bettySystemPrompt + rider_query flavour, cloudVoice forced to chirp so no voice tags), greet: false,
 situation}}; each press sends `situation` (`engine.voiceSituation`, src/core, shared with the web app). Phone tools in
-`src/voice/phoneTools.ts`: filled_up, set_quiet (minutes; "until a place" falls back to until told), talk_again,
-mark_spot / remember_note (the shared RiderMemoryStore, `betty.memory.v1`), my_notes_and_spots, fuel_stations_ahead (the web
-app's StationSource through the server); weather_along_route / recall_ride / maintenance_due answer "not on this phone
-yet" (that data lives in the web app). Login: Basic `app` + EXPO_PUBLIC_VOICE_TOKEN in `native/.env` (git-ignored; a
+`src/voice/phoneTools.ts` (ALL real since 2026-10-24, stage 2, on the shared stores): filled_up, set_quiet (minutes;
+"until a place" falls back to until told; drops queued banter), talk_again, mark_spot / remember_note
+(RiderMemoryStore), my_notes_and_spots, fuel_stations_ahead (StationSource through the server), weather_along_route
+(the ride's route weather, fetched on the spot if the ride has none yet), recall_ride (`pastRecall` over RideLog +
+LineLogStore; "the ride to Clarens" finds it by place, otherwise the last ride), maintenance_due (`describeDue`, all
+reminders + odometer), reminder_done (`RideSession.reminderDone`), end_ride (answers, then 1.5 s later
+`RideSession.requestEnd` -> App's end: the phone says the sign-off). Rides, reminders and routes in the native app are
+its OWN until the web backup is imported (stage 5): on a fresh install they are empty.
+HER VOICE (2026-10-24): `src/adapters/ChirpSpeaker.ts`: her own lines (briefing, alerts, banter, stories, sign-off) in
+Chirp via `/api/speak` (MP3 saved to the cache with expo-file-system, played with expo-audio, 40 kept), fetched the
+moment a line is written; not in within 2 s + 15 ms a character (min 3.5 s), failed or unplayable -> the phone voice
+(`ExpoSpeaker`). Measured from the Mac: ~1.1 s warm, 4.1 s cold. RISK, UNVERIFIED: expo-audio playing while the Daily
+call holds the iPhone's audio session (playAndRecord); if her lines go silent or quiet during a voice session, that
+is where to look. His answers in a conversation still come from the voice server.
+Login: Basic `app` + EXPO_PUBLIC_VOICE_TOKEN in `native/.env` (git-ignored; a
 second Caddy user on the server, separate from the browser login). Packages: @pipecat-ai/client-js 1.14,
 @pipecat-ai/react-native-daily-transport 1.8, @daily-co/react-native-daily-js 0.88.0 (Daily's table for Expo 57; the
 Pipecat transport asks for 0.86), @daily-co/react-native-webrtc 124.0.6-daily.2, async-storage 3.x, background-timer,

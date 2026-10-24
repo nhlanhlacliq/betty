@@ -394,6 +394,28 @@
     }
    },
    "facts": "Treats 'heart train' as the Gautrain and answers straight away (from knowledge or one search): the rapid rail line linking Johannesburg, Sandton, the airport and Pretoria. On 2026-10-19 she asked 'Did you mean the Gautrain? I can look that up for you if you like.' instead."
+  },
+  {
+   "id": "end-ride",
+   "situation": "riding",
+   "said": "Right Betty, we're done for today, end the ride.",
+   "tools": [
+    "end_ride"
+   ],
+   "fixtures": {
+    "end_ride": {
+     "ok": true,
+     "note": "The phone is ending the ride and says your sign-off itself: say nothing more, or at most \"Right.\""
+    }
+   },
+   "facts": "Calls end_ride and then says nothing or one or two words; no sign-off speech of her own, and never claims the ride ended without the tool."
+  },
+  {
+   "id": "coffee-stop-not-end",
+   "situation": "riding",
+   "said": "I'm stopping for a coffee here for ten minutes.",
+   "tools": [],
+   "facts": "A short acknowledgement; does not end the ride."
   }
  ]
 }

@@ -355,6 +355,24 @@ export class RideSession {
   private reply(text: string, command: string, now = false) { this.sayNow(text, now); this.ev.chat?.({ from: 'betty', text, at: Date.now(), command }); }
   private remembered(m: ReturnType<typeof RiderMemoryStore.load>) { RiderMemoryStore.save(m); this.engine.setMemory(m); this.ev.memoryChanged?.(); }
 
+  /** A maintenance job done ("chain done", the voice server's reminder_done): the reminder and when it is next due, or null. */
+  reminderDone(what: string): { name: string; next: string } | null {
+    const book = ServiceStore.load();
+    const r = findReminder(book.items, what);
+    if (!r) return null;
+    const next = markDone(book, r.id, Date.now());
+    ServiceStore.save(next);
+    this.engine.setServiceBook(next);
+    return { name: r.name, next: dueText(dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now())) };
+  }
+
+  /** "End ride" (a command or the voice server's end_ride): the app runs its end. False when there is no ride to end. */
+  requestEnd(): boolean {
+    if (!this.alive || this.desk || this.ending) return false;
+    this.ev.endRequested?.();
+    return true;
+  }
+
   /** He filled up (the button, Horizon's card, or said so in passing). */
   filledUp() { this.engine.filledUp(); FuelStore.save(0); this.ev.fuelChanged?.(); }
 
@@ -461,14 +479,8 @@ export class RideSession {
         return;
       }
       case 'done': {
-        const book = ServiceStore.load();
-        const r = findReminder(book.items, c.what);
-        if (!r) { this.reply("I don't have a reminder for that. They're in the Garage.", 'done'); return; }
-        const next = markDone(book, r.id, Date.now());
-        ServiceStore.save(next);
-        engine.setServiceBook(next);
-        const d = dueInfo(next.items.find((x) => x.id === r.id)!, next.odoKm, Date.now());
-        this.reply(`${r.name}: done. Next one ${dueText(d)}.`, 'done');
+        const r = this.reminderDone(c.what);
+        this.reply(r ? `${r.name}: done. Next one ${r.next}.` : "I don't have a reminder for that. They're in the Garage.", 'done');
         return;
       }
       case 'undone': {
@@ -522,8 +534,7 @@ export class RideSession {
         this.reply(this.alive ? horizonSpoken(glanceCues(this.rideInput())) : 'No ride running, so nothing on the horizon yet.', 'ahead');
         return;
       case 'end':
-        if (!this.alive || this.desk) { this.reply('There is no ride to end.', 'end'); return; }
-        this.ev.endRequested?.(); // her sign-off follows, and the ride's story opens
+        if (!this.requestEnd()) this.reply('There is no ride to end.', 'end'); // else her sign-off follows, and the ride's story opens
         return;
       case 'forget': {
         const { memory, gone } = forgetLast(RiderMemoryStore.load());

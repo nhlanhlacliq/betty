@@ -28,8 +28,9 @@ PORT OF THE WEB APP INTO THE NATIVE APP (owner, 2026-10-24: "integrate the pipec
 reinstate the webapp ui and functionality into the native app"; plan agreed: skip Pipecat in the web app, native is the
 destination). Stages: 1 shared foundation (DONE 2026-10-24: `src/adapters/kv` storage switch, `src/adapters/server`,
 `src/app/RideSession` + `LineLogger` used by BOTH apps, native `NativeStore`; web behaviour unchanged, all tests pass,
-NOT YET RUN ON THE PHONE) -> 2 Pipecat as her full voice (phone tools with real data, Chirp for her own lines, end-ride
-tool) -> 3 Ride + Home screens -> 4 the other screens -> 5 import the web backup -> 6 native-only (background, ducking,
+NOT YET RUN ON THE PHONE) -> 2 Pipecat as her full voice (DONE 2026-10-24, NOT YET RUN ON THE PHONE: every phone tool
+on real data, reminder_done handled, end_ride tool on the server (deployed) and phone, Chirp for her own lines via
+native ChirpSpeaker + expo-file-system) -> 3 Ride + Home screens -> 4 the other screens -> 5 import the web backup -> 6 native-only (background, ducking,
 headset buttons, notifications, BLE OBD). Workshop tools later; same look (design v3). Details: native/README.md.
 
 Also NOT yet tried on the phone (2026-10-23): OPEN MIC, a switch in the app: the mic stays on and she answers only
@@ -51,9 +52,7 @@ Waiting on the OWNER:
 
 Known open issues: station distances sometimes said as "5.1 km further on" (beyond the first station); travel_time gave
 Edenvale -> Cullinan 88 km (check which "Cullinan" TomTom matched); "tell me something interesting" invents facts
-(Haiku); she sometimes adds unasked ride facts or long story answers; phone tools recall_ride, maintenance_due and
-weather_along_route answer "not on this phone yet" (that data lives in the web app; the native app has no stores for
-rides, reminders or routes yet); no music ducking for her answers yet; no fallback to the old path without signal yet.
+(Haiku); she sometimes adds unasked ride facts or long story answers; the native app's rides, reminders and routes start empty until the web backup is imported (stage 5); no music ducking for her answers yet; no fallback to the old path without signal yet.
 
 How the owner works (also in memory): direct, concise; explain big architecture changes so he can own them (he is
 doing Scott Moss's agent/evals course and reading "Designing Voice User Interfaces"); never strip her personality to
