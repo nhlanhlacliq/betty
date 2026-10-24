@@ -11,7 +11,7 @@
       "bundleIdentifier": "com.nhlanhla.betty",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Betty uses your location for your speed, the weather and the places on your ride.",
-        "NSMicrophoneUsageDescription": "Betty listens only while you hold the talk button.",
+        "NSMicrophoneUsageDescription": "Betty listens when you talk to her: while you hold the talk button, or all ride with Open mic on.",
         "UIBackgroundModes": [
           "audio",
           "voip"
@@ -54,7 +54,9 @@
           "enableMicrophone": true,
           "enableScreenShare": false
         }
-      ]
-    ]
+      ],
+      "expo-router"
+    ],
+    "scheme": "betty"
   }
 }

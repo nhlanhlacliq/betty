@@ -1,10 +1,4 @@
 // Daily (voice) needs crypto.getRandomValues before anything else loads.
 import 'react-native-get-random-values';
-import { registerRootComponent } from 'expo';
-
-import App from './App';
-
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+// The screens are routes in src/app (Expo Router); this registers the app.
+import 'expo-router/entry';

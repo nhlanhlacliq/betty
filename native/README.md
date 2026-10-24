@@ -28,6 +28,34 @@ Read the repo's `CLAUDE.md` first: behaviour rules, triggers and the owner's pre
 - The app calls Betty's server (`native/src/server.ts`) for Claude and, later, voices, traffic and transcription. It
   sends `x-betty-origin` because it has no page origin (`api/_shared.ts` `fromBetty`).
 
+## Screens (stage 3 of the port, 2026-10-24; NOT YET RUN ON A PHONE)
+
+Expo Router (`index.ts` loads the polyfill, then `expo-router/entry`; scheme `betty`). Routes in `native/src/app`
+(NOT the repo's `src/app`, which is the shared RideSession):
+- `_layout.tsx`: root Stack, `BettyProvider` (`src/state/Betty.tsx`: store ready, the ride, repaint tick throttled to
+  250 ms, voice state, mode real/sim, open mic, OBD reader, log lines, start/end with "tap again to stop now", hello,
+  toast), and `ui/Toast`.
+- `(tabs)/_layout.tsx`: the web's four tabs (Ride, Journeys, Explore, Garage) as a custom tab bar, the ride-in-progress
+  bar above it, the live dot on Ride; the Ride tab goes to the ride while one runs.
+- `(tabs)/index.tsx` HOME (design v3): map sketch of the last ride or the planned route (pan/pinch/double tap,
+  recentre), wordmark + initial, greeting and condition pill, dock: orb (tap = hello in Chirp), "How are we riding?"
+  sheet (Free ride / Desk test, Open mic switch, Android OBD reader, Where to? = api/route with twisty, route summary,
+  Open in Google Maps, Clear), Let's ride, the "before you go" sheet (readiness rows, fuel range, Filled up).
+- `ride.tsx` RIDE: map following him (+/−/recentre, pan/pinch takes it off follow), live pill, menu sheet (Journeys,
+  Explore, Garage), Quiet, Horizon (`ui/Horizon.tsx` on the shared `islandView`), dock: km / min / speed, mini orb (tap
+  = repeat), kicker + state, her line (dimmed when earlier), chat button (ask sheet with chips), the MIC (hold to talk;
+  with open mic a tap mutes/unmutes), Lock (cover, hold 1 s to unlock, big Tap to talk), End ride (confirm sheet;
+  during the sign-off a tap stops at once), the note line; Up ahead sheet for a route. Her answers from the voice
+  server are her line too (`VoiceSession.onSaid/onSpeaking`, wired in rig.ts). No ride -> back to the tabs.
+- `(tabs)/journeys|explore|garage.tsx`: placeholders for stage 4; Garage holds this session's LOG (for testing).
+UI pieces in `native/src/ui`: `theme.ts` (the web's tokens), `Icon` (the web's icon paths via SvgXml), `Orb` (the
+web's blob as an SVG path + radial gradient, breathing with Animated; still with Little animations off or Reduce
+Motion), `MapSketch` (the shared `mapSvg` string in SvgXml; gestures with PanResponder and the shared `viewAfter`),
+`Sheet`, `Buttons`, `Horizon`, `Toast`, `Soon`. Pure helpers moved out of web DOM files so both apps use them:
+`islandView` -> src/ui/rideView.ts, `routeRequest`/`routeStats` -> src/core/Route.ts, `readinessRow` ->
+src/core/Reminders.ts (re-exported where they were). Not yet: slim docks, word-by-word line, her picture in the orb,
+saved routes / plan-with-Betty / stop weather in Where to?, the ride's story after End ride (stage 4).
+
 ## Status (first slice, 2026-10-18; NOTHING RUN ON A PHONE YET)
 
 Built: a plain ride screen (`App.tsx`): Let's ride / End ride, speed, rpm, engine temperature, rain chance, her lines

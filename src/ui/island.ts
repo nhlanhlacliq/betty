@@ -3,32 +3,9 @@ import { icon } from './icons';
 import { motionOn, play, resize } from './motion';
 import type { Glance, GlanceAction } from './rideView';
 
-/**
- * The island: the card at the top of the ride map (owner named it, 2026-10-17). Each part is a Garage setting
- * (CONFIG.island), the first four on by default:
- * - compact: a small pill ("⛽ 86 km left") that grows to the full card for EXPAND_MS when the news changes
- * - tapExpand: tap to grow it (it stays open) or shrink it
- * - browse: swipe sideways through the other cues, with dots; the most pressing comes back after BROWSE_MS
- * - actions: one button on the full card (Filled up, Tell me a story, Up ahead...)
- * - progress: a slim bar for the route, the fuel range and the light left (off by default)
- */
-export const EXPAND_MS = 10_000;
-export const BROWSE_MS = 20_000;
-
-export interface IslandState { index: number; browseUntil: number; expandUntil: number; pinned: boolean; topKey: string }
-export const freshIsland = (): IslandState => ({ index: 0, browseUntil: 0, expandUntil: 0, pinned: false, topKey: '' });
-
-/** Pure: what the island shows now, and its next state. A new most-pressing cue grows the compact island. */
-export function islandView(cues: Glance[], st: IslandState, now: number, cfg = CONFIG.island): { glance: Glance | null; expanded: boolean; index: number; count: number; next: IslandState } {
-  if (!cues.length) return { glance: null, expanded: false, index: 0, count: 0, next: st };
-  const next = { ...st };
-  const top = cues[0].key ?? cues[0].title;
-  if (top !== st.topKey) { if (st.topKey && cues[0].id !== 'riding') next.expandUntil = now + EXPAND_MS; next.topKey = top; }
-  const browsing = cfg.browse && now < next.browseUntil && next.index < cues.length;
-  if (!browsing) next.index = 0;
-  const expanded = !cfg.compact || next.pinned || now < next.expandUntil || (browsing && next.index > 0);
-  return { glance: cues[next.index], expanded, index: next.index, count: cues.length, next };
-}
+export { BROWSE_MS, EXPAND_MS, freshIsland, islandView } from './rideView';
+export type { IslandState } from './rideView';
+import { BROWSE_MS, freshIsland, islandView } from './rideView';
 
 export interface IslandHooks {
   action(kind: GlanceAction, g: Glance): void;

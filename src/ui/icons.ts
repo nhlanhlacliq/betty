@@ -2,7 +2,7 @@
  * Line icons for the app shell (24x24, stroked, from the design prototype). Add one = add a path here.
  * Static markup uses `<i data-icon="name"></i>`; `hydrateIcons` swaps those for the SVG.
  */
-const PATHS = {
+export const PATHS = {
   ride: '<path d="m12 3 7 17-7-4-7 4 7-17Z"/><path d="M12 3v13"/>',
   journeys: '<path d="M4 5h6l4 3h6v12h-6l-4-3H4V5Z"/><path d="M10 5v12m4-9v12"/>',
   explore: '<circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6 6-2Z"/>',

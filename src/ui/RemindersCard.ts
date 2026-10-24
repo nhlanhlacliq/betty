@@ -149,9 +149,4 @@ export function mountReminders(doc: Document, shell: Shell, ctx: RemindersContex
   return { paint, open };
 }
 
-/** For the home screen's readiness sheet: the most pressing reminder, or that nothing is due. */
-export function readinessRow(book: ServiceBook, now: number): { value: string; ok: boolean } {
-  const top = dueList(book, now)[0];
-  if (!top || top.state === 'ok') return { value: top ? `Nothing due · next: ${top.r.name} ${dueText(top)}` : 'No reminders', ok: true };
-  return { value: `${top.r.name}: ${dueText(top)}`, ok: top.state !== 'due' };
-}
+export { readinessRow } from '../core/Reminders';

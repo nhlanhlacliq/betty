@@ -27,6 +27,10 @@ export interface RideHooks {
   endRequested: () => void;
   /** An OBD2 source to add (real reader), or none */
   obd?: DataSource;
+  /** A short message on screen ("Dismissed for a week") */
+  toast?: (msg: string) => void;
+  /** False = a desk test: no phone sensors, simulated at the fallback location, never saved as a ride */
+  real?: boolean;
 }
 
 export async function startRide(h: RideHooks) {
@@ -36,14 +40,14 @@ export async function startRide(h: RideHooks) {
   // Her own lines in her Chirp voice (as on the web), the phone's voice when Chirp is slow or fails.
   const speaker = new ChirpSpeaker(new ExpoSpeaker((m) => log('[audio]', m)), (m) => log('[audio]', m));
   const ride = new RideSession({
-    real: true, desk: false, server: true, logger: h.logger,
+    real: h.real ?? true, desk: false, server: true, logger: h.logger,
     claude: new ClaudeClient(undefined, 2500, 6000, api('/api/phrase'), SERVER_HEADERS),
     voice: { speaker, aloud: () => true, prefetch: (t) => speaker.prefetch(t), ready: (t) => speaker.ready(t) },
     sensors: [new ExpoGeoSource((m) => log('[gps]', m)), ...(h.obd ? [h.obd] : [])],
     traffic: new TomTomTrafficProvider(null), // through Betty's server (src/adapters/server)
     // A real reader is one of the sensors and stops with the ride; without one there is no engine data.
     setObd: (_mode, push) => { if (!h.obd) push(NO_OBD); },
-    events: { changed: h.changed, state: h.state, endRequested: h.endRequested },
+    events: { changed: h.changed, state: h.state, endRequested: h.endRequested, toast: h.toast },
   });
 
   // Talking to her: the voice server (push-to-talk or open mic, ~2 s answers, tools carried out on the phone).
@@ -53,6 +57,21 @@ export async function startRide(h: RideHooks) {
     tools: phoneTools(ride),
     log: (m) => log('[voice]', m),
   });
+  // Her answers in the conversation are her line on the ride screen too (the queue never sees them), and her orb
+  // speaks while she does. A line she builds on (the conversation's sentences) joins the one before it.
+  let said = { text: '', at: 0 };
+  voice.onSaid = (t) => {
+    const join = Date.now() - said.at < 4000;
+    said = { text: join ? `${said.text} ${t}` : t, at: Date.now() };
+    ride.lastSaid = { text: said.text, tag: 'rider_query', priority: 4, at: said.at };
+    ride.lastLine = said.text;
+    if (ride.speaking?.tag === 'rider_query') ride.speaking = { ...ride.speaking, text: said.text };
+    h.changed();
+  };
+  voice.onSpeaking = (on) => {
+    ride.speaking = on ? { text: '…', tag: 'rider_query', priority: 4, at: Date.now() } : null;
+    h.changed();
+  };
   await ride.start();
 
   return {

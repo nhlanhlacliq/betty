@@ -184,3 +184,10 @@ export function describeDue(book: ServiceBook, now: number, all = false): string
   if (!list.length) return all ? 'No maintenance reminders set.' : '';
   return `Maintenance: ${list.map((d) => `${d.r.name} ${d.state === 'ok' ? dueText(d) : `${d.state === 'due' ? 'is due' : 'is coming up'} (${dueText(d)})`}`).join('; ')}.`;
 }
+
+/** For the home screen's readiness sheet: the most pressing reminder, or that nothing is due. */
+export function readinessRow(book: ServiceBook, now: number): { value: string; ok: boolean } {
+  const top = dueList(book, now)[0];
+  if (!top || top.state === 'ok') return { value: top ? `Nothing due · next: ${top.r.name} ${dueText(top)}` : 'No reminders', ok: true };
+  return { value: `${top.r.name}: ${dueText(top)}`, ok: top.state !== 'due' };
+}

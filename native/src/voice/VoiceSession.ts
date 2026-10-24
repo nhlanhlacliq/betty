@@ -43,6 +43,10 @@ export class VoiceSession {
   mode: VoiceMode = 'ptt';
   state: 'off' | 'connecting' | 'ready' | 'listening' = 'off';
   onState: (s: VoiceSession['state']) => void = () => {};
+  /** Each sentence she says in the conversation (the ride screen shows it as her line) */
+  onSaid: (text: string) => void = () => {};
+  /** She starts or stops talking in the conversation (the orb) */
+  onSpeaking: (on: boolean) => void = () => {};
 
   constructor(private setup: VoiceSetup) {}
 
@@ -67,8 +71,10 @@ export class VoiceSession {
           onUserTranscript: (d) => { if (d.final && d.text.trim()) this.setup.log(`you: ${d.text.trim()}`); },
           onBotOutput: (d) => {
             const kind = d.text_type ?? d.aggregated_by;
-            if (kind === 'sentence' && d.text.trim()) this.setup.log(`betty: ${d.text.trim()}`);
+            if (kind === 'sentence' && d.text.trim()) { this.setup.log(`betty: ${d.text.trim()}`); this.onSaid(d.text.trim()); }
           },
+          onBotStartedSpeaking: () => this.onSpeaking(true),
+          onBotStoppedSpeaking: () => this.onSpeaking(false),
           onError: (e: unknown) => this.setup.log(`voice error: ${JSON.stringify(e).slice(0, 200)}`),
         },
       });

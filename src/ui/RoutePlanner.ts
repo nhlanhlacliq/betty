@@ -1,6 +1,6 @@
 import { serverFetch } from '../adapters/server';
 import type { LatLon } from '../core/geo';
-import { PlannedRoute, minutesText } from '../core/Route';
+import { PlannedRoute } from '../core/Route';
 import { CheckpointWeather, checkpoints, wantedMinutes, weatherLine } from '../core/RouteAhead';
 
 export { RouteStore } from '../adapters/RouteStore';
@@ -9,16 +9,8 @@ import { RouteStore } from '../adapters/RouteStore';
 export const STAYS = [0, 10, 15, 30, 45, 60, 90];
 
 /** What he typed: a Google Maps link, or places separated by commas ("Heidelberg, Villiers, Clarens"). */
-export function routeRequest(input: string, thrilling: boolean, from: LatLon | null) {
-  const t = input.trim();
-  const isLink = /^https?:\/\//i.test(t);
-  return { ...(isLink ? { link: t } : { stops: t.split(/\s*[,;]\s*|\s+then\s+/i).filter(Boolean) }), thrilling, ...(from ? { from } : {}) };
-}
-
-const stays = (r: PlannedRoute) => r.stops.reduce((n, s) => n + (s.named && s.stayMin ? s.stayMin : 0), 0);
-export const routeStats = (r: PlannedRoute) =>
-  `${Math.round(r.km)} km · about ${minutesText(r.minutes + stays(r))}${stays(r) ? ` (${minutesText(stays(r))} of stops)` : ''}${r.delayMin ? ` · ${r.delayMin} min traffic` : ''}${r.thrilling ? ' · twisty roads' : ''}`
-  + `${r.stops.filter((s) => s.named).length > 1 ? ` · via ${r.stops.filter((s) => s.named).slice(0, -1).map((s) => s.name).slice(0, 3).join(', ')}` : ''}`;
+export { routeRequest, routeStats } from '../core/Route';
+import { routeRequest, routeStats } from '../core/Route';
 
 export interface PlannerContext {
   /** Where he is now, if the phone can say (the route starts there) */

@@ -1,5 +1,4 @@
-import { ClaudeRequest, Phrase } from '../core/ClaudeClient';
-import { TriggerEvent } from '../core/types';
+import { ClaudeRequest } from '../core/ClaudeClient';
 import { button, checkbox, el } from './dom';
 
 import type { ChatEntry } from '../app/RideSession';

@@ -120,3 +120,16 @@ export function describeRoute(r: PlannedRoute, p: RouteProgress | null, detour =
   const off = detour ? ' He is on a detour by choice: do not mention being off the route.' : p.offKm > 0.4 ? ` He is about ${p.offKm.toFixed(1)} km off the route right now.` : '';
   return `He is on his planned route to ${r.name}: ${Math.round(p.leftKm)} km and about ${minutesText(p.leftMin)} left${p.next ? `, next stop ${p.next.name} in ${Math.round(p.next.km)} km` : ''}.${off}`;
 }
+
+/** The body for api/route from the Where to? box: a Google Maps link, or places separated by commas or "then". */
+export function routeRequest(input: string, thrilling: boolean, from: { lat: number; lon: number } | null) {
+  const t = input.trim();
+  const isLink = /^https?:\/\//i.test(t);
+  return { ...(isLink ? { link: t } : { stops: t.split(/\s*[,;]\s*|\s+then\s+/i).filter(Boolean) }), thrilling, ...(from ? { from } : {}) };
+}
+
+const stays = (r: PlannedRoute) => r.stops.reduce((n, s) => n + (s.named && s.stayMin ? s.stayMin : 0), 0);
+export const routeStats = (r: PlannedRoute) =>
+  `${Math.round(r.km)} km · about ${minutesText(r.minutes + stays(r))}${stays(r) ? ` (${minutesText(stays(r))} of stops)` : ''}${r.delayMin ? ` · ${r.delayMin} min traffic` : ''}${r.thrilling ? ' · twisty roads' : ''}`
+  + `${r.stops.filter((s) => s.named).length > 1 ? ` · via ${r.stops.filter((s) => s.named).slice(0, -1).map((s) => s.name).slice(0, 3).join(', ')}` : ''}`;
+
