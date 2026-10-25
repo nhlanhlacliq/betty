@@ -172,7 +172,7 @@ public class BettyLinkModule: Module {
   private func planHandBack() {
     endToken += 1
     let token = endToken
-    let tail = phase == .answering ? 2.5 : 0.8
+    let tail = phase == .answering ? 2.5 : 2.0 // long enough for her next line or sentence to arrive
     q.asyncAfter(deadline: .now() + tail) { [weak self] in
       guard let self, token == self.endToken, self.pending == 0, !self.busy else { return }
       self.handBack(self.phase == .answering ? "her answer is over" : "her line is over")
@@ -212,7 +212,13 @@ public class BettyLinkModule: Module {
     startPlayback()
     pending += 1
     player.scheduleBuffer(buf, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-      self?.q.async { guard let self else { return }; self.pending = max(0, self.pending - 1); if self.pending == 0 { self.planHandBack() } }
+      self?.q.async {
+        guard let self else { return }
+        self.pending = max(0, self.pending - 1)
+        // Her audio is all played: the app may send her next line now ("drained"); the music only comes back after a
+        // real pause (planHandBack). Tying the two together brought the music up between her sentences (ride test).
+        if self.pending == 0 { self.state("drained"); self.planHandBack() }
+      }
     }
   }
 

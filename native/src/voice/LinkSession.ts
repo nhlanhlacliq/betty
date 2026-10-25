@@ -91,6 +91,8 @@ export class LinkSession {
           this.onLineEnd();
         } else if (e.state === 'speaking') {
           this.onLineStart();
+        } else if (e.state === 'drained') {
+          this.onLineEnd(); // her line has been heard to the end: the queue may go on (the music stays dipped)
         } else if (e.state === 'quiet') {
           this.onLineEnd();
           if (!this.thinking) this.endAnswer();

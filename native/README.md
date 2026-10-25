@@ -361,4 +361,9 @@ open mic and headset buttons are refused with a toast (they need the call); expo
 Checked from the Mac against a local server: say -> her voice; stop -> 0.0 s more audio; a second say plays; "what did
 you just tell me about?" -> she knew (prompt now says to stand by her own lines: she called a test line unconfirmed).
 NOT YET: open mic on the link, the handlebar button, the locked screen (needs a ride), Android.
+- FIRST RIDE ON BETTY LINK 2026-10-25 11:09 (V6, music, pocket): music dips and comes back, her voice clear, one voice.
+  But the music came up BETWEEN her sentences: a streamed answer is two lines (first sentence early, then the rest)
+  and LinkSpeaker only finished a line on "quiet", i.e. after the music was handed back. Now the module sends
+  "drained" when her audio is all played (LinkSpeaker finishes, the queue sends the next line at once) and hands the
+  music back only after 2 s of real silence (was 0.8 s for her own lines).
 
