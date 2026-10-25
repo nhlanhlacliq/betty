@@ -325,4 +325,11 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   cannot set it). So `CONFIG.musicWhileSpeaking` (Garage > Voice & audio > Your music while she talks): pause (no
   mixing until she is done; back at full volume), dip (default), keep (mixWithOthers). Beep -> a soft two-note chime
   (G5, C6, bell decay, ~-20 dB) 0.25 s after the mic is live (he heard the beep, "slow and loud").
+- V6 TEST 2026-10-25 09:37 (owner's notes by voice, in the log): the V6 mic is clearly better (peaks -1 to -11 dB,
+  long multi-part questions heard whole). Fixed after: the chime came ~0.5 s after the mic was live (he counted:
+  words before it were heard): now 0.05 s after the mic engine starts (a chime AT the press is not possible: the
+  helmet mic takes 0.9-1.7 s to come on; the music pausing is the "pressed" cue); a softer five-note chime (C6 D6 E6
+  G6 C7, marimba-like, ~-25 dB); the music came back mid-answer during a lookup: it now waits while she is thinking
+  (bot-llm-started/stopped) or a tool runs (llm-function-call-started/stopped), and the no-answer fallback waits up
+  to 30 s while she works. Prompt: what she runs on (she said "the phone's own speech system").
 

@@ -32,6 +32,11 @@ public class BettyLinkModule: Module {
   private var pending = 0          // her audio buffers scheduled and not yet heard
   private var endToken = 0         // cancels a planned "hand the music back"
   private var heardSinceRelease = false
+  /** She is still working on it: thinking (bot-llm-started..stopped) or a lookup running (function calls). The music
+   *  came back in the middle of an answer while she looked something up (V6 test, 2026-10-25). */
+  private var thinking = false
+  private var lookups = 0
+  private var busy: Bool { thinking || lookups > 0 }
   private var releasedAt: Date?
   private var peak: Float = 0
   private var micNote = ""
@@ -156,7 +161,7 @@ public class BettyLinkModule: Module {
     let token = endToken
     let tail = phase == .answering ? 2.5 : 0.8
     q.asyncAfter(deadline: .now() + tail) { [weak self] in
-      guard let self, token == self.endToken, self.pending == 0 else { return }
+      guard let self, token == self.endToken, self.pending == 0, !self.busy else { return }
       self.handBack(self.phase == .answering ? "her answer is over" : "her line is over")
     }
   }
@@ -268,7 +273,7 @@ public class BettyLinkModule: Module {
     }
     capEngine = eng
     // A moment later: the headset's hands-free sound starts a little after the mic, and the first beep was lost there.
-    q.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+    q.asyncAfter(deadline: .now() + 0.05) { [weak self] in
       guard let self, self.capEngine === eng, eng.isRunning, let tone = self.toneBuffer() else { return }
       beep.scheduleBuffer(tone, completionHandler: nil); beep.play()
       self.log("beep: speak now")
@@ -295,17 +300,15 @@ public class BettyLinkModule: Module {
     waitForStereo()
     freshPlayback("after your turn")
     // Nothing came back (he said nothing, or she chose silence): give the music back anyway.
-    q.asyncAfter(deadline: .now() + 10) { [weak self] in
-      guard let self, self.phase == .answering, !self.heardSinceRelease, self.pending == 0 else { return }
-      self.handBack("no answer in 10 s")
-    }
+    noAnswerCheck(after: 10, total: 10)
   }
 
-  /** A soft two-note chime (owner: the beep was loud and harsh): G5 then C6, bell-like decay, about -20 dB. */
+  /** A soft five-note chime (owner: "five notes, a nice soft sound, like Apple or soundcore"): a quick rising
+   *  pentatonic run (C6 D6 E6 G6 C7), marimba-like (sine plus a little octave), gentle attack, short ring, ~-24 dB. */
   private func toneBuffer() -> AVAudioPCMBuffer? {
     let rate = Float(outFormat.sampleRate)
-    let notes: [(f: Float, at: Float)] = [(783.99, 0), (1046.5, 0.09)]
-    let len: Float = 0.42
+    let freqs: [Float] = [1046.5, 1174.7, 1318.5, 1568.0, 2093.0]
+    let gap: Float = 0.045, len: Float = 0.5
     let n = Int(rate * len)
     guard let b = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: AVAudioFrameCount(n)) else { return nil }
     b.frameLength = AVAudioFrameCount(n)
@@ -313,14 +316,40 @@ public class BettyLinkModule: Module {
     for i in 0..<n {
       let t = Float(i) / rate
       var v: Float = 0
-      for note in notes where t >= note.at {
-        let u = t - note.at
-        let env = min(1, u / 0.006) * exp(-u * 9) // quick soft attack, ringing decay
-        v += env * (sin(2 * .pi * note.f * u) + 0.25 * sin(2 * .pi * note.f * 2 * u))
+      for (k, f) in freqs.enumerated() {
+        let u = t - Float(k) * gap
+        if u < 0 { continue }
+        let env = min(1, u / 0.012) * exp(-u * 11) // soft attack, short ring
+        let level: Float = k == freqs.count - 1 ? 1.0 : 0.75 // the last note a touch stronger
+        v += level * env * (sin(2 * .pi * f * u) + 0.15 * sin(2 * .pi * f * 2 * u))
       }
-      d[i] = 0.08 * v
+      d[i] = 0.035 * v
     }
     return b
+  }
+
+  /** Nothing came back after his turn: give the music back, but not while she is still thinking or looking up (30 s at most). */
+  private func noAnswerCheck(after: Double, total: Double) {
+    q.asyncAfter(deadline: .now() + after) { [weak self] in
+      guard let self, self.phase == .answering, !self.heardSinceRelease, self.pending == 0 else { return }
+      if self.busy && total < 30 { self.noAnswerCheck(after: 5, total: total + 5); return }
+      self.handBack("no answer in \(Int(total)) s")
+    }
+  }
+
+  /** What the server says she is doing (only what decides when the music comes back). */
+  private func track(_ s: String) {
+    q.async {
+      let was = self.busy
+      if s.contains("\"bot-llm-started\"") { self.thinking = true }
+      if s.contains("\"bot-llm-stopped\"") { self.thinking = false }
+      if s.contains("\"llm-function-call-started\"") { self.lookups += 1 }
+      if s.contains("\"llm-function-call-stopped\"") { self.lookups = max(0, self.lookups - 1) }
+      if s.contains("\"bot-interrupted\"") { self.thinking = false; self.lookups = 0; self.flushPlayer() }
+      if s.contains("\"bot-started-speaking\"") { self.endToken += 1 }
+      if self.busy { self.endToken += 1 } // not done yet
+      else if was && self.pending == 0 && (self.phase == .answering || self.phase == .speaking) { self.planHandBack() }
+    }
   }
 
   // MARK: the WebSocket
@@ -335,8 +364,7 @@ public class BettyLinkModule: Module {
       case .success(.data(let d)):
         self.q.async { self.play(d) }
       case .success(.string(let s)):
-        if s.contains("\"bot-interrupted\"") { self.q.async { self.flushPlayer() } }
-        if s.contains("\"bot-started-speaking\"") { self.q.async { self.endToken += 1 } }
+        self.track(s)
         self.sendEvent("onMessage", ["json": s])
       @unknown default:
         break
