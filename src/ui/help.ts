@@ -170,7 +170,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     ])}` },
   { id: 'trouble', title: 'Troubleshooting', keywords: 'problem not working cannot hear sound quiet volume buttons stopped mic signal offline locked wrong',
     html: `${li([
-      '<b>Can\'t hear her over the wind:</b> say "louder" (or "max volume") on the ride, or Garage &gt; Voice &amp; audio &gt; Louder voice. Check the helmet is connected before you start the ride.',
+      '<b>Can\'t hear her over the wind:</b> say "louder" (or "max volume") on the ride, or Garage &gt; Voice &amp; audio &gt; Louder voice. Check the helmet is connected before you start the ride. In the app she also gets louder and brighter by herself from 40 km/h (Louder at speed, full at 120 km/h), and above about 90 km/h her lines pause your music instead of dipping it (Pause your music at speed). Louder voice sets how she sounds in town. Past +16 her voice is already near the loudest a phone can send, so turn the helmet and the phone up too.',
       '<b>The headset buttons stopped working:</b> another app may have started playing (it takes the buttons), or you pressed previous track. Tap <i>Give Betty the headset buttons back</i> on the ride screen.',
       '<b>She didn\'t hear you:</b> wait for the tone, then speak. In strong wind say it a little louder; she stops after a pause or 12 seconds.',
       '<b>No signal:</b> the app still opens, commands still work and she keeps the GPS and fuel count. Alerts use lines she wrote earlier in her own words (refreshed once a day while you have signal), and area stories are read as written; answers and the cloud voice need signal, so she falls back to the phone\'s voice.',

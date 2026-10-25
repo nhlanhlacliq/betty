@@ -2,6 +2,7 @@ import { bettyLink } from '../../modules/betty-link';
 import { CONFIG } from '../../../src/config/betty';
 import type { SpeakTag, Speaker } from '../../../src/core/AudioQueue';
 import { voiceTags } from '../../../src/core/ClaudeClient';
+import { SpeedVoice, type SpeedVoiceOut } from '../../../src/core/Loudness';
 import type { VoiceMode, VoiceSetup } from './VoiceSession';
 
 /**
@@ -43,6 +44,9 @@ export class LinkSession {
   onButton: (kind: 'talk' | 'next' | 'previous') => void = () => {};
   private buttonsOn = false;
   private muted = false;
+  /** Her loudness follows his speed (core/Loudness); the last values sent to the module. */
+  private speedVoice = new SpeedVoice();
+  private loud: SpeedVoiceOut = { gainDb: CONFIG.voiceBoostDb, share: 0, pauseMusic: false };
   private situationTimer: ReturnType<typeof setInterval> | undefined;
 
   private connecting: Promise<void> | null = null;
@@ -61,6 +65,22 @@ export class LinkSession {
   constructor(private setup: VoiceSetup) {}
 
   static available() { return bettyLink != null; }
+
+  /** His speed (each GPS update): louder, brighter and the music paused at speed; his own setting in town. */
+  speed(kmh: number) {
+    const next = this.speedVoice.update(kmh, { baseDb: CONFIG.voiceBoostDb, extraDb: CONFIG.voiceAtSpeedDb, pauseMusic: CONFIG.pauseMusicAtSpeed });
+    const was = this.loud;
+    if (next.gainDb === was.gainDb && next.share === was.share && next.pauseMusic === was.pauseMusic) return;
+    this.loud = next;
+    if (bettyLink && this.connected) this.applyLoudness(bettyLink);
+    if (next.pauseMusic !== was.pauseMusic) this.setup.log(`voice: ${next.pauseMusic ? 'at speed: her lines pause your music' : 'slower: her lines dip your music again'}`);
+  }
+
+  private applyLoudness(link: NonNullable<typeof bettyLink>) {
+    link.setGain(this.loud.gainDb);
+    link.setSpeedVoice?.(this.loud.share); // (a build from before 2026-10-25 has no voice chain)
+    link.setMusic(this.loud.pauseMusic ? 'pause' : CONFIG.musicWhileSpeaking);
+  }
   get connected() { return this.state !== 'off' && this.state !== 'connecting'; }
 
   private set(s: LinkSession['state']) { this.state = s; this.onState(s); }
@@ -77,8 +97,7 @@ export class LinkSession {
       const open = this.mode === 'open';
       const body = { system: this.setup.system, greet: false, ptt: !open, mode: open ? 'open' : 'ptt', situation: this.setup.situation(), keyterms: this.setup.keyterms?.() ?? [] };
       const where = await link.connect(URL, AUTH, JSON.stringify({ t: 'start', body }));
-      link.setGain(CONFIG.voiceBoostDb);
-      link.setMusic(CONFIG.musicWhileSpeaking);
+      this.applyLoudness(link);
       link.send(rtvi('client-ready', { version: '2.1.0', about: { library: 'betty-link' } }));
       this.set('ready');
       this.setup.log(`voice: Betty Link connected in ${Date.now() - t0} ms (${open ? 'open mic, say "Betty"' : 'hold to talk'}); ${where}`);

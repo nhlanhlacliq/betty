@@ -47,8 +47,8 @@ public class BettyLinkModule: Module {
   private var announced = false
   /** The chime as its own small player, so it can play while the mic engine is still starting. */
   private var chimePlayer: AVAudioPlayer?
-  /** Her loudness: the rider's voice boost (CONFIG.voiceBoostDb, default +6 dB), with a soft limiter. */
-  private var gain: Float = 2.0
+  /** Her loudness: the rider's voice boost plus the extra at speed, through VoiceChain (EQ, compressor, limiter). */
+  private let chain = VoiceChain(rate: 24000)
   /** His music while she talks: "pause", "dip" (iOS's duck) or "mix" (plays on). */
   private var music = "dip"
   /** Open mic: muted by the app's mic button (the mic stays open, nothing is sent). */
@@ -105,10 +105,13 @@ public class BettyLinkModule: Module {
 
     Function("route") { () -> String in self.routeText() }
 
-    /** Her voice boost in dB (0 to 16): music is mastered loud, her voice is not (lab test 2026-10-25). */
     Function("setMusic") { (mode: String) in self.q.async { self.music = ["pause", "dip", "mix"].contains(mode) ? mode : "dip" } }
 
-    Function("setGain") { (db: Double) in self.q.async { self.gain = Float(pow(10, max(0, min(16, db)) / 20)) } }
+    /** Her voice boost in dB (0 to 30: his setting plus the extra at speed). Chirp arrives quiet (speech ~-26 dBFS). */
+    Function("setGain") { (db: Double) in self.q.async { self.chain.setGain(db: Float(db)) } }
+
+    /** How much of the "at speed" voice to use, 0 (town) to 1 (120 km/h): more presence and compression. */
+    Function("setSpeedVoice") { (share: Double) in self.q.async { self.chain.setShare(Float(share)) } }
 
     Function("disconnect") { self.q.async { self.tearDown(reason: "closed by the app") } }
 
@@ -226,12 +229,7 @@ public class BettyLinkModule: Module {
     data.withUnsafeBytes { raw in
       let src = raw.bindMemory(to: Int16.self)
       let dst = buf.floatChannelData![0]
-      let g = gain
-      for i in 0..<n {
-        let x = Float(Int16(littleEndian: src[i])) / 32768 * g
-        let a = abs(x)
-        dst[i] = a <= 0.8 ? x : (x < 0 ? -1 : 1) * (0.8 + 0.2 * tanh((a - 0.8) / 0.2)) // soft limit, never clips
-      }
+      for i in 0..<n { dst[i] = chain.process(Float(Int16(littleEndian: src[i])) / 32768) }
     }
     if phase == .idle { phase = .speaking; if buttonsOn { playback(duck: false) } else { forHerVoice() }; freshPlayback("her own line") }
     if let r = releasedAt {
@@ -632,4 +630,73 @@ public class BettyLinkModule: Module {
 
   private func log(_ msg: String) { sendEvent("onLog", ["msg": msg]) }
   private func state(_ s: String, _ detail: String = "") { sendEvent("onState", ["state": s, "detail": detail]) }
+}
+
+
+/**
+ * Her voice on its way to the helmet (ride of 2026-10-25: hard to hear at speed on +16 dB; Google Maps was audible).
+ * Measured on her live audio: Chirp arrives quiet (speech ~-26 dBFS, peaks -10) and dark (~5% of its energy at
+ * 1-4 kHz, the part of speech that carries through wind). +16 dB alone already reaches full scale (speech ~-11 dBFS),
+ * so louder means less gap between soft and loud parts, and more of the bright part:
+ *   high-pass 120 Hz (rumble the wind covers anyway) -> presence shelf at 1.8 kHz (0 to +6 dB with speed) ->
+ *   compressor above -24 dBFS (ratio 1, i.e. off, in town, to 3 at speed) -> gain -> peak limiter (-1 dBFS).
+ * In town it sounds as before (same loudness as the old soft limiter); at 120 km/h speech ~-9 dBFS and +3-4 dB in
+ * the bright band (simulated on her audio). Runs on the module's queue only.
+ */
+final class VoiceChain {
+  private let rate: Float
+  private var gain: Float = 2
+  private var ratio: Float = 1
+  // biquads: (b0 b1 b2 a1 a2) and their state
+  private var hp: [Float] = [1, 0, 0, 0, 0], hpS: [Float] = [0, 0, 0, 0]
+  private var sh: [Float] = [1, 0, 0, 0, 0], shS: [Float] = [0, 0, 0, 0]
+  private var shelfDb: Float = -1
+  private var compEnv: Float = 0, limEnv: Float = 0
+  private let att: Float, compRel: Float, limRel: Float
+  private let thr: Float = 0.063 // -24 dBFS
+  private let ceiling: Float = 0.89 // -1 dBFS
+
+  init(rate: Float) {
+    self.rate = rate
+    att = exp(-1 / (0.003 * rate)); compRel = exp(-1 / (0.06 * rate)); limRel = exp(-1 / (0.05 * rate))
+    let w = 2 * Float.pi * 120 / rate, al = sin(w) / (2 * 0.707), c = cos(w), a0 = 1 + al
+    hp = [(1 + c) / 2 / a0, -(1 + c) / a0, (1 + c) / 2 / a0, -2 * c / a0, (1 - al) / a0]
+    setShare(0)
+  }
+
+  func setGain(db: Float) { gain = pow(10, max(0, min(30, db)) / 20) }
+
+  func setShare(_ share: Float) {
+    let s = max(0, min(1, share))
+    ratio = 1 + 2 * s
+    let db = (6 * s * 2).rounded() / 2 // half-dB steps: no new coefficients for every small change
+    if db == shelfDb { return }
+    shelfDb = db
+    let A = pow(10, db / 40), w = 2 * Float.pi * 1800 / rate, c = cos(w), sn = sin(w)
+    let k = 2 * sqrt(A) * (sn / 2 * sqrt(2))
+    let a0 = (A + 1) - (A - 1) * c + k
+    sh = [A * ((A + 1) + (A - 1) * c + k) / a0, -2 * A * ((A - 1) + (A + 1) * c) / a0, A * ((A + 1) + (A - 1) * c - k) / a0,
+          2 * ((A - 1) - (A + 1) * c) / a0, ((A + 1) - (A - 1) * c - k) / a0]
+  }
+
+  private func biquad(_ x: Float, _ k: [Float], _ st: inout [Float]) -> Float {
+    let y = k[0] * x + k[1] * st[0] + k[2] * st[1] - k[3] * st[2] - k[4] * st[3]
+    st[1] = st[0]; st[0] = x; st[3] = st[2]; st[2] = y
+    return y
+  }
+
+  func process(_ x: Float) -> Float {
+    var y = biquad(x, hp, &hpS)
+    if shelfDb != 0 { y = biquad(y, sh, &shS) }
+    if ratio > 1.01 {
+      let a = abs(y)
+      compEnv = a > compEnv ? att * compEnv + (1 - att) * a : compRel * compEnv + (1 - compRel) * a
+      if compEnv > thr { y *= pow(compEnv / thr, 1 / ratio - 1) }
+    }
+    y *= gain
+    let a = abs(y)
+    limEnv = max(a, limEnv * limRel)
+    if limEnv > ceiling { y *= ceiling / limEnv }
+    return max(-1, min(1, y))
+  }
 }

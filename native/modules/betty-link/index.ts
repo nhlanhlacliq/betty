@@ -9,6 +9,8 @@ export interface BettyLinkNative {
   flush(): void;
   route(): string;
   setGain(db: number): void;
+  /** 0 (town) to 1 (120 km/h): more presence and compression in her voice */
+  setSpeedVoice?(share: number): void;
   setMusic(mode: 'pause' | 'dip' | 'mix'): void;
   openMic(on: boolean): Promise<string>;
   mute(on: boolean): void;

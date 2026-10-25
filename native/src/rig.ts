@@ -68,7 +68,7 @@ export async function startRide(h: RideHooks) {
     traffic: new TomTomTrafficProvider(null), // through Betty's server (src/adapters/server)
     // A real reader is one of the sensors and stops with the ride; without one there is no engine data.
     setObd: (_mode, push) => { if (!h.obd) push(NO_OBD); },
-    events: { changed: h.changed, state: h.state, endRequested: h.endRequested, toast: h.toast },
+    events: { changed: h.changed, state: (s) => { h.state(s); link?.speed(s.speedKmh); }, endRequested: h.endRequested, toast: h.toast },
   });
   setup.tools = phoneTools(ride);
   const voice: VoiceSession | LinkSession = link ?? new VoiceSession(setup);

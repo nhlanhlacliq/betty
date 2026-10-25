@@ -41,6 +41,10 @@ const LEAN_CORNER_DEG = 15;
 const MAX_STEP_MS = 10_000;
 /** Altitude must move this far from the last settled value before it counts: GPS height wanders by several metres. */
 const ALT_STEP_M = 8;
+/** Further than this from the last settled height in one go is a bad GPS fix (the anchor moves every 8 m). */
+const ALT_JUMP_M = 60;
+/** This many fixes in a row far from the anchor: the anchor was the bad one. */
+const ALT_ODD_FIXES = 5;
 /** Speed change per second that counts as hard, in m/s2 (about 0.35 g, roughly 12.5 km/h lost or gained in a second). */
 const HARD_MS2 = 3.5;
 /** Speed is compared over about this long, so one noisy fix or a dragged slider does not register. */
@@ -64,6 +68,7 @@ export class RideStats {
   private climb = 0;
   private high: number | null = null;
   private descent = 0;
+  private altOdd = 0;
   private speedRef: { kmh: number; at: number } | null = null;
   private hardBrakes = 0;
   private hardAccels = 0;
@@ -98,10 +103,18 @@ export class RideStats {
     }
 
     if (s.altitudeM != null) {
-      if (moving) this.high = Math.max(this.high ?? -Infinity, s.altitudeM); // moving: a parked phone's GPS height wanders
       if (this.altAnchor === null) this.altAnchor = s.altitudeM;
       const d = s.altitudeM - this.altAnchor;
-      if (Math.abs(d) >= ALT_STEP_M) { if (d > 0) this.climb += d; else this.descent -= d; this.altAnchor = s.altitudeM; }
+      // A jump no bike makes between two fixes is a bad fix (ride of 2026-10-25: "climbed 1,623 m and dropped the same"
+      // six minutes in, 1,896 m of climbing Edenvale to Pretoria): not counted. If the readings stay there, the
+      // anchor was the bad one: start again from them, still without counting the jump.
+      if (Math.abs(d) > ALT_JUMP_M) {
+        if (++this.altOdd >= ALT_ODD_FIXES) { this.altAnchor = s.altitudeM; this.altOdd = 0; }
+      } else {
+        this.altOdd = 0;
+        if (moving) this.high = Math.max(this.high ?? -Infinity, s.altitudeM); // moving: a parked phone's GPS height wanders
+        if (Math.abs(d) >= ALT_STEP_M) { if (d > 0) this.climb += d; else this.descent -= d; this.altAnchor = s.altitudeM; }
+      }
     }
 
     if (!this.speedRef || t - this.speedRef.at > MAX_STEP_MS) this.speedRef = { kmh: s.speedKmh, at: t };

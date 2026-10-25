@@ -59,3 +59,36 @@ export function boostWav(bytes: Uint8Array, db: number): Uint8Array {
   }
   return bytes;
 }
+
+/**
+ * Louder at speed (owner, ride of 2026-10-25: "struggling to hear her at higher speeds even though it was on 16 dB",
+ * "not too loud at lower speeds"). His loudness setting is her voice in town; from 40 km/h up the extra rises to its
+ * full amount at 120 km/h (wind noise in a helmet climbs steeply with speed). The share also drives the native voice
+ * chain (more presence and compression) and, past ~90 km/h, pausing his music for her lines instead of dipping it.
+ */
+export const SPEED_QUIET_KMH = 40;
+export const SPEED_LOUD_KMH = 120;
+export const speedShare = (kmh: number) => Math.max(0, Math.min(1, (kmh - SPEED_QUIET_KMH) / (SPEED_LOUD_KMH - SPEED_QUIET_KMH)));
+/** Coming down from speed eases off by this much a second (a red light or a GPS dip is not a quiet road yet). */
+export const SPEED_FALL_KMH_S = 6;
+/** Music paused for her above this share (about 90 km/h), dipped again below the lower one (about 75 km/h). */
+const PAUSE_ON = 0.6, PAUSE_OFF = 0.4;
+
+export interface SpeedVoiceOut { gainDb: number; share: number; pauseMusic: boolean }
+
+/** His speed -> her loudness: up at once (wind arrives fast), down slowly. */
+export class SpeedVoice {
+  private kmh = 0;
+  private at: number | null = null;
+  private paused = false;
+  constructor(private now: () => number = Date.now) {}
+  update(kmh: number, o: { baseDb: number; extraDb: number; pauseMusic: boolean }): SpeedVoiceOut {
+    const t = this.now();
+    const fall = this.at === null ? Infinity : SPEED_FALL_KMH_S * Math.max(0, (t - this.at) / 1000);
+    this.kmh = kmh >= this.kmh ? kmh : Math.max(kmh, this.kmh - fall);
+    this.at = t;
+    const share = speedShare(this.kmh);
+    this.paused = o.pauseMusic && (this.paused ? share > PAUSE_OFF : share >= PAUSE_ON);
+    return { gainDb: Math.round((o.baseDb + o.extraDb * share) * 2) / 2, share: Math.round(share * 20) / 20, pauseMusic: this.paused };
+  }
+}

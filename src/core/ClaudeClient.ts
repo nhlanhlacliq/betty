@@ -236,7 +236,7 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
     system: `${flavour ? `${base}\n\n${flavour}` : base}${smart ? '\n\nHe wants this looked up: search the web before you answer, then give the result in your own words.' : ''}`,
     messages: [...history, {
       role: 'user' as const,
-      content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}${sameKind(o.same)}`,
+      content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}${sameKind(o.same)}${ev.riderSaid ? '' : wornNote(spoken)}`,
     }],
   };
 }
@@ -245,6 +245,24 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
 const sameKind = (same?: string[]) => same?.length
   ? `\nYour earlier lines of this same kind this ride: ${JSON.stringify(same)}. Make this one different from all of them: a new joke or angle, a different opening, and none of their phrases or comparisons.`
   : '';
+
+/**
+ * Devices she leans on across ALL kinds of line (ride of 2026-10-25, 79 min: a rating out of ten "with a point off" in
+ * about 25 of 40 lines, her humour setting in 10, coffee or a kettle in 8). "Already said" and same-kind lines did not
+ * stop it: they are different kinds of line with the same joke. Not a ban: a device used in one of her last
+ * WORN_WINDOW lines is left out of the next ones, so it comes back now and then.
+ */
+export const DEVICES: Array<[RegExp, string]> = [
+  [/\bout of (ten|10)\b|\bpoints? off\b/i, 'a rating out of ten'],
+  [/\bhumou?r (setting|at \d|is set)/i, 'mentioning your humour setting'],
+  [/\b(coffee|kettle|tea)\b/i, 'coffee, tea or kettle jokes'],
+];
+const WORN_WINDOW = 4;
+export const wornDevices = (spoken: string[]) => DEVICES.filter(([re]) => spoken.slice(-WORN_WINDOW).some((l) => re.test(l))).map(([, name]) => name);
+const wornNote = (spoken: string[]) => {
+  const w = wornDevices(spoken);
+  return w.length ? `\nUsed in your last few lines, so leave out of this one: ${w.join('; ')}. Find another shape for the line.` : '';
+};
 
 const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

@@ -63,6 +63,13 @@ export interface Config {
   /** Louder voice, in dB (0 to 16; owner, ride of 2026-10-17: "can't hear it over the wind"): Chirp by Google, Gemini by a limiter on the phone */
   voiceBoostDb: number;
   /**
+   * Native app, Betty Link: extra loudness at speed on top of voiceBoostDb (0 to 12 dB, full at 120 km/h, none under 40;
+   * owner, ride of 2026-10-25: could not hear her at speed on +16), and her lines pause his music instead of dipping it
+   * above ~90 km/h (pauseMusicAtSpeed). core/Loudness SpeedVoice.
+   */
+  voiceAtSpeedDb: number;
+  pauseMusicAtSpeed: boolean;
+  /**
    * His music while she talks (native app, voice lab; owner, 2026-10-25: "can we control the amount of ducking?" iOS
    * sets how far a duck dips, apps cannot): pause it, dip it (iOS's duck, faded back up after), or keep it playing.
    */
@@ -161,6 +168,8 @@ export const DEFAULT_CONFIG: Config = {
   listenVoice: 'chirp',
   cardMetro: true,
   voiceBoostDb: 6,
+  voiceAtSpeedDb: 8,
+  pauseMusicAtSpeed: true,
   musicWhileSpeaking: 'dip',
   voiceLink: true,
   talkMode: 'hold',

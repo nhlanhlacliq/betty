@@ -392,3 +392,22 @@ either connection (the old call keeps its own open mic and silent-playlist butto
   previous = let go (back to hold to talk, music back). UNVERIFIED: that iPhone keeps Betty as Now Playing across
   the hands-free switches.
 
+
+## Her voice at speed (2026-10-25, after the Pretoria ride; BUILT, NOT YET ON A RIDE)
+
+Owner: "struggling to hear her at higher speeds even though it was on 16 dB ... not too loud at lower speeds". Measured
+on her live audio: Chirp arrives quiet (speech ~-26 dBFS, peaks -10) and dark (~5% of its energy at 1-4 kHz). The
+boost WAS working: +16 dB = speech ~-11 dBFS with peaks at full scale, so more plain gain cannot help. Now
+`VoiceChain` (BettyLinkModule.swift) runs her voice through high-pass 120 Hz -> presence shelf 1.8 kHz (0 to +6 dB) ->
+compressor above -24 dBFS (ratio 1 to 3) -> gain -> peak limiter (-1 dBFS). `core/Loudness` `SpeedVoice` turns GPS
+speed (via rig.ts `link.speed`) into the gain (`voiceBoostDb` + `voiceAtSpeedDb` x share, share 0 at 40 km/h to 1 at
+120; up at once, down 6 km/h a second) and the share (presence and ratio, `setSpeedVoice`); above share 0.6 (~90 km/h)
+her lines PAUSE his music instead of dipping it (`pauseMusicAtSpeed`, back to dip below ~75). Garage > Voice & audio:
+Louder at speed (default +8), Pause your music at speed (default on). Simulated on her audio: town unchanged; at 120
+km/h with +16, speech ~-9 dBFS and +3 dB in 1-4 kHz. Beyond that it is the phone and helmet volume.
+Same day, from the log: `wornDevices` (ClaudeClient: a rating out of ten, her humour setting, coffee, used in her last
+4 lines -> left out of the next, not for answers), `new_road` once per stretch of new road (re-armed on known roads),
+GPS altitude jumps over 60 m ignored (RideStats), a talk press within 2.5 s after his sentence ended the turn ignored.
+Seen, not fixed: "playback ready (was stopped)" (her play engine restarting mid-line, 15 times); she still narrates
+lookups ("I need the weather for Pretoria, so I'll check it now"); answers pull in kept notes unasked ("you are on a
+detour, as you told me": a note from an earlier ride).

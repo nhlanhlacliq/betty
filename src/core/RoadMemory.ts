@@ -60,6 +60,8 @@ export class RoadMemory {
     return n;
   }
   /** The last ~2 km are all new (one cell may have been crossed before, at a junction). */
+  /** Back on roads he knows: at least half of the last ~2 km ridden before (re-arms the new-road line). */
+  knownStretch(): boolean { return this.recent.length >= STRETCH && this.recent.filter((n) => n > 0).length >= STRETCH / 2; }
   newStretch(): boolean { return this.recent.length >= STRETCH && this.recent.filter((n) => n === 0).length >= STRETCH - 1; }
   /** How many earlier rides took the last ~2 km (the middle value, so one busy junction does not count). */
   familiarity(): number {

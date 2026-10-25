@@ -159,11 +159,15 @@ export function BettyProvider({ children }: { children: ReactNode }) {
     if (r.voice.kind !== 'link') return;
     const v = r.voice;
     let talking: ReturnType<typeof setTimeout> | undefined;
+    let autoEnded = 0;
     const done = () => { clearTimeout(talking); talking = undefined; v.release(); };
-    v.onHeardRider = () => { if (talking) done(); };
+    v.onHeardRider = () => { if (talking) { done(); autoEnded = Date.now(); } };
     v.onButton = (kind) => {
       if (kind === 'talk') {
-        if (talking) { done(); return; } // (a press during his turn rarely arrives: the helmet is in call mode)
+        if (talking) { done(); return; }
+        // His press to finish, arriving just after his sentence already ended the turn (ride of 2026-10-25: it opened
+        // the mic again and he asked twice). A real new question comes after her answer has started.
+        if (Date.now() - autoEnded < 2500) { logger.add('[voice]', 'press ignored: your turn had just ended'); return; }
         void v.press().catch(() => {});
         talking = setTimeout(done, 10_000);
       } else if (kind === 'next') {

@@ -548,6 +548,13 @@ const ride0 = () => new RideStats(now).snapshot();
   tick({ speedKmh: 60, jolts: 47 }); tick({ speedKmh: 40, jolts: 47 }); tick({ speedKmh: 20, jolts: 47 }); tick({ speedKmh: 0, jolts: 47 });
   sn = st.snapshot();
   assert.equal(sn.hardBrakes, 1, 'one long hard stop counts once'); assert.equal(sn.jolts, 7);
+  // a bad GPS height (ride of 2026-10-25: 1,623 m "climbed" six minutes in) is not a climb; a bad first anchor is replaced
+  const st2 = new RideStats(now);
+  for (const alt of [1600, 1605, 0, 1610, 1620]) { clock += 1000; st2.update({ ...initialState(), speedKmh: 60, altitudeM: alt }); }
+  assert.deepEqual([st2.snapshot().climbM, st2.snapshot().descentM, st2.snapshot().highM], [20, 0, 1620], 'one fix at 0 m ignored');
+  const st3 = new RideStats(now);
+  for (const alt of [0, 1500, 1500, 1501, 1500, 1502, 1512]) { clock += 1000; st3.update({ ...initialState(), speedKmh: 60, altitudeM: alt }); }
+  assert.deepEqual([st3.snapshot().climbM, st3.snapshot().descentM], [10, 0], 'a bad first reading: anchored again, the jump not counted');
   tick({ speedKmh: 5 }); tick({ speedKmh: 10 }); tick({ speedKmh: 15 });
   assert.equal(st.snapshot().hardAccels, 0, 'gentle pull-away is not hard');
   tick({ speedKmh: 40 });
@@ -2063,6 +2070,19 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const f = new Float32Array([0.1, 0.5, -0.9]); new Limiter(dbToGain(16)).process(f);
   assert.ok(f.every((x) => Math.abs(x) <= 1), 'never past full scale');
   assert.equal(dbToGain(40), dbToGain(16), 'capped at +16 dB');
+
+  // louder at speed: his setting in town, the extra from 40 to 120 km/h, up at once, down slowly, music paused fast
+  const { SpeedVoice, speedShare } = await import('../src/core/Loudness');
+  assert.deepEqual([speedShare(30), speedShare(80), speedShare(150)], [0, 0.5, 1]);
+  let tv = 0; const sv = new SpeedVoice(() => tv);
+  const o = { baseDb: 16, extraDb: 8, pauseMusic: true };
+  assert.deepEqual(sv.update(30, o), { gainDb: 16, share: 0, pauseMusic: false }, 'town: his setting only');
+  tv += 1000; assert.deepEqual(sv.update(120, o), { gainDb: 24, share: 1, pauseMusic: true }, 'fast: up at once, music paused');
+  tv += 1000; assert.equal(sv.update(0, o).gainDb, 23.5, 'a sudden stop eases off (6 km/h a second)');
+  tv += 4000; const mid = sv.update(0, o); assert.ok(mid.share < 0.7 && mid.share > 0.4 && mid.pauseMusic, `still paused on the way down (${mid.share})`);
+  tv += 4000; assert.equal(sv.update(0, o).pauseMusic, false, 'dipped again below ~75 km/h');
+  tv += 60000; assert.equal(sv.update(0, o).gainDb, 16, 'back to his setting');
+  assert.equal(new SpeedVoice(() => 0).update(120, { ...o, pauseMusic: false }).pauseMusic, false, 'switch off: never paused');
   resetConfig();
 }
 
@@ -2500,8 +2520,26 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const fired: TriggerEvent[] = [];
   for (let i = 0; i < 40; i++) { clock += 5000; fired.push(...e.evaluate({ ...initialState(), speedKmh: 60, lat: -26.3 - i * 0.0025, lon: 28.2 }).filter((x) => x.id === 'new_road')); }
   assert.equal(fired.length, 1); assert.equal(fired[0].priority, 3); assert.match(fired[0].context, /never ridden with you before/);
+  // still on new roads 40 minutes later: no second "new road" (ride of 2026-10-25: four, all the same)
+  for (let i = 0; i < 500; i++) { clock += 5000; fired.push(...e.evaluate({ ...initialState(), speedKmh: 60, lat: -26.4 - i * 0.0025, lon: 28.3 }).filter((x) => x.id === 'new_road')); }
+  assert.equal(fired.length, 1, 'once for one long stretch of new road');
+  for (const [lat, lon] of usual) { clock += 5000; e.evaluate({ ...initialState(), speedKmh: 60, lat, lon }); } // back on his usual road
+  for (let i = 0; i < 40; i++) { clock += 5000; fired.push(...e.evaluate({ ...initialState(), speedKmh: 60, lat: -26.9 - i * 0.0025, lon: 28.4 }).filter((x) => x.id === 'new_road')); }
+  assert.equal(fired.length, 2, 'after known roads, a new one is news again');
   assert.match(e.ask('have I been here before?', { ...initialState(), lat: -26.4, lon: 28.2 }).context, /This stretch is new/);
   resetConfig();
+}
+
+// ---- her worn devices (ride of 2026-10-25): a rating, her humour setting, coffee, used lately -> left out of the next line
+{
+  const { wornDevices, buildClaudeRequest } = await import('../src/core/ClaudeClient');
+  const lines = ['Six minutes in, and I rate the pace seven out of ten.', 'Humour setting at one hundred percent, sir.', 'A quiet road.', 'Clear skies.', 'No coffee yet.'];
+  assert.deepEqual(wornDevices(lines), ['mentioning your humour setting', 'coffee, tea or kettle jokes'], 'only the last four lines count');
+  assert.deepEqual(wornDevices(['Edenvale began in 1903.']), []);
+  const ev = { id: 'ride_milestone', priority: 3, createdAt: Date.now(), context: 'Out for 20 minutes.', fallback: '' } as TriggerEvent;
+  const msg = (r: ReturnType<typeof buildClaudeRequest>) => r.messages[r.messages.length - 1].content as string;
+  assert.match(msg(buildClaudeRequest(ev, initialState(), lines)), /leave out of this one: mentioning your humour setting; coffee/);
+  assert.doesNotMatch(msg(buildClaudeRequest({ ...ev, id: 'rider_query', riderSaid: 'how far?' }, initialState(), lines)), /leave out/, 'not on his answers');
 }
 
 // ---- memory across rides (2026-10-18): the ride his question points at, and what was said on it

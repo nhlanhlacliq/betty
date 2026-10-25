@@ -110,7 +110,7 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
-    this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.saidLongest = false; this.lastDistance = 0;
+    this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.newRoadArmed = true; this.saidLongest = false; this.lastDistance = 0;
     this.rainWarned.clear(); this.movingAtBreak = 0; this.fatigueAtMoving = null; this.coldSaid = false;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
@@ -187,6 +187,9 @@ export class TriggerEngine {
   /** He said he is on a detour: no off-route lines until he is back on the route after having left it. */
   private detour = false;
   private detourLeft = false;
+  /** A new-road line waits until he has been back on known roads (ride of 2026-10-25: four in a row, every 20 min,
+   *  all the way to Pretoria, all saying the same thing). */
+  private newRoadArmed = true;
   setRoute(r: PlannedRoute | null) {
     this.route = r; this.progress = null; this.offSince = null; this.offWarned = false; this.stopsSaid.clear(); this.arrivedSaid = false;
     this.detour = false; this.detourLeft = false; this.rainWarned.clear(); this.routeWx = [];
@@ -395,7 +398,11 @@ export class TriggerEngine {
     // Roads: each new cell he enters; a new road (P3) when the last ~2 km are all new and he has a few rides behind him.
     if (this.roads && s.lat != null && s.lon != null && s.speedKmh >= 20) {
       this.roads.visit(s.lat, s.lon);
-      if (this.history.length >= 3 && this.roads.newStretch() && this.now() >= this.quietUntil && !this.parked && this.ready('new_road')) out.push(this.force('new_road', s));
+      if (!this.newRoadArmed && this.roads.knownStretch()) this.newRoadArmed = true;
+      if (this.newRoadArmed && this.history.length >= 3 && this.roads.newStretch() && this.now() >= this.quietUntil && !this.parked && this.ready('new_road')) {
+        this.newRoadArmed = false;
+        out.push(this.force('new_road', s));
+      }
     }
     // Fatigue (P2): two hours riding without a real break (one at night), then again every hour without one.
     if (s.speedKmh >= MOVING_AGAIN_KMH) {

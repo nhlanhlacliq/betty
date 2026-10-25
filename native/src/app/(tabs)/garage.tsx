@@ -116,10 +116,16 @@ export default function Garage() {
         <Setting label="Her voice" sub="Google Chirp 3 HD, with the phone's voice as backup when there is no signal.">
           <Pressable style={st.pickBtn} onPress={() => setSheet('voice')}><Text style={st.pickText}>{chirpVoice().name}</Text><Icon name="chev" size={15} color="#909b8d" /></Pressable>
         </Setting>
-        <Setting label="Louder voice" sub="For wind noise. Turns up her cloud voice; the phone's backup voice cannot go louder.">
+        <Setting label="Louder voice" sub="Her loudness in town. The phone's backup voice cannot go louder.">
           <Stepper value={CONFIG.voiceBoostDb} min={0} max={16} step={2} format={(v) => (v ? `+${v} dB` : 'Off')} onChange={(v) => { CONFIG.voiceBoostDb = v; changed(); }} />
         </Setting>
-        <Setting label="Your music while she talks" sub="Pause: silent, comes back at full volume. Dip: quieter, fades back up after (iPhone sets how far). Keep: plays on, her voice on top. Voice lab only for now." last>
+        <Setting label="Louder at speed" sub="Extra on top, from 40 km/h up to the full amount at 120, with a brighter voice that carries through wind. Betty Link.">
+          <Stepper value={CONFIG.voiceAtSpeedDb} min={0} max={12} step={2} format={(v) => (v ? `+${v} dB` : 'Off')} onChange={(v) => { CONFIG.voiceAtSpeedDb = v; changed(); }} />
+        </Setting>
+        <Setting label="Pause your music at speed" sub="Above about 90 km/h her lines pause your music instead of dipping it; below about 75 it dips again.">
+          <Toggle value={CONFIG.pauseMusicAtSpeed} onChange={(v) => { CONFIG.pauseMusicAtSpeed = v; changed(); }} />
+        </Setting>
+        <Setting label="Your music while she talks" sub="Pause: silent, comes back at full volume. Dip: quieter, fades back up after (iPhone sets how far). Keep: plays on, her voice on top." last>
           <Choice value={CONFIG.musicWhileSpeaking} options={[['pause', 'Pause'], ['dip', 'Dip'], ['mix', 'Keep']]} onChange={(v) => { CONFIG.musicWhileSpeaking = v; changed(); }} />
         </Setting>
       </Card>
