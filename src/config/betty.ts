@@ -63,6 +63,11 @@ export interface Config {
   /** Louder voice, in dB (0 to 16; owner, ride of 2026-10-17: "can't hear it over the wind"): Chirp by Google, Gemini by a limiter on the phone */
   voiceBoostDb: number;
   /**
+   * His music while she talks (native app, voice lab; owner, 2026-10-25: "can we control the amount of ducking?" iOS
+   * sets how far a duck dips, apps cannot): pause it, dip it (iOS's duck, faded back up after), or keep it playing.
+   */
+  musicWhileSpeaking: 'pause' | 'dip' | 'mix';
+  /**
    * Searched answers on Sonnet (owner's option, 2026-10-18): better at sums and comparisons from search results (RPM to
    * road speed came out right), about 2 s slower and dearer. Sonnet takes no forced tool_choice, so the search is asked
    * for in words, and it wants thinking "between_tools" (it rejects "disabled").
@@ -151,6 +156,7 @@ export const DEFAULT_CONFIG: Config = {
   listenVoice: 'chirp',
   cardMetro: true,
   voiceBoostDb: 6,
+  musicWhileSpeaking: 'dip',
   ridingTimeOnly: true,
   journeyThumbs: true,
   motion: true,

@@ -37,6 +37,8 @@ public class BettyLinkModule: Module {
   private var micNote = ""
   /** Her loudness: the rider's voice boost (CONFIG.voiceBoostDb, default +6 dB), with a soft limiter. */
   private var gain: Float = 2.0
+  /** His music while she talks: "pause", "dip" (iOS's duck) or "mix" (plays on). */
+  private var music = "dip"
 
   public func definition() -> ModuleDefinition {
     Name("BettyLink")
@@ -85,6 +87,8 @@ public class BettyLinkModule: Module {
     Function("route") { () -> String in self.routeText() }
 
     /** Her voice boost in dB (0 to 16): music is mastered loud, her voice is not (lab test 2026-10-25). */
+    Function("setMusic") { (mode: String) in self.q.async { self.music = ["pause", "dip", "mix"].contains(mode) ? mode : "dip" } }
+
     Function("setGain") { (db: Double) in self.q.async { self.gain = Float(pow(10, max(0, min(16, db)) / 20)) } }
 
     Function("disconnect") { self.q.async { self.tearDown(reason: "closed by the app") } }
@@ -122,6 +126,14 @@ public class BettyLinkModule: Module {
       try s.setCategory(.playback, mode: .spokenAudio, options: duck ? [.duckOthers] : [])
       try s.setActive(true)
     } catch { log("could not set the sound up (\(duck ? "duck" : "pause music")): \(error.localizedDescription)") }
+  }
+
+  /** The session for her speech, by his choice: pause (no mixing), dip (duckOthers) or keep (mixWithOthers). */
+  private func forHerVoice() {
+    let s = AVAudioSession.sharedInstance()
+    let opts: AVAudioSession.CategoryOptions = music == "pause" ? [] : music == "mix" ? [.mixWithOthers] : [.duckOthers]
+    do { try s.setCategory(.playback, mode: .spokenAudio, options: opts); try s.setActive(true) }
+    catch { log("could not set the sound up for her voice: \(error.localizedDescription)") }
   }
 
   private func startPlayback() {
@@ -171,7 +183,7 @@ public class BettyLinkModule: Module {
         dst[i] = a <= 0.8 ? x : (x < 0 ? -1 : 1) * (0.8 + 0.2 * tanh((a - 0.8) / 0.2)) // soft limit, never clips
       }
     }
-    if phase == .idle { phase = .speaking; playback(duck: true); freshPlayback("her own line") } // music ducks under it
+    if phase == .idle { phase = .speaking; forHerVoice(); freshPlayback("her own line") }
     if let r = releasedAt {
       releasedAt = nil
       log("her first sound \(Int(Date().timeIntervalSince(r) * 1000)) ms after you let go")
@@ -256,7 +268,7 @@ public class BettyLinkModule: Module {
     }
     capEngine = eng
     // A moment later: the headset's hands-free sound starts a little after the mic, and the first beep was lost there.
-    q.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+    q.asyncAfter(deadline: .now() + 0.25) { [weak self] in
       guard let self, self.capEngine === eng, eng.isRunning, let tone = self.toneBuffer() else { return }
       beep.scheduleBuffer(tone, completionHandler: nil); beep.play()
       self.log("beep: speak now")
@@ -274,8 +286,12 @@ public class BettyLinkModule: Module {
     // duckOthers); when she is done the session goes off and iPhone fades it back up. Pausing it until the end
     // brought it back at full volume with a jolt (lab test 2026-10-25).
     player.stop(); playEngine.stop()
-    try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
-    playback(duck: true)
+    if music == "pause" {
+      playback(duck: false) // stays paused until she is done (then back at full volume: iPhone does not fade it)
+    } else {
+      try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+      forHerVoice()
+    }
     waitForStereo()
     freshPlayback("after your turn")
     // Nothing came back (he said nothing, or she chose silence): give the music back anyway.
@@ -285,15 +301,24 @@ public class BettyLinkModule: Module {
     }
   }
 
-  /** 140 ms at 880 Hz, soft edges, about -12 dB. */
+  /** A soft two-note chime (owner: the beep was loud and harsh): G5 then C6, bell-like decay, about -20 dB. */
   private func toneBuffer() -> AVAudioPCMBuffer? {
-    let n = Int(outFormat.sampleRate * 0.2)
+    let rate = Float(outFormat.sampleRate)
+    let notes: [(f: Float, at: Float)] = [(783.99, 0), (1046.5, 0.09)]
+    let len: Float = 0.42
+    let n = Int(rate * len)
     guard let b = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: AVAudioFrameCount(n)) else { return nil }
     b.frameLength = AVAudioFrameCount(n)
-    let d = b.floatChannelData![0], fade = Int(outFormat.sampleRate * 0.015)
+    let d = b.floatChannelData![0]
     for i in 0..<n {
-      let edge = Float(min(i, n - 1 - i, fade)) / Float(fade)
-      d[i] = 0.35 * min(1, edge) * sin(2 * .pi * 880 * Float(i) / Float(outFormat.sampleRate))
+      let t = Float(i) / rate
+      var v: Float = 0
+      for note in notes where t >= note.at {
+        let u = t - note.at
+        let env = min(1, u / 0.006) * exp(-u * 9) // quick soft attack, ringing decay
+        v += env * (sin(2 * .pi * note.f * u) + 0.25 * sin(2 * .pi * note.f * 2 * u))
+      }
+      d[i] = 0.08 * v
     }
     return b
   }

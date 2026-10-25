@@ -9,6 +9,7 @@ export interface BettyLinkNative {
   flush(): void;
   route(): string;
   setGain(db: number): void;
+  setMusic(mode: 'pause' | 'dip' | 'mix'): void;
   disconnect(): void;
   addListener(event: 'onMessage', fn: (e: { json: string }) => void): Sub;
   addListener(event: 'onState', fn: (e: { state: string; detail: string }) => void): Sub;

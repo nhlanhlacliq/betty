@@ -104,6 +104,7 @@ export default function Lab() {
       const body = { system: `${bettySystemPrompt(2)}\n\n${(FLAVOUR_PROMPTS as Record<string, string>).rider_query ?? ''}`, greet: false, ptt: true, mode: 'ptt', situation: await situation(), keyterms: [] };
       const where = await bettyLink.connect(URL, AUTH, JSON.stringify({ t: 'start', body }));
       bettyLink.setGain(CONFIG.voiceBoostDb); // Garage > Voice & audio > her loudness
+      bettyLink.setMusic(CONFIG.musicWhileSpeaking); // Garage > Voice & audio > your music while she talks
       bettyLink.send(rtvi('client-ready', { version: '2.1.0', about: { library: 'betty-link' } }));
       add('lab', `connected in ${Date.now() - t0} ms; ${where}`);
     } catch (e) {

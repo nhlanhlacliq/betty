@@ -321,4 +321,8 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   fade (now: at release the session goes off so the music resumes, then on with duckOthers, so it plays DUCKED under
   her answer and iPhone fades it back up when she is done); her voice low against mastered music (the voice server
   ignored CONFIG.voiceBoostDb: the module now applies it on the phone, default +6 dB, soft limiter).
+- 2026-10-25 later: "dip" at +10 dB still not loud enough over his music, and iOS fixes how far a duck dips (apps
+  cannot set it). So `CONFIG.musicWhileSpeaking` (Garage > Voice & audio > Your music while she talks): pause (no
+  mixing until she is done; back at full volume), dip (default), keep (mixWithOthers). Beep -> a soft two-note chime
+  (G5, C6, bell decay, ~-20 dB) 0.25 s after the mic is live (he heard the beep, "slow and loud").
 

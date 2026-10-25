@@ -116,8 +116,11 @@ export default function Garage() {
         <Setting label="Her voice" sub="Google Chirp 3 HD, with the phone's voice as backup when there is no signal.">
           <Pressable style={st.pickBtn} onPress={() => setSheet('voice')}><Text style={st.pickText}>{chirpVoice().name}</Text><Icon name="chev" size={15} color="#909b8d" /></Pressable>
         </Setting>
-        <Setting label="Louder voice" sub="For wind noise. Turns up her cloud voice; the phone's backup voice cannot go louder." last>
+        <Setting label="Louder voice" sub="For wind noise. Turns up her cloud voice; the phone's backup voice cannot go louder.">
           <Stepper value={CONFIG.voiceBoostDb} min={0} max={16} step={2} format={(v) => (v ? `+${v} dB` : 'Off')} onChange={(v) => { CONFIG.voiceBoostDb = v; changed(); }} />
+        </Setting>
+        <Setting label="Your music while she talks" sub="Pause: silent, comes back at full volume. Dip: quieter, fades back up after (iPhone sets how far). Keep: plays on, her voice on top. Voice lab only for now." last>
+          <Choice value={CONFIG.musicWhileSpeaking} options={[['pause', 'Pause'], ['dip', 'Dip'], ['mix', 'Keep']]} onChange={(v) => { CONFIG.musicWhileSpeaking = v; changed(); }} />
         </Setting>
       </Card>
 
