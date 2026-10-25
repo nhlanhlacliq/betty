@@ -342,4 +342,8 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   going quiet; pressed right after her answer: 0.9-1.0 s, every word heard (hands-free ~770 ms: the Bluetooth link,
   the floor). Now one step: straight to hands-free without mixing (pauses the music in the same activation).
   UNVERIFIED: the music app still resumes afterwards (if not, back to two steps and look for another way).
+- 2026-10-25 10:26 (V6): one step works, the music still comes back (hands-free + pause ~1.2 s, then the mic engine
+  ~0.43 s; total ~1.65 s with music on, ~0.9 s without). He said "one" at the chime and it was heard, so the chime
+  was late by about its own length: it now plays (its own AVAudioPlayer) as soon as the headset is hands-free, while
+  the mic engine starts, so it ends about when the mic opens. Log: "chime: speak now".
 

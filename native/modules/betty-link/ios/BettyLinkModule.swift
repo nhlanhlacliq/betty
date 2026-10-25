@@ -40,6 +40,8 @@ public class BettyLinkModule: Module {
   private var releasedAt: Date?
   private var peak: Float = 0
   private var micNote = ""
+  /** The chime as its own small player, so it can play while the mic engine is still starting. */
+  private var chimePlayer: AVAudioPlayer?
   /** Her loudness: the rider's voice boost (CONFIG.voiceBoostDb, default +6 dB), with a soft limiter. */
   private var gain: Float = 2.0
   /** His music while she talks: "pause", "dip" (iOS's duck) or "mix" (plays on). */
@@ -241,6 +243,10 @@ public class BettyLinkModule: Module {
       }
     } catch { log("could not open the mic: \(error.localizedDescription)"); return }
 
+    // The chime NOW, while the mic engine starts (~0.4 s, about the chime's own length), so it ends about when the mic
+    // opens (owner, 2026-10-25: "make the chime play sooner by its own length"; "one" said at the chime was heard).
+    playChime()
+
     // The engine is made only once the hardware has settled: an engine made mid-switch announces the old rate and
     // the server gets garble. Up to 3 tries, 0.3 s apart.
     var eng = AVAudioEngine()
@@ -278,22 +284,11 @@ public class BettyLinkModule: Module {
       if level > self.peak { self.peak = level }
       task.send(.data(Data(bytes: p, count: Int(out.frameLength) * 2))) { _ in }
     }
-    // The "speak now" beep (lab test 2026-10-25: the switch to hands-free takes up to ~1.5 s and his first words were
-    // lost while he spoke into it). Played in the headset the moment the mic is live.
-    let beep = AVAudioPlayerNode()
-    eng.attach(beep)
-    eng.connect(beep, to: eng.mainMixerNode, format: outFormat)
     do { eng.prepare(); try eng.start() } catch {
       input.removeTap(onBus: 0); log("mic would not start: \(error.localizedDescription)"); return
     }
     capEngine = eng
     micNote += "; steps: hands-free + music paused \(tHands) ms, helmet mic \(tMic) ms, mic engine \(ms(t0) - tPause - tHands - tMic) ms"
-    // A moment later: the headset's hands-free sound starts a little after the mic, and the first beep was lost there.
-    q.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-      guard let self, self.capEngine === eng, eng.isRunning, let tone = self.toneBuffer() else { return }
-      beep.scheduleBuffer(tone, completionHandler: nil); beep.play()
-      self.log("beep: speak now")
-    }
   }
 
   private func stopMic() {
@@ -317,6 +312,27 @@ public class BettyLinkModule: Module {
     freshPlayback("after your turn")
     // Nothing came back (he said nothing, or she chose silence): give the music back anyway.
     noAnswerCheck(after: 10, total: 10)
+  }
+
+  private func playChime() {
+    guard let b = toneBuffer(), let wav = wavData(b) else { return }
+    chimePlayer = try? AVAudioPlayer(data: wav)
+    chimePlayer?.play()
+    log("chime: speak now")
+  }
+
+  /** A sound buffer as a WAV file in memory (16-bit mono), for AVAudioPlayer. */
+  private func wavData(_ b: AVAudioPCMBuffer) -> Data? {
+    guard let f = b.floatChannelData?[0] else { return nil }
+    let n = Int(b.frameLength), rate = UInt32(b.format.sampleRate)
+    var d = Data()
+    func u32(_ v: UInt32) { var x = v.littleEndian; withUnsafeBytes(of: &x) { d.append(contentsOf: $0) } }
+    func u16(_ v: UInt16) { var x = v.littleEndian; withUnsafeBytes(of: &x) { d.append(contentsOf: $0) } }
+    d.append(contentsOf: Array("RIFF".utf8)); u32(UInt32(36 + n * 2)); d.append(contentsOf: Array("WAVEfmt ".utf8))
+    u32(16); u16(1); u16(1); u32(rate); u32(rate * 2); u16(2); u16(16)
+    d.append(contentsOf: Array("data".utf8)); u32(UInt32(n * 2))
+    for i in 0..<n { u16(UInt16(bitPattern: Int16(max(-1, min(1, f[i])) * 32767))) }
+    return d
   }
 
   /** A soft five-note chime (owner: "five notes, a nice soft sound", then "deeper, like soundcore when it turns on"):
