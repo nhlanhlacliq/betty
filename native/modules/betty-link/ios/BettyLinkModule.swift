@@ -303,12 +303,12 @@ public class BettyLinkModule: Module {
     noAnswerCheck(after: 10, total: 10)
   }
 
-  /** A soft five-note chime (owner: "five notes, a nice soft sound, like Apple or soundcore"): a quick rising
-   *  pentatonic run (C6 D6 E6 G6 C7), marimba-like (sine plus a little octave), gentle attack, short ring, ~-24 dB. */
+  /** A soft five-note chime (owner: "five notes, a nice soft sound", then "deeper, like soundcore when it turns on"):
+   *  a rising pentatonic run C5 D5 E5 G5 C6, warm (sine plus a trace of octave), gentle attack, longer ring, ~-24 dB. */
   private func toneBuffer() -> AVAudioPCMBuffer? {
     let rate = Float(outFormat.sampleRate)
-    let freqs: [Float] = [1046.5, 1174.7, 1318.5, 1568.0, 2093.0]
-    let gap: Float = 0.045, len: Float = 0.5
+    let freqs: [Float] = [523.25, 587.33, 659.25, 783.99, 1046.5]
+    let gap: Float = 0.06, len: Float = 0.7
     let n = Int(rate * len)
     guard let b = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: AVAudioFrameCount(n)) else { return nil }
     b.frameLength = AVAudioFrameCount(n)
@@ -319,11 +319,11 @@ public class BettyLinkModule: Module {
       for (k, f) in freqs.enumerated() {
         let u = t - Float(k) * gap
         if u < 0 { continue }
-        let env = min(1, u / 0.012) * exp(-u * 11) // soft attack, short ring
-        let level: Float = k == freqs.count - 1 ? 1.0 : 0.75 // the last note a touch stronger
-        v += level * env * (sin(2 * .pi * f * u) + 0.15 * sin(2 * .pi * f * 2 * u))
+        let env = min(1, u / 0.015) * exp(-u * 7) // soft attack, warm ring
+        let level: Float = k == freqs.count - 1 ? 1.0 : 0.8 // the last note a touch stronger
+        v += level * env * (sin(2 * .pi * f * u) + 0.08 * sin(2 * .pi * f * 2 * u))
       }
-      d[i] = 0.035 * v
+      d[i] = 0.04 * v
     }
     return b
   }
