@@ -366,4 +366,9 @@ NOT YET: open mic on the link, the handlebar button, the locked screen (needs a 
   and LinkSpeaker only finished a line on "quiet", i.e. after the music was handed back. Now the module sends
   "drained" when her audio is all played (LinkSpeaker finishes, the queue sends the next line at once) and hands the
   music back only after 2 s of real silence (was 0.8 s for her own lines).
+- SECOND RIDE 2026-10-25 11:22: hold-to-talk on a ride worked (chime, whole questions, her first sound 2.2-2.4 s).
+  Bug from the "drained" change: "speaking" was only reported once per stretch, so her second line in a row never
+  "started", LinkSpeaker gave up after 4 s, cut it and the phone's Chirp took over (fighting the module for the sound),
+  and the lines behind it were still queued at END RIDE ("cleared"). Now "drained" also resets it, so each line reports
+  "speaking".
 

@@ -217,7 +217,9 @@ public class BettyLinkModule: Module {
         self.pending = max(0, self.pending - 1)
         // Her audio is all played: the app may send her next line now ("drained"); the music only comes back after a
         // real pause (planHandBack). Tying the two together brought the music up between her sentences (ride test).
-        if self.pending == 0 { self.state("drained"); self.planHandBack() }
+        // "announced" is reset too, so her NEXT line reports "speaking" again (without that, a second line in a row
+        // never said it had started, the app gave up on it after 4 s and the phone voice took over: ride test).
+        if self.pending == 0 { self.announced = false; self.state("drained"); self.planHandBack() }
       }
     }
   }
