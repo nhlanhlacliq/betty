@@ -301,4 +301,14 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
 - FIRST PHONE TEST 2026-10-25 07:50 (phone speaker + built-in mic, NO HELMET): 10 turns, all heard, no overlaps;
   connect 285 ms; her first sound 1.3-1.6 s after release (5.5 s with two weather lookups); mic on ~0.55 s; a press
   cut her off cleanly. Fixed: no position (now asks for location, sends the suburb). NEXT: the same with the V6 and music.
+- SECOND PHONE TEST 2026-10-25 08:53 (soundcore Space One Pro headphones, music on): his music stopped at the press and
+  never came back, he was not understood ("It", then nothing, at -18/-21 dB), and he heard none of her answers (sent and
+  "played"). Causes and fixes in BettyLinkModule.swift: (1) the stereo -> hands-free switch looks like "headphones
+  gone" to music apps, which pause for good: now the session is off when idle, a press first takes the sound WITHOUT
+  mixing (an interruption: music pauses as for Siri), and after her answer the session goes off with
+  notifyOthersOnDeactivation (music resumes); her own lines while idle duck the music instead. (2) the mic engine was
+  likely made mid-switch with the old rate (garble): it waits until the announced rate matches the hardware (3 tries)
+  and converts from each buffer's own format; the log says what rate the mic audio really has. (3) the player kept
+  "playing" into the hands-free output that was gone: a NEW engine for every stretch of her speech, only once the
+  headset is back in stereo.
 
