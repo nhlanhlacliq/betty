@@ -18,6 +18,7 @@ import { DEFAULT_SPAN_KM, MapInput, spanFor, trackCenter } from '../../../../src
 import type { MapView } from '../../../../src/ui/mapGestures';
 import { ElmClassicTransport } from '../../adapters/ElmClassicTransport';
 import { useBetty } from '../../state/Betty';
+import { TalkChoice } from '../../ui/TalkChoice';
 import { Primary, Round, Secondary, TextButton } from '../../ui/Buttons';
 import { Icon } from '../../ui/Icon';
 import { MapSketch } from '../../ui/MapSketch';
@@ -216,20 +217,7 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
       })}
 
       <Text style={[T.eyebrow, { marginTop: 22, marginBottom: 4 }]}>Talking to Betty</Text>
-      <View style={st.switchRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={st.optionTitle}>Open mic</Text>
-          <Text style={st.optionSub}>{b.openMic ? 'Say "Betty…" to talk. The helmet stays in call mode.' : 'Off: hold the talk button to speak to her.'}</Text>
-        </View>
-        <Switch value={b.openMic} onValueChange={b.setOpenMic} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
-      </View>
-      <View style={st.switchRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={st.optionTitle}>Headset buttons</Text>
-          <Text style={st.optionSub}>Play/pause talks to Betty{b.openMic ? ' (with open mic: mutes and unmutes)' : ''}, next track repeats her, previous track hands the buttons back. Pauses your music while she has them.</Text>
-        </View>
-        <Switch value={b.buttons} onValueChange={b.setButtons} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
-      </View>
+      <TalkChoice />
 
       {Platform.OS === 'android' && !riding && (
         <>

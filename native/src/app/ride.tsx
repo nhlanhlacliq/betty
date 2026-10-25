@@ -11,6 +11,7 @@ import { DEFAULT_SPAN_KM, MAP_SPANS, MAX_SPAN_KM, MIN_SPAN_KM, MapInput } from '
 import type { MapView } from '../../../src/ui/mapGestures';
 import { rideView } from '../../../src/ui/rideView';
 import { useBetty } from '../state/Betty';
+import { TalkChoice } from '../ui/TalkChoice';
 import { Primary, Round, Secondary, TextButton } from '../ui/Buttons';
 import { Horizon } from '../ui/Horizon';
 import { Icon } from '../ui/Icon';
@@ -169,22 +170,9 @@ export default function Ride() {
             </Pressable>
           ))}
         </View>
-        {/* Owner, 2026-10-24: the talk mode could only be picked before the ride. Switching reconnects (~10 s). */}
+        {/* Owner, 2026-10-24: the talk mode could also be picked only before the ride. */}
         <Text style={[T.eyebrow, { marginTop: 8, marginBottom: 4 }]}>Talking to Betty</Text>
-        <View style={st.switchRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={st.optionTitle}>Open mic</Text>
-            <Text style={st.optionSub}>{b.openMic ? 'Say "Betty…" to talk. The helmet stays in call mode.' : 'Off: hold the talk button to speak to her.'}</Text>
-          </View>
-          <Switch value={b.openMic} onValueChange={b.setOpenMic} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
-        </View>
-        <View style={st.switchRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={st.optionTitle}>Headset buttons</Text>
-            <Text style={st.optionSub}>Play/pause talks, next track repeats her, previous track hands the buttons back. Pauses your music.</Text>
-          </View>
-          <Switch value={b.buttons} onValueChange={b.setButtons} trackColor={{ true: C.sage, false: '#d6dbd0' }} />
-        </View>
+        <TalkChoice />
       </Sheet>
 
       <UpAhead open={sheet === 'upahead'} onClose={() => setSheet(null)} />
@@ -204,7 +192,7 @@ function TalkButton() {
   const on = b.voice === 'listening';
   const style = [st.voice, on && st.voiceOn];
   if (!voice) return null;
-  if (b.openMic && voice.kind !== 'link') {
+  if (b.openMic) {
     return <Pressable style={style} onPress={() => void voice.toggleMic()} accessibilityLabel={on ? 'Mute the mic' : 'Listen again'}><Icon name={on ? 'mic' : 'mute'} color="#fffbe8" /></Pressable>;
   }
   return (

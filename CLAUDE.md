@@ -10,7 +10,8 @@ own WebSocket ("Betty Link": native/modules/betty-link owns ALL phone audio; voi
 V6 and soundcore (2026-10-25): every turn heard, her first sound ~1.8-2.6 s after release, music paused at the press
 and resumed (ducked) after her answer, chime as the mic opens. BUILT the same day (owner: "go ahead"), NOT YET ON A
 RIDE: rides use Betty Link by default (CONFIG.voiceLink; her own lines and her answers in one voice, phone tools), the
-Daily call behind the switch (open mic and headset buttons only there). Details: native/README.md "Rides on Betty Link".
+Daily call behind the switch. Talking: one choice of hold to talk / open mic /
+headset buttons, all on Betty Link (CONFIG.talkMode). Handlebar Bluetooth button PARKED for later; OBD next (owner). Details: native/README.md "Rides on Betty Link".
 
 Current focus: Betty's FAST VOICE (Pipecat) in the NATIVE APP. Everything below is committed; details live in
 `voice/README.md` (voice server + evals), `native/README.md` (the app), `labs/README.md` (the Pipecat lab and the VPS).

@@ -70,6 +70,8 @@ export interface Config {
   /** Native app: talk over Betty Link (our own connection, one voice, push-to-talk) instead of the Daily call (owner,
    *  2026-10-25, after the voice lab passed). Off = the call, with open mic and headset buttons. */
   voiceLink: boolean;
+  /** Native app: how he talks to her on a ride (owner, 2026-10-25: one of the three, never two at once). */
+  talkMode: 'hold' | 'open' | 'buttons';
   /**
    * Searched answers on Sonnet (owner's option, 2026-10-18): better at sums and comparisons from search results (RPM to
    * road speed came out right), about 2 s slower and dearer. Sonnet takes no forced tool_choice, so the search is asked
@@ -161,6 +163,7 @@ export const DEFAULT_CONFIG: Config = {
   voiceBoostDb: 6,
   musicWhileSpeaking: 'dip',
   voiceLink: true,
+  talkMode: 'hold',
   ridingTimeOnly: true,
   journeyThumbs: true,
   motion: true,

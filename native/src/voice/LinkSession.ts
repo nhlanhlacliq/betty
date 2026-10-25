@@ -14,8 +14,10 @@ import type { VoiceMode, VoiceSetup } from './VoiceSession';
  * stream as her answers (LinkSpeaker, below), so two voices cannot play at once; the server keeps them in her context.
  * The phone's queue still decides WHEN she speaks. Without a connection, LinkSpeaker falls back to the phone's own voice.
  *
- * Same surface as VoiceSession, so the ride screen, lock cover and rig use either. Push-to-talk only: open mic and the
- * headset buttons still need the call (Garage > Talking to Betty > Betty Link off).
+ * Same surface as VoiceSession, so the ride screen, lock cover and rig use either. Three ways to talk (2026-10-25, one at
+ * a time): hold to talk; open mic (`setMode('open')`: the mic open all ride with echo cancelling, "Betty..." to talk,
+ * the session restarts in the server's wake-word mode); headset buttons (`setButtons`: Betty is Now Playing, play/pause
+ * = talk via `onButton`, his music off while she holds them).
  */
 const URL = (process.env.EXPO_PUBLIC_VOICE_URL ?? 'https://voice.forme.africa').replace(/^http/, 'ws') + '/ws-client';
 const AUTH = `Basic ${btoa(`${process.env.EXPO_PUBLIC_VOICE_USER ?? 'app'}:${process.env.EXPO_PUBLIC_VOICE_TOKEN ?? ''}`)}`;
@@ -37,6 +39,11 @@ export class LinkSession {
   /** One of her own lines (LinkSpeaker): its audio started / it is over */
   onLineStart: () => void = () => {};
   onLineEnd: () => void = () => {};
+  /** Headset buttons (Betty holds them): play/pause = talk, next = repeat, previous = let go */
+  onButton: (kind: 'talk' | 'next' | 'previous') => void = () => {};
+  private buttonsOn = false;
+  private muted = false;
+  private situationTimer: ReturnType<typeof setInterval> | undefined;
 
   private connecting: Promise<void> | null = null;
   private subs: Array<{ remove(): void }> = [];
@@ -58,22 +65,33 @@ export class LinkSession {
 
   private set(s: LinkSession['state']) { this.state = s; this.onState(s); }
 
-  private connect(): Promise<void> {
+  private connect(force = false): Promise<void> {
     if (!bettyLink) return Promise.reject(new Error('This build has no Betty Link'));
-    if (this.connected) return Promise.resolve();
+    if (this.connected && !force) return Promise.resolve();
     if (this.connecting) return this.connecting;
     const link = bettyLink;
     this.set('connecting');
     const t0 = Date.now();
     this.listen();
     this.connecting = (async () => {
-      const body = { system: this.setup.system, greet: false, ptt: true, mode: 'ptt', situation: this.setup.situation(), keyterms: this.setup.keyterms?.() ?? [] };
+      const open = this.mode === 'open';
+      const body = { system: this.setup.system, greet: false, ptt: !open, mode: open ? 'open' : 'ptt', situation: this.setup.situation(), keyterms: this.setup.keyterms?.() ?? [] };
       const where = await link.connect(URL, AUTH, JSON.stringify({ t: 'start', body }));
       link.setGain(CONFIG.voiceBoostDb);
       link.setMusic(CONFIG.musicWhileSpeaking);
       link.send(rtvi('client-ready', { version: '2.1.0', about: { library: 'betty-link' } }));
       this.set('ready');
-      this.setup.log(`voice: Betty Link connected in ${Date.now() - t0} ms; ${where}`);
+      this.setup.log(`voice: Betty Link connected in ${Date.now() - t0} ms (${open ? 'open mic, say "Betty"' : 'hold to talk'}); ${where}`);
+      if (open) {
+        this.setup.log(`link: ${await link.openMic(true)}`);
+        this.muted = false;
+        this.set('listening');
+        clearInterval(this.situationTimer); // no presses to carry the ride situation: send it every 15 s
+        this.situationTimer = setInterval(() => { if (this.connected) link.send(clientMessage('situation', this.setup.situation())); }, 15_000);
+      } else {
+        clearInterval(this.situationTimer);
+        if (this.buttonsOn) link.buttons(true);
+      }
     })().catch((e) => {
       this.set('off');
       this.setup.log(`voice: Betty Link could not connect: ${(e as Error)?.message ?? e}`);
@@ -86,10 +104,12 @@ export class LinkSession {
     if (!bettyLink || this.subs.length) return;
     this.subs = [
       bettyLink.addListener('onLog', (e) => this.setup.log(`link: ${e.msg}`)),
+      bettyLink.addListener('onButton', (e) => this.onButton(e.kind)),
       bettyLink.addListener('onMessage', (e) => void this.onMessage(e.json)),
       bettyLink.addListener('onState', (e) => {
         if (e.state === 'closed') {
           this.setup.log(`voice: Betty Link closed${e.detail ? ` (${e.detail})` : ''}`);
+          if (this.connecting) return; // our own reconnect (a new mode) closed the old one
           this.set('off');
           this.endAnswer();
           this.onLineEnd();
@@ -124,13 +144,39 @@ export class LinkSession {
   /** Open the connection now (ride start), so the first press does not wait for it. */
   warm() { void this.connect().catch(() => {}); }
 
-  /** Open mic is not on Betty Link yet: he keeps hold-to-talk. */
+  /** Hold to talk or open mic. The server picks its turn rules when a session starts, so a change mid-ride reconnects
+   *  (well under a second on Betty Link). Before the first connection it only notes the mode. */
   async setMode(mode: VoiceMode) {
-    if (mode === 'open') this.setup.log('voice: open mic is not on Betty Link yet, hold to talk (or turn Betty Link off in Garage > Talking to Betty)');
+    if (mode === this.mode) return;
+    const was = this.mode;
+    this.mode = mode;
+    this.setup.log(`voice: ${mode === 'open' ? 'open mic on (say "Betty...")' : 'back to hold to talk'}`);
+    if (this.state === 'off' && !this.connecting) return;
+    if (this.connecting) await this.connecting.catch(() => {});
+    if (was === 'open') await bettyLink?.openMic(false);
+    await this.connect(true).catch(() => this.reconnectLater());
   }
-  async toggleMic() { /* push-to-talk only */ }
+
+  /** Open mic: the app's mic button mutes and unmutes (the mic stays open; nothing is sent while muted). */
+  async toggleMic() {
+    if (this.mode !== 'open' || !bettyLink) return;
+    if (!this.connected) { await this.connect().catch(() => {}); return; }
+    this.muted = !this.muted;
+    bettyLink.mute(this.muted);
+    if (!this.muted) bettyLink.send(clientMessage('situation', this.setup.situation()));
+    this.setup.log(`voice: mic ${this.muted ? 'muted' : 'on'}`);
+    this.set(this.muted ? 'ready' : 'listening');
+  }
+
+  /** Headset buttons for Betty (his music off while she holds them), or back to his music. */
+  setButtons(on: boolean) {
+    this.buttonsOn = on;
+    if (this.connected && this.mode !== 'open') bettyLink?.buttons(on);
+    else if (!on) bettyLink?.buttons(false);
+  }
 
   async press() {
+    if (this.mode === 'open') return; // open mic: just talk ("Betty...")
     this.held = true;
     this.onRiderTurn(true);
     if (!this.connected) await this.connect();
@@ -143,6 +189,7 @@ export class LinkSession {
   }
 
   release() {
+    if (this.mode === 'open') return;
     this.held = false;
     this.onRiderTurn(false);
     setTimeout(() => { if (!this.held) void this.finishTurn(); }, TAIL_MS);
@@ -179,6 +226,8 @@ export class LinkSession {
     const d = m.data ?? {};
     switch (m.type) {
       case 'user-transcription':
+        // Open mic: the moment "Betty" is heard it is his turn: her own line stops, the rest wait.
+        if (this.mode === 'open' && /\bbett(y|ie)\b/i.test(String(d.text ?? ''))) { this.onRiderTurn(true); this.onRiderTurn(false); }
         if (d.final && String(d.text ?? '').trim()) { const t = String(d.text).trim(); this.setup.log(`you: ${t}`); this.onHeardRider(t); }
         break;
       case 'bot-llm-started':
@@ -216,6 +265,9 @@ export class LinkSession {
   async end() {
     this.ended = true;
     clearTimeout(this.retry); this.retry = undefined;
+    clearInterval(this.situationTimer);
+    if (this.buttonsOn) bettyLink?.buttons(false); // his music and the buttons back
+    if (this.mode === 'open') await bettyLink?.openMic(false);
     this.held = false;
     for (const s of this.subs) s.remove();
     this.subs = [];

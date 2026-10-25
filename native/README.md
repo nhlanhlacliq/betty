@@ -375,3 +375,20 @@ NOT YET: open mic on the link, the handlebar button, the locked screen (needs a 
   music dipped and back. The link dropped at 11:59 on patchy signal ("Socket is not connected") and never came back
   (the backup Chirp carried on). LinkSession now reconnects after a drop: 2, 5, 10, 20, then every 30 s until END RIDE.
 
+## Three ways to talk on Betty Link (2026-10-25, owner: "one at a time, or none"; BUILT, NOT YET ON A RIDE)
+
+`CONFIG.talkMode` 'hold' | 'open' | 'buttons' (saved; `TalkChoice` on Home's ride sheet and in the ride menu; works
+mid-ride; replaces the openMic/headsetButtons switches in the native app). Betty.tsx `applyTalk` puts it into effect on
+either connection (the old call keeps its own open mic and silent-playlist buttons).
+- OPEN MIC: LinkSession reconnects in the server's open mode (wake word "Betty", 8 s follow-ups without it; checked
+  live: a sentence without "Betty" got no answer, "Betty, what is the capital of France?" got one) and calls
+  `openMic(true)`: the module pauses his music, goes hands-free, hands the music back (it resumes at call quality),
+  then runs ONE engine for his mic and her voice with the phone's echo cancelling (voice processing; its own ducking of
+  other audio set to the minimum) so she does not hear or wake herself. The app's mic button mutes (nothing sent).
+  The situation is sent every 15 s. "Betty" in a transcript stops her own line at once.
+- HEADSET BUTTONS: `buttons(true)`: MPRemoteCommandCenter play/pause/next/previous + Now Playing "Betty", and
+  near-silence looping on its own engine with the session NOT mixing (his music off while she holds them); after her
+  lines and his turns it holds again. Play/pause = talk (his turn ends on his words or 10 s), next = repeat her line,
+  previous = let go (back to hold to talk, music back). UNVERIFIED: that iPhone keeps Betty as Now Playing across
+  the hands-free switches.
+

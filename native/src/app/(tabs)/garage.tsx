@@ -157,7 +157,7 @@ export default function Garage() {
       <Reminders onEdit={setEditing} />
 
       <Card title="Talking to Betty">
-        <Setting label="Betty Link" sub="Her own connection: one voice for her answers and her own lines, your music paused only while you talk, a chime when the mic is on. Hold to talk only. Off: the old call, with open mic and headset buttons. Takes effect on the next ride.">
+        <Setting label="Betty Link" sub="Her own connection: one voice for her answers and her own lines, your music paused only while you talk, a chime when the mic is on. Off: the old call. Takes effect on the next ride.">
           <Toggle value={CONFIG.voiceLink} onChange={(v) => { CONFIG.voiceLink = v; changed(); }} />
         </Setting>
         <Setting label="Smarter web answers" sub="Typed questions she looks up use a stronger model: better with sums and comparisons, about 2 seconds slower and a few cents more each." last>

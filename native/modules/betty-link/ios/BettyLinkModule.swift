@@ -1,5 +1,6 @@
 import AVFoundation
 import ExpoModulesCore
+import MediaPlayer
 
 /// Betty Link (option C, 2026-10-25; the Voice lab screen): her conversation over ONE WebSocket, with ALL of the
 /// phone's sound in this one file. Nothing else touches the audio session while it runs, so nothing can fight it.
@@ -15,7 +16,8 @@ import ExpoModulesCore
 /// The mic format is read from the audio itself (the first try read it before the headset finished switching, and
 /// the server got garble: "It"). The wire protocol is in voice/betty_voice/link.py. Everything is logged ("onLog").
 public class BettyLinkModule: Module {
-  private enum Phase: String { case idle, talking, answering, speaking }
+  /// open: open mic (the mic always on, hands-free, her voice through the same engine so echo cancelling works).
+  private enum Phase: String { case idle, talking, answering, speaking, open }
 
   private var session: URLSession?
   private var task: URLSessionWebSocketTask?
@@ -49,10 +51,16 @@ public class BettyLinkModule: Module {
   private var gain: Float = 2.0
   /** His music while she talks: "pause", "dip" (iOS's duck) or "mix" (plays on). */
   private var music = "dip"
+  /** Open mic: muted by the app's mic button (the mic stays open, nothing is sent). */
+  private var muted = false
+  /** Headset buttons: Betty is "Now Playing" (silence on its own engine, his music off) and gets play/pause/next/previous. */
+  private var buttonsOn = false
+  private var holdEngine: AVAudioEngine?
+  private var commandTargets: [Any] = []
 
   public func definition() -> ModuleDefinition {
     Name("BettyLink")
-    Events("onMessage", "onState", "onLog")
+    Events("onMessage", "onState", "onLog", "onButton")
 
     /// Open the WebSocket (with the app's login) and send the start message. The sound stays off until needed.
     AsyncFunction("connect") { (url: String, auth: String, start: String, promise: Promise) in
@@ -103,6 +111,17 @@ public class BettyLinkModule: Module {
     Function("setGain") { (db: Double) in self.q.async { self.gain = Float(pow(10, max(0, min(16, db)) / 20)) } }
 
     Function("disconnect") { self.q.async { self.tearDown(reason: "closed by the app") } }
+
+    /// Open mic on (the mic stays open all the time, helmet hands-free) or off (back to hold to talk).
+    AsyncFunction("openMic") { (on: Bool, promise: Promise) in
+      self.q.async { if on { self.startOpen() } else { self.stopOpen() }; promise.resolve(on ? "open mic on; \(self.micNote); \(self.routeText())" : "open mic off") }
+    }
+
+    /// Open mic: mute (nothing is sent) or listen again.
+    Function("mute") { (on: Bool) in self.q.async { self.muted = on } }
+
+    /// Headset buttons for Betty (her music off while she holds them) or back to his music.
+    Function("buttons") { (on: Bool) in self.q.async { self.setButtons(on) } }
   }
 
   // MARK: the audio session
@@ -148,12 +167,25 @@ public class BettyLinkModule: Module {
   }
 
   private func startPlayback() {
+    if phase == .open { // the open-mic engine plays her voice too (echo cancelling needs that): restart, never replace
+      if !playEngine.isRunning { playEngine.prepare(); try? playEngine.start() }
+      if playEngine.isRunning && !player.isPlaying { player.play() }
+      return
+    }
     if !playEngine.isRunning || !player.isPlaying { freshPlayback("was stopped") }
   }
 
   /// Her answer or line is over: sound off, and the music app is told it may carry on.
   private func handBack(_ why: String) {
+    if phase == .open { announced = false; state("quiet"); return } // open mic: the sound stays as it is
     guard phase == .answering || phase == .speaking else { return }
+    if buttonsOn { // his music stays off while Betty holds the buttons
+      player.stop(); playEngine.stop(); pending = 0
+      phase = .idle; announced = false
+      holdButtons()
+      state("quiet")
+      return
+    }
     player.stop(); playEngine.stop(); pending = 0
     do { try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation]) }
     catch { log("could not hand the sound back: \(error.localizedDescription)") }
@@ -201,7 +233,7 @@ public class BettyLinkModule: Module {
         dst[i] = a <= 0.8 ? x : (x < 0 ? -1 : 1) * (0.8 + 0.2 * tanh((a - 0.8) / 0.2)) // soft limit, never clips
       }
     }
-    if phase == .idle { phase = .speaking; forHerVoice(); freshPlayback("her own line") }
+    if phase == .idle { phase = .speaking; if buttonsOn { playback(duck: false) } else { forHerVoice() }; freshPlayback("her own line") }
     if let r = releasedAt {
       releasedAt = nil
       log("her first sound \(Int(Date().timeIntervalSince(r) * 1000)) ms after you let go")
@@ -227,7 +259,7 @@ public class BettyLinkModule: Module {
   // MARK: his voice (only while he holds the button)
 
   private func startMic() {
-    if phase == .talking { return }
+    if phase == .talking || phase == .open { return }
     endToken += 1
     flushPlayer()
     if announced { announced = false; state("quiet") } // she was cut off by his press
@@ -318,7 +350,7 @@ public class BettyLinkModule: Module {
     // duckOthers); when she is done the session goes off and iPhone fades it back up. Pausing it until the end
     // brought it back at full volume with a jolt (lab test 2026-10-25).
     player.stop(); playEngine.stop()
-    if music == "pause" {
+    if music == "pause" || buttonsOn {
       playback(duck: false) // stays paused until she is done (then back at full volume: iPhone does not fade it)
     } else {
       try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
@@ -326,6 +358,7 @@ public class BettyLinkModule: Module {
     }
     waitForStereo()
     freshPlayback("after your turn")
+    if buttonsOn { holdButtons() } // the buttons are Betty's again for his next press
     // Nothing came back (he said nothing, or she chose silence): give the music back anyway.
     noAnswerCheck(after: 10, total: 10)
   }
@@ -400,6 +433,155 @@ public class BettyLinkModule: Module {
     }
   }
 
+  // MARK: open mic (the mic open all the time)
+
+  private func startOpen() {
+    if phase == .open { return }
+    endToken += 1
+    flushPlayer()
+    if let eng = capEngine { eng.inputNode.removeTap(onBus: 0); eng.stop(); capEngine = nil }
+    player.stop(); playEngine.stop()
+    let s = AVAudioSession.sharedInstance()
+#if compiler(>=6.2)
+    let hfp: AVAudioSession.CategoryOptions = .allowBluetoothHFP
+#else
+    let hfp: AVAudioSession.CategoryOptions = .allowBluetooth
+#endif
+    do {
+      // Pause his music first (an interruption), go hands-free, then hand it back so it resumes (at call quality: the
+      // helmet stays in call mode). Going straight to hands-free while it played made the music app stop for good.
+      try s.setCategory(.playAndRecord, mode: .voiceChat, options: [hfp, .defaultToSpeaker])
+      try s.setActive(true)
+      if let helmet = s.availableInputs?.first(where: { $0.portType == .bluetoothHFP }) {
+        try? s.setPreferredInput(helmet)
+        let until = Date().addingTimeInterval(1.5)
+        while Date() < until && s.currentRoute.inputs.first?.portType != .bluetoothHFP { Thread.sleep(forTimeInterval: 0.05) }
+      }
+      try? s.setActive(false, options: [.notifyOthersOnDeactivation])
+      try s.setCategory(.playAndRecord, mode: .voiceChat, options: [hfp, .defaultToSpeaker, .mixWithOthers])
+      try s.setActive(true)
+    } catch { log("could not open the mic: \(error.localizedDescription)"); return }
+
+    // ONE engine for his mic and her voice, with the phone's echo cancelling, so the mic does not hear her (and she
+    // does not wake herself with her own "Betty").
+    let eng = AVAudioEngine(), pl = AVAudioPlayerNode()
+    let input = eng.inputNode
+    do { try input.setVoiceProcessingEnabled(true) } catch { log("echo cancelling not available: \(error.localizedDescription)") }
+    if #available(iOS 17.0, *) { // and do not let it turn his music right down for the whole ride
+      input.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
+    }
+    eng.attach(pl)
+    eng.connect(pl, to: eng.mainMixerNode, format: outFormat)
+    installMicTap(input)
+    do { eng.prepare(); try eng.start(); pl.play() } catch {
+      input.removeTap(onBus: 0); log("open mic would not start: \(error.localizedDescription)"); return
+    }
+    if let o = engineObserver { NotificationCenter.default.removeObserver(o) }
+    engineObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: eng, queue: nil) { [weak self] _ in
+      self?.q.async { guard let self, self.phase == .open, eng === self.playEngine else { return }; self.startPlayback(); self.log("open mic restarted (sound route changed)") }
+    }
+    playEngine = eng; player = pl; capEngine = eng; pending = 0
+    muted = false
+    phase = .open
+    micNote = "mic \(Int(input.outputFormat(forBus: 0).sampleRate)) Hz, echo cancelling on"
+    playChime()
+  }
+
+  private func stopOpen() {
+    guard phase == .open else { return }
+    if let eng = capEngine { eng.inputNode.removeTap(onBus: 0); eng.stop() }
+    capEngine = nil
+    player.stop()
+    playEngine = AVAudioEngine(); player = AVAudioPlayerNode(); pending = 0
+    phase = .idle; announced = false
+    try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    if buttonsOn { holdButtons() } else {
+      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+      try? AVAudioSession.sharedInstance().setActive(true)
+    }
+  }
+
+  /** His voice from `input`, converted to 16 kHz 16-bit mono and sent (open mic: not while muted). */
+  private func installMicTap(_ input: AVAudioInputNode) {
+    peak = 0
+    var conv: AVAudioConverter?
+    var convFrom: AVAudioFormat?
+    input.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buf, _ in
+      guard let self, let task = self.task, !(self.phase == .open && self.muted) else { return }
+      let fmt = buf.format
+      if convFrom == nil || fmt != convFrom! { conv = AVAudioConverter(from: fmt, to: self.micFormat); convFrom = fmt }
+      guard let conv else { return }
+      let cap = AVAudioFrameCount(Double(buf.frameLength) * 16000 / fmt.sampleRate) + 64
+      guard let out = AVAudioPCMBuffer(pcmFormat: self.micFormat, frameCapacity: cap) else { return }
+      var given = false
+      var err: NSError?
+      conv.convert(to: out, error: &err) { _, status in
+        if given { status.pointee = .noDataNow; return nil }
+        given = true; status.pointee = .haveData; return buf
+      }
+      guard out.frameLength > 0, let p = out.int16ChannelData?[0] else { return }
+      task.send(.data(Data(bytes: p, count: Int(out.frameLength) * 2))) { _ in }
+    }
+  }
+
+  // MARK: headset buttons (Betty is "Now Playing" while she holds them)
+
+  private func setButtons(_ on: Bool) {
+    if on == buttonsOn { return }
+    buttonsOn = on
+    let c = MPRemoteCommandCenter.shared()
+    if on {
+      let send = { [weak self] (kind: String) -> MPRemoteCommandHandlerStatus in
+        self?.log("button: \(kind)"); self?.sendEvent("onButton", ["kind": kind]); return .success
+      }
+      commandTargets = [
+        c.togglePlayPauseCommand.addTarget { _ in send("talk") },
+        c.playCommand.addTarget { _ in send("talk") },
+        c.pauseCommand.addTarget { _ in send("talk") },
+        c.nextTrackCommand.addTarget { _ in send("next") },
+        c.previousTrackCommand.addTarget { _ in send("previous") },
+      ]
+      for cmd in [c.togglePlayPauseCommand, c.playCommand, c.pauseCommand, c.nextTrackCommand, c.previousTrackCommand] { cmd.isEnabled = true }
+      MPNowPlayingInfoCenter.default().nowPlayingInfo = [MPMediaItemPropertyTitle: "Betty", MPMediaItemPropertyArtist: "Riding with you", MPNowPlayingInfoPropertyPlaybackRate: 1.0]
+      if phase == .idle { holdButtons() }
+      log("headset buttons: Betty holds them (play/pause talks, next repeats her, previous lets go)")
+    } else {
+      for t in commandTargets {
+        for cmd in [c.togglePlayPauseCommand, c.playCommand, c.pauseCommand, c.nextTrackCommand, c.previousTrackCommand] { cmd.removeTarget(t) }
+      }
+      commandTargets = []
+      MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      holdEngine?.stop(); holdEngine = nil
+      if phase == .idle {
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation]) // his music back
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+      }
+      log("headset buttons: back with your music")
+    }
+  }
+
+  /** Betty's sound on, not mixing (his music paused), with near-silence playing so iPhone keeps her "Now Playing". */
+  private func holdButtons() {
+    guard buttonsOn, phase != .talking, phase != .open else { return }
+    playback(duck: false)
+    if let e = holdEngine, e.isRunning { return }
+    let eng = AVAudioEngine(), pl = AVAudioPlayerNode()
+    eng.attach(pl)
+    eng.connect(pl, to: eng.mainMixerNode, format: outFormat)
+    let n = Int(outFormat.sampleRate) // one second, looped: noise at the very last bit (pure zeros may not count as playing)
+    guard let b = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: AVAudioFrameCount(n)) else { return }
+    b.frameLength = AVAudioFrameCount(n)
+    for i in 0..<n { b.floatChannelData![0][i] = Float(Int.random(in: -1...1)) / 32768 }
+    NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: eng, queue: nil) { [weak self] _ in
+      self?.q.async { guard let self, eng === self.holdEngine, self.buttonsOn, self.phase != .talking else { return }; self.holdEngine = nil; self.holdButtons() }
+    }
+    do { eng.prepare(); try eng.start() } catch { log("could not hold the buttons: \(error.localizedDescription)"); return }
+    pl.scheduleBuffer(b, at: nil, options: .loops, completionHandler: nil)
+    pl.play()
+    holdEngine = eng
+  }
+
   // MARK: the WebSocket
 
   private func receive(_ t: URLSessionWebSocketTask) {
@@ -429,7 +611,9 @@ public class BettyLinkModule: Module {
     if let eng = capEngine { eng.inputNode.removeTap(onBus: 0); eng.stop() }
     capEngine = nil
     player.stop(); playEngine.stop(); pending = 0
+    if phase == .open { playEngine = AVAudioEngine(); player = AVAudioPlayerNode() } // the open-mic engine is dropped
     phase = .idle
+    holdEngine?.stop()
     try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     state("closed", reason)
   }
