@@ -371,4 +371,7 @@ NOT YET: open mic on the link, the handlebar button, the locked screen (needs a 
   "started", LinkSpeaker gave up after 4 s, cut it and the phone's Chirp took over (fighting the module for the sound),
   and the lines behind it were still queued at END RIDE ("cleared"). Now "drained" also resets it, so each line reports
   "speaking".
+- LISTEN-ONLY RIDE 2026-10-25 11:42 (24 min, 6 km, pocket, V6, music): owner "worked really well": every line spoken,
+  music dipped and back. The link dropped at 11:59 on patchy signal ("Socket is not connected") and never came back
+  (the backup Chirp carried on). LinkSession now reconnects after a drop: 2, 5, 10, 20, then every 30 s until END RIDE.
 

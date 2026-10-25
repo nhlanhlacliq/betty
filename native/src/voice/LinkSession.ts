@@ -46,6 +46,10 @@ export class LinkSession {
   private lastOut = { text: '', at: 0 };
   /** Her own lines sent recently: their sentences come back as bot-output and are not her "answers" */
   private sent: Array<{ text: string; at: number }> = [];
+  /** The ride is over (end() called): no reconnecting. */
+  private ended = false;
+  private retry: ReturnType<typeof setTimeout> | undefined;
+  private retries = 0;
 
   constructor(private setup: VoiceSetup) {}
 
@@ -89,6 +93,7 @@ export class LinkSession {
           this.set('off');
           this.endAnswer();
           this.onLineEnd();
+          this.reconnectLater(); // a signal drop on a ride (2026-10-25 11:59): back on as soon as it can
         } else if (e.state === 'speaking') {
           this.onLineStart();
         } else if (e.state === 'drained') {
@@ -99,6 +104,19 @@ export class LinkSession {
         }
       }),
     ];
+  }
+
+  /** After a drop: try again at 2, 5, 10, 20, then every 30 s, until the ride ends. Meanwhile her lines use the phone. */
+  private reconnectLater() {
+    if (this.ended || this.retry) return;
+    const wait = [2, 5, 10, 20][this.retries] ?? 30;
+    this.retries++;
+    this.retry = setTimeout(() => {
+      this.retry = undefined;
+      if (this.ended || this.connected || this.connecting) return;
+      this.setup.log(`voice: Betty Link reconnecting (try ${this.retries})`);
+      this.connect().then(() => { this.retries = 0; }).catch(() => this.reconnectLater());
+    }, wait * 1000);
   }
 
   private endAnswer() { if (this.answering) { this.answering = false; this.onSpeaking(false); } }
@@ -196,6 +214,8 @@ export class LinkSession {
   }
 
   async end() {
+    this.ended = true;
+    clearTimeout(this.retry); this.retry = undefined;
     this.held = false;
     for (const s of this.subs) s.remove();
     this.subs = [];
