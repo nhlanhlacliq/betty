@@ -298,4 +298,7 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   heard, interrupted her, answer's first audio 2.4 s after release.
 - Not in the lab yet: open mic, the phone tools (answer "not available"), ducking (music mixes at full level),
   background/lock screen, headset buttons (the lab is about the audio path first).
+- FIRST PHONE TEST 2026-10-25 07:50 (phone speaker + built-in mic, NO HELMET): 10 turns, all heard, no overlaps;
+  connect 285 ms; her first sound 1.3-1.6 s after release (5.5 s with two weather lookups); mic on ~0.55 s; a press
+  cut her off cleanly. Fixed: no position (now asks for location, sends the suburb). NEXT: the same with the V6 and music.
 
