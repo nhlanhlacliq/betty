@@ -316,4 +316,9 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   Left: first words cut off while the headset switches (~1.5 s from stereo, ~0.7 s when pressed again soon):
   a "speak now" beep in the headset once the mic is live, and the button shows "Wait for the beep" (amber) until
   then. Server: get_weather tries the town part of "Suburb, Town", takes "here" (and his own suburb) as his position.
+- FOURTH TEST 2026-10-25 09:16: no beep heard (played at the instant the headset's hands-free sound was still
+  starting: now 0.35 s after the mic is live, 0.2 s, louder, logged "beep: speak now"); music came back loud with no
+  fade (now: at release the session goes off so the music resumes, then on with duckOthers, so it plays DUCKED under
+  her answer and iPhone fades it back up when she is done); her voice low against mastered music (the voice server
+  ignored CONFIG.voiceBoostDb: the module now applies it on the phone, default +6 dB, soft limiter).
 

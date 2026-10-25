@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FLAVOUR_PROMPTS, bettySystemPrompt } from '../../../src/config/betty';
+import { CONFIG, FLAVOUR_PROMPTS, bettySystemPrompt } from '../../../src/config/betty';
 import { bettyLink } from '../../modules/betty-link';
 import { useBetty } from '../state/Betty';
 import { Primary, Secondary, TextButton } from '../ui/Buttons';
@@ -103,6 +103,7 @@ export default function Lab() {
     try {
       const body = { system: `${bettySystemPrompt(2)}\n\n${(FLAVOUR_PROMPTS as Record<string, string>).rider_query ?? ''}`, greet: false, ptt: true, mode: 'ptt', situation: await situation(), keyterms: [] };
       const where = await bettyLink.connect(URL, AUTH, JSON.stringify({ t: 'start', body }));
+      bettyLink.setGain(CONFIG.voiceBoostDb); // Garage > Voice & audio > her loudness
       bettyLink.send(rtvi('client-ready', { version: '2.1.0', about: { library: 'betty-link' } }));
       add('lab', `connected in ${Date.now() - t0} ms; ${where}`);
     } catch (e) {

@@ -10,8 +10,8 @@ import ExpoModulesCore
 /// - her own line while idle: session on with duckOthers (music quieter), off again after her last word;
 /// - his turn: session on WITHOUT mixing first (the music app PAUSES, as for Siri), then hands-free with the helmet
 ///   mic; a separate capture engine sends his voice (16 kHz 16-bit mono binary frames);
-/// - after his turn: stereo again, still not mixing, until her answer has finished (or nothing came in 10 s); then
-///   the session goes off with notifyOthersOnDeactivation, which tells the music app to RESUME.
+/// - after his turn: the music is told to resume and plays DUCKED under her answer; when she has finished (or nothing
+///   came in 10 s) the session goes off and iPhone fades the music back up.
 /// The mic format is read from the audio itself (the first try read it before the headset finished switching, and
 /// the server got garble: "It"). The wire protocol is in voice/betty_voice/link.py. Everything is logged ("onLog").
 public class BettyLinkModule: Module {
@@ -35,6 +35,8 @@ public class BettyLinkModule: Module {
   private var releasedAt: Date?
   private var peak: Float = 0
   private var micNote = ""
+  /** Her loudness: the rider's voice boost (CONFIG.voiceBoostDb, default +6 dB), with a soft limiter. */
+  private var gain: Float = 2.0
 
   public func definition() -> ModuleDefinition {
     Name("BettyLink")
@@ -81,6 +83,9 @@ public class BettyLinkModule: Module {
     Function("flush") { self.q.async { self.flushPlayer() } }
 
     Function("route") { () -> String in self.routeText() }
+
+    /** Her voice boost in dB (0 to 16): music is mastered loud, her voice is not (lab test 2026-10-25). */
+    Function("setGain") { (db: Double) in self.q.async { self.gain = Float(pow(10, max(0, min(16, db)) / 20)) } }
 
     Function("disconnect") { self.q.async { self.tearDown(reason: "closed by the app") } }
   }
@@ -159,7 +164,12 @@ public class BettyLinkModule: Module {
     data.withUnsafeBytes { raw in
       let src = raw.bindMemory(to: Int16.self)
       let dst = buf.floatChannelData![0]
-      for i in 0..<n { dst[i] = Float(Int16(littleEndian: src[i])) / 32768 }
+      let g = gain
+      for i in 0..<n {
+        let x = Float(Int16(littleEndian: src[i])) / 32768 * g
+        let a = abs(x)
+        dst[i] = a <= 0.8 ? x : (x < 0 ? -1 : 1) * (0.8 + 0.2 * tanh((a - 0.8) / 0.2)) // soft limit, never clips
+      }
     }
     if phase == .idle { phase = .speaking; playback(duck: true); freshPlayback("her own line") } // music ducks under it
     if let r = releasedAt {
@@ -244,8 +254,13 @@ public class BettyLinkModule: Module {
     do { eng.prepare(); try eng.start() } catch {
       input.removeTap(onBus: 0); log("mic would not start: \(error.localizedDescription)"); return
     }
-    if let tone = toneBuffer() { beep.scheduleBuffer(tone, completionHandler: nil); beep.play() }
     capEngine = eng
+    // A moment later: the headset's hands-free sound starts a little after the mic, and the first beep was lost there.
+    q.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+      guard let self, self.capEngine === eng, eng.isRunning, let tone = self.toneBuffer() else { return }
+      beep.scheduleBuffer(tone, completionHandler: nil); beep.play()
+      self.log("beep: speak now")
+    }
   }
 
   private func stopMic() {
@@ -255,7 +270,12 @@ public class BettyLinkModule: Module {
     releasedAt = Date()
     heardSinceRelease = false
     phase = .answering
-    playback(duck: false) // stereo again; the music stays paused until she has answered
+    // His music comes back now, DUCKED under her answer (the session off tells it to resume, then on again with
+    // duckOthers); when she is done the session goes off and iPhone fades it back up. Pausing it until the end
+    // brought it back at full volume with a jolt (lab test 2026-10-25).
+    player.stop(); playEngine.stop()
+    try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    playback(duck: true)
     waitForStereo()
     freshPlayback("after your turn")
     // Nothing came back (he said nothing, or she chose silence): give the music back anyway.
@@ -267,13 +287,13 @@ public class BettyLinkModule: Module {
 
   /** 140 ms at 880 Hz, soft edges, about -12 dB. */
   private func toneBuffer() -> AVAudioPCMBuffer? {
-    let n = Int(outFormat.sampleRate * 0.14)
+    let n = Int(outFormat.sampleRate * 0.2)
     guard let b = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: AVAudioFrameCount(n)) else { return nil }
     b.frameLength = AVAudioFrameCount(n)
     let d = b.floatChannelData![0], fade = Int(outFormat.sampleRate * 0.015)
     for i in 0..<n {
       let edge = Float(min(i, n - 1 - i, fade)) / Float(fade)
-      d[i] = 0.25 * min(1, edge) * sin(2 * .pi * 880 * Float(i) / Float(outFormat.sampleRate))
+      d[i] = 0.35 * min(1, edge) * sin(2 * .pi * 880 * Float(i) / Float(outFormat.sampleRate))
     }
     return b
   }

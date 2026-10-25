@@ -8,6 +8,7 @@ export interface BettyLinkNative {
   mic(on: boolean): Promise<string>;
   flush(): void;
   route(): string;
+  setGain(db: number): void;
   disconnect(): void;
   addListener(event: 'onMessage', fn: (e: { json: string }) => void): Sub;
   addListener(event: 'onState', fn: (e: { state: string; detail: string }) => void): Sub;
