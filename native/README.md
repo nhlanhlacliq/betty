@@ -311,4 +311,9 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   and converts from each buffer's own format; the log says what rate the mic audio really has. (3) the player kept
   "playing" into the hands-free output that was gone: a NEW engine for every stretch of her speech, only once the
   headset is back in stereo.
+- THIRD PHONE TEST 2026-10-25 09:03 (soundcore, music): WORKING: every turn heard and answered, her first sound
+  2.1-2.6 s after release, music paused at the press and handed back after every answer, mic rate matched (16 kHz).
+  Left: first words cut off while the headset switches (~1.5 s from stereo, ~0.7 s when pressed again soon):
+  a "speak now" beep in the headset once the mic is live, and the button shows "Wait for the beep" (amber) until
+  then. Server: get_weather tries the town part of "Suburb, Town", takes "here" (and his own suburb) as his position.
 

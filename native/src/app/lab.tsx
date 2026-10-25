@@ -25,7 +25,7 @@ const rtvi = (type: string, data: unknown) => JSON.stringify({ label: 'rtvi-ai',
 const clientMessage = (t: string, d: unknown) => rtvi('client-message', { t, d });
 
 type Line = { at: number; who: 'you' | 'betty' | 'lab'; text: string };
-type Status = 'off' | 'connecting' | 'ready' | 'listening' | 'speaking';
+type Status = 'off' | 'connecting' | 'ready' | 'opening' | 'listening' | 'speaking';
 
 export default function Lab() {
   const b = useBetty();
@@ -115,8 +115,9 @@ export default function Lab() {
     held.current = true;
     bettyLink.send(clientMessage('situation', await situation()));
     bettyLink.send(clientMessage('ptt', { down: true })); // his turn: she stops at once
-    setStatus('listening');
+    setStatus('opening'); // the headset switches to hands-free: speak after the beep
     add('lab', await bettyLink.mic(true));
+    if (held.current) setStatus('listening');
     if (!held.current) void release(); // let go while the helmet was switching
   };
   const release = async () => {
@@ -126,7 +127,7 @@ export default function Lab() {
     if (held.current) return; // pressed again meanwhile
     add('lab', await bettyLink.mic(false));
     bettyLink.send(clientMessage('ptt', { down: false }));
-    setStatus((s) => (s === 'listening' ? 'ready' : s));
+    setStatus((s) => (s === 'listening' || s === 'opening' ? 'ready' : s));
   };
 
   const say = () => bettyLink?.send(clientMessage('say', { text: 'This is one of my own lines, through the same voice as my answers.' }));
@@ -161,8 +162,8 @@ export default function Lab() {
         ))}
       </ScrollView>
       <View style={[st.dock, { paddingBottom: insets.bottom + 16 }]}>
-        <Text style={st.status}>{({ off: 'Not connected', connecting: 'Connecting…', ready: 'Hold to talk', listening: 'Listening…', speaking: 'Betty is speaking (hold to cut in)' } as const)[status]}</Text>
-        <Pressable style={[st.talk, status === 'listening' && st.talkOn, !live && { opacity: 0.4 }]} disabled={!live}
+        <Text style={st.status}>{({ off: 'Not connected', connecting: 'Connecting…', ready: 'Hold to talk', opening: 'Wait for the beep…', listening: 'Listening… let go when done', speaking: 'Betty is speaking (hold to cut in)' } as const)[status]}</Text>
+        <Pressable style={[st.talk, status === 'opening' && st.talkWait, status === 'listening' && st.talkOn, !live && { opacity: 0.4 }]} disabled={!live}
           onPressIn={() => void press()} onPressOut={() => void release()} accessibilityLabel="Hold to talk to Betty">
           <Icon name="mic" size={34} color="#fffbe8" />
         </Pressable>
@@ -182,4 +183,5 @@ const st = StyleSheet.create({
   status: { fontSize: 13, color: C.muted, marginBottom: 10 },
   talk: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#3d4a3a', alignItems: 'center', justifyContent: 'center' },
   talkOn: { backgroundColor: '#739363' },
+  talkWait: { backgroundColor: '#b59a45' },
 });

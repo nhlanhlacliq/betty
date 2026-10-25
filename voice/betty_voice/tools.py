@@ -17,7 +17,7 @@ TEXT = {"type": "string"}
 
 SERVER_TOOLS = [
     _fn("get_weather", "Weather now and the forecast for today and tomorrow at a named town or suburb. Use for any weather question about a place (for rain along his planned route use weather_along_route).",
-        {"place": {**TEXT, "description": "Town or suburb, e.g. Cullinan."}}, ["place"]),
+        {"place": {**TEXT, "description": "Town or suburb, e.g. Cullinan; \"here\" for where he is now."}}, ["place"]),
     _fn("travel_time", "How far and how long to ride from where he is now to a named place (motorcycle, live traffic).",
         {"destination": {**TEXT, "description": "Town, suburb or landmark, e.g. Cullinan or Hartbeespoort Dam."}}, ["destination"]),
     _fn("web_search", "Look something up on the web: anything current or specific you do not know for sure that no other tool covers (opening hours, prices, places and things to do, events, news, facts). Returns facts.",

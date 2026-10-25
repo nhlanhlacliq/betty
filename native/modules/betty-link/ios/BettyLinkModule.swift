@@ -236,9 +236,15 @@ public class BettyLinkModule: Module {
       if level > self.peak { self.peak = level }
       task.send(.data(Data(bytes: p, count: Int(out.frameLength) * 2))) { _ in }
     }
+    // The "speak now" beep (lab test 2026-10-25: the switch to hands-free takes up to ~1.5 s and his first words were
+    // lost while he spoke into it). Played in the headset the moment the mic is live.
+    let beep = AVAudioPlayerNode()
+    eng.attach(beep)
+    eng.connect(beep, to: eng.mainMixerNode, format: outFormat)
     do { eng.prepare(); try eng.start() } catch {
       input.removeTap(onBus: 0); log("mic would not start: \(error.localizedDescription)"); return
     }
+    if let tone = toneBuffer() { beep.scheduleBuffer(tone, completionHandler: nil); beep.play() }
     capEngine = eng
   }
 
@@ -257,6 +263,19 @@ public class BettyLinkModule: Module {
       guard let self, self.phase == .answering, !self.heardSinceRelease, self.pending == 0 else { return }
       self.handBack("no answer in 10 s")
     }
+  }
+
+  /** 140 ms at 880 Hz, soft edges, about -12 dB. */
+  private func toneBuffer() -> AVAudioPCMBuffer? {
+    let n = Int(outFormat.sampleRate * 0.14)
+    guard let b = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: AVAudioFrameCount(n)) else { return nil }
+    b.frameLength = AVAudioFrameCount(n)
+    let d = b.floatChannelData![0], fade = Int(outFormat.sampleRate * 0.015)
+    for i in 0..<n {
+      let edge = Float(min(i, n - 1 - i, fade)) / Float(fade)
+      d[i] = 0.25 * min(1, edge) * sin(2 * .pi * 880 * Float(i) / Float(outFormat.sampleRate))
+    }
+    return b
   }
 
   // MARK: the WebSocket

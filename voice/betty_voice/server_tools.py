@@ -34,19 +34,34 @@ def _sky(code) -> str:
     return next((name for top, name in WMO if (code or 0) <= top), "unknown")
 
 
-async def get_weather(place: str) -> dict:
+HERE_WORDS = {"", "here", "my location", "where i am", "current location", "near me"}
+
+
+async def get_weather(place: str, situation: Situation | None = None) -> dict:
     place = place.strip()
     try:
         g = _PLACES.get(place.lower())
+        here = situation is not None and situation.lat is not None and situation.lon is not None
+        if g is None and place.lower() in HERE_WORDS and here:
+            g = {"name": "where you are", "latitude": situation.lat, "longitude": situation.lon}
         if g is None:
-            for extra in ({"countryCode": "ZA"}, {}):
-                async with http().get("https://geocoding-api.open-meteo.com/v1/search", params={"name": place, "count": 1, **extra}) as r:
-                    hits = (await r.json()).get("results") or []
+            # "Sebenza, Edenvale" is not in the place list (lab test, 2026-10-25): try the whole name, then each part
+            # from the end (the town), and only then the rider's own position if the name is where he is.
+            hits = []
+            for name in [place, *[p.strip() for p in reversed(place.split(",")) if p.strip()][:2]]:
+                for extra in ({"countryCode": "ZA"}, {}):
+                    async with http().get("https://geocoding-api.open-meteo.com/v1/search", params={"name": name, "count": 1, **extra}) as r:
+                        hits = (await r.json()).get("results") or []
+                    if hits:
+                        break
                 if hits:
                     break
-            if not hits:
+            if hits:
+                g = _PLACES[place.lower()] = hits[0]
+            elif here and situation is not None and any(w and w.lower() in situation.text.lower() for w in place.split(",")):
+                g = {"name": place, "latitude": situation.lat, "longitude": situation.lon}
+            else:
                 return {"error": f"No place called {place} found."}
-            g = _PLACES[place.lower()] = hits[0]
         async with http().get("https://api.open-meteo.com/v1/forecast", params={
             "latitude": g["latitude"], "longitude": g["longitude"], "timezone": "auto", "forecast_days": 2,
             "current": "temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m",

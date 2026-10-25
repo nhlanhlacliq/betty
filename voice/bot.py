@@ -175,7 +175,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         waiting = FILLERS.still_waiting() if name in SLOW_TOOLS else None
         try:
             if name == "get_weather":
-                result = await server_tools.get_weather(str(args.get("place", "")))
+                result = await server_tools.get_weather(str(args.get("place", "")), situation)
             elif name == "travel_time":
                 result = await server_tools.travel_time(str(args.get("destination", "")), situation)
             elif name == "web_search":
