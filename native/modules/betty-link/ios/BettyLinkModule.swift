@@ -151,6 +151,11 @@ public class BettyLinkModule: Module {
     player.stop(); playEngine.stop(); pending = 0
     do { try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation]) }
     catch { log("could not hand the sound back: \(error.localizedDescription)") }
+    // Then straight back on, mixing (his music is not touched): the next press then starts from a sound that is
+    // already up, which should take time off the switch to hands-free (owner, 2026-10-25: the chime came late).
+    let s = AVAudioSession.sharedInstance()
+    try? s.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+    try? s.setActive(true)
     log("music handed back (\(why))")
     phase = .idle
   }
@@ -209,7 +214,11 @@ public class BettyLinkModule: Module {
     endToken += 1
     flushPlayer()
     phase = .talking
+    let t0 = Date()
+    let ms = { (since: Date) in Int(Date().timeIntervalSince(since) * 1000) }
     playback(duck: false) // first: his music PAUSES (an interruption, so it can resume afterwards)
+    let tPause = ms(t0)
+    var tHands = 0, tMic = 0
     let s = AVAudioSession.sharedInstance()
     do {
 #if compiler(>=6.2)
@@ -217,8 +226,12 @@ public class BettyLinkModule: Module {
 #else
       let hfp: AVAudioSession.CategoryOptions = .allowBluetooth
 #endif
+      let t1 = Date()
       try s.setCategory(.playAndRecord, mode: .voiceChat, options: [hfp, .defaultToSpeaker])
       try s.setActive(true)
+      tHands = ms(t1)
+      let t2 = Date()
+      defer { tMic = ms(t2) }
       if let helmet = s.availableInputs?.first(where: { $0.portType == .bluetoothHFP }) {
         try? s.setPreferredInput(helmet)
         let until = Date().addingTimeInterval(1.5)
@@ -272,6 +285,7 @@ public class BettyLinkModule: Module {
       input.removeTap(onBus: 0); log("mic would not start: \(error.localizedDescription)"); return
     }
     capEngine = eng
+    micNote += "; steps: music paused \(tPause) ms, hands-free \(tHands) ms, helmet mic \(tMic) ms, mic engine \(ms(t0) - tPause - tHands - tMic) ms"
     // A moment later: the headset's hands-free sound starts a little after the mic, and the first beep was lost there.
     q.asyncAfter(deadline: .now() + 0.05) { [weak self] in
       guard let self, self.capEngine === eng, eng.isRunning, let tone = self.toneBuffer() else { return }
@@ -304,7 +318,7 @@ public class BettyLinkModule: Module {
   }
 
   /** A soft five-note chime (owner: "five notes, a nice soft sound", then "deeper, like soundcore when it turns on"):
-   *  a rising pentatonic run C5 D5 E5 G5 C6, warm (sine plus a trace of octave), gentle attack, quick (owner: "don't make it slower"), ~-24 dB. */
+   *  a rising pentatonic run C5 D5 E5 G5 C6, warm (sine plus a trace of octave), gentle attack, quick (owner: "don't make it slower"), ~-32 dB. */
   private func toneBuffer() -> AVAudioPCMBuffer? {
     let rate = Float(outFormat.sampleRate)
     let freqs: [Float] = [523.25, 587.33, 659.25, 783.99, 1046.5]
@@ -323,7 +337,7 @@ public class BettyLinkModule: Module {
         let level: Float = k == freqs.count - 1 ? 1.0 : 0.8 // the last note a touch stronger
         v += level * env * (sin(2 * .pi * f * u) + 0.08 * sin(2 * .pi * f * 2 * u))
       }
-      d[i] = 0.04 * v
+      d[i] = 0.016 * v // -8 dB from the first deep version (owner: "a little loud")
     }
     return b
   }

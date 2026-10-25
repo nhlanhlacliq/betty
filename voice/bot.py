@@ -20,7 +20,7 @@ from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.frames.frames import (
     Frame, LLMContextFrame, LLMRunFrame, LLMUpdateSettingsFrame, ProposedUserStartedSpeakingFrame, ProposedUserStoppedSpeakingFrame,
-    TTSSpeakFrame,
+    TTSSpeakFrame, LLMFullResponseStartFrame, LLMTextFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
@@ -101,6 +101,24 @@ def open_mic_strategies() -> UserTurnStrategies:
         start=[wake, MinWordsUserTurnStartStrategy(min_words=INTERRUPT_WORDS)],
         stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=OPEN_MIC_PAUSE_SECS)],
     )
+
+
+class SaidFirst(FrameProcessor):
+    """Whether she has said anything in her current reply yet (after the LLM): the "Let me check." filler is only
+    for a lookup she starts in silence. When she announces it herself ("I'll look that up now") it doubled up (owner,
+    2026-10-25: "the let me check filler seems redundant now")."""
+
+    def __init__(self):
+        super().__init__()
+        self.spoke = False
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, LLMFullResponseStartFrame):
+            self.spoke = False
+        elif isinstance(frame, LLMTextFrame) and frame.text.strip():
+            self.spoke = True
+        await self.push_frame(frame, direction)
 
 
 class SituationInjector(FrameProcessor):
@@ -193,9 +211,11 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     for t in ALL_TOOLS:
         llm.register_function(t.name, run_tool, cancel_on_interruption=True, timeout_secs=20)
 
+    said_first = SaidFirst()
+
     @llm.event_handler("on_function_calls_started")
     async def on_function_calls_started(service, function_calls):
-        if any(c.function_name in SLOW_TOOLS for c in function_calls):
+        if any(c.function_name in SLOW_TOOLS for c in function_calls) and not said_first.spoke:
             await FILLERS.play(CHECK)
 
     context = LLMContext(tools=ToolsSchema(standard_tools=ALL_TOOLS))
@@ -223,7 +243,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         logger.info(f"said: {message.content!r}{' (cut off)' if message.interrupted else ''}")
 
     pipeline = Pipeline([
-        transport.input(), stt, user_aggregator, SituationInjector(situation), llm, tts, transport.output(), assistant_aggregator,
+        transport.input(), stt, user_aggregator, SituationInjector(situation), llm, said_first, tts, transport.output(), assistant_aggregator,
     ])
     # The app's sessions last the ride (2026-10-25: opening one took ~9 s and the first press was lost), so no idle
     # timeout for them; they end when the app leaves (on_client_disconnected). The browser keeps Pipecat's default.

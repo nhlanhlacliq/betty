@@ -332,4 +332,9 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   G6 C7, marimba-like, ~-25 dB); the music came back mid-answer during a lookup: it now waits while she is thinking
   (bot-llm-started/stopped) or a tool runs (llm-function-call-started/stopped), and the no-answer fallback waits up
   to 30 s while she works. Prompt: what she runs on (she said "the phone's own speech system").
+- V6 TEST 2026-10-25 10:01: chime too loud (now -8 dB); still feels late: the switch to hands-free is 0.8 s when pressed
+  soon after a turn and 1.4-1.7 s after music (the earlier counting test lost "one two" there). Now: the session is put
+  straight back on (mixing, music untouched) after each hand-back so a press starts from a live session, and the
+  "mic on" log line gives each step's time (music paused, hands-free, helmet mic, mic engine) to find the rest.
+  Server: "Let me check." only when she starts a lookup in silence (she often announces it herself: it doubled up).
 
