@@ -39,6 +39,7 @@ const RELEASE_TAIL_MS = 400;
 const SITUATION_EVERY_MS = 15_000;
 
 export class VoiceSession {
+  readonly kind = 'call' as const;
   private client: PipecatClient | null = null;
   private connecting: Promise<void> | null = null;
   private releaseTimer: ReturnType<typeof setTimeout> | null = null;

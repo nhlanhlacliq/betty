@@ -67,6 +67,9 @@ export interface Config {
    * sets how far a duck dips, apps cannot): pause it, dip it (iOS's duck, faded back up after), or keep it playing.
    */
   musicWhileSpeaking: 'pause' | 'dip' | 'mix';
+  /** Native app: talk over Betty Link (our own connection, one voice, push-to-talk) instead of the Daily call (owner,
+   *  2026-10-25, after the voice lab passed). Off = the call, with open mic and headset buttons. */
+  voiceLink: boolean;
   /**
    * Searched answers on Sonnet (owner's option, 2026-10-18): better at sums and comparisons from search results (RPM to
    * road speed came out right), about 2 s slower and dearer. Sonnet takes no forced tool_choice, so the search is asked
@@ -157,6 +160,7 @@ export const DEFAULT_CONFIG: Config = {
   cardMetro: true,
   voiceBoostDb: 6,
   musicWhileSpeaking: 'dip',
+  voiceLink: true,
   ridingTimeOnly: true,
   journeyThumbs: true,
   motion: true,

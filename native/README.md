@@ -347,3 +347,18 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   was late by about its own length: it now plays (its own AVAudioPlayer) as soon as the headset is hands-free, while
   the mic engine starts, so it ends about when the mic opens. Log: "chime: speak now".
 
+## Rides on Betty Link (2026-10-25, owner: "go ahead"; BUILT, NOT YET ON A RIDE)
+
+`CONFIG.voiceLink` (default ON; Garage > Talking to Betty > Betty Link; next ride). rig.ts makes a `LinkSession`
+(native/src/voice/LinkSession.ts, same surface as VoiceSession, so the ride screen, lock cover and headset code are
+unchanged) and a `LinkSpeaker` as the ride's speaker: her OWN lines go to the server as `say` (TTSSpeakFrame, in her
+context) and play in the same stream as her answers: one voice. onDone when the module reports "quiet" (or a
+deadline); a line with no audio within 4 s, or with no connection, goes to the backup (ChirpSpeaker -> phone voice).
+`stop` (server: InterruptionWorkerFrame) cuts her line when the queue does (alert first, quiet, his press). The hold
+on her own lines while she answers now runs from bot-llm-started to the module's "quiet" (bot-started-speaking would
+also fire for her own lines). Betty Link stays up through the sign-off (it is her voice), then closes. With Betty Link:
+open mic and headset buttons are refused with a toast (they need the call); expo-audio (AudioFocus) is not touched.
+Checked from the Mac against a local server: say -> her voice; stop -> 0.0 s more audio; a second say plays; "what did
+you just tell me about?" -> she knew (prompt now says to stand by her own lines: she called a test line unconfirmed).
+NOT YET: open mic on the link, the handlebar button, the locked screen (needs a ride), Android.
+

@@ -10,7 +10,8 @@ import { ExpoSpeaker, setUpAudio } from './adapters/ExpoSpeaker';
 import { ChirpSpeaker } from './adapters/ChirpSpeaker';
 import { lineEnd, lineStart, setAudioLog } from './adapters/AudioFocus';
 import { SERVER_HEADERS, api } from './server';
-import { VoiceSession } from './voice/VoiceSession';
+import { VoiceSession, type VoiceSetup } from './voice/VoiceSession';
+import { LinkSession, LinkSpeaker } from './voice/LinkSession';
 import { phoneTools } from './voice/phoneTools';
 
 /**
@@ -39,8 +40,27 @@ export async function startRide(h: RideHooks) {
   await setUpAudio();
   CONFIG.cloudVoice = 'chirp'; // her voice here is Chirp on the voice server (no <laugh> tags: it would read them out)
   // Her own lines in her Chirp voice (as on the web), the phone's voice when Chirp is slow or fails.
-  const speaker = new ChirpSpeaker(new ExpoSpeaker((m) => log('[audio]', m)), (m) => log('[audio]', m));
-  const ride = new RideSession({
+  const chirp = new ChirpSpeaker(new ExpoSpeaker((m) => log('[audio]', m)), (m) => log('[audio]', m));
+  // Talking to her: the voice server (~2 s answers, tools carried out on the phone). BETTY LINK (default since
+  // 2026-10-25, Garage > Talking to Betty): our own connection, one voice for her answers AND her own lines
+  // (LinkSpeaker), the native module owning all the sound. Off: the Daily call (VoiceSession), open mic and headset
+  // buttons included. `ride` is filled in just below (the setup's closures only run once it exists).
+  let ride!: RideSession;
+  const setup: VoiceSetup = {
+    system: `${bettySystemPrompt(2)}\n\n${(FLAVOUR_PROMPTS as Record<string, string>).rider_query ?? ''}`,
+    situation: () => ({ text: ride.engine.voiceSituation(ride.agg.current), lat: ride.agg.current.lat, lon: ride.agg.current.lon }),
+    tools: {},
+    keyterms: () => {
+      const s = ride.agg.current;
+      const stops = ride.engine.routeNow()?.route.stops.filter((x) => x.named).map((x) => x.name) ?? [];
+      return [s.area?.suburb, s.area?.town, ...s.nearbyPlaces.map((p) => p.name), ...stops, CONFIG.bikeName]
+        .filter((x): x is string => !!x && x.length <= 40).slice(0, 40);
+    },
+    log: (m) => log('[voice]', m),
+  };
+  const link = CONFIG.voiceLink && LinkSession.available() ? new LinkSession(setup) : null;
+  const speaker = link ? new LinkSpeaker(link, chirp) : chirp;
+  ride = new RideSession({
     real: h.real ?? true, desk: false, server: true, logger: h.logger,
     claude: new ClaudeClient(undefined, 2500, 6000, api('/api/phrase'), SERVER_HEADERS),
     voice: { speaker, aloud: () => true, prefetch: (t) => speaker.prefetch(t), ready: (t) => speaker.ready(t) },
@@ -50,20 +70,9 @@ export async function startRide(h: RideHooks) {
     setObd: (_mode, push) => { if (!h.obd) push(NO_OBD); },
     events: { changed: h.changed, state: h.state, endRequested: h.endRequested, toast: h.toast },
   });
-
-  // Talking to her: the voice server (push-to-talk or open mic, ~2 s answers, tools carried out on the phone).
-  const voice = new VoiceSession({
-    system: `${bettySystemPrompt(2)}\n\n${(FLAVOUR_PROMPTS as Record<string, string>).rider_query ?? ''}`,
-    situation: () => ({ text: ride.engine.voiceSituation(ride.agg.current), lat: ride.agg.current.lat, lon: ride.agg.current.lon }),
-    tools: phoneTools(ride),
-    keyterms: () => {
-      const s = ride.agg.current;
-      const stops = ride.engine.routeNow()?.route.stops.filter((x) => x.named).map((x) => x.name) ?? [];
-      return [s.area?.suburb, s.area?.town, ...s.nearbyPlaces.map((p) => p.name), ...stops, CONFIG.bikeName]
-        .filter((x): x is string => !!x && x.length <= 40).slice(0, 40);
-    },
-    log: (m) => log('[voice]', m),
-  });
+  setup.tools = phoneTools(ride);
+  const voice: VoiceSession | LinkSession = link ?? new VoiceSession(setup);
+  if (link) log('[voice]', 'Betty Link: her answers and her own lines in one voice (hold to talk)');
   // Her answers in the conversation are her line on the ride screen too (the queue never sees them), and her orb
   // speaks while she does. A line she builds on (the conversation's sentences) joins the one before it.
   let said = { text: '', at: 0 };
@@ -83,7 +92,8 @@ export async function startRide(h: RideHooks) {
   setAudioLog((m) => log('[audio]', m));
   let answering = false; // his music ducks while she answers through the call too
   voice.onSpeaking = (on) => {
-    if (on !== answering) { answering = on; if (on) lineStart(); else lineEnd(); }
+    // Betty Link handles his music itself (expo-audio must not touch the sound then).
+    if (!link && on !== answering) { answering = on; if (on) lineStart(); else lineEnd(); }
     ride.speaking = on ? { text: '…', tag: 'rider_query', priority: 4, at: Date.now() } : null;
     busyFor(on ? 60_000 : 4_000); // a few seconds after her answer: a follow-up, or her next sentence
     h.changed();
@@ -98,9 +108,10 @@ export async function startRide(h: RideHooks) {
     async end(hurry: () => boolean = () => false) {
       clearTimeout(convo);
       if (answering) { answering = false; lineEnd(); }
-      void voice.end();
+      if (!link) void voice.end(); // Betty Link stays up for the sign-off: it is her voice
       const out = ride.wrapUp();
       await ride.signOff(hurry);
+      if (link) await link.end();
       ride.shutdown();
       return out;
     },

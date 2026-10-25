@@ -204,7 +204,7 @@ function TalkButton() {
   const on = b.voice === 'listening';
   const style = [st.voice, on && st.voiceOn];
   if (!voice) return null;
-  if (b.openMic) {
+  if (b.openMic && voice.kind !== 'link') {
     return <Pressable style={style} onPress={() => void voice.toggleMic()} accessibilityLabel={on ? 'Mute the mic' : 'Listen again'}><Icon name={on ? 'mic' : 'mute'} color="#fffbe8" /></Pressable>;
   }
   return (

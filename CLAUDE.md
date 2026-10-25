@@ -8,9 +8,9 @@ UPDATE 2026-10-25: the Daily-call voice in rides kept breaking (silent mic, helm
 headset buttons lost). Owner chose to explore option C on the side: the VOICE LAB (Garage > Voice lab), Betty over our
 own WebSocket ("Betty Link": native/modules/betty-link owns ALL phone audio; voice/betty_voice/link.py). PASSED on the
 V6 and soundcore (2026-10-25): every turn heard, her first sound ~1.8-2.6 s after release, music paused at the press
-and resumed (ducked) after her answer, chime as the mic opens. Next (owner to confirm): move rides onto Betty Link
-(phone tools, open mic, her own lines via the `say` message), Daily kept behind a switch until a real ride. Details:
-native/README.md "Voice lab".
+and resumed (ducked) after her answer, chime as the mic opens. BUILT the same day (owner: "go ahead"), NOT YET ON A
+RIDE: rides use Betty Link by default (CONFIG.voiceLink; her own lines and her answers in one voice, phone tools), the
+Daily call behind the switch (open mic and headset buttons only there). Details: native/README.md "Rides on Betty Link".
 
 Current focus: Betty's FAST VOICE (Pipecat) in the NATIVE APP. Everything below is committed; details live in
 `voice/README.md` (voice server + evals), `native/README.md` (the app), `labs/README.md` (the Pipecat lab and the VPS).

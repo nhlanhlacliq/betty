@@ -133,6 +133,9 @@ export function BettyProvider({ children }: { children: ReactNode }) {
    * 10 s at most, or the next press; open mic: mute/unmute), next track repeats her, previous gives the buttons back.
    */
   const startButtons = async (r: Ride) => {
+    if (r.voice.kind === 'link') { // the silent track would fight Betty Link over the sound
+      toast('Headset buttons need the old call: Garage > Talking to Betty > Betty Link off.'); return;
+    }
     const hb = new HeadsetButtons((m) => logger.add('[voice]', m));
     let talking: ReturnType<typeof setTimeout> | undefined;
     const done = () => { clearTimeout(talking); talking = undefined; hb.quiet(3000); r.voice.release(); setTimeout(() => hb.resume(), 1200); };
@@ -173,7 +176,8 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       await activateKeepAwakeAsync();
       const r = await startRide({ logger, changed, state: setState, endRequested: () => void end(), obd, real: mode === 'real', toast });
       r.voice.onState = setVoice;
-      if (openMic) void r.voice.setMode('open'); else r.voice.warm(); // connected before the first press
+      if (openMic && r.voice.kind === 'link') toast('Open mic needs the old call (Garage > Talking to Betty). Hold to talk.');
+      if (openMic && r.voice.kind !== 'link') void r.voice.setMode('open'); else r.voice.warm(); // connected before the first press
       rideRef.current = r; setRide(r);
       if (buttons) void startButtons(r);
     } finally { busy.current = false; }
@@ -181,8 +185,10 @@ export function BettyProvider({ children }: { children: ReactNode }) {
 
   const setOpenMic = useCallback((on: boolean) => {
     setOpenMicState(on);
-    void rideRef.current?.voice.setMode(on ? 'open' : 'ptt');
-  }, []);
+    const r = rideRef.current;
+    if (r?.voice.kind === 'link') { if (on) toast('Open mic needs the old call (Garage > Talking to Betty). Hold to talk.'); return; }
+    void r?.voice.setMode(on ? 'open' : 'ptt');
+  }, [toast]);
 
   // Her voice outside a ride (the home orb): Chirp, the phone voice as backup.
   const helloVoice = useRef<ChirpSpeaker | null>(null);

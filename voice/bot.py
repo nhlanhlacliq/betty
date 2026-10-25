@@ -20,7 +20,7 @@ from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.frames.frames import (
     Frame, LLMContextFrame, LLMRunFrame, LLMUpdateSettingsFrame, ProposedUserStartedSpeakingFrame, ProposedUserStoppedSpeakingFrame,
-    TTSSpeakFrame, LLMFullResponseStartFrame, LLMTextFrame,
+    TTSSpeakFrame, LLMFullResponseStartFrame, LLMTextFrame, InterruptionWorkerFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
@@ -273,6 +273,9 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
             # One of her own lines (briefing, alert, story) said IN the conversation: one voice, queued after whatever
             # she is saying, cut off when he talks, and kept in her context so "tell me more" knows what she said.
             await worker.queue_frames([TTSSpeakFrame(text=str(data["text"]).strip())])
+        elif msg.type == "stop":
+            # The phone cut her own line off (an alert goes first, "be quiet", he pressed to talk): stop at once.
+            await worker.queue_frames([InterruptionWorkerFrame()])
         elif msg.type == "setup":
             if data.get("system"):  # the app's own prompt, with the rider's settings
                 await worker.queue_frames([LLMUpdateSettingsFrame(delta=AnthropicLLMService.Settings(system_instruction=prompt.build(str(data["system"]))))])

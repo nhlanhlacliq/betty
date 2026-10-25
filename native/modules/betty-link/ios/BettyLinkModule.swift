@@ -40,6 +40,9 @@ public class BettyLinkModule: Module {
   private var releasedAt: Date?
   private var peak: Float = 0
   private var micNote = ""
+  /** Told the app "speaking" for the current stretch of her voice (and "quiet" once it is over): the ride's queue
+   *  waits on these to know a line of hers has been heard to the end. */
+  private var announced = false
   /** The chime as its own small player, so it can play while the mic engine is still starting. */
   private var chimePlayer: AVAudioPlayer?
   /** Her loudness: the rider's voice boost (CONFIG.voiceBoostDb, default +6 dB), with a soft limiter. */
@@ -54,6 +57,7 @@ public class BettyLinkModule: Module {
     /// Open the WebSocket (with the app's login) and send the start message. The sound stays off until needed.
     AsyncFunction("connect") { (url: String, auth: String, start: String, promise: Promise) in
       self.q.async {
+        if self.task != nil { self.tearDown(reason: "a new connection") }
         guard let u = URL(string: url) else { promise.reject("url", "Bad address"); return }
         var req = URLRequest(url: u)
         req.setValue(auth, forHTTPHeaderField: "Authorization")
@@ -160,6 +164,8 @@ public class BettyLinkModule: Module {
     try? s.setActive(true)
     log("music handed back (\(why))")
     phase = .idle
+    announced = false
+    state("quiet")
   }
 
   /// Hand back once nothing has played for a while (longer after a question: her answer comes in sentences).
@@ -201,6 +207,7 @@ public class BettyLinkModule: Module {
       log("her first sound \(Int(Date().timeIntervalSince(r) * 1000)) ms after you let go")
     }
     heardSinceRelease = true
+    if !announced { announced = true; state("speaking") }
     endToken += 1 // more is coming: do not hand back yet
     startPlayback()
     pending += 1
@@ -215,6 +222,7 @@ public class BettyLinkModule: Module {
     if phase == .talking { return }
     endToken += 1
     flushPlayer()
+    if announced { announced = false; state("quiet") } // she was cut off by his press
     phase = .talking
     let t0 = Date()
     let ms = { (since: Date) in Int(Date().timeIntervalSince(since) * 1000) }
