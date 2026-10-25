@@ -73,10 +73,27 @@ export default function Lab() {
     }
   };
 
+  // Where he is (she asked for a town on the first lab test: there was no saved position). Asked once, kept.
+  const here = useRef<Location.LocationObject | null>(null);
+  const place = useRef<string | null>(null);
+  const locate = async () => {
+    if (here.current) return here.current;
+    const { status } = await Location.requestForegroundPermissionsAsync().catch(() => ({ status: 'denied' }));
+    if (status !== 'granted') return null;
+    const timeout = new Promise<null>((r) => setTimeout(() => r(null), 4000));
+    here.current = (await Location.getLastKnownPositionAsync().catch(() => null))
+      ?? await Promise.race([Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null), timeout]);
+    return here.current;
+  };
   const situation = async () => {
-    const pos = await Location.getLastKnownPositionAsync().catch(() => null);
+    const pos = await locate();
     const lat = pos?.coords.latitude ?? null, lon = pos?.coords.longitude ?? null;
-    return { text: `Voice lab test on the phone, not riding. Local time: ${new Date().toTimeString().slice(0, 5)}.`, lat, lon };
+    if (pos && place.current == null) {
+      const g = (await Location.reverseGeocodeAsync(pos.coords).catch(() => []))[0];
+      place.current = [g?.district ?? g?.subregion, g?.city].filter(Boolean).join(', ');
+    }
+    const where = place.current ? ` He is at ${place.current}.` : '';
+    return { text: `Voice lab test on the phone, not riding.${where} Local time: ${new Date().toTimeString().slice(0, 5)}.`, lat, lon };
   };
 
   const connect = async () => {
