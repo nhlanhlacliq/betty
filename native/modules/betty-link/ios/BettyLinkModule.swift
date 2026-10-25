@@ -216,8 +216,10 @@ public class BettyLinkModule: Module {
     phase = .talking
     let t0 = Date()
     let ms = { (since: Date) in Int(Date().timeIntervalSince(since) * 1000) }
-    playback(duck: false) // first: his music PAUSES (an interruption, so it can resume afterwards)
-    let tPause = ms(t0)
+    // One step (counting test, 2026-10-25): pausing his music on its own took ~850 ms (iPhone waits for the music app)
+    // and THEN hands-free ~0.9 s, so "one" was lost. Switching straight to hands-free WITHOUT mixing pauses the music
+    // in the same step. UNVERIFIED: that the music app still resumes afterwards (the reason for two steps before).
+    let tPause = 0
     var tHands = 0, tMic = 0
     let s = AVAudioSession.sharedInstance()
     do {
@@ -285,7 +287,7 @@ public class BettyLinkModule: Module {
       input.removeTap(onBus: 0); log("mic would not start: \(error.localizedDescription)"); return
     }
     capEngine = eng
-    micNote += "; steps: music paused \(tPause) ms, hands-free \(tHands) ms, helmet mic \(tMic) ms, mic engine \(ms(t0) - tPause - tHands - tMic) ms"
+    micNote += "; steps: hands-free + music paused \(tHands) ms, helmet mic \(tMic) ms, mic engine \(ms(t0) - tPause - tHands - tMic) ms"
     // A moment later: the headset's hands-free sound starts a little after the mic, and the first beep was lost there.
     q.asyncAfter(deadline: .now() + 0.05) { [weak self] in
       guard let self, self.capEngine === eng, eng.isRunning, let tone = self.toneBuffer() else { return }

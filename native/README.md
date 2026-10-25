@@ -337,4 +337,9 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   straight back on (mixing, music untouched) after each hand-back so a press starts from a live session, and the
   "mic on" log line gives each step's time (music paused, hands-free, helmet mic, mic engine) to find the rest.
   Server: "Let me check." only when she starts a lookup in silence (she often announces it herself: it doubled up).
+- COUNTING TEST 2026-10-25 10:19 (V6): with music playing a press took 1.65-1.8 s (music pause ~850 ms: iPhone waits for
+  the music app; hands-free ~420; mic engine ~420) and "one" (sometimes "two") was lost, as he starts at the music
+  going quiet; pressed right after her answer: 0.9-1.0 s, every word heard (hands-free ~770 ms: the Bluetooth link,
+  the floor). Now one step: straight to hands-free without mixing (pauses the music in the same activation).
+  UNVERIFIED: the music app still resumes afterwards (if not, back to two steps and look for another way).
 
