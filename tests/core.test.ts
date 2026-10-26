@@ -2924,6 +2924,11 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.deepEqual(wd[2].kinds, ['primary school', 'combined school'], 'one item, all its types');
   assert.equal(wd[0].wiki, 'Hartebeesthoek Radio Astronomy Observatory');
   assert.deepEqual(wd.map((l) => L.interest(l)), [3, 3, 0], 'a telescope beats a school');
+  const one = (name: string, kinds: string[], about?: string) => L.interest({ id: 'x', name, kinds, lat: 0, lon: 0, ...(about ? { about } : {}) });
+  assert.equal(one('Albert Street Pass Office', ['building']), 0, 'its type counts, not its name');
+  assert.equal(one('Gilfillan Park', ['urban park'], 'a multi-purpose public space'), 0, '"space" is not a space station');
+  assert.equal(one('Homo naledi', ['fossil taxon'], 'Ape-like Hominid species.'), 0, 'a species is not a place');
+  assert.equal(one('Sterkfontein', ['archaeological site']), 3);
   const osm = L.parseOverpass({ elements: [
     { type: 'node', id: 9, lat: -25.887, lon: 27.685, tags: { name: 'Hartebeesthoek Radio Astronomy Observatory', man_made: 'telescope', wikidata: 'Q1' } },
     { type: 'way', id: 7, center: { lat: -25.95, lon: 27.75 }, tags: { name: 'Damhoek Pass', mountain_pass: 'yes' } },
@@ -2957,6 +2962,14 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(fired.length, 1, 'once');
   assert.match(fired[0].context, /Hartebeesthoek.*HartRAO 26m/);
   assert.ok(e.landmarksTold().Q1 && e.landmarksTold().Q2, 'both parts of the site count as told');
+  // a city full of museums: at most maxPerHour
+  CONFIG.landmarks.maxPerHour = 2;
+  const town = Array.from({ length: 6 }, (_, i) => ({ id: `M${i}`, name: `Museum ${i}`, kinds: ['museum'], lat: pos.lat, lon: pos.lon + 0.002 + i * 0.012 }));
+  const e3 = new TriggerEngine(() => t, () => 0.99);
+  let said = 0;
+  for (let i = 0; i < 60; i++) { t += 10_000; said += e3.evaluate({ ...st, lon: pos.lon + i * 0.0012, landmarks: town }).filter((x) => x.id === 'landmark').length; }
+  assert.equal(said, 2, 'capped per hour');
+  resetConfig();
   CONFIG.landmarksOn = false;
   const e2 = new TriggerEngine(() => t, () => 0.99);
   for (let i = 0; i < 12; i++) { t += 10_000; assert.ok(!e2.evaluate(st).some((x) => x.id === 'landmark'), 'switched off'); }

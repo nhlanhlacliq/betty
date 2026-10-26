@@ -29,12 +29,13 @@ export type LandmarkRules = typeof CONFIG.landmarks;
 const rxCache = new Map<string, RegExp>();
 const rx = (p: string) => { let r = rxCache.get(p); if (!r) { r = new RegExp(p, 'i'); rxCache.set(p, r); } return r; };
 
-/** How interesting it is: the best weight of the rules its kinds (or name) match; 0 when a skip rule matches or none do. */
+/** How interesting it is: the best weight of the rules its kinds (and description) match; 0 when a skip rule matches or none do. */
 export function interest(l: Landmark, rules: LandmarkRules = CONFIG.landmarks): number {
   const words = [...l.kinds, l.about ?? ''].join(' | ');
+  if (rules.never.some((p) => rx(p).test(words))) return 0;
   if (rules.skip.some((p) => rx(p).test(words)) && !rules.kinds.some((k) => k.weight >= 3 && rx(k.pattern).test(words))) return 0;
   let best = 0;
-  for (const k of rules.kinds) if (k.weight > best && (rx(k.pattern).test(words) || rx(k.pattern).test(l.name))) best = k.weight;
+  for (const k of rules.kinds) if (k.weight > best && rx(k.pattern).test(words)) best = k.weight; // its type, never its name ("Pass Office")
   return best;
 }
 

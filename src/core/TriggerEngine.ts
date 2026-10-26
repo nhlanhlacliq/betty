@@ -176,6 +176,7 @@ export class TriggerEngine {
   /** Landmarks told, by id, with when (kept across rides: told again after CONFIG.landmarks.retellDays). */
   private landmarkTold = new Map<string, number>();
   private landmarkNow: Passing | null = null;
+  private landmarkTimes: number[] = [];
   setLandmarksTold(r: Record<string, number>) { this.landmarkTold = new Map(Object.entries(r)); }
   landmarksTold(): Record<string, number> { return Object.fromEntries(this.landmarkTold); }
   toldNoteIds(): string[] { return [...this.toldNotes]; }
@@ -483,13 +484,15 @@ export class TriggerEngine {
     // keeps its distance from her last remark of her own.
     const L = CONFIG.landmarks;
     if (CONFIG.landmarksOn && s.landmarks.length && s.lat != null && s.lon != null && s.speedKmh >= L.minKmh
-      && this.now() - this.lastAmbientSlot >= L.minGapMs && !this.ambientBlocked(s) && this.ready('landmark')) {
+      && this.now() - this.lastAmbientSlot >= L.minGapMs && !this.ambientBlocked(s) && this.ready('landmark')
+      && this.landmarkTimes.filter((x) => this.now() - x < 3_600_000).length < L.maxPerHour) {
       const p = passingNow(s.landmarks, { lat: s.lat, lon: s.lon }, s.headingDeg, (id) => this.landmarkTold.get(id), this.now());
       if (p) {
         p.also = sameSite(p, s.landmarks);
         this.landmarkNow = p;
         try { out.push(this.force('landmark', s)); } finally { this.landmarkNow = null; }
         this.lastAmbientSlot = this.now();
+        this.landmarkTimes.push(this.now());
         return out;
       }
     }

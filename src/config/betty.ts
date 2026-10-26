@@ -163,14 +163,16 @@ export interface Config {
    * moving; minGapMs: at least this long after her last remark of her own; minWeight: how interesting (kinds below) a
    * landmark must be to be said; researchFrom/researchKm: looked up properly (api/story, ~5 cents, once) when that
    * interesting and that close; retellDays: told again after this many days; tileDeg: the size of a lookup square;
-   * clusterKm: things this close to the one told are one site (HartRAO's observatory, telescope and MeerKAT dish).
+   * clusterKm: things this close to the one told are one site (HartRAO's observatory, telescope and MeerKAT dish);
+   * maxPerHour: at most this many an hour (a city centre has a museum every few blocks).
    * kinds: patterns on its type (Wikidata/OSM words) with a weight, 3 = always worth it; skip: never, unless a
-   * weight-3 kind also matches. Not saved on the phone: the code's list wins.
+   * weight-3 kind also matches; never: not a place at all (Homo naledi has coordinates), always out. Not saved on
+   * the phone: the code's list wins.
    */
   landmarks: {
-    hereKm: number; aheadDeg: number; minKmh: number; minGapMs: number; minWeight: number; clusterKm: number;
+    hereKm: number; aheadDeg: number; minKmh: number; minGapMs: number; minWeight: number; clusterKm: number; maxPerHour: number;
     researchFrom: number; researchKm: number; retellDays: number; tileDeg: number;
-    kinds: Array<{ pattern: string; weight: number }>; skip: string[];
+    kinds: Array<{ pattern: string; weight: number }>; skip: string[]; never: string[];
   };
   /** How her lines are checked: lists to edit, not code (see LineRules). Not saved on the phone: the code's list wins. */
   lineRules: LineRules;
@@ -254,10 +256,10 @@ export const DEFAULT_CONFIG: Config = {
   noRidingAdvice: true,
   landmarksOn: true,
   landmarks: {
-    hereKm: 1.5, aheadDeg: 110, minKmh: 15, minGapMs: 45_000, minWeight: 2, clusterKm: 0.6,
+    hereKm: 1.5, aheadDeg: 110, minKmh: 15, minGapMs: 45_000, minWeight: 2, clusterKm: 0.6, maxPerHour: 4,
     researchFrom: 3, researchKm: 6, retellDays: 30, tileDeg: 0.1,
     kinds: [
-      { pattern: String.raw`telescope|observatory|ground station|earth station|satellite|space|tracking station|antenna array`, weight: 3 },
+      { pattern: String.raw`telescope|observatory|ground station|earth station|satellite|space (agency|centre|center|station|research|science)|tracking station|antenna array`, weight: 3 },
       { pattern: String.raw`\bdam\b|waterfall|\bcave\b|fossil|pal(a)?eontolog|archaeolog|hominin|world heritage|cradle`, weight: 3 },
       { pattern: String.raw`battle|battlefield|\bfort\b|fortress|castle|monument|memorial|museum|blockhouse|concentration camp`, weight: 3 },
       { pattern: String.raw`mountain pass|\bpass\b|\bgap\b|\bpoort\b|crater|gorge|lighthouse|race ?track|raceway|motor racing|circuit`, weight: 3 },
@@ -267,6 +269,7 @@ export const DEFAULT_CONFIG: Config = {
       { pattern: String.raw`historic|heritage|ruins|statue|artwork|attraction|zoo|botanical|cathedral|mosque|temple|church`, weight: 2 },
     ],
     skip: [String.raw`\bschool|college|hotel|lodge|guest ?house|shop|restaurant|office|company|business|residential|estate|suburb|village|\btown\b|city|street|road|hospital|clinic|police|bank|farm\b`],
+    never: [String.raw`taxon|species|genus|fictional|asteroid|minor planet`],
   },
   lineRules: {
     worn: [

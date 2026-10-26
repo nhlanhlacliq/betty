@@ -444,7 +444,7 @@ weights on the TYPE words, `skip` for schools, lodges, clinics...), `passingNow`
 aheadDeg 110, not told within retellDays 30), `sameSite` (clusterKm 0.6: HartRAO's observatory, 26 m telescope and
 MeerKAT dish are one line), `landmarkContext`. `adapters/LandmarkSource`: tiles near him (0.1 deg) from
 `betty.landmarks.v1` or the server one at a time, the best one within researchKm 6 researched once via api/story
-`kind: 'landmark'` (`betty.lmnotes.v1`); told times in `betty.lmtold.v1`. Trigger `landmark` (P3, unprompted): fires
+`kind: 'landmark'` (`betty.lmnotes.v1`); told times in `betty.lmtold.v1`. maxPerHour 4 (city centres); `never` list (taxa: Homo naledi has coordinates) always wins; only the TYPE and description are scored, never the name ("Pass Office"). Also checked live: Cradle of Humankind tile (Sterkfontein, Swartkrans, Kromdraai, Wonder Cave) and Johannesburg south (Apartheid Museum, James Hall, memorials). Trigger `landmark` (P3, unprompted): fires
 the moment he passes, at least minGapMs 45 s after her last own remark, moving >= 15 km/h, not quiet/parked. Checked
 live against Wikidata: the Hartebeesthoek tile scores the observatory, telescope, MeerKAT dish and Damhoekpas 3, the
 biosphere reserve 2, schools/lodge/clinic 0. Switch: Garage > Betty's personality > Landmarks you pass (`landmarksOn`).
