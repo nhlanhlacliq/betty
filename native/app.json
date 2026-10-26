@@ -15,9 +15,11 @@
         "UIBackgroundModes": [
           "audio",
           "voip",
-          "location"
+          "location",
+          "bluetooth-central"
         ],
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Betty keeps your speed, route and alerts going while the phone is locked or another app is in front, during a ride only."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Betty keeps your speed, route and alerts going while the phone is locked or another app is in front, during a ride only.",
+        "NSBluetoothAlwaysUsageDescription": "Betty reads your bike's engine data (temperature, revs, battery, fault codes) from your OBD2 reader over Bluetooth."
       },
       "appleTeamId": "6DHA6234P3"
     },
@@ -71,7 +73,23 @@
         }
       ],
       "expo-router",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": [
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Betty reads your bike's engine data (temperature, revs, battery, fault codes) from your OBD2 reader over Bluetooth."
+        }
+      ],
+      [
+        "./plugins/withLibraryBuildConfig",
+        [
+          "react-native-bluetooth-classic"
+        ]
+      ]
     ],
     "scheme": "betty"
   }

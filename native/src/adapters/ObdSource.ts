@@ -1,31 +1,53 @@
 import { ElmOptions, ElmSession, ObdTransport } from '../../../src/core/Elm327';
 import { NO_OBD } from '../../../src/core/StateAggregator';
 import type { BikeState, DataSource } from '../../../src/core/types';
+import { CONFIG } from '../../../src/config/betty';
 
-/** Real OBD2 through an ELM327: set the reader up, then a round of readings every `everyMs`. */
+/** One log line of what the engine is doing (to judge a ride afterwards). */
+function snapshot(s: Partial<BikeState>): string {
+  const e = s.engine ?? {};
+  const bits = [
+    s.engineTempC != null ? `coolant ${s.engineTempC} C` : '', s.rpm != null ? `${s.rpm} rpm` : '',
+    e.bikeSpeedKmh != null ? `bike speed ${e.bikeSpeedKmh} km/h` : '', s.throttlePct != null ? `throttle ${s.throttlePct}%` : '',
+    e.loadPct != null ? `load ${e.loadPct}%` : '', e.batteryV != null ? `battery ${e.batteryV} V` : '', e.ecuV != null ? `ECU ${e.ecuV} V` : '',
+    e.intakeC != null ? `intake ${e.intakeC} C` : '', e.ltftPct != null ? `LTFT ${e.ltftPct}%` : '', e.stftPct != null ? `STFT ${e.stftPct}%` : '',
+    e.baroKpa != null ? `${e.baroKpa} kPa` : '', e.kmSinceClear != null ? `${e.kmSinceClear} km since codes cleared` : '',
+    e.milOn != null ? `warning light ${e.milOn ? 'ON' : 'off'}` : '', s.dtcs ? (s.dtcs.length ? `codes ${s.dtcs.join(' ')}` : 'no codes') : '',
+  ].filter(Boolean);
+  return `engine: ${bits.join(', ')}`;
+}
+
+/**
+ * Real OBD2 through an ELM327: set the reader up, then poll every `everyMs`; the session asks only what is due
+ * (CONFIG.obd.read), so the loop can be quick. A snapshot of the engine goes in the log every CONFIG.obd.logEveryMs.
+ */
 export class ObdSource implements DataSource {
   private running = false;
   /** Defaults from the reader test on the owner's G 310 GS (2026-10-19): CAN 11-bit 500k, ~1 s answer timeout. */
-  constructor(private transport: ObdTransport & { close(): Promise<void> }, private log: (msg: string) => void, private everyMs = 1000,
+  constructor(private transport: ObdTransport & { close(): Promise<void>; lost?: boolean }, private log: (msg: string) => void, private everyMs = 250,
     private options: ElmOptions = { protocol: '6', timeout: 'FF' }) {}
 
   async start(onUpdate: (p: Partial<BikeState>) => void) {
     const session = new ElmSession(this.transport, this.log, this.options);
-    let lastVolt = 0;
+    let lastVolt = 0, lastLog = 0;
+    let seen: Partial<BikeState> = {}; // the latest of every value, for the log line
     this.running = true;
     try { await session.init(); } catch (e) { this.log(`reader setup failed: ${(e as Error).message}`); return; }
-    while (this.running) {
+    while (this.running && !this.transport.lost) {
       const t0 = Date.now();
       try {
         const { state, voltage } = await session.poll();
         if (this.running && Object.keys(state).length) onUpdate(state);
+        seen = { ...seen, ...state };
         // Battery/charging voltage: logged when it moves by 0.3 V (12.5 engine off, ~14.3 charging on the G 310 GS).
         if (voltage != null && Math.abs(voltage - lastVolt) >= 0.3) { lastVolt = voltage; this.log(`battery ${voltage} V`); }
+        if (session.supported.length && Date.now() - lastLog >= CONFIG.obd.logEveryMs) { lastLog = Date.now(); this.log(snapshot(seen)); }
         // Engine not running yet (the bike's ECU is silent until it is): ask again every 3 s, not every second.
         if (!session.supported.length) await new Promise((r) => setTimeout(r, 2000));
       } catch (e) { this.log(`reading failed: ${(e as Error).message}`); }
       await new Promise((r) => setTimeout(r, Math.max(0, this.everyMs - (Date.now() - t0))));
     }
+    if (this.transport.lost) this.log('reader lost: engine data off for the rest of the ride');
     onUpdate(NO_OBD);
   }
   stop() { this.running = false; void this.transport.close(); }

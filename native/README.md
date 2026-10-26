@@ -230,17 +230,24 @@ Known risks:
 
 The app uses native modules, so it runs as a DEVELOPMENT BUILD, not in Expo Go.
 
-Android:
-1. Install Android Studio (it brings the Android SDK and a Java runtime). In its SDK Manager install the latest
-   platform and build tools.
-2. In `~/.zshrc`: `export ANDROID_HOME=$HOME/Library/Android/sdk` and
-   `export PATH=$PATH:$ANDROID_HOME/platform-tools`; open a new terminal.
-3. On the phone: Developer options on, USB debugging on; connect by USB, accept the prompt (`adb devices` lists it).
-4. `cd native && npm install && npm run android` builds, installs and starts it. After that, `npm start` serves the
-   JavaScript and the app reloads on save.
-5. A standalone APK to keep or share: `cd android && ./gradlew assembleRelease` after the first run (the APK is in
-   `android/app/build/outputs/apk/release/`), or in the cloud with `npx eas-cli@latest build -p android --profile preview`
-   (needs an Expo account and an `eas.json` with `"android": {"buildType": "apk"}`).
+Android (set up on this Mac 2026-10-27, without Android Studio):
+1. `brew install openjdk@17` and `brew install --cask android-commandlinetools`, then
+   `yes | sdkmanager --sdk_root=$HOME/Library/Android/sdk --licenses` and
+   `sdkmanager --sdk_root=$HOME/Library/Android/sdk "platform-tools" "platforms;android-36" "build-tools;36.0.0"`
+   (Gradle fetches the NDK and anything else it needs on the first build).
+2. Each terminal (or `~/.zshrc`): `export JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH=$JAVA_HOME/bin:$PATH
+   ANDROID_HOME=$HOME/Library/Android/sdk`.
+3. A standalone APK to send (WhatsApp/Drive; the phone allows "install unknown apps"): `CI=1 npx expo prebuild -p
+   android --no-install`, then `cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a`
+   (~18 min the first time, ~4 min after). APK: `android/app/build/outputs/apk/release/app-release.apk` (~25 MB, 64-bit
+   ARM phones only; drop the flag for all ABIs). It is signed with the DEBUG key (fine for sideloading, not the Play
+   Store) and carries `native/.env` (voice-server login), so only send it to people you trust with that token.
+   `android/` is generated and git-ignored: change app.json or a plugin, never the folder.
+4. `plugins/withLibraryBuildConfig.js` (in app.json): AGP 9 no longer makes BuildConfig for libraries and
+   react-native-bluetooth-classic needs it; the first build failed without it.
+5. On a phone by USB: Developer options and USB debugging on, `adb devices`, then `npm run android` (development build;
+   `npm start` serves the JavaScript).
+6. Android has no Betty Link (iPhone-only module): rides there use the Daily-call voice.
 
 iPhone (free Apple ID):
 1. Install Xcode from the App Store, open it once, then `sudo xcode-select -s /Applications/Xcode.app`.
@@ -482,3 +489,25 @@ A call held the mic and her press went nowhere. BettyLinkModule: `CXCallObserver
 (`CONFIG.quietOnCall`, default on, Garage > Voice & audio): cuts her current line (never a P1), drops queued P3,
 holds the queue until the call ends (one hold with the voice server's conversation: `applyHold`), P3 made during the
 call logged "(dropped: you were on a call)". A press during a call only logs (anything said would play into the call).
+
+### Engine data over Bluetooth LE (BUILT 2026-10-27, NOT YET ON A RIDE; needs a rebuild: new native library)
+Owner's Vgate iCar Pro BLE read the G 310 GS in Car Scanner: PIDs 01-20 plus 21 30 31 33 42 43 44 45 4D 4E, no fuel
+level (2F). Biketune (same reader) shows the real odometer 29,859 km and the model K02: read with BMW's own requests
+(mode 22 ids), not standard PIDs; PID 31 (29,295 km) is only "since codes cleared". Built:
+- `react-native-ble-plx` 3.5.1 (installed with --legacy-peer-deps: the Daily config plugin's peers; app.json plugin
+  with background central + NSBluetoothAlwaysUsageDescription, also put in ios/Betty/Info.plist directly; no prebuild
+  --clean). Release simulator build OK (a Debug simulator build failed to link RNSVG/dev-launcher: the prebuilt RN
+  core flavour, unrelated). `adapters/BleObdTransport`: scan (names CONFIG.obd.readerNames, else every named device),
+  connect, the serial line found by what the characteristics can do (logged), 20-byte writes, answers up to ">".
+- Reader choice saved (`CONFIG.obdReader`, "classic:<address>" for an Android Classic reader), picked in Home > How
+  are we riding? > Engine data (both phones). Betty.tsx connects it at ride start (a toast if it fails).
+- core/Elm327: 16 PIDs, `readStatus` (0101: warning light, code count), `isReadOnly`/`readOnly` (ONLY AT, 01, 03, 07,
+  09, 22: never 04 clear codes or any write; a safety rule in code, not a setting), a schedule from
+  `CONFIG.obd.read` (rpm/speed 0.5 s, coolant 5 s, slow ones 15-60 s), discovery of 01-60. ObdSource polls every
+  250 ms, logs an engine snapshot every `logEveryMs` (5 min), stops when the reader is lost.
+- `BikeState.fuelKnown` + `engine` (EngineReadings): fuel range by distance stays on with a reader that gives no fuel
+  level (it used to switch off with `obd`). core/Engine: `engineNote` (answers, briefing, voice situation),
+  `ChargeWatch` -> `charging_low` P2 (under 12.8 V at 2,500 rpm+ for 60 s, 60 s after a start ignored), sign-off with
+  the coolant peak and lowest running voltage, `GearLearner` (ratio peaks, named only when all `obd.gears` are learned,
+  `betty.gears.v1`). His 12.4 V at 1,600 rpm 28 s after a start: under the rules that is "settling", then judged.
+NEXT: try mode 22 reads (odometer, service) in a Workshop probe; fuel model calibrated by fill-ups (stage 3).

@@ -27,7 +27,7 @@ import { nextTime } from '../src/adapters/WeatherSource';
 import { EMPTY_MEMORY, addMark, addNote, describeMemory, forgetLast, minutesIn, parseCommand } from '../src/core/Commands';
 
 /** Most tests want engine data present; OBD-off behaviour has its own block. */
-const obdState = (): BikeState => ({ ...initialState(), obd: true });
+const obdState = (): BikeState => ({ ...initialState(), obd: true, fuelKnown: true }); // as the simulated reader: it has a fuel gauge
 
 let clock = 1_000_000;
 const now = () => clock;
@@ -451,7 +451,10 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.equal(e.evaluate(s).length, 0, 'no engine alerts without OBD');
   assert.equal(e.ambientBlocked(s), false, 'and nothing engine-related blocks banter');
   assert.equal(e.evaluate({ ...s, weather: wx({ rainNowMm: 1 }) })[0].id, 'rain_soon', 'feed alerts still work');
-  assert.equal(e.evaluate({ ...s, obd: true }).length, 3, 'same readings with OBD on do alert');
+  assert.equal(e.evaluate({ ...s, obd: true, fuelKnown: true }).length, 3, 'same readings with OBD on do alert');
+  // a real reader on a bike with no fuel gauge (the owner's G 310 GS): engine alerts yes, fuel by distance as before
+  const e2 = new TriggerEngine(now, () => 0);
+  assert.deepEqual(e2.evaluate({ ...s, obd: true }).map((x) => x.id).sort(), ['dtc_detected', 'engine_overtemp'], 'no low-fuel alert from a fuel level the bike never gave');
 
   const topics = banterTopics({ s, ride: { ...ride0(), movingMin: 10, avgMovingKmh: 60, maxSpeedKmh: 90, distanceKm: 10 }, history: [], at: new Date(2026, 0, 1, 7), placeRadiusKm: 4 });
   const ids = topics.map((t) => t.id);
@@ -649,7 +652,7 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.equal(e.kmSinceFill(), 0); assert.equal(e.fuelKmLeft(), 227, '10 usable litres at 4.4 L/100 km');
   assert.equal(ride(10).filter((x) => x.id === 'fuel_range').length, 0, 'full tank, no warning');
   CONFIG.fuel.lPer100 = 20; // 50 km to reserve
-  assert.equal(e.evaluate({ ...s, obd: true, fuelPct: 80 }).filter((x) => x.id === 'fuel_range').length, 0, 'with a real fuel reading the estimate stays out of it');
+  assert.equal(e.evaluate({ ...s, obd: true, fuelKnown: true, fuelPct: 80 }).filter((x) => x.id === 'fuel_range').length, 0, 'with a real fuel reading the estimate stays out of it');
   assert.equal(e.evaluate(s).filter((x) => x.id === 'fuel_range').length, 1);
   resetConfig();
 
@@ -852,7 +855,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.match(ev.fallback, /can't think that one through without a signal/);
   assert.equal(e.force('rider_query', s).riderSaid, undefined, 'the old "how is the bike" button still works without words');
   assert.match(e.force('rider_query', s).context, /asked how things are going/);
-  assert.match(e.ask('how hot is the engine?', { ...s, obd: true, engineTempC: 93 }).context, /Engine data: 93 C/);
+  assert.match(e.ask('how hot is the engine?', { ...s, obd: true, engineTempC: 93 }).context, /Engine data: coolant 93 C \(normal\)/);
   // asking about a place: she gets its notes, even one outside the tour-guide radius, found from the words he used
   const far = place({ id: 'g', name: 'Greenstone Hill', summary: 'Greenstone Hill mall opened in 2007.', lat: -26.0, lon: 28.3 });
   const withFar = { ...s, nearbyPlaces: [...s.nearbyPlaces, far] };
@@ -2759,7 +2762,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(s.version, 'ELM327 v1.5');
   assert.ok(!s.wants('fuelPct'), 'the bike did not list PID 2F, so fuel is not asked');
   const r = await s.poll();
-  assert.deepEqual(r.state, { obd: true, rpm: 1726, engineTempC: 83, throttlePct: 20, dtcs: [] });
+  assert.deepEqual(r.state, { obd: true, rpm: 1726, engineTempC: 83, throttlePct: 20, dtcs: [], engine: { bikeSpeedKmh: 60 } });
   assert.equal(r.speedKmh, 60);
   assert.ok(!asked.includes('012F'));
 }
@@ -2780,19 +2783,21 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     if (c === '03') return '7E8 02 43 00>';
     return 'OK>';
   };
-  const s = new ElmSession({ send: bike }, () => {}, { protocol: '6', timeout: 'FF', header: '7E0' });
+  let tt = 0; // each poll a minute later, so everything on the schedule is due
+  const s = new ElmSession({ send: bike }, () => {}, { protocol: '6', timeout: 'FF', header: '7E0' }, () => tt);
+  const poll = () => { tt += 60_000; return s.poll(); };
   await s.init();
   assert.ok(asked.includes('ATSP6') && asked.includes('ATSTFF') && asked.includes('ATSH7E0'));
   assert.equal(s.supported.length, 0, 'engine off: no list yet');
-  let r = await s.poll();
-  assert.deepEqual(r.state, {}); assert.equal(r.voltage, 12.5, 'voltage even with the engine off');
+  let r = await poll();
+  assert.deepEqual(r.state, { engine: { batteryV: 12.5 } }); assert.equal(r.voltage, 12.5, 'voltage even with the engine off');
   engineOn = true; rpmMiss = 5;
-  r = await s.poll();
+  r = await poll();
   assert.ok(s.supported.includes('0C') && s.supported.includes('05'), 'the list arrives once the engine runs');
   assert.equal(r.voltage, 14.3); assert.equal(r.state.engineTempC, 50);
-  for (let i = 0; i < 4; i++) await s.poll(); // rpm missed 5 times in a row
+  for (let i = 0; i < 4; i++) await poll(); // rpm missed 5 times in a row
   assert.ok(s.wants('rpm'), 'a supported PID is never dropped');
-  r = await s.poll();
+  r = await poll();
   assert.equal(r.state.rpm, 1652, 'and comes back when the link does (7E8 04 41 0C 19 D0)');
 }
 
@@ -3009,6 +3014,75 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.doesNotMatch(e.voiceSituation({ ...st, area: { suburb: 'Edenvale', town: 'Ekurhuleni', region: 'Gauteng' } }), /worth stopping/, 'nothing kept for here');
   CONFIG.stopsOn = false;
   assert.doesNotMatch(e.voiceSituation(st), /worth stopping/, 'switched off');
+  resetConfig();
+}
+
+// ---- OBD on the owner's G 310 GS with the Vgate (2026-10-27): his screenshot values, the schedule, reads only, charging, gears
+{
+  const E = await import('../src/core/Elm327');
+  const G = await import('../src/core/Engine');
+  // the formulas, checked against Car Scanner's readings of the same bike
+  assert.equal(E.readPid('coolantC', '410558>'), 48);
+  assert.equal(E.readPid('ltftPct', '41077E>'), -1.6, 'long term trim -1.56 %');
+  assert.equal(E.readPid('stftPct', '410678>'), -6.2, 'short term -6.25 %');
+  assert.equal(E.readPid('timingDeg', '410E92>'), 9);
+  assert.equal(E.readPid('intakeC', '410F4E>'), 38);
+  assert.equal(E.readPid('baroKpa', '413355>'), 85);
+  assert.equal(E.readPid('loadPct', '410468>'), 40.8);
+  assert.equal(E.readPid('absLoadPct', '414300C3>'), 76.5);
+  assert.equal(E.readPid('kmSinceClear', '4131726F>'), 29295, 'not the odometer (29,859 on Biketune): a km counter');
+  assert.equal(E.readPid('runS', '411F001C>'), 28);
+  assert.equal(E.readPid('ecuV', '41423138>'), 12.6);
+  assert.deepEqual(E.readStatus('410100076500>'), { milOn: false, dtcCount: 0 });
+  assert.deepEqual(E.readStatus('410181076500>'), { milOn: true, dtcCount: 1 });
+  // only reads ever go to the bike
+  for (const c of ['ATZ', 'ATRV', 'ATSP6', '010C', '0100', '03', '07', '0902', '22F190']) assert.ok(E.isReadOnly(c), c);
+  for (const c of ['04', '14FF00', '2EF19011', '3101FF00', '1101', '10 03']) assert.ok(!E.isReadOnly(c), c);
+  await assert.rejects(E.readOnly({ send: async () => 'OK>' }).send('04'), /refused/);
+  // the schedule: rpm and speed often, the slow ones only when due, the whole lot first time
+  let tt = 0; const asked: string[] = [];
+  const bike: Record<string, string> = { '0100': '4100BE3EB813>', '0120': '4120A0050001>', '010C': '410C1A04>', '010D': '410D00>', '0105': '410558>', '0111': '411118>', '0104': '410468>', '010F': '410F4E>', '0133': '413355>', '03': '4300>', '0101': '410100076500>', ATRV: '12.4V>' };
+  const s = new E.ElmSession({ send: async (c) => { asked.push(c); return bike[c] ?? 'NO DATA>'; } }, () => {}, {}, () => tt);
+  await s.init();
+  let r = await s.poll();
+  assert.ok(['010C', '010D', '0105', '0104', '010F', '0101', '03', 'ATRV'].every((c) => asked.includes(c)), 'everything the first time');
+  assert.equal(r.state.engine!.batteryV, 12.4); assert.equal(r.state.engine!.intakeC, 38); assert.equal(r.state.engine!.milOn, false);
+  assert.equal(r.state.fuelKnown, undefined, 'no fuel PID: fuel never claimed');
+  asked.length = 0; tt += 600;
+  r = await s.poll();
+  assert.deepEqual(asked.filter((c) => c !== '0111'), ['010C', '010D'], `half a second later only the fast ones (asked ${asked})`);
+  assert.equal(r.state.engine!.intakeC, 38, 'the slow values stay in the state');
+  // in words, and charging
+  const st = (v: number, rpm: number, runS = 300): BikeState => ({ ...initialState(), obd: true, rpm, engineTempC: 48, speedKmh: 0, engine: { batteryV: v, runS } });
+  assert.match(G.engineNote(st(12.4, 1650)), /coolant 48 C \(still warming up\).*battery 12\.4 V \(NOT charging properly/);
+  assert.match(G.engineNote(st(14.1, 3000)), /charging normally.*no fault codes/);
+  assert.match(G.engineNote(st(12.0, 0)), /weak for a battery at rest/);
+  assert.match(G.engineNote(st(12.4, 1650, 20)), /battery 12\.4 V \(settling\)/, 'the first minute after a start is not judged');
+  const w = new G.ChargeWatch();
+  assert.equal(w.update(st(12.4, 3000), 0), false); assert.equal(w.update(st(12.4, 3000), 61_000), true, 'low for a minute at 3000 rpm');
+  assert.equal(w.update(st(12.4, 3000), 120_000), false, 'once');
+  w.update(st(14.0, 3000), 130_000); w.update(st(12.4, 3000), 140_000);
+  assert.equal(w.update(st(12.4, 3000), 201_000), true, 'again after it had recovered');
+  assert.equal(new G.ChargeWatch().update(st(12.4, 1600), 0) || new G.ChargeWatch().update(st(12.4, 1600), 999_000), false, 'idle revs are not judged');
+  // gears learned from speed per 1000 rpm (any bike: no gearbox table), named only once all are known
+  const ratios = [4.6, 7.2, 9.7, 12.0, 14.1, 15.9];
+  const gl = new G.GearLearner();
+  for (let i = 0; i < 5; i++) for (const rr of ratios.slice(0, 5)) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) gl.add(rr * rpm / 1000, rpm, 20);
+  assert.equal(gl.gear(12 * 6, 6000), null, 'five of six learned: no gear named yet');
+  for (let i = 0; i < 5; i++) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) gl.add(15.9 * rpm / 1000, rpm, 20);
+  assert.equal(gl.ratios().length, 6);
+  assert.equal(gl.gear(12.0 * 5, 5000), 4); assert.equal(gl.gear(4.6 * 7, 7000), 1); assert.equal(gl.gear(15.9 * 6.5, 6500), 6);
+  assert.equal(gl.gear(10.85 * 6, 6000), null, 'between gears (clutch slipping): none');
+  assert.equal(new G.GearLearner(gl.bins).gear(12 * 5, 5000), 4, 'kept across rides');
+  // the engine: charging alert through evaluate, and fuel by distance even with the reader on
+  resetConfig(); let t = 40_000_000;
+  const e = new TriggerEngine(() => t, () => 0.99);
+  const ids: string[] = [];
+  for (let i = 0; i < 9; i++) { t += 10_000; ids.push(...e.evaluate({ ...st(12.3, 3500), speedKmh: 60 }).map((x) => x.id)); }
+  assert.equal(ids.filter((x) => x === 'charging_low').length, 1);
+  const ev = e.force('charging_low', { ...st(12.3, 3500), speedKmh: 60 });
+  assert.match(ev.context, /12\.3 V.*13\.3 V or more/); assert.match(ev.fallback, /may not be charging/);
+  assert.match(e.voiceSituation({ ...st(12.3, 3500), speedKmh: 60 }), /Engine data: coolant 48 C/);
   resetConfig();
 }
 

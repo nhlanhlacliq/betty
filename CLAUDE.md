@@ -4,6 +4,10 @@ Context for any Claude Code instance picking this project up. Read this first.
 
 ## WHERE WE LEFT OFF (handoff, 2026-10-19): read this first
 
+UPDATE 2026-10-27: OBD over Bluetooth LE BUILT (owner's Vgate iCar Pro BLE; react-native-ble-plx, both phones), NOT YET ON
+A RIDE: coolant/fault/charging alerts, engine data in answers, gear learned; fuel range stays by distance (the bike has no
+fuel PID). Reads only, never clears codes. Details: native/README.md "Engine data over Bluetooth LE".
+
 UPDATE 2026-10-26 (two rides, owner: "do not hardcode the fixes, make this maintainable and configurable from now on"):
 fixes are SETTINGS or LISTS in src/config/betty.ts (voiceAtSpeed, onPhoneSpeaker, timeChecksWhileStopped, briefingFirst,
 noRidingAdvice, lineRules: worn / meta / advice / storyKinds / briefingCovers), never constants tuned to one ride.
@@ -63,8 +67,8 @@ Waiting on the OWNER:
    speed, throttle, load, intake air) but his cheap ELM327 v2.1 clone dropped almost every answer (0/10 in the last
    test). He is getting a Vgate iCar Pro BLE (works with iPhone too). core/Elm327.ts already updated from the test.
    iPhone OBD needs a BLE transport (react-native-ble-plx behind ObdTransport): NOT built yet.
-3. Android test APK: he needs an Expo account and `npx eas-cli login`; then add eas.json (preview profile, apk) and
-   `npx eas-cli build -p android --profile preview`. Not started.
+3. Android test APK: BUILT LOCALLY 2026-10-27 (no Expo account needed; steps in native/README.md "Setting up a Mac").
+   NOT YET INSTALLED on an Android phone.
 4. Rotate the Deepgram key (it was pasted in chat): new key in the repo `.env` AND /opt/betty/bot/.env on the server.
 
 Known open issues: station distances sometimes said as "5.1 km further on" (beyond the first station); travel_time gave

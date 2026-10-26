@@ -25,6 +25,7 @@ import { IncidentMemory } from '../adapters/IncidentMemory';
 import { LandmarkSource, LandmarkTold } from '../adapters/LandmarkSource';
 import { StopStore, researchStops } from '../adapters/AreaSource';
 import { stopsArea } from '../core/Stops';
+import { GearStore } from '../adapters/GearStore';
 import { LineBankStore } from '../adapters/LineBankStore';
 import { LineLogStore } from '../adapters/LineLogStore';
 import { PlaceSource } from '../adapters/PlaceSource';
@@ -192,6 +193,7 @@ export class RideSession {
     engine.setToldNotes(ToldStore.load());
     engine.setLandmarksTold(LandmarkTold.load());
     engine.setStopsLookup((area) => StopStore.get(area));
+    if (d.real && !d.desk) engine.setGears(GearStore.load()); // the gears learned on earlier rides
     engine.setRoute(RouteStore.get()); // the route he planned, if any
     // Where he has ridden before: new roads, familiar ones (real rides only). Saved each minute and at the end.
     this.roadMem = !d.desk && d.real ? new RoadMemory(RoadCells.load(() => {
@@ -339,6 +341,7 @@ export class RideSession {
     if (!d.desk) RoadStore.save(engine.rideSnapshot().startedAt, this.track);
     ToldStore.save(engine.toldNoteIds());
     LandmarkTold.save(engine.landmarksTold());
+    if (!d.desk && d.real && Object.keys(engine.gearBins()).length) GearStore.save(engine.gearBins());
   }
 
   /** What the sensors actually delivered, written into the log now and then and at END RIDE. */

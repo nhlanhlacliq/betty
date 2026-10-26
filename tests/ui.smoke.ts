@@ -1202,7 +1202,8 @@ resetConfig();
   ev(list.querySelector('[data-fold]')!);
   assert.equal(list.querySelector('[data-fold] span')!.textContent, 'Show less');
   ev(list.querySelector('[data-listen="r1"]')!);
-  assert.equal(listens[0].id, 'r1'); assert.ok(list.querySelector('[data-listen="r1"]')!.classList.contains('on'), 'playing shows Stop');
+  // (today's story of the day may be r1 too, a second button for it: either one counts)
+  assert.equal(listens[0].id, 'r1'); assert.ok([...list.querySelectorAll('[data-listen="r1"]')].some((x) => x.classList.contains('on')), 'playing shows Stop');
   assert.ok(!list.querySelector('.stories')!.classList.contains('folded'), 'the opened list stays open while it plays');
   ev(list.querySelector('[data-listen="r2"]')!);
   assert.ok(listens[0].stopped, 'another story stops the first'); assert.equal(listens[1].id, 'r2');

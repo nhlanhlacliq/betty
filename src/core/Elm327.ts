@@ -1,4 +1,5 @@
-import type { BikeState } from './types';
+import type { BikeState, EngineReadings } from './types';
+import { CONFIG } from '../config/betty';
 
 /**
  * Talking to an ELM327 OBD2 reader (Phase 4 / the native app, 2026-10-18). The reader is a serial line: we send a
@@ -19,13 +20,45 @@ export interface ObdTransport {
 export const ELM_INIT = ['ATZ', 'ATE0', 'ATL0', 'ATS0', 'ATH0', 'ATSP0'];
 
 /** The live values Betty reads (mode 01 PIDs) and how each answer's bytes become a value. */
+/** Mode 01 values, with the standard SAE J1979 formulas. The owner's G 310 GS answers all but fuelPct (2026-10-27). */
+const pct = (a: number) => Math.round((a * 1000) / 255) / 10;
+const trim = (a: number) => Math.round(((a - 128) * 1000) / 128) / 10;
 export const PIDS = {
   rpm: { pid: '0C', bytes: 2, value: (a: number, b: number) => Math.round((a * 256 + b) / 4) },
   coolantC: { pid: '05', bytes: 1, value: (a: number) => a - 40 },
   speedKmh: { pid: '0D', bytes: 1, value: (a: number) => a },
   throttlePct: { pid: '11', bytes: 1, value: (a: number) => Math.round((a * 100) / 255) },
   fuelPct: { pid: '2F', bytes: 1, value: (a: number) => Math.round((a * 100) / 255) },
+  loadPct: { pid: '04', bytes: 1, value: pct },
+  stftPct: { pid: '06', bytes: 1, value: trim },
+  ltftPct: { pid: '07', bytes: 1, value: trim },
+  timingDeg: { pid: '0E', bytes: 1, value: (a: number) => a / 2 - 64 },
+  intakeC: { pid: '0F', bytes: 1, value: (a: number) => a - 40 },
+  runS: { pid: '1F', bytes: 2, value: (a: number, b: number) => a * 256 + b },
+  kmSinceClear: { pid: '31', bytes: 2, value: (a: number, b: number) => a * 256 + b },
+  baroKpa: { pid: '33', bytes: 1, value: (a: number) => a },
+  ecuV: { pid: '42', bytes: 2, value: (a: number, b: number) => Math.round(a * 256 + b) / 1000 },
+  absLoadPct: { pid: '43', bytes: 2, value: (a: number, b: number) => Math.round(((a * 256 + b) * 1000) / 255) / 10 },
+  lambda: { pid: '44', bytes: 2, value: (a: number, b: number) => Math.round(((a * 256 + b) * 2 / 65536) * 1000) / 1000 },
 } as const;
+
+/**
+ * Only commands that READ go to the bike: the reader's own AT commands, mode 01 (live values), 03 (stored codes), 07
+ * (pending codes), 09 (vehicle info) and 22 (read a manufacturer data id, how apps like Biketune read the odometer).
+ * Never 04 (clears the codes and the warning light), 2E/2F/31 (write, control) or anything else: a safety rule of the
+ * code, not a setting.
+ */
+export const isReadOnly = (cmd: string) => /^(AT[A-Z0-9 .]*|01[0-9A-F]{2}|0[37]|09[0-9A-F]{2}|22[0-9A-F]{4})$/i.test(cmd.replace(/\s+/g, ''));
+/** A transport that refuses anything but reads (isReadOnly). */
+export const readOnly = (t: ObdTransport): ObdTransport => ({
+  send: (c) => (isReadOnly(c) ? t.send(c) : Promise.reject(new Error(`refused: ${c} is not a read`))),
+});
+
+/** The engine warning light and the number of stored codes, from the "0101" answer. */
+export function readStatus(raw: string): { milOn: boolean; dtcCount: number } | null {
+  const b = pidBytes(raw, '01', 4);
+  return b ? { milOn: (b[0] & 0x80) !== 0, dtcCount: b[0] & 0x7f } : null;
+}
 export type PidName = keyof typeof PIDS;
 
 /** Answers that mean "no value" rather than a fault in our parsing. */
@@ -120,17 +153,22 @@ export function readVoltage(raw: string): number | null {
 }
 
 /**
- * One connection to the reader: set it up, then read a round of values every poll. Values the bike does not give are
- * left out of the update, so nothing made up reaches Betty. Learned on the bike (2026-10-19): its ECU only answers with
- * the ENGINE RUNNING, so until it answers 0100 each poll tries again (and reports only the voltage); a longer answer
- * timeout and a fixed protocol help.
+ * One connection to the reader: set it up, then each poll asks what is DUE (CONFIG.obd.read: rpm and speed often,
+ * temperatures every few seconds, the slow ones now and then), so a slow ECU is not flooded. Values the bike does not
+ * give are left out, so nothing made up reaches Betty. Learned on the bike (2026-10-19): its ECU only answers with the
+ * ENGINE RUNNING, so until it answers 0100 each poll tries again (and reports only the voltage).
  */
 export class ElmSession {
   private misses: Partial<Record<PidName, number>> = {};
-  private round = 0;
+  private asked: Record<string, number> = {};
   supported: string[] = [];
   version = '';
-  constructor(private t: ObdTransport, private log: (msg: string) => void = () => {}, private opt: ElmOptions = {}) {}
+  /** Everything read so far (each poll's state carries all of it, so the state never loses a slow value). */
+  readonly engine: EngineReadings = {};
+  private t: ObdTransport;
+  constructor(t: ObdTransport, private log: (msg: string) => void = () => {}, private opt: ElmOptions = {}, private now: () => number = Date.now) {
+    this.t = readOnly(t);
+  }
 
   async init(): Promise<void> {
     const cmds = ELM_INIT.map((c) => (c === 'ATSP0' && this.opt.protocol ? `ATSP${this.opt.protocol}` : c));
@@ -144,11 +182,16 @@ export class ElmSession {
     this.log(`reader ${this.version || '(no version)'}, ${this.supported.length ? `bike supports PIDs ${this.supported.join(' ')}` : 'bike not answering yet (engine off?)'}`);
   }
 
-  /** Ask which PIDs the bike supports; true once it has answered. */
+  /** Ask which PIDs the bike supports (01-20, 21-40, 41-60); true once it has answered. */
   private async discover(): Promise<boolean> {
     const first = supportedPids(await this.t.send('0100'));
     if (!first.length) return false;
-    this.supported = [...first, ...(first.includes('20') ? supportedPids(await this.t.send('0120'), 0x20) : [])];
+    let all = first;
+    for (const base of [0x20, 0x40]) {
+      if (!all.includes(base.toString(16).toUpperCase())) break;
+      all = [...all, ...supportedPids(await this.t.send(`01${base.toString(16).toUpperCase()}`), base)];
+    }
+    this.supported = all;
     return true;
   }
 
@@ -157,24 +200,33 @@ export class ElmSession {
     if (this.supported.length) return this.supported.includes(PIDS[name].pid);
     return (this.misses[name] ?? 0) < GIVE_UP_AFTER;
   }
+  private due(key: string, everyMs: number | undefined): boolean {
+    if (everyMs == null || everyMs <= 0) return false;
+    const t = this.now();
+    if (t - (this.asked[key] ?? -Infinity) < everyMs) return false;
+    this.asked[key] = t;
+    return true;
+  }
 
   /**
-   * One round: battery voltage, then (once the bike answers) rpm, coolant, throttle, fuel, speed, and fault codes every
-   * 30th round. Before the bike answers, only the voltage and another try at 0100.
+   * One round: what is due. Before the bike answers, only the voltage and another try at 0100. `speedKmh` is the
+   * bike's own speed (its wheel sensor), separate so it does not overwrite GPS speed.
    */
   async poll(): Promise<{ state: Partial<BikeState>; speedKmh: number | null; voltage: number | null }> {
-    const voltage = readVoltage(await this.t.send('ATRV'));
+    const c = CONFIG.obd;
+    let voltage: number | null = null;
+    if (this.due('ATRV', c.voltEveryMs)) { voltage = readVoltage(await this.t.send('ATRV')); if (voltage != null) this.engine.batteryV = voltage; }
     if (!this.supported.length) {
-      if (!(await this.discover())) return { state: {}, speedKmh: null, voltage };
+      if (!(await this.discover())) return { state: voltage != null ? { engine: { ...this.engine } } : {}, speedKmh: null, voltage };
       this.log(`bike answering now: supports PIDs ${this.supported.join(' ')}`);
     }
     const state: Partial<BikeState> = { obd: true };
     const get = async (name: PidName) => {
-      if (!this.wants(name)) return null;
+      if (!this.wants(name) || !this.due(name, c.read[name])) return null;
       const v = readPid(name, await this.t.send(`01${PIDS[name].pid}`));
       if (v == null) {
         this.misses[name] = (this.misses[name] ?? 0) + 1;
-        if (this.misses[name] === 10) this.log(`no ${name} for 10 rounds in a row (reader or connection?)`);
+        if (this.misses[name] === 10) this.log(`no ${name} for 10 tries in a row (reader or connection?)`);
       } else this.misses[name] = 0;
       return v;
     };
@@ -185,9 +237,16 @@ export class ElmSession {
     const thr = await get('throttlePct');
     if (thr != null) state.throttlePct = thr;
     const fuel = await get('fuelPct');
-    if (fuel != null) state.fuelPct = fuel;
+    if (fuel != null) { state.fuelPct = fuel; state.fuelKnown = true; }
     const speedKmh = await get('speedKmh');
-    if (this.round++ % 30 === 0) state.dtcs = parseDtcs(await this.t.send('03'));
+    if (speedKmh != null) this.engine.bikeSpeedKmh = speedKmh;
+    for (const name of ['loadPct', 'stftPct', 'ltftPct', 'timingDeg', 'intakeC', 'runS', 'kmSinceClear', 'baroKpa', 'ecuV', 'absLoadPct', 'lambda'] as const) {
+      const v = await get(name);
+      if (v != null) this.engine[name] = v;
+    }
+    if (this.due('0101', c.statusEveryMs)) { const st = readStatus(await this.t.send('0101')); if (st) Object.assign(this.engine, st); }
+    if (this.due('03', c.dtcEveryMs)) state.dtcs = parseDtcs(await this.t.send('03'));
+    state.engine = { ...this.engine };
     return { state, speedKmh, voltage };
   }
 }

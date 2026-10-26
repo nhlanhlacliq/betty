@@ -120,6 +120,14 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>The panel</b> slides down to a slim bar (swipe down) and back (swipe up).',
       '<b>The map:</b> drag, pinch or double tap to zoom; the target button follows you again.',
     ])}` },
+  { id: 'engine', title: 'Engine data (OBD2 reader)', keywords: 'obd obd2 reader vgate elm327 engine coolant temperature battery voltage charging fault codes warning light gear revs rpm bluetooth',
+    html: `<p>In the app, a Bluetooth OBD2 reader in the bike's diagnostic socket (a Vgate iCar Pro BLE works on iPhone and Android) lets Betty read the engine. Pick it once: Home &gt; How are we riding? &gt; Engine data &gt; Find my OBD2 reader (plug it in, ignition on). It connects when you start a ride; many bikes only answer with the engine running.</p>${li([
+      '<b>What she watches:</b> coolant temperature (an alert when it runs too hot), fault codes and the engine warning light (explained in plain words), and the battery: with the engine running it should read about 13.3 V or more; lower for a minute at 2,500 rpm or more and she tells you it may not be charging.',
+      '<b>What she knows when you ask:</b> coolant, revs, battery, intake air, fault codes, and your gear once she has learned your gearbox (from speed per 1000 rpm over a few rides; nothing to set up).',
+      '<b>Fuel:</b> most bikes, the G 310 GS included, do not report a fuel level, so the range stays the estimate from distance since you filled up.',
+      '<b>Safe:</b> Betty only ever READS from the bike; she never clears codes or changes anything.',
+      'The log gets an engine line every 5 minutes (coolant, revs, battery, trims) to look back at after a ride.',
+    ])}` },
   { id: 'fuel', title: 'Fuel range and costs', keywords: 'fuel petrol range reserve tank consumption price cost filled up station',
     html: `${li([
       'There is no fuel sensor: Betty works the range out from the distance since you last tapped <i>Filled up</i>, your tank (11 L, 1 L reserve) and your dash average (L/100 km). Set them in Garage &gt; In your garage.',

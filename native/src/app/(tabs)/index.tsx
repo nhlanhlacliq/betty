@@ -17,6 +17,7 @@ import type { IconName } from '../../../../src/ui/icons';
 import { DEFAULT_SPAN_KM, MapInput, spanFor, trackCenter } from '../../../../src/ui/mapView';
 import type { MapView } from '../../../../src/ui/mapGestures';
 import { ElmClassicTransport } from '../../adapters/ElmClassicTransport';
+import { BleObdTransport } from '../../adapters/BleObdTransport';
 import { useBetty } from '../../state/Betty';
 import { TalkChoice } from '../../ui/TalkChoice';
 import { Primary, Round, Secondary, TextButton } from '../../ui/Buttons';
@@ -179,7 +180,7 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
   const [twisty, setTwisty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
-  const [readers, setReaders] = useState<{ name: string; address: string }[] | null>(null);
+  const [readers, setReaders] = useState<{ id: string; name: string; sub: string }[] | null>(null);
   const riding = !!b.ride;
   useEffect(() => { if (open && b.pendingWhere) { setWhere(b.pendingWhere); b.setPendingWhere(null); } }, [open, b.pendingWhere]);
 
@@ -199,8 +200,16 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
     } catch (e) { setNote((e as Error).message); }
     finally { setBusy(false); }
   };
+  // Readers: Bluetooth LE nearby (the Vgate, iPhone and Android), plus Android's paired classic readers.
+  const [looking, setLooking] = useState(false);
   const findReaders = async () => {
-    try { setReaders(await ElmClassicTransport.paired()); } catch (e) { setNote(`Bluetooth: ${(e as Error).message}`); }
+    setLooking(true);
+    try {
+      const le = (await BleObdTransport.scan(6)).map((r) => ({ id: r.id, name: r.name, sub: 'Bluetooth LE' }));
+      const classic = Platform.OS === 'android' ? (await ElmClassicTransport.paired().catch(() => [])).map((r) => ({ id: `classic:${r.address}`, name: r.name, sub: `paired · ${r.address}` })) : [];
+      setReaders([...le, ...classic]);
+    } catch (e) { setNote(`Bluetooth: ${(e as Error).message}`); }
+    finally { setLooking(false); }
   };
 
   return (
@@ -219,16 +228,18 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
       <Text style={[T.eyebrow, { marginTop: 22, marginBottom: 4 }]}>Talking to Betty</Text>
       <TalkChoice />
 
-      {Platform.OS === 'android' && !riding && (
+      {!riding && (
         <>
           <Text style={[T.eyebrow, { marginTop: 22, marginBottom: 4 }]}>Engine data</Text>
-          <TextButton label={readers ? 'Look again for OBD2 readers' : 'Find my OBD2 reader (paired in Bluetooth settings)'} onPress={() => void findReaders()} />
-          {readers?.length === 0 && <Text style={T.sub}>No paired devices. Pair the reader in Android's Bluetooth settings (PIN 1234 or 0000).</Text>}
+          <Text style={T.sub}>{b.reader ? `Reader: ${b.reader.name}. It connects when you start a ride (engine running).` : 'Plug the OBD2 reader in, switch the ignition on, then look for it.'}</Text>
+          <TextButton label={looking ? 'Looking for readers…' : readers ? 'Look again' : 'Find my OBD2 reader'} onPress={() => void findReaders()} />
+          {readers?.length === 0 && <Text style={T.sub}>No reader found. Is it plugged in with the ignition on? (A Bluetooth Classic reader on Android: pair it in Bluetooth settings first, PIN 1234 or 0000.)</Text>}
           {readers?.map((r) => (
-            <Pressable key={r.address} style={st.option} onPress={() => b.setReader(b.reader === r.address ? null : r.address)}>
-              <Text style={st.optionTitle}>{b.reader === r.address ? '● ' : '○ '}{r.name}</Text><Text style={st.optionSub}>{r.address}</Text>
+            <Pressable key={r.id} style={st.option} onPress={() => b.setReader(b.reader?.id === r.id ? null : { id: r.id, name: r.name })}>
+              <Text style={st.optionTitle}>{b.reader?.id === r.id ? '● ' : '○ '}{r.name}</Text><Text style={st.optionSub}>{r.sub}</Text>
             </Pressable>
           ))}
+          {b.reader && !readers?.some((r) => r.id === b.reader!.id) && <TextButton label={`Forget ${b.reader.name}`} onPress={() => b.setReader(null)} />}
         </>
       )}
 

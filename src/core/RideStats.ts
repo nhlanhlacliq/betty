@@ -134,7 +134,7 @@ export class RideStats {
     this.jolts = Math.max(0, s.jolts - this.joltsAtStart);
     if (s.obd) {
       this.maxTemp = Math.max(this.maxTemp, s.engineTempC);
-      if (this.fuelStart === null) this.fuelStart = s.fuelPct;
+      if (this.fuelStart === null && s.fuelKnown) this.fuelStart = s.fuelPct;
     }
   }
 

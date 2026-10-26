@@ -7,6 +7,7 @@ import '../server'; // points the shared code's /api/ calls at Betty's server
 import { openStore } from '../adapters/NativeStore';
 import { ElmClassicTransport } from '../adapters/ElmClassicTransport';
 import { ObdSource } from '../adapters/ObdSource';
+import { BleObdTransport } from '../adapters/BleObdTransport';
 import { ChirpSpeaker } from '../adapters/ChirpSpeaker';
 import { ExpoSpeaker, setUpAudio } from '../adapters/ExpoSpeaker';
 import { Ride, startRide } from '../rig';
@@ -38,9 +39,9 @@ interface BettyCtx {
   /** Shorthands for the screens */
   openMic: boolean;
   buttons: boolean;
-  /** Android: the paired OBD2 reader to use (Bluetooth address), or none */
-  reader: string | null;
-  setReader(a: string | null): void;
+  /** The OBD2 reader to use (CONFIG.obdReader, saved): a Bluetooth LE id, or "classic:<address>" (Android), or none */
+  reader: { id: string; name: string } | null;
+  setReader(r: { id: string; name: string } | null): void;
   lines: LogLine[];
   logger: LineLogger;
   start(): Promise<void>;
@@ -84,7 +85,8 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   const talkRef = useRef<TalkMode>('hold');
   const openMic = talk === 'open', buttons = talk === 'buttons';
   const headset = useRef<HeadsetButtons | null>(null);
-  const [reader, setReader] = useState<string | null>(null);
+  const [reader, setReaderState] = useState<{ id: string; name: string } | null>(null);
+  const setReader = useCallback((r: { id: string; name: string } | null) => { CONFIG.obdReader = r; saveConfig(); setReaderState(r); }, []);
   const [ended, setEnded] = useState<{ rideId: number; kept: boolean } | null>(null);
   const [helloSpeaking, setHelloSpeaking] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   const busy = useRef(false);
 
   // Betty's data (rides, notes, reminders, settings...) is read into memory before anything uses it.
-  useEffect(() => { void openStore((m) => logger.add('[store]', m)).then(() => { loadConfig(); talkRef.current = CONFIG.talkMode; setTalkState(CONFIG.talkMode); setReady(true); }); }, [logger]);
+  useEffect(() => { void openStore((m) => logger.add('[store]', m)).then(() => { loadConfig(); talkRef.current = CONFIG.talkMode; setTalkState(CONFIG.talkMode); setReaderState(CONFIG.obdReader); setReady(true); }); }, [logger]);
 
   // Repaints at most every 250 ms: the ride says "changed" on every update and every line's fate.
   const pending = useRef(false);
@@ -206,9 +208,14 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       setEnded(null);
       let obd: ObdSource | undefined;
       if (reader && mode === 'real') {
-        const t = new ElmClassicTransport();
-        try { await t.connect(reader); obd = new ObdSource(t, (m) => logger.add('[obd]', m)); }
-        catch (e) { logger.add('[obd]', `could not connect: ${(e as Error).message}`); }
+        const log = (m: string) => logger.add('[obd]', m);
+        const classic = reader.id.startsWith('classic:');
+        const t = classic ? new ElmClassicTransport() : new BleObdTransport(log);
+        try {
+          await t.connect(classic ? reader.id.slice(8) : reader.id);
+          log(`connected to ${reader.name}`);
+          obd = new ObdSource(t, log);
+        } catch (e) { log(`could not connect to ${reader.name}: ${(e as Error).message}`); toast(`Engine reader: ${(e as Error).message}`); }
       }
       await activateKeepAwakeAsync();
       const r = await startRide({ logger, changed, state: setState, endRequested: () => void end(), obd, real: mode === 'real', toast });

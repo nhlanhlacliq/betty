@@ -6,14 +6,14 @@ export type TriggerId =
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
   | 'ambient_banter' | 'local_fact' | 'area_story' | 'marked_spot'
   | 'off_route' | 'route_stop' | 'route_arrived'
-  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold' | 'new_road' | 'rough_patch' | 'landmark' | 'good_stop';
+  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold' | 'new_road' | 'rough_patch' | 'landmark' | 'good_stop' | 'charging_low';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
   'ambient_banter', 'local_fact', 'area_story', 'marked_spot',
   'off_route', 'route_stop', 'route_arrived',
-  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold', 'new_road', 'rough_patch', 'landmark', 'good_stop',
+  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold', 'new_road', 'rough_patch', 'landmark', 'good_stop', 'charging_low',
 ];
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */
@@ -66,14 +66,19 @@ export interface NearbyPlace {
 
 export interface BikeState {
   timestamp: number;
-  /** True while an OBD2 feed (simulated or real) is supplying the five fields below. False = ignore them. */
+  /** True while an OBD2 feed (simulated or real) is supplying the engine fields below. False = ignore them. */
   obd: boolean;
-  // OBD2 (mocked until Phase 4)
+  // OBD2 (simulated, or a real reader: core/Elm327)
   rpm: number;
   engineTempC: number;
   throttlePct: number;
+  /** Only meaningful with fuelKnown: the owner's G 310 GS gives no fuel level (2026-10-27), so its range stays the
+   *  estimate from distance since the fill-up even with a reader on. */
   fuelPct: number;
+  fuelKnown: boolean;
   dtcs: string[];
+  /** The rest a real reader gives (each only when the bike answers it); {} without one. */
+  engine: EngineReadings;
   // GPS
   speedKmh: number;
   lat: number | null;
@@ -97,6 +102,33 @@ export interface BikeState {
   areaNotes: AreaNote[];
   /** Landmarks around him (Wikidata + OpenStreetMap, core/Landmarks), with notes once researched */
   landmarks: Landmark[];
+}
+
+/** Engine values beyond the basics (core/Elm327 PIDS), as the bike reports them. */
+export interface EngineReadings {
+  /** Battery / charging voltage at the reader (ATRV): ~12.5 engine off, ~14 charging */
+  batteryV?: number;
+  /** The engine computer's own supply voltage (PID 42) */
+  ecuV?: number;
+  loadPct?: number;
+  absLoadPct?: number;
+  intakeC?: number;
+  baroKpa?: number;
+  timingDeg?: number;
+  /** Fuel trims, percent: long term drifting far from 0 means the engine is correcting for something */
+  stftPct?: number;
+  ltftPct?: number;
+  /** Commanded air/fuel equivalence (1 = stoichiometric) */
+  lambda?: number;
+  /** The bike's own speed (its wheel sensor), next to GPS speed */
+  bikeSpeedKmh?: number;
+  /** The engine warning light, and how many fault codes the engine computer holds (PID 01) */
+  milOn?: boolean;
+  dtcCount?: number;
+  /** Seconds since the engine started (PID 1F) */
+  runS?: number;
+  /** Distance since the fault codes were last cleared (PID 31): a km counter, not the odometer */
+  kmSinceClear?: number;
 }
 
 export interface TriggerEvent {

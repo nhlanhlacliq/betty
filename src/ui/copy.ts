@@ -39,6 +39,7 @@ export const MOMENTS: Record<TriggerId | 'voice', MomentCopy> = {
   area_story: { kicker: 'A local story', headline: 'About this place.' },
   landmark: { kicker: 'Right here', headline: 'Look at that.' },
   good_stop: { kicker: 'While you are here', headline: 'Worth a stop.' },
+  charging_low: { kicker: 'Heads up', headline: 'Battery not charging.' },
   marked_spot: { kicker: 'Heads up', headline: 'Your marked spot.' },
   off_route: { kicker: 'Heads up', headline: 'Off your route.' },
   route_stop: { kicker: 'Coming up', headline: 'Your next stop.' },

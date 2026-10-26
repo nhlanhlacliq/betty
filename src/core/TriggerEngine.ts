@@ -1,5 +1,6 @@
 import { landmarkContext, passingNow, sameSite, type Passing } from './Landmarks';
 import { stopsArea, stopsNote, type GoodStop } from './Stops';
+import { ChargeWatch, GearLearner, engineNote } from './Engine';
 import { CONFIG, cleanBikeName, cleanRiderName } from '../config/betty';
 import { BANK_SPEC } from './LineBank';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
@@ -112,6 +113,7 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
+    this.charge.reset(); this.lowestRunningV = null;
     this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.newRoadArmed = true; this.goodStopsSaid.clear(); this.saidLongest = false; this.lastDistance = 0;
     this.rainWarned.clear(); this.movingAtBreak = 0; this.fatigueAtMoving = null; this.coldSaid = false;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
@@ -182,6 +184,14 @@ export class TriggerEngine {
   private stopsOf: (area: string) => GoodStop[] | null = () => null;
   private goodStopsSaid = new Set<string>();
   setStopsLookup(f: (area: string) => GoodStop[] | null) { this.stopsOf = f; }
+  /** Engine watchers (core/Engine): charging, the gear learned across rides, the lowest running voltage this ride. */
+  private charge = new ChargeWatch();
+  private gears = new GearLearner();
+  private lowestRunningV: number | null = null;
+  setGears(bins: Record<string, number>) { this.gears = new GearLearner(bins); }
+  gearBins(): Record<string, number> { return this.gears.bins; }
+  /** The gear he is in (null while still learning, or between gears) */
+  gearNow(s: BikeState): number | null { return s.obd ? this.gears.gear(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm) : null; }
   /** How long he has been standing still (ms), 0 while moving. */
   stillForMs(): number { return this.stillSince === null ? 0 : this.now() - this.stillSince; }
   /** What she knows about good stops where he is, for answers (empty when nothing is kept for here). */
@@ -324,13 +334,13 @@ export class TriggerEngine {
   voiceSituation(s: BikeState): string {
     const digest = situationDigest({
       s, ride: this.stats.snapshot(), history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
-      fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
+      fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance), gear: this.gearNow(s),
     });
     const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
     const kept = describeMemory(this.memory, here, this.now());
     const route = this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ' No route planned.';
     const quiet = this.quietLeftMin() > 0 ? ' You are being quiet: he asked for peace (alerts and answers still go).' : '';
-    return `Local time: ${clockNote(new Date(this.now()))}. ${digest}${kept ? ` ${kept}` : ''}${this.stopsHere(s)}${route}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${quiet}`;
+    return `Local time: ${clockNote(new Date(this.now()))}. ${digest}${kept ? ` ${kept}` : ''}${this.stopsHere(s)}${route}${!s.fuelKnown && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${quiet}`;
   }
 
   /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
@@ -352,11 +362,15 @@ export class TriggerEngine {
 
     if (s.obd) { // engine alerts need an OBD2 feed (simulated or real)
       if (s.engineTempC >= t.overtempC && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
+      this.gears.add(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm, s.throttlePct);
+      const v = s.engine.batteryV;
+      if (v != null && s.rpm >= CONFIG.obd.chargeMinRpm && (s.engine.runS ?? Infinity) >= CONFIG.obd.chargeSettleS) this.lowestRunningV = Math.min(this.lowestRunningV ?? v, v);
+      if (this.charge.update(s, this.now()) && this.ready('charging_low')) out.push(this.force('charging_low', s));
       if (s.dtcs.length && this.ready('dtc_detected')) out.push(this.force('dtc_detected', s));
-      if (s.fuelPct > 0 && s.fuelPct <= t.lowFuelPct && this.ready('low_fuel')) out.push(this.force('low_fuel', s));
     }
-
-    else { // no fuel gauge: go by distance since the last fill-up, if the rider has recorded one
+    if (s.obd && s.fuelKnown) {
+      if (s.fuelPct > 0 && s.fuelPct <= t.lowFuelPct && this.ready('low_fuel')) out.push(this.force('low_fuel', s));
+    } else { // no fuel gauge (a reader on a bike without a fuel PID too): by distance since the last fill-up
       const left = this.fuelKmLeft();
       if (left !== null && left <= CONFIG.fuel.warnKmLeft && this.ready('fuel_range')) out.push(this.force('fuel_range', s));
     }
@@ -603,10 +617,17 @@ export class TriggerEngine {
           context: `Engine temperature is ${s.engineTempC} C and climbing.`,
           fallback: 'Engine temp is high. Ease off and find somewhere to pull over.',
         };
+      case 'charging_low': {
+        const v = s.engine.batteryV ?? 0;
+        return {
+          context: `The battery reads ${v.toFixed(1)} V with the engine running at ${Math.round(s.rpm / 100) * 100} rpm: a working charging system gives ${CONFIG.obd.chargeOkV} V or more, so the bike may not be charging its battery (regulator, stator or a loose connection). Tell him plainly, calmly: worth having it checked, and the battery may run down if it carries on.`,
+          fallback: `Battery's at ${v.toFixed(1)} volts with the engine running. It may not be charging. Worth a check.`,
+        };
+      }
       case 'dtc_detected': {
         const codes = s.dtcs.length ? s.dtcs : ['P0000'];
         return {
-          context: `The bike reported fault codes: ${codes.join(', ')}.`,
+          context: `The bike reported fault codes: ${codes.join(', ')}${s.engine.milOn ? ' (the engine warning light is on)' : ''}. Say the code and, if you know it, what that standard code usually means, in plain words, without alarm.`,
           fallback: `${cap(cleanBikeName(CONFIG.bikeName))} is reporting a fault code, ${codes[0]}. Worth checking when you stop.`,
         };
       }
@@ -740,10 +761,17 @@ export class TriggerEngine {
         if (r.places.length) bits.push(`places you told him about: ${r.places.join(', ')}`);
         if (r.events.length) bits.push(`you flagged: ${[...new Set(r.events.map((e) => e.what))].join(', ')}`);
         if (s.weather) bits.push(`weather ${s.weather.summary}, ${s.weather.tempC} C`);
-        const left = s.obd ? null : this.fuelKmLeft();
+        const left = s.fuelKnown ? null : this.fuelKmLeft();
         if (left !== null) bits.push(`about ${left} km of fuel range left by distance`);
         const due = this.dueNote();
         if (due) bits.push(`${due.replace(/\.$/, '')} (mention it in passing)`);
+        if (s.obd) {
+          const eng: string[] = [];
+          if (r.maxEngineTempC > 0) eng.push(`coolant peaked at ${r.maxEngineTempC} C`);
+          if (this.lowestRunningV != null) eng.push(`battery stayed at ${this.lowestRunningV.toFixed(1)} V or more while riding${this.lowestRunningV < CONFIG.obd.chargeLowV ? ' (LOW: may not be charging)' : ''}`);
+          eng.push(s.dtcs.length ? `fault codes ${s.dtcs.join(', ')}` : 'no fault codes');
+          bits.push(`engine: ${eng.join(', ')}`);
+        }
         return {
           context: `The ride has just ended. Summary: ${bits.join('; ')}.`,
           fallback: `Ride done: ${Math.round(r.minutesOut)} minutes and ${r.distanceKm} kilometres${r.stops ? `, with ${r.stops} stop${r.stops === 1 ? '' : 's'}` : ''}. Good one.`,
@@ -837,13 +865,13 @@ export class TriggerEngine {
           const r = this.stats.snapshot();
           const digest = situationDigest({
             s, ride: r, history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
-            fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance),
+            fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance), gear: this.gearNow(s),
             riderSaid: this.riderText,
           });
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.stopsHere(s)}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${(() => { const r = this.recall?.(this.riderText) ?? ''; return r ? ` ${r}` : ''; })()}${this.roads ? (() => { const n = this.roads.familiarity(); return n >= 2 ? ` He has ridden this stretch on about ${n} earlier rides with you.` : this.roads.newStretch() ? ' This stretch is new: he has not ridden it with you before.' : ''; })() : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.stopsHere(s)}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ''}${!s.fuelKnown && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${(() => { const r = this.recall?.(this.riderText) ?? ''; return r ? ` ${r}` : ''; })()}${this.roads ? (() => { const n = this.roads.familiarity(); return n >= 2 ? ` He has ridden this stretch on about ${n} earlier rides with you.` : this.roads.newStretch() ? ' This stretch is new: he has not ridden it with you before.' : ''; })() : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }
@@ -858,8 +886,8 @@ export class TriggerEngine {
           };
         }
         return {
-          context: `The rider asked how the bike is doing. Engine ${s.engineTempC} C, fuel ${Math.round(s.fuelPct)} percent, ${s.dtcs.length ? 'fault codes ' + s.dtcs.join(', ') : 'no fault codes'}.`,
-          fallback: `Engine's at ${s.engineTempC} degrees, fuel's at ${Math.round(s.fuelPct)} percent, ${s.dtcs.length ? 'and there are fault codes' : 'no faults'}.`,
+          context: `The rider asked how the bike is doing. ${engineNote(s)}${s.fuelKnown ? '' : (() => { const l = this.fuelKmLeft(); return l === null ? '' : ` ${this.fuelNote(s)}`; })()}`,
+          fallback: `Engine's at ${s.engineTempC} degrees${s.fuelKnown ? `, fuel's at ${Math.round(s.fuelPct)} percent` : ''}, ${s.dtcs.length ? 'and there are fault codes' : 'no faults'}.`,
         };
       }
     }

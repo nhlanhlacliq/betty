@@ -187,6 +187,23 @@ export interface Config {
   /** Native app: during a phone call her lines wait and her own remarks are left out (CallKit; a critical alert still
    *  goes). Owner, 2026-10-26, after a call held the mic. */
   quietOnCall: boolean;
+  /**
+   * Engine data from a real reader (core/Elm327, core/Engine; owner's Vgate iCar Pro BLE, 2026-10-27). read: how often
+   * each value is asked, ms (rpm and speed often, the slow ones now and then; a value the bike does not list is never
+   * asked); dtcEveryMs / statusEveryMs: fault codes and the warning light; voltEveryMs: battery; logEveryMs: a snapshot
+   * line in the log. readerNames: what a reader's Bluetooth name looks like. Charging: chargeOkV and up = charging,
+   * under chargeLowV at chargeMinRpm+ for chargeLowSec = a charging problem (chargeSettleS after a start ignored);
+   * batteryWeakV: a weak battery at rest. coldC: under it the engine is still warming up. trimNoteAbsPct: a long-term
+   * fuel trim this far from 0 is worth a mention. gears + gear: the gear learner (core/Engine GearLearner).
+   */
+  obd: {
+    read: Record<string, number>; dtcEveryMs: number; statusEveryMs: number; voltEveryMs: number; logEveryMs: number;
+    readerNames: string; chargeOkV: number; chargeLowV: number; chargeMinRpm: number; chargeLowSec: number; chargeSettleS: number;
+    batteryWeakV: number; coldC: number; trimNoteAbsPct: number; gears: number;
+    gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number };
+  };
+  /** The reader he picked (Bluetooth id, or address on Android) and its name; null = none. */
+  obdReader: { id: string; name: string } | null;
   /** Lines the phone says itself, without asking her (no signal needed). micBusy: iOS refused the mic ("!pri": a call,
    *  Siri or another app had it; ride of 2026-10-26); micFailed: the mic would not open for another reason. */
   phoneLines: { micBusy: string; micFailed: string };
@@ -220,7 +237,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2, new_road: 3, rough_patch: 2, landmark: 3, good_stop: 3,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2, new_road: 3, rough_patch: 2, landmark: 3, good_stop: 3, charging_low: 2,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -228,7 +245,8 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, new_road: 1_200_000, rough_patch: 30_000, landmark: 30_000, good_stop: 0, // once per area a ride // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, new_road: 1_200_000, rough_patch: 30_000, landmark: 30_000, good_stop: 0, charging_low: 0, // once until it recovers (core/Engine ChargeWatch)
+    // once per area a ride // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -274,6 +292,16 @@ export const DEFAULT_CONFIG: Config = {
   stopsOn: true,
   stops: { researchAfterSec: 45, sayAfterSec: 120, maxListed: 4 },
   quietOnCall: true,
+  obd: {
+    read: { rpm: 500, speedKmh: 500, throttlePct: 1000, coolantC: 5000, loadPct: 5000, intakeC: 15_000, ecuV: 30_000, baroKpa: 60_000,
+      stftPct: 15_000, ltftPct: 30_000, timingDeg: 15_000, absLoadPct: 30_000, lambda: 30_000, runS: 30_000, kmSinceClear: 60_000, fuelPct: 30_000 },
+    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, logEveryMs: 300_000,
+    readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
+    chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
+    batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6,
+    gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06 },
+  },
+  obdReader: null,
   phoneLines: {
     micBusy: 'The phone gave the microphone to something else. Try again in a moment.',
     micFailed: "I couldn't open the microphone. Try again?",

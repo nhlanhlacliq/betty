@@ -3,6 +3,7 @@ import { RideRecord, describeRide, describeTotals } from './RideMemory';
 import { RideSnapshot } from './RideStats';
 import { bearingDeg, compassPoint, haversineKm, relativeDirection } from './geo';
 import { BikeState, NearbyPlace, TrafficIncident } from './types';
+import { engineNote } from './Engine';
 
 export type AmbientChoice = 'ambient_banter' | 'local_fact' | 'area_story' | null;
 export interface AmbientWeights { banterWeight: number; tourGuideWeight: number; silenceWeight: number }
@@ -97,13 +98,13 @@ export function banterTopics({ s, ride, history, at, placeRadiusKm, fuelKmLeft =
   if (toSunset !== null && toSunset > 0 && toSunset <= 120) {
     add('daylight', Math.floor(toSunset / 30), `Sunset is in about ${Math.round(toSunset / 5) * 5} minutes.`);
   }
-  if (!s.obd && fuelKmLeft !== null) {
+  if (!s.fuelKnown && fuelKmLeft !== null) {
     add('range', Math.floor(fuelKmLeft / 50),
       `Going by distance since the last fill-up and his average consumption (there is no fuel gauge to read), he has roughly ${Math.round(fuelKmLeft / 10) * 10} km before the reserve.`);
   }
   if (mins >= 10) add('duration', Math.floor(mins / 20), `He has been out for ${Math.round(mins)} minutes.`);
   if (ride.distanceKm >= 2) add('distance', Math.floor(ride.distanceKm / 15), `He has covered ${ride.distanceKm} km this ride.`);
-  if (s.obd) {
+  if (s.obd && s.fuelKnown) {
     const used = ride.fuelStartPct !== null ? Math.round(ride.fuelStartPct - s.fuelPct) : 0;
     add('fuel', Math.floor(s.fuelPct / 20), `Fuel is at ${Math.round(s.fuelPct)} percent${used > 0 ? `, down ${used} since setting off` : ''}.`);
   }
@@ -211,7 +212,7 @@ export function placesToExplain(s: BikeState, said: string, talkedAbout: string[
   return out;
 }
 
-export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncident[]; riderSaid?: string; skip?: string[] }): string {
+export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncident[]; riderSaid?: string; skip?: string[]; gear?: number | null }): string {
   const lines = banterTopics(i).filter((t) => t.id !== 'open' && !i.skip?.includes(t.id)).map((t) => t.text);
   const w = i.s.weather;
   if (w) lines.push(`Rain: ${w.rainNowMm >= 0.1 ? 'raining now' : 'not raining now'}, ${w.rainChanceNextHourPct} percent chance in the next hour.`);
@@ -220,7 +221,7 @@ export function situationDigest(i: BanterInput & { incidentsAhead?: TrafficIncid
     ? `Traffic on his way: ${ahead.slice(0, 3).map((x) => `${x.description}${x.roadName ? ` on ${x.roadName}` : ''}, ${x.distanceKm} km`).join('; ')}.`
     : 'No traffic problems reported on his way.');
   if (i.s.obd) {
-    lines.push(`Engine data: ${Math.round(i.s.engineTempC)} C, fuel ${Math.round(i.s.fuelPct)} percent, ${i.s.dtcs.length ? 'fault codes ' + i.s.dtcs.join(', ') : 'no fault codes'}.`);
+    lines.push(engineNote(i.s, i.gear ?? null));
   } else lines.push('No engine data is connected: engine temperature, revs, fuel level and faults are unknown.');
   const near = placesFromHere(i.s).filter((p) => p.distanceKm <= i.placeRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 4);
   if (near.length) lines.push(`Places nearby: ${near.map((p) => `${p.name} (${p.distanceKm} km)`).join(', ')}.`);
