@@ -87,7 +87,7 @@ export class ClaudeClient {
       if (c) { early = c; opt.early!(c); }
     } : undefined;
     let r = await this.callClaude(ev, request, onPartial);
-    let retried = false;
+    let retried = false, metaAgain = false;
     // An answer that promised to look it up, or said she does not know, without searching: ask again, searching.
     // (Ride of 2026-10-17: "I shall search that speed now" seven times, and not one search.)
     if (ev.riderSaid && !force && 'text' in r && !r.searched && putsOff(r.text)) {
@@ -95,10 +95,19 @@ export class ClaudeClient {
       const again = await this.callClaude(ev, request);
       if ('text' in again) { r = again; retried = true; }
     }
+    // Her planning said out loud in an answer or alert (2026-10-26): ask once more for only the words to him.
+    const metaSentences = (t: string) => t.split(/(?<=[.!?])\s+/).filter(isMeta).length;
+    if (CONFIG.lineRules.metaRetry && !UNPROMPTED_IDS.includes(ev.id) && 'text' in r && metaSentences(r.text) >= CONFIG.lineRules.metaRetryFrom) {
+      const last = request.messages[request.messages.length - 1];
+      const { tool_choice: _forced, ...free } = request as ClaudeRequest & { tool_choice?: unknown };
+      const again = await this.callClaude(ev, { ...free, messages: [...request.messages.slice(0, -1), { ...last, content: `${last.content}\n${META_AGAIN}` }] } as ClaudeRequest);
+      if ('text' in again && again.text.trim()) { r = { ...again, searched: r.searched || again.searched }; metaAgain = true; }
+    }
     const latencyMs = Date.now() - t0;
     let out: Phrase;
     if ('text' in r) {
       const c = clean(r.text);
+      if (metaAgain) c.note = c.note ? `${c.note}; asked again (it talked about its instructions)` : 'asked again (it talked about its instructions)';
       if (retried) c.note = c.note ? `${c.note}; searched on the second go` : 'searched on the second go';
       else if (r.searched) c.note = c.note ? `${c.note}; searched` : 'searched';
       // An alert whose reply turned out unusable still has to be said: use the canned line. A line she chose to keep
@@ -281,6 +290,8 @@ export function rx(patterns: string | string[]): RegExp {
 }
 /** Talk about the prompt instead of to the rider ("the notes only say...", "no station location has been given"). */
 const isMeta = (t: string) => rx(CONFIG.lineRules.meta).test(t);
+/** Said when a reply described her instructions instead of talking to him. */
+const META_AGAIN = 'Your first reply described your instructions and plans instead of talking to him. Reply with ONLY the words you say to him, nothing about rules, words, sentences or what to mention.';
 
 const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

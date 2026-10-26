@@ -464,3 +464,13 @@ stopped `stops.researchAfterSec` 45 s (RideSession, once per area a ride) and fo
 Trigger `good_stop` (P3): stopped `sayAfterSec` 120 s in an area with stops, once per area a ride, fits the part of
 day. Answers (web) and the voice server's situation (native, `voiceSituation`) carry the list: no server change.
 Switch: Garage > Betty's personality > Good places to stop (`stopsOn`).
+
+### Log of 2026-10-26 23:07 (desk test, phone speaker)
+- Mic refused twice with `!pri` (AVAudioSession insufficientPriority: a call, Siri or another app held the audio), yet
+  the module logged "mic on" and the server waited 10 s on silence. Now `startMic` returns why it failed, retries once
+  after 0.4 s on `!pri`, resets the phase; `mic()` resolves "mic failed: busy|<reason>"; LinkSession ends the turn and
+  `setup.onMicFailed` makes the phone say `CONFIG.phoneLines.micBusy` / `micFailed`. NEEDS A REBUILD (Swift).
+- An answer spoke her planning ("I can avoid the time word... Keep it under 40 words, three sentences, no markdown"):
+  the sentence filter had only taken out the matched part. Now `lineRules.metaRetry`: an answer/alert with
+  `metaRetryFrom` (2) or more planning sentences is asked again once ("ONLY the words you say to him"), tools kept;
+  new `lineRules.meta` patterns are about her RULES only, so a plan he asks for is untouched (tested).

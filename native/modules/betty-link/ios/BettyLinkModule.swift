@@ -92,7 +92,10 @@ public class BettyLinkModule: Module {
     AsyncFunction("mic") { (on: Bool, promise: Promise) in
       self.q.async {
         let t0 = Date()
-        if on { self.startMic() } else { self.stopMic() }
+        // A refused mic is reported, never "mic on" (ride of 2026-10-26: iOS said !pri, the app said "mic on",
+        // and the server waited 10 s on silence).
+        if on, let why = self.startMic() { promise.resolve("mic failed: \(why)"); return }
+        if !on { self.stopMic() }
         let ms = Int(Date().timeIntervalSince(t0) * 1000)
         let peakDb = self.peak > 0 ? String(format: "%.0f dB", 20 * log10(self.peak)) : "silence"
         promise.resolve(on ? "mic on in \(ms) ms; \(self.micNote); \(self.routeText())"
@@ -256,8 +259,9 @@ public class BettyLinkModule: Module {
 
   // MARK: his voice (only while he holds the button)
 
-  private func startMic() {
-    if phase == .talking || phase == .open { return }
+  /// Nil when the mic is open, else why not.
+  private func startMic() -> String? {
+    if phase == .talking || phase == .open { return nil }
     endToken += 1
     flushPlayer()
     if announced { announced = false; state("quiet") } // she was cut off by his press
@@ -278,7 +282,13 @@ public class BettyLinkModule: Module {
 #endif
       let t1 = Date()
       try s.setCategory(.playAndRecord, mode: .voiceChat, options: [hfp, .defaultToSpeaker])
-      try s.setActive(true)
+      // "!pri" (insufficient priority): something with a higher claim holds the audio (a call, Siri, another app
+      // recording). Often brief, so one more try after a moment.
+      do { try s.setActive(true) } catch let e as NSError where e.code == AVAudioSession.ErrorCode.insufficientPriority.rawValue {
+        log("the phone gave the mic to something else (\(e.code)), trying again")
+        Thread.sleep(forTimeInterval: 0.4)
+        try s.setActive(true)
+      }
       tHands = ms(t1)
       let t2 = Date()
       defer { tMic = ms(t2) }
@@ -287,7 +297,12 @@ public class BettyLinkModule: Module {
         let until = Date().addingTimeInterval(1.5)
         while Date() < until && s.currentRoute.inputs.first?.portType != .bluetoothHFP { Thread.sleep(forTimeInterval: 0.05) }
       }
-    } catch { log("could not open the mic: \(error.localizedDescription)"); return }
+    } catch {
+      phase = .idle
+      let e = error as NSError
+      log("could not open the mic: \(error.localizedDescription)")
+      return e.code == AVAudioSession.ErrorCode.insufficientPriority.rawValue ? "busy" : error.localizedDescription
+    }
 
     // The chime NOW, while the mic engine starts (~0.4 s, about the chime's own length), so it ends about when the mic
     // opens (owner, 2026-10-25: "make the chime play sooner by its own length"; "one" said at the chime was heard).
@@ -303,7 +318,7 @@ public class BettyLinkModule: Module {
     }
     let input = eng.inputNode
     micNote = "mic \(Int(busFmt.sampleRate)) Hz \(busFmt.channelCount) ch, session \(Int(s.sampleRate)) Hz"
-    guard busFmt.channelCount > 0, busFmt.sampleRate > 0 else { log("no mic input (\(micNote))"); return }
+    guard busFmt.channelCount > 0, busFmt.sampleRate > 0 else { phase = .idle; log("no mic input (\(micNote))"); return "no mic input" }
     peak = 0
     var conv: AVAudioConverter?
     var convFrom: AVAudioFormat?
@@ -331,10 +346,11 @@ public class BettyLinkModule: Module {
       task.send(.data(Data(bytes: p, count: Int(out.frameLength) * 2))) { _ in }
     }
     do { eng.prepare(); try eng.start() } catch {
-      input.removeTap(onBus: 0); log("mic would not start: \(error.localizedDescription)"); return
+      input.removeTap(onBus: 0); phase = .idle; log("mic would not start: \(error.localizedDescription)"); return error.localizedDescription
     }
     capEngine = eng
     micNote += "; steps: hands-free + music paused \(tHands) ms, helmet mic \(tMic) ms, mic engine \(ms(t0) - tPause - tHands - tMic) ms"
+    return nil
   }
 
   private func stopMic() {

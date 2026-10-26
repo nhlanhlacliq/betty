@@ -29,6 +29,8 @@ export interface VoiceSetup {
   /** Names around him for the hearing to expect (his area, nearby places, route stops) */
   keyterms?: () => string[];
   log: (msg: string) => void;
+  /** The mic would not open (Betty Link): 'busy' when iOS gave it to something else. */
+  onMicFailed?: (why: string) => void;
 }
 
 const URL = process.env.EXPO_PUBLIC_VOICE_URL ?? 'https://voice.forme.africa';

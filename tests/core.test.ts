@@ -1987,12 +1987,24 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     replies.push({ content: [{ type: 'text', text: 'Boxer, the carthorse.' }] });
     await c.phrase(e.ask('Was the horse in Animal Farm called Boxer?', st), st);
     assert.equal(sent.length, 4, 'an answer is not asked twice');
+    // her planning said out loud (ride of 2026-10-26): asked again for only the words to him
+    replies.push({ content: [{ type: 'text', text: "Also, Greenstone Hill is 1.6 km away and it's night, so I can avoid the time word. I should not mention speed or the 7th Street closure since he didn't ask about traffic. Keep it under 40 words, three sentences, no markdown." }] },
+      { content: [{ type: 'text', text: 'You are in Greenstone Hill, between Edenvale and Modderfontein.' }] });
+    p = await c.phrase(e.ask('Where am I?', st), st);
+    assert.equal(sent.length, 6, 'asked once more');
+    assert.match(sent[5].messages.at(-1).content, /ONLY the words you say to him/);
+    assert.equal(p.text, 'You are in Greenstone Hill, between Edenvale and Modderfontein.'); assert.match(p.detail, /asked again/);
+    const { cleanSpoken } = await import('../src/core/ClaudeClient');
+    for (const t of ["So I can avoid the time word.", "I should not mention speed since he didn't ask about traffic.", 'Keep it under 40 words, three sentences, no markdown.'])
+      assert.equal(cleanSpoken(t, { ambient: true, name: 'sir', recent: [], maxSentences: 3 }).text, '', t);
+    for (const t of ['Ride to Cullinan first, stop at Cocopan for breakfast, then head home on the R513.', 'I can add a stop at Cullinan if you like.', 'I will keep an eye on the rain.', 'Keep it under 100 on the wet bits.'])
+      assert.equal(cleanSpoken(t, { ambient: true, name: 'sir', recent: [], maxSentences: 3 }).text, t, `a real answer stays: ${t}`);
     // time checks see her earlier time checks
     replies.push({ content: [{ type: 'text', text: 'Twenty minutes, and Betty is holding steady.' }] }, { content: [{ type: 'text', text: 'Forty minutes.' }] });
     await c.phrase(e.force('ride_milestone', st), st);
     await c.phrase(e.force('ride_milestone', st), st);
-    assert.match(sent[5].messages.at(-1).content, /earlier lines of this same kind this ride: \["Twenty minutes, and Betty is holding steady\."\]/);
-    assert.match(sent[5].messages.at(-1).content, /hang the line on/, 'each time check gets its own angle');
+    assert.match(sent.at(-1).messages.at(-1).content, /earlier lines of this same kind this ride: \["Twenty minutes, and Betty is holding steady\."\]/);
+    assert.match(sent.at(-1).messages.at(-1).content, /hang the line on/, 'each time check gets its own angle');
     assert.doesNotMatch(buildClaudeRequest(e.ask('hi', st), st, []).system, /do not\s+know rather than guess/, 'common knowledge is allowed');
   } finally { globalThis.fetch = realFetch; }
 

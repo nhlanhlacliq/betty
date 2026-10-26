@@ -71,6 +71,7 @@ export async function startRide(h: RideHooks) {
     events: { changed: h.changed, state: (s) => { h.state(s); link?.speed(s.speedKmh); }, endRequested: h.endRequested, toast: h.toast },
   });
   setup.tools = phoneTools(ride);
+  setup.onMicFailed = (why) => ride.sayNow(why === 'busy' ? CONFIG.phoneLines.micBusy : CONFIG.phoneLines.micFailed, true);
   const voice: VoiceSession | LinkSession = link ?? new VoiceSession(setup);
   if (link) log('[voice]', 'Betty Link: her answers and her own lines in one voice (hold to talk)');
   // Her answers in the conversation are her line on the ride screen too (the queue never sees them), and her orb

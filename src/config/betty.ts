@@ -29,6 +29,11 @@ export interface LineRules {
   /** Talk about her prompt instead of to him ("the notes say", "no station location has been given"): the sentence is
    *  left out (an own remark that does it is dropped). */
   meta: string[];
+  /** An answer or alert that talked about its instructions is asked for again once ("only what you say to him"),
+   *  instead of saying what is left after the matching sentences are taken out (that was more of the same). */
+  metaRetry: boolean;
+  /** ...when at least this many of its sentences do it (one stray match only loses that sentence) */
+  metaRetryFrom: number;
   /** briefingFirst: warnings the briefing already covers, skipped when they came up before it was said */
   briefingCovers: TriggerId[];
   /** briefingFirst: the longest a warning waits for the briefing */
@@ -179,6 +184,9 @@ export interface Config {
   /** researchAfterSec: stopped this long, the area's stops are looked up (~4 US cents, once per area, kept);
    *  sayAfterSec: stopped this long, she mentions one or two (once per area a ride); maxListed: how many she is given. */
   stops: { researchAfterSec: number; sayAfterSec: number; maxListed: number };
+  /** Lines the phone says itself, without asking her (no signal needed). micBusy: iOS refused the mic ("!pri": a call,
+   *  Siri or another app had it; ride of 2026-10-26); micFailed: the mic would not open for another reason. */
+  phoneLines: { micBusy: string; micFailed: string };
   /** How her lines are checked: lists to edit, not code (see LineRules). Not saved on the phone: the code's list wins. */
   lineRules: LineRules;
   claudeModel: string;
@@ -262,6 +270,10 @@ export const DEFAULT_CONFIG: Config = {
   landmarksOn: true,
   stopsOn: true,
   stops: { researchAfterSec: 45, sayAfterSec: 120, maxListed: 4 },
+  phoneLines: {
+    micBusy: 'The phone gave the microphone to something else. Try again in a moment.',
+    micFailed: "I couldn't open the microphone. Try again?",
+  },
   landmarks: {
     hereKm: 1.5, aheadDeg: 110, minKmh: 15, minGapMs: 45_000, minWeight: 2, clusterKm: 0.6, maxPerHour: 4,
     researchFrom: 3, researchKm: 6, retellDays: 30, tileDeg: 0.1,
@@ -332,7 +344,16 @@ export const DEFAULT_CONFIG: Config = {
       String.raw`\bfrom the situation\b`,
       String.raw`\b(has|have|had) been given\b`,
       String.raw`\bno [a-z ]{0,30}\b(was|were|has been|is) (given|provided)\b`,
+      // her planning out loud (2026-10-26: "I can avoid the time word. I should not mention speed... since he didn't
+      // ask. Keep it under 40 words, three sentences, no markdown.")
+      String.raw`\b(he|the rider) (did not|didn't|does not|doesn't|has not|hasn't) ask`,
+      // (only talk about her rules: a plan he asked for, "I can add a stop at Cullinan", matches none of these)
+      String.raw`\bmarkdown\b`, String.raw`\b(under|within|at most) \d+ words\b`,
+      String.raw`\bi (should|shouldn't|should not|must|must not|mustn't|need to) (not )?(mention|avoid mentioning|bring up)\b`,
+      String.raw`\btime words?\b`, String.raw`\b(one|two|three|four|five|\d) sentences\b`,
     ],
+    metaRetry: true,
+    metaRetryFrom: 2,
     briefingCovers: ['fuel_range', 'rain_soon', 'sunset_soon'],
     briefingHoldMaxMs: 45_000,
   },

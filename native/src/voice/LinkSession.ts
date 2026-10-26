@@ -234,7 +234,16 @@ export class LinkSession {
     bettyLink.send(clientMessage('situation', this.setup.situation()));
     bettyLink.send(clientMessage('ptt', { down: true })); // his turn: she stops at once
     this.set('listening');
-    this.setup.log(`link: ${await bettyLink.mic(true)}`);
+    const opened = await bettyLink.mic(true);
+    this.setup.log(`link: ${opened}`);
+    if (opened.startsWith('mic failed')) { // end the turn now, and say so, instead of a silent wait for an answer
+      this.held = false;
+      this.set('ready');
+      bettyLink.send(clientMessage('ptt', { down: false }));
+      this.onRiderTurn(false);
+      this.setup.onMicFailed?.(opened.replace('mic failed: ', ''));
+      return;
+    }
     if (!this.held) void this.finishTurn(); // let go while the helmet was switching
   }
 
