@@ -1,4 +1,5 @@
 import AVFoundation
+import CallKit
 import ExpoModulesCore
 import MediaPlayer
 
@@ -57,10 +58,29 @@ public class BettyLinkModule: Module {
   private var buttonsOn = false
   private var holdEngine: AVAudioEngine?
   private var commandTargets: [Any] = []
+  /** Phone calls (owner, 2026-10-26: a call held the mic and her press went nowhere): CallKit says when one starts
+   *  and ends, never who or what is said. */
+  private let callObserver = CXCallObserver()
+  private var callWatch: CallWatch?
+  private var inCall: Bool { callObserver.calls.contains { !$0.hasEnded } }
 
   public func definition() -> ModuleDefinition {
     Name("BettyLink")
-    Events("onMessage", "onState", "onLog", "onButton")
+    Events("onMessage", "onState", "onLog", "onButton", "onCall")
+
+    OnCreate {
+      let w = CallWatch { [weak self] in
+        guard let self else { return }
+        let on = self.inCall
+        self.log(on ? "a phone call started" : "the phone call ended")
+        self.sendEvent("onCall", ["active": on])
+      }
+      self.callWatch = w
+      self.callObserver.setDelegate(w, queue: nil)
+    }
+
+    /// Whether a phone call (or FaceTime/WhatsApp call through CallKit) is on now.
+    Function("inCall") { () -> Bool in self.inCall }
 
     /// Open the WebSocket (with the app's login) and send the start message. The sound stays off until needed.
     AsyncFunction("connect") { (url: String, auth: String, start: String, promise: Promise) in
@@ -262,6 +282,7 @@ public class BettyLinkModule: Module {
   /// Nil when the mic is open, else why not.
   private func startMic() -> String? {
     if phase == .talking || phase == .open { return nil }
+    if inCall { log("a call has the mic"); return "call" }
     endToken += 1
     flushPlayer()
     if announced { announced = false; state("quiet") } // she was cut off by his press
@@ -715,4 +736,11 @@ final class VoiceChain {
     if limEnv > ceiling { y *= ceiling / limEnv }
     return max(-1, min(1, y))
   }
+}
+
+/// Tells the module a call changed (started, connected, ended).
+final class CallWatch: NSObject, CXCallObserverDelegate {
+  private let changed: () -> Void
+  init(_ changed: @escaping () -> Void) { self.changed = changed }
+  func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) { changed() }
 }

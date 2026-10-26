@@ -474,3 +474,11 @@ Switch: Garage > Betty's personality > Good places to stop (`stopsOn`).
   the sentence filter had only taken out the matched part. Now `lineRules.metaRetry`: an answer/alert with
   `metaRetryFrom` (2) or more planning sentences is asked again once ("ONLY the words you say to him"), tools kept;
   new `lineRules.meta` patterns are about her RULES only, so a plan he asks for is untouched (tested).
+
+### Quiet during calls (BUILT 2026-10-26, NOT YET ON A RIDE; needs a rebuild, the module links CallKit now)
+A call held the mic and her press went nowhere. BettyLinkModule: `CXCallObserver` + `CallWatch` delegate ->
+`onCall {active}` event and `inCall()`; `startMic` refuses at once during a call ("call"). LinkSession forwards
+`onCall`; rig: `ride.phoneCall(on)` (and once at ride start if a call is already on). RideSession.phoneCall
+(`CONFIG.quietOnCall`, default on, Garage > Voice & audio): cuts her current line (never a P1), drops queued P3,
+holds the queue until the call ends (one hold with the voice server's conversation: `applyHold`), P3 made during the
+call logged "(dropped: you were on a call)". A press during a call only logs (anything said would play into the call).

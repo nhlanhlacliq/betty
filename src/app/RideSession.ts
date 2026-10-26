@@ -381,9 +381,10 @@ export class RideSession {
     const critical = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
     const hushed = ev.priority === 3 && engine.quietLeftMin() > 0;
     const away = ev.priority === 3 && CONFIG.onPhoneSpeaker === 'alerts' && !!voice.away?.();
-    const text = critical || hushed || away ? '' : p.text;
+    const onCall = ev.priority === 3 && this.onCall;
+    const text = critical || hushed || away || onCall ? '' : p.text;
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
-    const line = this.log(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : away ? '(dropped: her sound is on the phone speaker)' : '(silent)'));
+    const line = this.log(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : away ? '(dropped: her sound is on the phone speaker)' : onCall ? '(dropped: you were on a call)' : '(silent)'));
     // What is still to be said: all of it, or what follows the first sentence that already went ahead.
     const toSay = p.early && earlyItem ? restAfter(text, p.early) : text;
     if (toSay && voice.aloud()) voice.prefetch?.(toSay, tag); // fetch the audio while it waits its turn
@@ -401,10 +402,25 @@ export class RideSession {
    * played together). A critical alert still goes. Off: the waiting lines play in the usual order.
    */
   conversation(on: boolean) {
-    if (on === this.queue.isHeld) return;
+    if (on === this.talking) return;
+    this.talking = on;
     if (on) this.queue.cutOff();
-    this.queue.hold(on);
+    this.applyHold();
   }
+  private talking = false;
+  /** A phone call is on (native, CallKit). With CONFIG.quietOnCall her lines wait until it ends (a critical alert
+   *  still goes), her own remarks are dropped, and the one she was saying stops. */
+  private onCall = false;
+  phoneCall(on: boolean) {
+    const quiet = on && CONFIG.quietOnCall;
+    if (quiet === this.onCall) return;
+    this.onCall = quiet;
+    this.log('[voice]', quiet ? 'on a call: her lines wait, her own remarks are left out' : 'call over: her lines carry on');
+    if (quiet) { this.queue.cutOff(); this.queue.dropAmbient(); }
+    this.applyHold();
+  }
+  get inCall() { return this.onCall; }
+  private applyHold() { const h = this.talking || this.onCall; if (h !== this.queue.isHeld) this.queue.hold(h); }
 
   /** A line said at once from the phone. `now`: cut off whatever she is saying (going quiet, coming back), never a P1. */
   sayNow(text: string, now = false) {
@@ -663,7 +679,8 @@ export class RideSession {
       while (!hurry() && item === null) { if (await Promise.race([said.then(() => true), new Promise<boolean>((res) => setTimeout(() => res(false), 150))])) break; }
     }
     const deadline = Date.now() + SIGN_OFF_LIMIT_MS;
-    this.queue.hold(false); // a conversation that was still talking must not hold the sign-off back
+    this.talking = false; this.onCall = false;
+    this.queue.hold(false); // a conversation (or a call) that was still on must not hold the sign-off back
     while (item && !settled((item as QueueItem).fate) && !hurry() && Date.now() < deadline) await new Promise((res) => setTimeout(res, 150));
     if (item && !settled((item as QueueItem).fate)) this.log('[audio]', `sign-off not finished: ${hurry() ? 'stopped by a second tap on End ride' : 'still playing after 45 s'}`);
   }

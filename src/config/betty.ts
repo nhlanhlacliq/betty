@@ -184,6 +184,9 @@ export interface Config {
   /** researchAfterSec: stopped this long, the area's stops are looked up (~4 US cents, once per area, kept);
    *  sayAfterSec: stopped this long, she mentions one or two (once per area a ride); maxListed: how many she is given. */
   stops: { researchAfterSec: number; sayAfterSec: number; maxListed: number };
+  /** Native app: during a phone call her lines wait and her own remarks are left out (CallKit; a critical alert still
+   *  goes). Owner, 2026-10-26, after a call held the mic. */
+  quietOnCall: boolean;
   /** Lines the phone says itself, without asking her (no signal needed). micBusy: iOS refused the mic ("!pri": a call,
    *  Siri or another app had it; ride of 2026-10-26); micFailed: the mic would not open for another reason. */
   phoneLines: { micBusy: string; micFailed: string };
@@ -270,6 +273,7 @@ export const DEFAULT_CONFIG: Config = {
   landmarksOn: true,
   stopsOn: true,
   stops: { researchAfterSec: 45, sayAfterSec: 120, maxListed: 4 },
+  quietOnCall: true,
   phoneLines: {
     micBusy: 'The phone gave the microphone to something else. Try again in a moment.',
     micFailed: "I couldn't open the microphone. Try again?",

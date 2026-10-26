@@ -42,6 +42,10 @@ export class LinkSession {
   onLineEnd: () => void = () => {};
   /** Headset buttons (Betty holds them): play/pause = talk, next = repeat, previous = let go */
   onButton: (kind: 'talk' | 'next' | 'previous') => void = () => {};
+  /** A phone call started or ended (CallKit) */
+  onCall: (active: boolean) => void = () => {};
+  /** A call is on right now */
+  inCall(): boolean { try { return !!bettyLink?.inCall?.(); } catch { return false; } }
   private buttonsOn = false;
   private muted = false;
   /** Her loudness follows his speed (core/Loudness); the last values sent to the module. */
@@ -155,6 +159,7 @@ export class LinkSession {
     this.subs = [
       bettyLink.addListener('onLog', (e) => this.setup.log(`link: ${e.msg}`)),
       bettyLink.addListener('onButton', (e) => this.onButton(e.kind)),
+      bettyLink.addListener('onCall', (e) => this.onCall(e.active)),
       bettyLink.addListener('onMessage', (e) => void this.onMessage(e.json)),
       bettyLink.addListener('onState', (e) => {
         if (e.state === 'closed') {

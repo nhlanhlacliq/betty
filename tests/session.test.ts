@@ -84,6 +84,20 @@ void (async () => {
   await wait(30);
   assert.equal(spoken.at(-1), 'A status update.', 'and plays once it is over');
 
+  // A phone call (CONFIG.quietOnCall): her lines wait until it is over, her own remarks are left out.
+  ride.phoneCall(true);
+  const n0 = spoken.length;
+  ride.sayNow('After the call.');
+  await ride.say({ id: 'ambient_banter', priority: 3, createdAt: Date.now(), context: '', fallback: 'A quip.' });
+  ride.conversation(true); ride.conversation(false); // the voice server finishing must not release the call's hold
+  await wait(30);
+  assert.equal(spoken.length, n0, 'nothing plays during the call');
+  assert.ok(logger.lines.some((l) => /dropped: you were on a call/.test(l.text) || /on a call/.test(l.text)), 'logged');
+  ride.phoneCall(false);
+  await wait(30);
+  assert.equal(spoken.at(-1), 'After the call.', 'played once the call is over');
+  assert.ok(!spoken.includes('A quip.'), 'her own remark was left out');
+
   // END RIDE: too short to keep, but everything kept as it went is on the "phone".
   const { kept } = ride.wrapUp();
   assert.equal(kept, false, 'a ride of seconds is not kept');

@@ -16,10 +16,13 @@ export interface BettyLinkNative {
   mute(on: boolean): void;
   buttons(on: boolean): void;
   disconnect(): void;
+  /** A phone call is on (CallKit; a build before 2026-10-26 has none) */
+  inCall?(): boolean;
   addListener(event: 'onMessage', fn: (e: { json: string }) => void): Sub;
   addListener(event: 'onState', fn: (e: { state: string; detail: string }) => void): Sub;
   addListener(event: 'onLog', fn: (e: { msg: string }) => void): Sub;
   addListener(event: 'onButton', fn: (e: { kind: 'talk' | 'next' | 'previous' }) => void): Sub;
+  addListener(event: 'onCall', fn: (e: { active: boolean }) => void): Sub;
 }
 
 export const bettyLink = requireOptionalNativeModule<BettyLinkNative>('BettyLink');

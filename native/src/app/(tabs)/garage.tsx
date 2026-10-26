@@ -140,6 +140,9 @@ export default function Garage() {
         <Setting label="Pause your music at speed" sub={`From ${CONFIG.voiceAtSpeed.pauseOnKmh} km/h her lines pause your music instead of dipping it; below ${CONFIG.voiceAtSpeed.pauseOffKmh} it dips again.`}>
           <Toggle value={CONFIG.pauseMusicAtSpeed} onChange={(v) => { CONFIG.pauseMusicAtSpeed = v; changed(); }} />
         </Setting>
+        <Setting label="Quiet during calls" sub="On a phone call her lines wait until you hang up and her own remarks are left out; a critical alert still goes.">
+          <Toggle value={CONFIG.quietOnCall} onChange={(v) => { CONFIG.quietOnCall = v; changed(); }} />
+        </Setting>
         <Setting label="When the helmet drops" sub="Her sound falls back to the phone speaker. Alerts only: warnings and your answers still play, her own remarks wait for the helmet.">
           <Choice value={CONFIG.onPhoneSpeaker} options={[['alerts', 'Alerts only'], ['talk', 'Keep talking']]} onChange={(v) => { CONFIG.onPhoneSpeaker = v; changed(); }} />
         </Setting>
