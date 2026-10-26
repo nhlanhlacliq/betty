@@ -2909,4 +2909,58 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.match(e.voiceSituation(st), /You are being quiet/);
 }
 
+// ---- landmarks he rides past (2026-10-26, Hartebeesthoek): Wikidata/OSM parsed, scored by type, said when passing
+{
+  const L = await import('../src/core/Landmarks');
+  const row = (q: string, name: string, lat: number, lon: number, type: string, extra: Record<string, string> = {}) =>
+    ({ p: { value: `http://www.wikidata.org/entity/${q}` }, pLabel: { value: name }, loc: { value: `Point(${lon} ${lat})` }, typeLabel: { value: type }, ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [k, { value: v }])) });
+  const wd = L.parseWikidata({ results: { bindings: [
+    row('Q1', 'Hartebeesthoek Radio Astronomy Observatory', -25.887, 27.685, 'astronomical observatory', { pDescription: 'Radio astronomy observatory located in South Africa', article: 'https://en.wikipedia.org/wiki/Hartebeesthoek_Radio_Astronomy_Observatory' }),
+    row('Q2', 'HartRAO 26m Radio Telescope', -25.8875, 27.6855, 'radio telescope'),
+    row('Q3', 'Schaumburg Combined School', -25.89, 27.69, 'primary school'), row('Q3', 'Schaumburg Combined School', -25.89, 27.69, 'combined school'),
+    row('Q4', 'Q4', -25.88, 27.68, 'thing'), // no English name: left out
+  ] } });
+  assert.deepEqual(wd.map((l) => l.id), ['Q1', 'Q2', 'Q3']);
+  assert.deepEqual(wd[2].kinds, ['primary school', 'combined school'], 'one item, all its types');
+  assert.equal(wd[0].wiki, 'Hartebeesthoek Radio Astronomy Observatory');
+  assert.deepEqual(wd.map((l) => L.interest(l)), [3, 3, 0], 'a telescope beats a school');
+  const osm = L.parseOverpass({ elements: [
+    { type: 'node', id: 9, lat: -25.887, lon: 27.685, tags: { name: 'Hartebeesthoek Radio Astronomy Observatory', man_made: 'telescope', wikidata: 'Q1' } },
+    { type: 'way', id: 7, center: { lat: -25.95, lon: 27.75 }, tags: { name: 'Damhoek Pass', mountain_pass: 'yes' } },
+    { type: 'node', id: 8, lat: -25.9, lon: 27.7, tags: { man_made: 'tower' } }, // no name
+  ] });
+  assert.deepEqual(osm.map((l) => [l.id, l.kinds]), [['Q1', ['telescope']], ['osm:way/7', ['mountain pass']]]);
+  const all = L.mergeLandmarks(wd, osm);
+  assert.equal(all.length, 4, 'the OSM twin of Q1 merges into it');
+  assert.deepEqual(all[0].kinds, ['astronomical observatory', 'telescope']);
+  // passing: near, not behind him, the most interesting and nearest
+  const pos = { lat: -25.887, lon: 27.675 }; // ~1 km west of the observatory
+  const east = L.passingNow(all, pos, 90, () => undefined, 0);
+  assert.equal(east?.landmark.id, 'Q1'); assert.match(east!.side!, /ahead/);
+  assert.equal(L.passingNow(all, pos, 270, () => undefined, 0), null, 'behind him: nothing');
+  assert.equal(L.passingNow(all, { lat: -25.95, lon: 27.6 }, 90, () => undefined, 0), null, 'nothing within hereKm');
+  assert.equal(L.passingNow(all, pos, 90, (id) => (id === 'Q1' || id === 'Q2' ? 0 : undefined), 86_400_000), null, 'told yesterday: not again');
+  assert.deepEqual(L.sameSite(east!, all).map((l) => l.id), ['Q2'], 'the telescope is the same site');
+  assert.match(L.landmarkContext({ ...east!, also: L.sameSite(east!, all) }), /passing Hartebeesthoek.*about 1\.0 km away, ahead.*Also at the same site: HartRAO 26m Radio Telescope.*Radio astronomy observatory/);
+  CONFIG.landmarks.hereKm = 0.5;
+  assert.equal(L.passingNow(all, pos, 90, () => undefined, 0), null, 'the radius is the config');
+  resetConfig();
+  assert.deepEqual(L.tileOf({ lat: -25.887, lon: 27.685 }), { lat: -25.9, lon: 27.6 });
+  assert.equal(L.tilesNear({ lat: -25.85, lon: 27.65 }).length, 1, 'mid-tile: one tile');
+  assert.equal(L.tilesNear({ lat: -25.8995, lon: 27.6005 }).length, 4, 'at a corner: four');
+  // the engine says it once, with the site's other parts, and not again this ride
+  let t = 20_000_000;
+  const e = new TriggerEngine(() => t, () => 0.99);
+  const st = { ...initialState(), lat: pos.lat, lon: pos.lon, speedKmh: 60, headingDeg: 90, landmarks: all };
+  const fired: TriggerEvent[] = [];
+  for (let i = 0; i < 12; i++) { t += 10_000; fired.push(...e.evaluate(st).filter((x) => x.id === 'landmark')); }
+  assert.equal(fired.length, 1, 'once');
+  assert.match(fired[0].context, /Hartebeesthoek.*HartRAO 26m/);
+  assert.ok(e.landmarksTold().Q1 && e.landmarksTold().Q2, 'both parts of the site count as told');
+  CONFIG.landmarksOn = false;
+  const e2 = new TriggerEngine(() => t, () => 0.99);
+  for (let i = 0; i < 12; i++) { t += 10_000; assert.ok(!e2.evaluate(st).some((x) => x.id === 'landmark'), 'switched off'); }
+  resetConfig();
+}
+
 console.log('all core tests passed');

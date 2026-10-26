@@ -155,6 +155,23 @@ export interface Config {
   /** Her own remarks never tell him how to ride (lean further, ease off, take the next turn): such a sentence is left
    *  out, and alerts lose any directions (lineRules.advice). Owner's go-ahead, 2026-10-26. */
   noRidingAdvice: boolean;
+  /** Landmarks he rides past (Wikidata + OpenStreetMap; core/Landmarks): on or off (Garage). */
+  landmarksOn: boolean;
+  /**
+   * The rules for landmarks (owner, 2026-10-26: "the general radius at 6 km and a here-now radius of 1 km or
+   * similar"). hereKm: said only when it is this close and not behind him (aheadDeg of his course); minKmh: only
+   * moving; minGapMs: at least this long after her last remark of her own; minWeight: how interesting (kinds below) a
+   * landmark must be to be said; researchFrom/researchKm: looked up properly (api/story, ~5 cents, once) when that
+   * interesting and that close; retellDays: told again after this many days; tileDeg: the size of a lookup square;
+   * clusterKm: things this close to the one told are one site (HartRAO's observatory, telescope and MeerKAT dish).
+   * kinds: patterns on its type (Wikidata/OSM words) with a weight, 3 = always worth it; skip: never, unless a
+   * weight-3 kind also matches. Not saved on the phone: the code's list wins.
+   */
+  landmarks: {
+    hereKm: number; aheadDeg: number; minKmh: number; minGapMs: number; minWeight: number; clusterKm: number;
+    researchFrom: number; researchKm: number; retellDays: number; tileDeg: number;
+    kinds: Array<{ pattern: string; weight: number }>; skip: string[];
+  };
   /** How her lines are checked: lists to edit, not code (see LineRules). Not saved on the phone: the code's list wins. */
   lineRules: LineRules;
   claudeModel: string;
@@ -185,7 +202,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2, new_road: 3, rough_patch: 2,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2, new_road: 3, rough_patch: 2, landmark: 3,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -193,7 +210,7 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, new_road: 1_200_000, rough_patch: 30_000, // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, new_road: 1_200_000, rough_patch: 30_000, landmark: 30_000, // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -235,6 +252,22 @@ export const DEFAULT_CONFIG: Config = {
   timeChecksWhileStopped: false,
   briefingFirst: true,
   noRidingAdvice: true,
+  landmarksOn: true,
+  landmarks: {
+    hereKm: 1.5, aheadDeg: 110, minKmh: 15, minGapMs: 45_000, minWeight: 2, clusterKm: 0.6,
+    researchFrom: 3, researchKm: 6, retellDays: 30, tileDeg: 0.1,
+    kinds: [
+      { pattern: String.raw`telescope|observatory|ground station|earth station|satellite|space|tracking station|antenna array`, weight: 3 },
+      { pattern: String.raw`\bdam\b|waterfall|\bcave\b|fossil|pal(a)?eontolog|archaeolog|hominin|world heritage|cradle`, weight: 3 },
+      { pattern: String.raw`battle|battlefield|\bfort\b|fortress|castle|monument|memorial|museum|blockhouse|concentration camp`, weight: 3 },
+      { pattern: String.raw`mountain pass|\bpass\b|\bgap\b|\bpoort\b|crater|gorge|lighthouse|race ?track|raceway|motor racing|circuit`, weight: 3 },
+      { pattern: String.raw`power station|nuclear|mine\b|mining|airport|airfield|aerodrome|stadium|bridge|tunnel|tower`, weight: 2 },
+      { pattern: String.raw`nature reserve|game reserve|biosphere|national park|protected area|viewpoint|reservoir`, weight: 2 },
+      { pattern: String.raw`peak|mountain|hill|ridge|lake|river|stream|spring`, weight: 1 }, // everywhere: only with minWeight 1
+      { pattern: String.raw`historic|heritage|ruins|statue|artwork|attraction|zoo|botanical|cathedral|mosque|temple|church`, weight: 2 },
+    ],
+    skip: [String.raw`\bschool|college|hotel|lodge|guest ?house|shop|restaurant|office|company|business|residential|estate|suburb|village|\btown\b|city|street|road|hospital|clinic|police|bank|farm\b`],
+  },
   lineRules: {
     worn: [
       { pattern: String.raw`\bout of (ten|10)\b|\bpoints? off\b|\bminus (points|nothing|one)\b`, name: 'a rating out of ten' },
@@ -244,7 +277,7 @@ export const DEFAULT_CONFIG: Config = {
     ],
     wornWindow: 4,
     wornInAnswers: true,
-    storyKinds: ['area_story', 'local_fact'],
+    storyKinds: ['area_story', 'local_fact', 'landmark'],
     storyRecall: 6,
     advice: {
       ownLines: [
@@ -538,6 +571,12 @@ through Germiston, which..."). The note is your only source: add no facts to it,
 Never mention notes, research, sources or websites. If the note truly has no story in it, reply with exactly ${SILENT_TOKEN}.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
+  landmark: `This is a tour-guide remark, not an alert: he is riding past something worth a look, right now.
+Say what it is and where it is, so he knows what he is looking at, then the single most interesting thing about it from
+the situation: what it does, who built it, what happened there. One or two sentences, with a bit of colour.
+Where it lies (on his left, ahead) only as the situation says it. Every fact must come from the situation; if it gives
+only the name and what it is, say just that, briefly, and do not add history from your own knowledge.
+Never mention your notes or what they lack.`,
   new_road: `This is a light remark, not an alert: he is on a road he has never ridden with you before (the last couple
 of kilometres are all new to you). Notice it in a line, curious and warm, the way a riding friend would ("new one for
 us"); you may tie it to where he is. Do not invent anything about the road.`,
@@ -556,6 +595,7 @@ if an earlier time check used a turn of phrase ("suspects", "the road", "the clo
 export const VOICE_STYLES: Record<string, string> = {
   ambient_banter: 'dry and wry, quietly amused',
   local_fact: 'warm and curious, like a local friend sharing a good story',
+  landmark: 'warm and curious, like a local friend sharing a good story',
   area_story: 'warm and curious, like a local friend sharing a good story',
   rider_query: 'relaxed and friendly, conversational',
   ride_milestone: 'dry, lightly amused',

@@ -14,6 +14,12 @@ Use web search. Write up to ${MAX_NOTES} notes, each one story about ${area} its
 Each note: two or three plain spoken sentences with the specifics (names, years) that make it interesting. Only facts your search results state; leave out anything you cannot confirm, and do not pad with general facts about the wider region.${exclude.length ? `\nAlready covered, find different stories: ${exclude.join('; ')}.` : ''}
 Reply with ONLY this JSON and nothing else: {"notes":[{"topic":"a few words","text":"the note","source":"website name"}]}`;
 
+/** A landmark he is about to pass (kind "landmark"): what it is and its story, fewer notes. */
+export const landmarkPrompt = (name: string, about: string, near: string) => `Research ${name}${about ? ` (${about})` : ''}${near ? `, near ${near}` : ''} for a motorcycle co-pilot who tells a rider what he is riding past.
+Use web search. Write up to 3 notes about ${name} itself: what it is and what it does, how and when it came to be, and a notable event, record or oddity.
+Each note: two or three plain spoken sentences with the specifics (names, years, sizes) that make it interesting. Only facts your search results state about this very place; leave out anything you cannot confirm.
+Reply with ONLY this JSON and nothing else: {"notes":[{"topic":"a few words","text":"the note","source":"website name"}]}`;
+
 /** The notes from Claude's reply: the JSON in the text after the last search result. */
 export function parseNotes(reply: any): Array<{ topic: string; text: string; source: string }> {
   const blocks: any[] = Array.isArray(reply?.content) ? reply.content : [];
@@ -36,13 +42,15 @@ export async function POST(req: Request): Promise<Response> {
   const area = String(body?.area ?? '').trim(), region = String(body?.region ?? '').trim();
   const exclude = (Array.isArray(body?.exclude) ? body.exclude : []).map((x: any) => String(x).slice(0, 60)).slice(0, 20);
   if (!area || area.length > 80 || region.length > 80) return json({ error: 'bad area' }, 400);
+  const landmark = body?.kind === 'landmark';
+  const about = String(body?.about ?? '').trim().slice(0, 160);
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: MODEL, max_tokens: 1500, thinking: { type: 'disabled' },
       tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
-      messages: [{ role: 'user', content: storyPrompt(area, region, exclude) }],
+      messages: [{ role: 'user', content: landmark ? landmarkPrompt(area, about, region) : storyPrompt(area, region, exclude) }],
     }),
   });
   if (!res.ok) return json({ error: `Claude said HTTP ${res.status}`, detail: (await res.text()).slice(0, 300) }, 502);

@@ -1,3 +1,4 @@
+import { landmarkContext, passingNow, sameSite, type Passing } from './Landmarks';
 import { CONFIG, cleanBikeName, cleanRiderName } from '../config/betty';
 import { BANK_SPEC } from './LineBank';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
@@ -172,6 +173,11 @@ export class TriggerEngine {
   /** Area stories already told (kept across rides by the UI layer), so riding through again brings new ones. */
   private toldNotes = new Set<string>();
   setToldNotes(ids: string[]) { this.toldNotes = new Set(ids); }
+  /** Landmarks told, by id, with when (kept across rides: told again after CONFIG.landmarks.retellDays). */
+  private landmarkTold = new Map<string, number>();
+  private landmarkNow: Passing | null = null;
+  setLandmarksTold(r: Record<string, number>) { this.landmarkTold = new Map(Object.entries(r)); }
+  landmarksTold(): Record<string, number> { return Object.fromEntries(this.landmarkTold); }
   toldNoteIds(): string[] { return [...this.toldNotes]; }
   private freshNote(s: BikeState) { return s.areaNotes.find((n) => !this.toldNotes.has(n.id)) ?? null; }
   /** His rider profile (null = none, or "Let Betty know me" is off) */
@@ -473,6 +479,20 @@ export class TriggerEngine {
         return out;
       }
     }
+    // A landmark he is passing right now (CONFIG.landmarks): its moment is now, so it does not wait for a slot, but it
+    // keeps its distance from her last remark of her own.
+    const L = CONFIG.landmarks;
+    if (CONFIG.landmarksOn && s.landmarks.length && s.lat != null && s.lon != null && s.speedKmh >= L.minKmh
+      && this.now() - this.lastAmbientSlot >= L.minGapMs && !this.ambientBlocked(s) && this.ready('landmark')) {
+      const p = passingNow(s.landmarks, { lat: s.lat, lon: s.lon }, s.headingDeg, (id) => this.landmarkTold.get(id), this.now());
+      if (p) {
+        p.also = sameSite(p, s.landmarks);
+        this.landmarkNow = p;
+        try { out.push(this.force('landmark', s)); } finally { this.landmarkNow = null; }
+        this.lastAmbientSlot = this.now();
+        return out;
+      }
+    }
     if (due > this.milestonesHit && (byClock || this.stillSince === null) && this.ready('ride_milestone')) {
       this.milestonesHit = due;
       this.lastAmbientSlot = this.now();
@@ -718,6 +738,14 @@ export class TriggerEngine {
         return {
           context: banterContext(topic, mode, topics), fallback: '',
           mark: () => { this.topicUse.set(topic.id, { bucket: topic.bucket, seq: ++this.topicSeq }); this.lastMode = mode.id; },
+        };
+      }
+      case 'landmark': {
+        const p = this.landmarkNow;
+        if (!p) return { context: '', fallback: '' };
+        return {
+          context: landmarkContext(p), fallback: '',
+          mark: () => { for (const l of [p.landmark, ...(p.also ?? [])]) this.landmarkTold.set(l.id, this.now()); this.stats.notePlace(p.landmark.name); },
         };
       }
       case 'local_fact': {

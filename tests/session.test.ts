@@ -103,6 +103,25 @@ void (async () => {
   assert.ok(!phone.has('betty.old.v1') && phone.get('not.betty') === 'stays', 'restore replaces betty.* entries only');
   assert.match(describeBackup(back), /^\d+ rides, \d+ lines, 0 notes, 1 marked spots/);
   assert.throws(() => parseBackup('{"app":"betty","version":1,"storage":{"x":"1"}}'), /damaged/);
+
+  // Landmarks (2026-10-26): a tile asked once and kept, the best one ahead researched once, all through the shared store.
+  const { LandmarkSource, LandmarkNotes } = await import('../src/adapters/LandmarkSource');
+  const asked: string[] = [];
+  const fake = (async (url: string, init?: RequestInit) => {
+    asked.push(String(url));
+    if (String(url).startsWith('/api/landmarks')) return new Response(JSON.stringify({ wd: [{ p: { value: 'x/Q1' }, pLabel: { value: 'HartRAO' }, loc: { value: 'Point(27.685 -25.887)' }, typeLabel: { value: 'radio telescope' } }], osm: [], osmFailed: true }));
+    assert.match(String(init?.body), /"kind":"landmark".*"area":"HartRAO"/);
+    return new Response(JSON.stringify({ notes: [{ text: 'HartRAO began as a NASA tracking station in 1961.' }] }));
+  }) as typeof fetch;
+  const pushed: any[] = [];
+  const lm = new LandmarkSource(() => ({ lat: -25.85, lon: 27.65 }), () => 'Hartbeespoort', () => {}, fake);
+  lm.start((p) => pushed.push(p)); lm.stop();
+  await wait(20);
+  assert.equal(asked.filter((u) => u.startsWith('/api/landmarks')).length, 1, 'one tile asked');
+  assert.deepEqual(LandmarkNotes.all().Q1, ['HartRAO began as a NASA tracking station in 1961.'], 'researched once and kept');
+  assert.equal(pushed.at(-1).landmarks[0].notes.length, 1, 'the notes reach the state');
+  await lm.tick();
+  assert.equal(asked.length, 2, 'next time: from the phone, nothing asked again');
   console.log('ride session tests passed');
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

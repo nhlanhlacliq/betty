@@ -1,3 +1,4 @@
+import type { Landmark } from './Landmarks';
 export type Priority = 1 | 2 | 3 | 4; // P1 critical, P2 advisory, P3 ambient, P4 rider-initiated
 
 export type TriggerId =
@@ -5,20 +6,20 @@ export type TriggerId =
   | 'rain_soon' | 'traffic_incident' | 'ride_milestone' | 'rider_query'
   | 'ambient_banter' | 'local_fact' | 'area_story' | 'marked_spot'
   | 'off_route' | 'route_stop' | 'route_arrived'
-  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold' | 'new_road' | 'rough_patch';
+  | 'fuel_range' | 'sunset_soon' | 'ride_debrief' | 'ride_parked' | 'ride_record' | 'route_weather' | 'fatigue' | 'wind_cold' | 'new_road' | 'rough_patch' | 'landmark';
 
 export const TRIGGER_IDS: TriggerId[] = [
   'startup', 'engine_overtemp', 'dtc_detected', 'low_fuel',
   'rain_soon', 'traffic_incident', 'ride_milestone', 'rider_query',
   'ambient_banter', 'local_fact', 'area_story', 'marked_spot',
   'off_route', 'route_stop', 'route_arrived',
-  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold', 'new_road', 'rough_patch',
+  'fuel_range', 'sunset_soon', 'ride_debrief', 'ride_parked', 'ride_record', 'route_weather', 'fatigue', 'wind_cold', 'new_road', 'rough_patch', 'landmark',
 ];
 
 /** Ambient flavours: no canned fallback, silence is a valid output. */
 export const AMBIENT_IDS: TriggerId[] = ['ambient_banter', 'local_fact', 'area_story'];
 /** Lines she makes up on her own (no alert, no question): they get no clock or bike readings, and may be silent. */
-export const UNPROMPTED_IDS: TriggerId[] = [...AMBIENT_IDS, 'ride_milestone', 'ride_record', 'new_road'];
+export const UNPROMPTED_IDS: TriggerId[] = [...AMBIENT_IDS, 'ride_milestone', 'ride_record', 'new_road', 'landmark'];
 
 export interface WeatherState {
   tempC: number;
@@ -94,6 +95,8 @@ export interface BikeState {
   /** The suburb and town he is in (OpenStreetMap), and researched history/culture notes about them (api/story) */
   area: AreaInfo | null;
   areaNotes: AreaNote[];
+  /** Landmarks around him (Wikidata + OpenStreetMap, core/Landmarks), with notes once researched */
+  landmarks: Landmark[];
 }
 
 export interface TriggerEvent {

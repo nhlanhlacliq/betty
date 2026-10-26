@@ -98,6 +98,9 @@ export default function Garage() {
         <Setting label="No riding advice" sub="She never tells you how to ride (lean further, ease off, take the next turn): she cannot see the road.">
           <Toggle value={CONFIG.noRidingAdvice} onChange={(v) => { CONFIG.noRidingAdvice = v; changed(); }} />
         </Setting>
+        <Setting label="Landmarks you pass" sub={`When you ride within ${CONFIG.landmarks.hereKm} km of something worth a look (a telescope, a dam, a monument), she tells you what it is.`}>
+          <Toggle value={CONFIG.landmarksOn} onChange={(v) => { CONFIG.landmarksOn = v; changed(); }} />
+        </Setting>
         <Setting label="Little animations" sub="Her orb breathing and the small movements. Off: things just appear.">
           <Toggle value={CONFIG.motion} onChange={(v) => { CONFIG.motion = v; changed(); }} />
         </Setting>

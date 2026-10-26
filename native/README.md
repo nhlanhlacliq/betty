@@ -432,3 +432,20 @@ Owner: from now on fixes are settings or editable lists, not code tuned to one r
   see each other's earlier lines ("never a fact they gave"). `lineRules` is not persisted: the code's list wins.
 The four switches are in Garage (personality card; Voice & audio for the helmet) and persisted.
 Not fixed yet: "playback ready (was stopped)" restarts (4 a ride) and clips that played with no logged line.
+
+### Landmarks you pass (BUILT 2026-10-26, NOT YET ON A RIDE; needs the web deploy for api/landmarks)
+
+Owner rode past the Hartebeesthoek satellite dishes and she said nothing (Wikipedia geosearch picks the richest article
+within 6 km, only when a tour-guide slot comes up). Now: `api/landmarks?tile=&size=` = Wikidata SPARQL (box; types,
+English description, enwiki) + Overpass (named telescopes, monuments, viewpoints, passes...; three mirrors, fail-soft:
+all four public servers were full on 2026-10-26), raw rows trimmed, a week at the edge (a day when one source failed).
+`core/Landmarks` (pure, tested): parseWikidata/parseOverpass/mergeLandmarks, `interest` (CONFIG.landmarks.kinds
+weights on the TYPE words, `skip` for schools, lodges, clinics...), `passingNow` (within hereKm 1.5, not behind him:
+aheadDeg 110, not told within retellDays 30), `sameSite` (clusterKm 0.6: HartRAO's observatory, 26 m telescope and
+MeerKAT dish are one line), `landmarkContext`. `adapters/LandmarkSource`: tiles near him (0.1 deg) from
+`betty.landmarks.v1` or the server one at a time, the best one within researchKm 6 researched once via api/story
+`kind: 'landmark'` (`betty.lmnotes.v1`); told times in `betty.lmtold.v1`. Trigger `landmark` (P3, unprompted): fires
+the moment he passes, at least minGapMs 45 s after her last own remark, moving >= 15 km/h, not quiet/parked. Checked
+live against Wikidata: the Hartebeesthoek tile scores the observatory, telescope, MeerKAT dish and Damhoekpas 3, the
+biosphere reserve 2, schools/lodge/clinic 0. Switch: Garage > Betty's personality > Landmarks you pass (`landmarksOn`).
+Not yet: landmarks in Explore; the web Garage switch (on by default there too).

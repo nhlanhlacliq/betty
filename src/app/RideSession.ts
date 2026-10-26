@@ -22,6 +22,7 @@ import { AreaSource, ToldStore, researchAhead } from '../adapters/AreaSource';
 import { FuelStore } from '../adapters/FuelStore';
 import { HorizonDismissed } from '../adapters/HorizonDismissed';
 import { IncidentMemory } from '../adapters/IncidentMemory';
+import { LandmarkSource, LandmarkTold } from '../adapters/LandmarkSource';
 import { LineBankStore } from '../adapters/LineBankStore';
 import { LineLogStore } from '../adapters/LineLogStore';
 import { PlaceSource } from '../adapters/PlaceSource';
@@ -138,7 +139,7 @@ export class RideSession {
   /** The road ridden so far (the map, and kept with the ride) */
   readonly track: TrackPoint[] = [];
   /** What each feed is doing, for the Workshop */
-  readonly feeds = { weather: 'idle', traffic: 'idle', places: 'idle', areas: 'idle' };
+  readonly feeds = { weather: 'idle', traffic: 'idle', places: 'idle', areas: 'idle', landmarks: 'idle' };
   readonly real: boolean;
   readonly desk: boolean;
   /** What she is saying now (once audible), the last line she finished, and his side of a conversation. */
@@ -187,6 +188,7 @@ export class RideSession {
     engine.setFuelKm(FuelStore.load());
     engine.setMemory(RiderMemoryStore.load());
     engine.setToldNotes(ToldStore.load());
+    engine.setLandmarksTold(LandmarkTold.load());
     engine.setRoute(RouteStore.get()); // the route he planned, if any
     // Where he has ridden before: new roads, familiar ones (real rides only). Saved each minute and at the end.
     this.roadMem = !d.desk && d.real ? new RoadMemory(RoadCells.load(() => {
@@ -200,6 +202,12 @@ export class RideSession {
     engine.setServiceBook(ServiceStore.load()); // what is due (the briefing, answers and sign-off mention it)
     engine.setProfile(CONFIG.useProfile ? ProfileStore.get() : null); // what he chose to share, used lightly
     // History and culture of the area (researched on Betty's server). Each change of what it is doing goes in the log.
+    // Landmarks he rides past (Wikidata + OpenStreetMap, researched once as he nears the best ones). Server only.
+    if (d.server && !d.desk) agg.addSource(new LandmarkSource(
+      () => { const s = agg.current; return s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null; },
+      () => [agg.current.area?.town, agg.current.area?.region, 'South Africa'].filter(Boolean).join(', '),
+      (m) => { this.log('[landmarks]', m); this.feeds.landmarks = m; },
+    ));
     if (d.server) agg.addSource(new AreaSource(pos, () => new Set(engine.toldNoteIds()), (m) => { if (m !== this.feeds.areas) this.log('[areas]', m); this.feeds.areas = m; }));
 
     this.queue = new AudioQueue(d.voice.speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => this.onFate(item, fate), (item) => this.onHeard(item));
@@ -317,6 +325,7 @@ export class RideSession {
     TrackStore.save(engine.rideSnapshot().startedAt, this.track);
     if (!d.desk) RoadStore.save(engine.rideSnapshot().startedAt, this.track);
     ToldStore.save(engine.toldNoteIds());
+    LandmarkTold.save(engine.landmarksTold());
   }
 
   /** What the sensors actually delivered, written into the log now and then and at END RIDE. */

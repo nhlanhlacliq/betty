@@ -20,6 +20,7 @@ export const CHANGELOG: ChangeDay[] = [
     items: [
       { id: 'time-checks-riding', kind: 'better', title: 'Time checks while you ride.', text: 'Time checks count your riding minutes and wait while you stand still, unless you switch them back to the clock.', help: 'unprompted' },
       { id: 'briefing-first', kind: 'better', title: 'Her briefing goes first.', text: 'A warning that comes up as you set off waits for her briefing, and what the briefing covered is not said twice.', help: 'unprompted' },
+      { id: 'landmarks', kind: 'new', title: 'Landmarks you pass.', text: 'Ride close to something worth a look, like the Hartebeesthoek satellite dishes, a dam or a monument, and she tells you what it is and where.', help: 'unprompted' },
       { id: 'no-riding-advice', kind: 'better', title: 'No riding advice.', text: 'She no longer tells you how to ride or which way to go, and stories and nearby places no longer repeat each other\'s facts.', help: 'unprompted' },
     ],
   },
