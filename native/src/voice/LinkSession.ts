@@ -46,6 +46,7 @@ export class LinkSession {
   private muted = false;
   /** Her loudness follows his speed (core/Loudness); the last values sent to the module. */
   private speedVoice = new SpeedVoice();
+  private atSpeedNoted = false;
   private loud: SpeedVoiceOut = { gainDb: CONFIG.voiceBoostDb, share: 0, pauseMusic: false };
   private situationTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -68,19 +69,44 @@ export class LinkSession {
 
   /** His speed (each GPS update): louder, brighter and the music paused at speed; his own setting in town. */
   speed(kmh: number) {
-    const next = this.speedVoice.update(kmh, { baseDb: CONFIG.voiceBoostDb, extraDb: CONFIG.voiceAtSpeedDb, pauseMusic: CONFIG.pauseMusicAtSpeed });
-    const was = this.loud;
-    if (next.gainDb === was.gainDb && next.share === was.share && next.pauseMusic === was.pauseMusic) return;
-    this.loud = next;
-    if (bettyLink && this.connected) this.applyLoudness(bettyLink);
-    if (next.pauseMusic !== was.pauseMusic) this.setup.log(`voice: ${next.pauseMusic ? 'at speed: her lines pause your music' : 'slower: her lines dip your music again'}`);
+    // Never let this break the ride: it runs inside every GPS update (ride of 2026-10-26: nothing from it in the log
+    // at 140 km/h, so a failure here is reported once instead of passing silently).
+    try {
+      const next = this.speedVoice.update(kmh, { baseDb: CONFIG.voiceBoostDb, extraDb: CONFIG.voiceAtSpeedDb, pauseMusic: CONFIG.pauseMusicAtSpeed });
+      const was = this.loud;
+      if (next.gainDb === was.gainDb && next.share === was.share && next.pauseMusic === was.pauseMusic) return;
+      this.loud = next;
+      if (next.pauseMusic !== was.pauseMusic) this.setup.log(`voice: ${next.pauseMusic ? `at speed (${Math.round(kmh)} km/h, +${next.gainDb} dB): her lines pause your music` : `slower (+${next.gainDb} dB): her lines dip your music again`}`);
+      if (bettyLink && this.connected) this.applyLoudness(bettyLink);
+    } catch (e) { this.speedFailed(e); }
+  }
+  private speedFailedOnce = false;
+  private speedFailed(e: unknown) {
+    if (this.speedFailedOnce) return;
+    this.speedFailedOnce = true;
+    this.setup.log(`voice: her loudness at speed failed (${e instanceof Error ? e.message : String(e)})`);
   }
 
   private applyLoudness(link: NonNullable<typeof bettyLink>) {
-    link.setGain(this.loud.gainDb);
-    link.setSpeedVoice?.(this.loud.share); // (a build from before 2026-10-25 has no voice chain)
-    link.setMusic(this.loud.pauseMusic ? 'pause' : CONFIG.musicWhileSpeaking);
+    try {
+      link.setGain(this.loud.gainDb);
+      link.setSpeedVoice?.(this.loud.share); // (a build from before 2026-10-25 has no voice chain)
+      link.setMusic(this.loud.pauseMusic ? 'pause' : CONFIG.musicWhileSpeaking);
+    } catch (e) { this.speedFailed(e); }
   }
+
+  /** Her sound is on the phone's own speaker (no helmet, or it dropped): her own remarks may wait (CONFIG.onPhoneSpeaker). */
+  onPhoneSpeaker(): boolean {
+    let out = '';
+    try { out = bettyLink?.route().split('out:')[1] ?? ''; } catch { return false; }
+    const phone = /\((Speaker|Receiver)\)/.test(out) && !/Bluetooth|Headphones|CarAudio/.test(out);
+    if (phone !== this.wasPhone) {
+      this.wasPhone = phone;
+      this.setup.log(phone ? `voice: her sound is on the phone speaker (${out.trim()})${CONFIG.onPhoneSpeaker === 'alerts' ? ': only alerts and answers until the helmet is back' : ''}` : `voice: her sound is back on ${out.trim()}`);
+    }
+    return phone;
+  }
+  private wasPhone = false;
   get connected() { return this.state !== 'off' && this.state !== 'connecting'; }
 
   private set(s: LinkSession['state']) { this.state = s; this.onState(s); }
@@ -98,6 +124,11 @@ export class LinkSession {
       const body = { system: this.setup.system, greet: false, ptt: !open, mode: open ? 'open' : 'ptt', situation: this.setup.situation(), keyterms: this.setup.keyterms?.() ?? [] };
       const where = await link.connect(URL, AUTH, JSON.stringify({ t: 'start', body }));
       this.applyLoudness(link);
+      if (!this.atSpeedNoted) { // once a ride, so the log says this build has it and how it is set
+        this.atSpeedNoted = true;
+        const c = CONFIG.voiceAtSpeed;
+        this.setup.log(`voice: louder at speed ${CONFIG.voiceAtSpeedDb ? `+${CONFIG.voiceAtSpeedDb} dB from ${c.fromKmh} to ${c.fullKmh} km/h` : 'off'}, music ${CONFIG.pauseMusicAtSpeed ? `paused from ${c.pauseOnKmh} km/h` : 'never paused at speed'}${link.setSpeedVoice ? '' : ' (no voice chain in this build)'}`);
+      }
       link.send(rtvi('client-ready', { version: '2.1.0', about: { library: 'betty-link' } }));
       this.set('ready');
       this.setup.log(`voice: Betty Link connected in ${Date.now() - t0} ms (${open ? 'open mic, say "Betty"' : 'hold to talk'}); ${where}`);

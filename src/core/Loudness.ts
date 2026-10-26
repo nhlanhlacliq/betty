@@ -1,3 +1,4 @@
+import { CONFIG, type Config } from '../config/betty';
 /**
  * Louder voice (owner, ride of 2026-10-17: "The volume isn't loud. I can't hear it over the wind noise."). A page cannot
  * play an audio element above 100%, and Gemini's clips already peak at full scale (measured: peak 0 dB, RMS -16.6 dB),
@@ -66,13 +67,10 @@ export function boostWav(bytes: Uint8Array, db: number): Uint8Array {
  * full amount at 120 km/h (wind noise in a helmet climbs steeply with speed). The share also drives the native voice
  * chain (more presence and compression) and, past ~90 km/h, pausing his music for her lines instead of dipping it.
  */
-export const SPEED_QUIET_KMH = 40;
-export const SPEED_LOUD_KMH = 120;
-export const speedShare = (kmh: number) => Math.max(0, Math.min(1, (kmh - SPEED_QUIET_KMH) / (SPEED_LOUD_KMH - SPEED_QUIET_KMH)));
-/** Coming down from speed eases off by this much a second (a red light or a GPS dip is not a quiet road yet). */
-export const SPEED_FALL_KMH_S = 6;
-/** Music paused for her above this share (about 90 km/h), dipped again below the lower one (about 75 km/h). */
-const PAUSE_ON = 0.6, PAUSE_OFF = 0.4;
+type AtSpeed = Config['voiceAtSpeed'];
+/** 0 under fromKmh, 1 from fullKmh (CONFIG.voiceAtSpeed) */
+export const speedShare = (kmh: number, c: AtSpeed = CONFIG.voiceAtSpeed) =>
+  Math.max(0, Math.min(1, (kmh - c.fromKmh) / Math.max(1, c.fullKmh - c.fromKmh)));
 
 export interface SpeedVoiceOut { gainDb: number; share: number; pauseMusic: boolean }
 
@@ -82,13 +80,13 @@ export class SpeedVoice {
   private at: number | null = null;
   private paused = false;
   constructor(private now: () => number = Date.now) {}
-  update(kmh: number, o: { baseDb: number; extraDb: number; pauseMusic: boolean }): SpeedVoiceOut {
+  update(kmh: number, o: { baseDb: number; extraDb: number; pauseMusic: boolean }, c: AtSpeed = CONFIG.voiceAtSpeed): SpeedVoiceOut {
     const t = this.now();
-    const fall = this.at === null ? Infinity : SPEED_FALL_KMH_S * Math.max(0, (t - this.at) / 1000);
+    const fall = this.at === null ? Infinity : c.fallKmhPerS * Math.max(0, (t - this.at) / 1000);
     this.kmh = kmh >= this.kmh ? kmh : Math.max(kmh, this.kmh - fall);
     this.at = t;
-    const share = speedShare(this.kmh);
-    this.paused = o.pauseMusic && (this.paused ? share > PAUSE_OFF : share >= PAUSE_ON);
+    const share = speedShare(this.kmh, c);
+    this.paused = o.pauseMusic && (this.paused ? this.kmh > c.pauseOffKmh : this.kmh >= c.pauseOnKmh);
     return { gainDb: Math.round((o.baseDb + o.extraDb * share) * 2) / 2, share: Math.round(share * 20) / 20, pauseMusic: this.paused };
   }
 }

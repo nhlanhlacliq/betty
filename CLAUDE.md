@@ -4,6 +4,11 @@ Context for any Claude Code instance picking this project up. Read this first.
 
 ## WHERE WE LEFT OFF (handoff, 2026-10-19): read this first
 
+UPDATE 2026-10-26 (two rides, owner: "do not hardcode the fixes, make this maintainable and configurable from now on"):
+fixes are SETTINGS or LISTS in src/config/betty.ts (voiceAtSpeed, onPhoneSpeaker, timeChecksWhileStopped, briefingFirst,
+noRidingAdvice, lineRules: worn / meta / advice / storyKinds / briefingCovers), never constants tuned to one ride.
+Voice at speed did not show in either log at 140 km/h: now logged and guarded, read the next log. Details: native/README.md.
+
 UPDATE 2026-10-25: the Daily-call voice in rides kept breaking (silent mic, helmet stuck in call mode, two voices,
 headset buttons lost). Owner chose to explore option C on the side: the VOICE LAB (Garage > Voice lab), Betty over our
 own WebSocket ("Betty Link": native/modules/betty-link owns ALL phone audio; voice/betty_voice/link.py). PASSED on the
@@ -1267,6 +1272,29 @@ Pricing (owner "just curious"; nothing decided):
 ## Backlog (open items only; cleaned 2026-10-18)
 
 Everything buildable in the web app is built (see the sections above), except the planning map. Next: THE NATIVE APP.
+
+**DIRECTION: rider augmentation that other riders adopt (owner, 2026-10-26: "obviously important", implement later; keep
+it in mind for every design decision now).** Betty is tuned to ONE rider today (his bike, tank, region, defaults, ~100
+dials). To be adopted she must make riding clearly better from ride one AND fit herself to each rider without a Workshop.
+- Jobs, in order of value: AWARENESS (traffic, rain on route, fuel to reserve, sunset, wind/cold, rough patches, marked
+  hazards), HANDS-FREE ACTIONS (ask, mark, remember, filled up, reminders, music, live ETA), BIKE STATE (OBD, service),
+  COMPANY (personality, stories, banter). Lead with the first two as the reason to install; company is the reason to
+  stay: a dial turned up, not the default.
+- Blockers today: too many knobs (one tuning value made a third of her lines on 2026-10-25), his defaults baked in
+  ("sir", G 310 GS schedule, 11 L tank, inland petrol, Gauteng hints), setup friction (7-day sideload, headset pairing,
+  OBD reader), trust (one missed alert or dropout at speed and she is switched off), fear of distraction.
+- Fitting each rider: (1) a ~3 min first-run interview, mostly by voice: name and how to be addressed; the bike (AI looks
+  up tank, reserve, consumption, schedule, or a handbook photo: see "A garage of bikes"); country/currency/fuel price;
+  helmet comms (sets talk mode and mic handling, e.g. micRaw for Cardo); phone mounted or in a pocket (Horizon); riding
+  style (commuter, twisties, touring, adventure, group). (2) Four PRESETS instead of sliders ("Just the essentials",
+  "Co-pilot", "Tour guide", "Full Betty"); fine dials behind Advanced. (3) She adapts from use and says so ("you skip my
+  time checks, so every 30 min now"): needs the agent work, waits for the owner (0b). (4) His own context carries over:
+  profile from a ChatGPT/Claude export, marked spots, routes, friends' share packs.
+- Proof: a 10-20 rider beta (mixed bikes, headsets, styles); measure which jobs get used, lines skipped/silenced, what is
+  switched off in week one, cost per ride (0a), share of rides where nothing broke.
+- Order: 1 core ride bulletproof (voice at speed, no dropouts, no repeats) -> 2 first-run interview + presets -> 3 garage
+  of bikes with spec lookup -> 4 beta with usage tracking -> 5 adaptive behaviour (after the agent course).
+- Now: avoid new single-rider assumptions in code (put rider-specific values in CONFIG, not inline).
 
 **Next up:**
 0. **Faster spoken answers** (owner, 2026-10-19: "let's rather refocus on getting voice faster"). Measured chain today:

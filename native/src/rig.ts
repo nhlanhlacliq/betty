@@ -63,7 +63,7 @@ export async function startRide(h: RideHooks) {
   ride = new RideSession({
     real: h.real ?? true, desk: false, server: true, logger: h.logger,
     claude: new ClaudeClient(undefined, 2500, 6000, api('/api/phrase'), SERVER_HEADERS),
-    voice: { speaker, aloud: () => true, prefetch: (t) => speaker.prefetch(t), ready: (t) => speaker.ready(t) },
+    voice: { speaker, aloud: () => true, prefetch: (t) => speaker.prefetch(t), ready: (t) => speaker.ready(t), away: () => !!link?.onPhoneSpeaker() },
     sensors: [new ExpoGeoSource((m) => log('[gps]', m)), ...(h.obd ? [h.obd] : [])],
     traffic: new TomTomTrafficProvider(null), // through Betty's server (src/adapters/server)
     // A real reader is one of the sensors and stops with the ride; without one there is no engine data.

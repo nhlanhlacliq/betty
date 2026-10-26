@@ -2083,6 +2083,27 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   tv += 4000; assert.equal(sv.update(0, o).pauseMusic, false, 'dipped again below ~75 km/h');
   tv += 60000; assert.equal(sv.update(0, o).gainDb, 16, 'back to his setting');
   assert.equal(new SpeedVoice(() => 0).update(120, { ...o, pauseMusic: false }).pauseMusic, false, 'switch off: never paused');
+  CONFIG.voiceAtSpeed = { fromKmh: 60, fullKmh: 100, pauseOnKmh: 70, pauseOffKmh: 50, fallKmhPerS: 6 };
+  assert.deepEqual([speedShare(60), speedShare(80)], [0, 0.5], 'the speeds are the config');
+  assert.equal(new SpeedVoice(() => 0).update(72, o).pauseMusic, true, 'paused from its pauseOnKmh');
+  resetConfig();
+}
+
+// ---- time checks count riding minutes and wait while he stands still (CONFIG.timeChecksWhileStopped, 2026-10-26)
+{
+  let t = 9_000_000; const clockNow = () => t;
+  const run = (byClock: boolean) => {
+    resetConfig(); CONFIG.milestoneEveryMin = 5; CONFIG.timeChecksWhileStopped = byClock;
+    const e = new TriggerEngine(clockNow, () => 0.99); // rng 0.99: ambient slots roll silence
+    const ids: string[] = [];
+    const go = (kmh: number, sec: number) => { for (let i = 0; i < sec; i += 10) { t += 10_000; ids.push(...e.evaluate({ ...initialState(), speedKmh: kmh, lat: -26.1, lon: 28.1 }).map((x) => x.id)); } };
+    go(0, 8 * 60);
+    const stopped = ids.filter((x) => x === 'ride_milestone').length;
+    go(50, 6 * 60);
+    return [stopped, ids.filter((x) => x === 'ride_milestone').length];
+  };
+  assert.deepEqual(run(false), [0, 1], 'none while stopped, one after 5 riding minutes');
+  assert.equal(run(true)[0], 1, 'by the clock: one at 5 minutes even standing still');
   resetConfig();
 }
 
@@ -2539,7 +2560,31 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const ev = { id: 'ride_milestone', priority: 3, createdAt: Date.now(), context: 'Out for 20 minutes.', fallback: '' } as TriggerEvent;
   const msg = (r: ReturnType<typeof buildClaudeRequest>) => r.messages[r.messages.length - 1].content as string;
   assert.match(msg(buildClaudeRequest(ev, initialState(), lines)), /leave out of this one: mentioning your humour setting; coffee/);
-  assert.doesNotMatch(msg(buildClaudeRequest({ ...ev, id: 'rider_query', riderSaid: 'how far?' }, initialState(), lines)), /leave out/, 'not on his answers');
+  assert.match(msg(buildClaudeRequest({ ...ev, id: 'rider_query', riderSaid: 'how far?' }, initialState(), lines)), /leave out/, 'his answers too (lineRules.wornInAnswers)');
+  CONFIG.lineRules.wornInAnswers = false;
+  assert.doesNotMatch(msg(buildClaudeRequest({ ...ev, id: 'rider_query', riderSaid: 'how far?' }, initialState(), lines)), /leave out/, 'switched off: not on his answers');
+  resetConfig();
+  assert.deepEqual(wornDevices(['Twenty minutes out. Shall we keep rolling?']), ['ending on a "Shall we...?" question']);
+  CONFIG.lineRules.worn = [{ pattern: String.raw`\bmarvellous\b`, name: 'saying marvellous' }];
+  assert.deepEqual(wornDevices(['Marvellous road.']), ['saying marvellous'], 'the list is the config');
+  resetConfig();
+}
+
+// ---- line rules from the config (2026-10-26): riding advice left out, notes talk dropped, stories see each other
+{
+  const { cleanSpoken } = await import('../src/core/ClaudeClient');
+  const own = CONFIG.lineRules.advice.ownLines;
+  const o = { ambient: true, name: 'sir', recent: [], maxSentences: 3 };
+  assert.equal(cleanSpoken("Not a single bend worth mentioning. I'd happily see you lean further.", { ...o, advice: own }).text, 'Not a single bend worth mentioning.');
+  assert.equal(cleanSpoken('Ease off before the next junction.', { ...o, advice: own }).text, '', 'nothing left: silence');
+  assert.equal(cleanSpoken("I'd happily see you lean further.", o).text, "I'd happily see you lean further.", 'no list: kept');
+  const alert = cleanSpoken('Road closure on 7th Street, 0.3 km ahead. I suggest you take the next turn and reroute.', { ...o, ambient: false, advice: CONFIG.lineRules.advice.alerts });
+  assert.equal(alert.text, 'Road closure on 7th Street, 0.3 km ahead.');
+  assert.equal(cleanSpoken('About 83 km until empty. No station location has been given, so find one soon.', { ...o, ambient: false }).text, 'About 83 km until empty.');
+  const { buildClaudeRequest } = await import('../src/core/ClaudeClient');
+  const ev = { id: 'local_fact', priority: 3, createdAt: Date.now(), context: 'Centurion.', fallback: '' } as TriggerEvent;
+  const content = buildClaudeRequest(ev, initialState(), [], [], { same: ['Centurion was once the farm Droogegrond.'], story: true }).messages[0].content as string;
+  assert.match(content, /Stories and facts you already told this ride: .*Droogegrond.*never a fact/);
 }
 
 // ---- memory across rides (2026-10-18): the ride his question points at, and what was said on it

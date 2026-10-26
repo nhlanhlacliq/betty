@@ -16,6 +16,14 @@ export interface ChangeDay { date: string; items: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-26',
+    items: [
+      { id: 'time-checks-riding', kind: 'better', title: 'Time checks while you ride.', text: 'Time checks count your riding minutes and wait while you stand still, unless you switch them back to the clock.', help: 'unprompted' },
+      { id: 'briefing-first', kind: 'better', title: 'Her briefing goes first.', text: 'A warning that comes up as you set off waits for her briefing, and what the briefing covered is not said twice.', help: 'unprompted' },
+      { id: 'no-riding-advice', kind: 'better', title: 'No riding advice.', text: 'She no longer tells you how to ride or which way to go, and stories and nearby places no longer repeat each other\'s facts.', help: 'unprompted' },
+    ],
+  },
+  {
     date: '2026-10-18',
     items: [
       { id: 'faster-answers', kind: 'better', title: 'Answers start sooner.', text: 'She starts speaking with the first sentence of her answer while the rest is still being written.', help: 'talk' },

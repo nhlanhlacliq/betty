@@ -443,7 +443,10 @@ export class TriggerEngine {
       if (this.ready('ride_parked')) out.push(this.force('ride_parked', s));
     }
 
-    const mins = (this.now() - this.rideStart) / 60_000;
+    // Time checks count riding minutes and wait while he stands still, unless he wants them by the clock
+    // (CONFIG.timeChecksWhileStopped; ride of 2026-10-26: checks at a standstill nagging him to get going).
+    const byClock = CONFIG.timeChecksWhileStopped;
+    const mins = byClock ? (this.now() - this.rideStart) / 60_000 : this.stats.snapshot().movingMin;
     const due = Math.floor(mins / CONFIG.milestoneEveryMin);
     // He asked for quiet, or is parked: time checks and ambient slots pass unused (so they do not all arrive the
     // moment it ends).
@@ -470,7 +473,7 @@ export class TriggerEngine {
         return out;
       }
     }
-    if (due > this.milestonesHit && this.ready('ride_milestone')) {
+    if (due > this.milestonesHit && (byClock || this.stillSince === null) && this.ready('ride_milestone')) {
       this.milestonesHit = due;
       this.lastAmbientSlot = this.now();
       out.push(this.force('ride_milestone', s));

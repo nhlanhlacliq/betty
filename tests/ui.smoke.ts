@@ -608,7 +608,7 @@ resetConfig();
   handle.dispatchEvent(new page.window.Event('click', { bubbles: true }));
   assert.equal(homeScreen.classList.contains('dock-slim'), slimBefore);
   assert.match(doc.getElementById('whatsnewversion')!.textContent!, /Development build/);
-  assert.match(doc.getElementById('whatsnewlist')!.textContent!, /Your roads and records/);
+  assert.match(doc.getElementById('whatsnewlist')!.textContent!, /Time checks while you ride/);
   resetConfig();
 }
 

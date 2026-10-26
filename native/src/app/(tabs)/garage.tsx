@@ -89,6 +89,15 @@ export default function Garage() {
         <Setting label="Character" sub="JARVIS (polished) → TARS (blunt)">
           <Stepper value={CONFIG.persona.tars} min={0} max={100} step={10} format={(v) => `${v}% TARS`} onChange={(v) => { CONFIG.persona.tars = v; changed(); }} />
         </Setting>
+        <Setting label="Time checks while stopped" sub="Off: time checks count your riding minutes and wait until you are moving.">
+          <Toggle value={CONFIG.timeChecksWhileStopped} onChange={(v) => { CONFIG.timeChecksWhileStopped = v; changed(); }} />
+        </Setting>
+        <Setting label="Briefing first" sub="Warnings that come up as you set off wait for her briefing, and what it covered is not said twice.">
+          <Toggle value={CONFIG.briefingFirst} onChange={(v) => { CONFIG.briefingFirst = v; changed(); }} />
+        </Setting>
+        <Setting label="No riding advice" sub="She never tells you how to ride (lean further, ease off, take the next turn): she cannot see the road.">
+          <Toggle value={CONFIG.noRidingAdvice} onChange={(v) => { CONFIG.noRidingAdvice = v; changed(); }} />
+        </Setting>
         <Setting label="Little animations" sub="Her orb breathing and the small movements. Off: things just appear.">
           <Toggle value={CONFIG.motion} onChange={(v) => { CONFIG.motion = v; changed(); }} />
         </Setting>
@@ -119,11 +128,14 @@ export default function Garage() {
         <Setting label="Louder voice" sub="Her loudness in town. The phone's backup voice cannot go louder.">
           <Stepper value={CONFIG.voiceBoostDb} min={0} max={16} step={2} format={(v) => (v ? `+${v} dB` : 'Off')} onChange={(v) => { CONFIG.voiceBoostDb = v; changed(); }} />
         </Setting>
-        <Setting label="Louder at speed" sub="Extra on top, from 40 km/h up to the full amount at 120, with a brighter voice that carries through wind. Betty Link.">
+        <Setting label="Louder at speed" sub={`Extra on top, from ${CONFIG.voiceAtSpeed.fromKmh} km/h up to the full amount at ${CONFIG.voiceAtSpeed.fullKmh}, with a brighter voice that carries through wind. Betty Link.`}>
           <Stepper value={CONFIG.voiceAtSpeedDb} min={0} max={12} step={2} format={(v) => (v ? `+${v} dB` : 'Off')} onChange={(v) => { CONFIG.voiceAtSpeedDb = v; changed(); }} />
         </Setting>
-        <Setting label="Pause your music at speed" sub="Above about 90 km/h her lines pause your music instead of dipping it; below about 75 it dips again.">
+        <Setting label="Pause your music at speed" sub={`From ${CONFIG.voiceAtSpeed.pauseOnKmh} km/h her lines pause your music instead of dipping it; below ${CONFIG.voiceAtSpeed.pauseOffKmh} it dips again.`}>
           <Toggle value={CONFIG.pauseMusicAtSpeed} onChange={(v) => { CONFIG.pauseMusicAtSpeed = v; changed(); }} />
+        </Setting>
+        <Setting label="When the helmet drops" sub="Her sound falls back to the phone speaker. Alerts only: warnings and your answers still play, her own remarks wait for the helmet.">
+          <Choice value={CONFIG.onPhoneSpeaker} options={[['alerts', 'Alerts only'], ['talk', 'Keep talking']]} onChange={(v) => { CONFIG.onPhoneSpeaker = v; changed(); }} />
         </Setting>
         <Setting label="Your music while she talks" sub="Pause: silent, comes back at full volume. Dip: quieter, fades back up after (iPhone sets how far). Keep: plays on, her voice on top." last>
           <Choice value={CONFIG.musicWhileSpeaking} options={[['pause', 'Pause'], ['dip', 'Dip'], ['mix', 'Keep']]} onChange={(v) => { CONFIG.musicWhileSpeaking = v; changed(); }} />

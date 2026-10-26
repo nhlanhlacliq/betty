@@ -8,6 +8,33 @@ export type CloudVoiceMode = 'off' | 'stream' | 'mixed' | 'chirp' | 'gemini';
 /** Gemini TTS model: full sounds best; lite starts about 0.8 s sooner when streamed. */
 export type GeminiModel = 'full' | 'lite';
 
+/**
+ * The lists her lines are checked against (owner, 2026-10-26: "do not hardcode the fixes, make it maintainable and
+ * configurable"). Patterns are regular expressions, case ignored. Used by core/ClaudeClient and app/RideSession.
+ */
+export interface LineRules {
+  /** Shapes she leans on across all kinds of line: one used in the last `wornWindow` lines is left out of the next
+   *  one, so it comes back now and then rather than in every line. */
+  worn: Array<{ pattern: string; name: string }>;
+  wornWindow: number;
+  /** Also for his answers (2026-10-26: "Ten out of ten for the wet-weather optimism" padding an answer). */
+  wornInAnswers: boolean;
+  /** Story lines of these kinds see each other's earlier lines this ride, so one never retells what the other said
+   *  (2026-10-26: Centurion "once the farm Droogegrond" as an area story, then again as a local fact). */
+  storyKinds: TriggerId[];
+  storyRecall: number;
+  /** With noRidingAdvice: a sentence of her own remarks matching `ownLines` is left out; in alerts only `alerts`
+   *  (directions: Google Maps does those). */
+  advice: { ownLines: string[]; alerts: string[] };
+  /** Talk about her prompt instead of to him ("the notes say", "no station location has been given"): the sentence is
+   *  left out (an own remark that does it is dropped). */
+  meta: string[];
+  /** briefingFirst: warnings the briefing already covers, skipped when they came up before it was said */
+  briefingCovers: TriggerId[];
+  /** briefingFirst: the longest a warning waits for the briefing */
+  briefingHoldMaxMs: number;
+}
+
 export interface Config {
   /** useLean off (default): P2/P3 lines are never held back. The phone's lean reading proved too jumpy to gate on. */
   safeWindow: { useLean: boolean; maxLeanDeg: number };
@@ -109,6 +136,27 @@ export interface Config {
    * Android recorded nothing at all until this was on (2026-10-16). Off by default: the iPhone and V6 work as they are.
    */
   micRaw: boolean;
+  /** Native app, Betty Link: the speeds her loudness follows (core/Loudness SpeedVoice): none of the extra under
+   *  fromKmh, all of it at fullKmh; his music paused for her lines from pauseOnKmh, dipped again under pauseOffKmh;
+   *  coming down from speed it eases off fallKmhPerS each second (a red light is not a quiet road yet). */
+  voiceAtSpeed: { fromKmh: number; fullKmh: number; pauseOnKmh: number; pauseOffKmh: number; fallKmhPerS: number };
+  /**
+   * Native app: her sound left the helmet for the phone's own speaker mid-ride (ride of 2026-10-26: from 14:45 every
+   * line played on the phone). 'talk' = carry on there; 'alerts' = alerts and his answers still play, her own remarks
+   * are left out until the helmet is back.
+   */
+  onPhoneSpeaker: 'talk' | 'alerts';
+  /** Time checks while he stands still. Off (default): they count riding minutes and wait until he is moving
+   *  (ride of 2026-10-26: "six minutes out, a tenth of a kilometre... the only thing waiting is the throttle"). */
+  timeChecksWhileStopped: boolean;
+  /** Warnings that come up before the briefing has been said wait for it, and those it covers (lineRules.briefingCovers)
+   *  are not said again (ride of 2026-10-26: the fuel warning, then the briefing saying the same). */
+  briefingFirst: boolean;
+  /** Her own remarks never tell him how to ride (lean further, ease off, take the next turn): such a sentence is left
+   *  out, and alerts lose any directions (lineRules.advice). Owner's go-ahead, 2026-10-26. */
+  noRidingAdvice: boolean;
+  /** How her lines are checked: lists to edit, not code (see LineRules). Not saved on the phone: the code's list wins. */
+  lineRules: LineRules;
   claudeModel: string;
   /** Value for thinking.type that turns thinking off. Model-specific: Haiku takes 'disabled', Sonnet 5.5 'between_tools'. */
   claudeThinkingOff: string;
@@ -182,6 +230,69 @@ export const DEFAULT_CONFIG: Config = {
   micDeviceId: '',
   micLabel: '',
   micRaw: false,
+  voiceAtSpeed: { fromKmh: 40, fullKmh: 120, pauseOnKmh: 90, pauseOffKmh: 75, fallKmhPerS: 6 },
+  onPhoneSpeaker: 'alerts',
+  timeChecksWhileStopped: false,
+  briefingFirst: true,
+  noRidingAdvice: true,
+  lineRules: {
+    worn: [
+      { pattern: String.raw`\bout of (ten|10)\b|\bpoints? off\b|\bminus (points|nothing|one)\b`, name: 'a rating out of ten' },
+      { pattern: String.raw`\bhumou?r (setting|at \d|is set)`, name: 'mentioning your humour setting' },
+      { pattern: String.raw`\b(coffee|kettle|tea)\b`, name: 'coffee, tea or kettle jokes' },
+      { pattern: String.raw`\bshall we\b[^.!?]*\?`, name: 'ending on a "Shall we...?" question' },
+    ],
+    wornWindow: 4,
+    wornInAnswers: true,
+    storyKinds: ['area_story', 'local_fact'],
+    storyRecall: 6,
+    advice: {
+      ownLines: [
+        String.raw`\blean (further|harder|more|deeper)\b`, String.raw`\bsee you lean\b`,
+        String.raw`\b(ease|back) off\b`, String.raw`\bslow (it )?down\b`, String.raw`\b(speed|hurry) up\b`, String.raw`\bopen (it|her) up\b`,
+        String.raw`\bon this (bend|corner|curve)\b`, String.raw`\bkeep (to the )?(left|right)\b`,
+        String.raw`\b(brake|braking) (earlier|harder|later|sooner)\b`, String.raw`\btake the next (turn|exit|left|right)\b`,
+        String.raw`\bre-?route\b`, String.raw`\bturn (around|back)\b`,
+      ],
+      alerts: [
+        String.raw`\btake the next (turn|exit|left|right)\b`, String.raw`\bre-?route\b`, String.raw`\bturn (around|back)\b`,
+        String.raw`\b(take|use|find) (another|a different|an alternative|the other) (road|route|way)\b`,
+      ],
+    },
+    meta: [
+      String.raw`\b(the|my) notes\b`,
+      String.raw`\bnotes (only|say|give)\b`,
+      String.raw`\bword limit\b`,
+      String.raw`\b(two|2)[- ]sentence\b`,
+      String.raw`\bmy instructions\b`,
+      String.raw`\bthe situation (says|gives|only)\b`,
+      String.raw`\bspoken output\b`,
+      String.raw`\bsince he asked\b`,
+      String.raw`\bhe (asked|wants|is asking)\b`,
+      String.raw`\bi'?ll say so plainly\b`,
+      String.raw`\bmake up a story\b`,
+      String.raw`\bthe best story\b`,
+      String.raw`\bso i'?ll keep it (short|brief)\b`,
+      String.raw`\balready said this ride\b`,
+      String.raw`\bto tie (it )?back to\b`,
+      String.raw`\bnothing to call back\b`,
+      String.raw`\bhaving already\b`,
+      String.raw`\bnot repeating it\b`,
+      String.raw`\bi shall say nothing (further|more)\b`,
+      String.raw`\bi have not forgotten\b`,
+      String.raw`\bnot mention the (hour|time)\b`,
+      String.raw`\bthe only thing i can tie\b`,
+      String.raw`\bno earlier (warnings|alerts)\b`,
+      String.raw`\bthe (search|searches|results?|sources?) (give|gives|gave|show|shows|showed|turned up|only|were|are|say|says|did)\b`,
+      String.raw`\bi searched\b`,
+      String.raw`\bi'?ll answer from\b`,
+      String.raw`\bfrom the situation\b`,
+      String.raw`\b(has|have|had) been given\b`,
+      String.raw`\bno [a-z ]{0,30}\b(was|were|has been|is) (given|provided)\b`,
+    ],
+    briefingCovers: ['fuel_range', 'rain_soon', 'sunset_soon'],
+    briefingHoldMaxMs: 45_000,
+  },
   claudeModel: 'claude-haiku-5-5',
   claudeThinkingOff: 'disabled',
   maxSpokenSentences: 2,

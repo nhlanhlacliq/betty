@@ -411,3 +411,24 @@ GPS altitude jumps over 60 m ignored (RideStats), a talk press within 2.5 s afte
 Seen, not fixed: "playback ready (was stopped)" (her play engine restarting mid-line, 15 times); she still narrates
 lookups ("I need the weather for Pretoria, so I'll check it now"); answers pull in kept notes unasked ("you are on a
 detour, as you told me": a note from an earlier ride).
+
+### Rides of 2026-10-26: settings instead of fixes in the code
+
+Owner: from now on fixes are settings or editable lists, not code tuned to one ride. All in `src/config/betty.ts`:
+- `voiceAtSpeed` {fromKmh 40, fullKmh 120, pauseOnKmh 90, pauseOffKmh 75, fallKmhPerS 6}: the speeds `core/Loudness`
+  SpeedVoice follows (Garage subtitles read them). Neither ride logged the music pause at 140 km/h although the logic
+  works in tests: `LinkSession.speed` now logs the pause/dip BEFORE touching the module, catches and logs one failure
+  ("her loudness at speed failed (...)"), and logs once at connect how it is set. NEXT RIDE: read those lines.
+- `onPhoneSpeaker` 'alerts' (default) | 'talk': from 14:45 on 2026-10-26 every line played on the phone speaker.
+  `LinkSession.onPhoneSpeaker()` reads the route (built-in Speaker/Receiver, no Bluetooth) and logs each change;
+  RideSession leaves her P3 remarks out while `voice.away()` (log: "dropped: her sound is on the phone speaker").
+- `timeChecksWhileStopped` false: time checks count riding minutes (`RideStats.movingMin`) and wait while still.
+- `briefingFirst` true: P2 warnings raised before the briefing has played wait for it (at most `briefingHoldMaxMs`);
+  those in `lineRules.briefingCovers` (fuel, rain, sunset) are left out once it was spoken.
+- `noRidingAdvice` true + `lineRules.advice` {ownLines, alerts}: matching sentences are left out (own remarks: lean
+  further, ease off, on this bend...; alerts: directions only). Answers untouched.
+- `lineRules.worn` (+ "Shall we...?" endings, now also in answers: `wornInAnswers`), `lineRules.meta` (moved out of
+  ClaudeClient's META regex, + "has been given"), `lineRules.storyKinds`/`storyRecall`: area stories and local facts
+  see each other's earlier lines ("never a fact they gave"). `lineRules` is not persisted: the code's list wins.
+The four switches are in Garage (personality card; Voice & audio for the helmet) and persisted.
+Not fixed yet: "playback ready (was stopped)" restarts (4 a ride) and clips that played with no logged line.

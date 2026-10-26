@@ -68,6 +68,9 @@ export interface RideVoice {
   aloud(): boolean;
   prefetch?(text: string, tag: SpeakTag): void;
   ready?(text: string, tag: SpeakTag): Promise<unknown>;
+  /** Her sound is not reaching him (native: the phone's own speaker, no helmet). With CONFIG.onPhoneSpeaker 'alerts'
+   *  her own remarks are left out meanwhile. */
+  away?(): boolean;
 }
 
 /** What the app does when the ride changes. All optional: the native app and the web app each listen to what they show. */
@@ -202,6 +205,11 @@ export class RideSession {
     this.queue = new AudioQueue(d.voice.speaker, () => isSafeWindow(agg.current), Date.now, (item, fate) => this.onFate(item, fate), (item) => this.onHeard(item));
   }
 
+  /** CONFIG.briefingFirst: settles once the briefing has been said (true) or will not be (false) */
+  private briefing: Promise<boolean> | null = null;
+  private briefingSettled = false;
+  private briefingItem: { item: QueueItem; settle: (covered: boolean) => void } | null = null;
+
   private get ev(): RideEvents { return this.d.events ?? {}; }
   log(head: string, text: string) { return this.d.logger.add(head, text); }
   private changed() { this.ev.changed?.(); }
@@ -215,6 +223,7 @@ export class RideSession {
     this.changed();
   }
   private onFate(item: QueueItem, fate: Fate) {
+    if (this.briefingItem?.item === item && fate !== 'queued' && fate !== 'speaking') { this.briefingItem.settle(fate === 'spoken'); this.briefingItem = null; }
     const said: SaidLine = { text: item.text, tag: item.tag, priority: item.priority, at: Date.now() };
     if (fate === 'speaking') { clearTimeout(this.heardTimer); this.heardTimer = setTimeout(() => this.onHeard(item), 6000); }
     else {
@@ -261,13 +270,23 @@ export class RideSession {
     await agg.start();
     this.setObd(CONFIG.obdMode);
     // The pre-ride briefing: wait (briefly) for the weather and a GPS fix, so she has something to tell him.
-    if (!d.desk) void (async () => {
-      const until = Date.now() + CONFIG.feeds.briefingWaitMs;
-      const ready = () => agg.current.weather !== null && (!this.real || agg.current.lat != null);
-      await new Promise((r) => setTimeout(r, 0)); // let the ride finish setting up first
-      while (Date.now() < until && !ready()) await new Promise((r) => setTimeout(r, 250));
-      if (this.alive && !this.ending) void this.say(engine.startup(agg.current));
-    })();
+    if (!d.desk) {
+      let settle: (covered: boolean) => void = () => {};
+      if (CONFIG.briefingFirst) {
+        this.briefing = new Promise<boolean>((r) => { settle = (c) => { if (!this.briefingSettled) { this.briefingSettled = true; r(c); } }; });
+        setTimeout(() => settle(false), CONFIG.feeds.briefingWaitMs + CONFIG.lineRules.briefingHoldMaxMs); // never held for long
+      }
+      void (async () => {
+        const until = Date.now() + CONFIG.feeds.briefingWaitMs;
+        const ready = () => agg.current.weather !== null && (!this.real || agg.current.lat != null);
+        await new Promise((r) => setTimeout(r, 0)); // let the ride finish setting up first
+        while (Date.now() < until && !ready()) await new Promise((r) => setTimeout(r, 250));
+        if (!this.alive || this.ending) return settle(false);
+        const item = await this.say(engine.startup(agg.current));
+        if (!item) return settle(false);
+        this.briefingItem = { item, settle };
+      })();
+    }
   }
 
   /** The engine feed: on (the mode) or off. */
@@ -316,6 +335,14 @@ export class RideSession {
   say = async (ev: TriggerEvent, now = false, onFirst?: () => void): Promise<QueueItem | null> => {
     const { voice } = this.d;
     const { queue, engine, agg } = this;
+    // A warning that came up before her briefing waits for it; one the briefing covers is not said again.
+    if (ev.priority === 2 && this.briefing && !this.briefingSettled) {
+      const covered = await this.briefing;
+      if (covered && CONFIG.lineRules.briefingCovers.includes(ev.id)) {
+        this.log(`[P2] ${ev.id}`, '(left out: the briefing covered it)');
+        return null;
+      }
+    }
     const tag = { priority: ev.priority, id: ev.id };
     let earlyItem: QueueItem | null = null;
     const early = ev.riderSaid ? (sentence: string) => {
@@ -331,9 +358,10 @@ export class RideSession {
     // one that arrives after he asked for quiet.
     const critical = AMBIENT_IDS.includes(ev.id) && engine.ambientBlocked(agg.current);
     const hushed = ev.priority === 3 && engine.quietLeftMin() > 0;
-    const text = critical || hushed ? '' : p.text;
+    const away = ev.priority === 3 && CONFIG.onPhoneSpeaker === 'alerts' && !!voice.away?.();
+    const text = critical || hushed || away ? '' : p.text;
     const meta = `${p.source}${p.detail ? ': ' + p.detail : ''}, ${p.latencyMs} ms`;
-    const line = this.log(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : '(silent)'));
+    const line = this.log(`[P${ev.priority}] ${ev.id} (${meta})`, text || (critical ? '(dropped: critical alert active)' : hushed ? '(dropped: he asked for quiet)' : away ? '(dropped: her sound is on the phone speaker)' : '(silent)'));
     // What is still to be said: all of it, or what follows the first sentence that already went ahead.
     const toSay = p.early && earlyItem ? restAfter(text, p.early) : text;
     if (toSay && voice.aloud()) voice.prefetch?.(toSay, tag); // fetch the audio while it waits its turn

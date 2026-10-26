@@ -45,8 +45,15 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 void (async () => {
   await ride.start();
+  // Warnings that come up before the briefing wait for it (CONFIG.briefingFirst); one it covers is not said again.
+  const warn = (id: 'fuel_range' | 'traffic_incident', fallback: string) => void ride.say({ id, priority: 2, createdAt: Date.now(), context: '', fallback });
+  warn('fuel_range', 'Fuel is getting low.');
+  warn('traffic_incident', 'Closure ahead.');
   await wait(600); // the briefing (canned without a key)
   assert.ok(spoken.some((t) => /online/i.test(t)), `the briefing is spoken: ${spoken.join(' | ')}`);
+  assert.ok(/online/i.test(spoken[0]), `the briefing goes first: ${spoken.join(' | ')}`);
+  assert.ok(spoken.includes('Closure ahead.') && !spoken.includes('Fuel is getting low.'), `fuel left to the briefing, the closure said after it: ${spoken.join(' | ')}`);
+  assert.ok(logger.lines.some((l) => l.head === '[P2] fuel_range' && /briefing covered/.test(l.text)), 'and the log says why');
   assert.equal(ride.agg.current.lat, -26.14, 'GPS reaches the state');
 
   // Commands, carried out on the phone with no AI call.

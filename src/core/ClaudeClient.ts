@@ -45,6 +45,8 @@ export class ClaudeClient {
   private talk: Turn[] = [];
   /** Her lines this ride per kind (time checks, banter), so the next one of that kind does not reuse their jokes. */
   private byKind = new Map<string, string[]>();
+  /** Her story lines this ride across the kinds in CONFIG.lineRules.storyKinds (area stories, local facts). */
+  private stories: string[] = [];
   /** The offline line bank (adapters/LineBankStore): her own alert lines for when Claude cannot be asked. */
   private bank: { take(id: TriggerEvent['id'], slots: Record<string, string>): string | null } | null = null;
   useBank(b: { take(id: TriggerEvent['id'], slots: Record<string, string>): string | null } | null) { this.bank = b; }
@@ -63,12 +65,16 @@ export class ClaudeClient {
 
   async phrase(ev: TriggerEvent, state: BikeState, opt: PhraseOptions = {}): Promise<Phrase> {
     const t0 = Date.now();
-    const same = this.byKind.get(ev.id) ?? [];
+    const rules = CONFIG.lineRules;
+    const story = rules.storyKinds.includes(ev.id);
+    const same = story ? this.stories.slice(-rules.storyRecall) : this.byKind.get(ev.id) ?? [];
     // He asked for a search, or for something only a search gets right (a price, reviews, events): search, always.
     const force = !!ev.riderSaid && wantsSearch(ev.riderSaid);
-    let request = buildClaudeRequest(ev, state, this.spoken, this.talk, { forceSearch: force, same });
+    let request = buildClaudeRequest(ev, state, this.spoken, this.talk, { forceSearch: force, same, story });
+    const own = UNPROMPTED_IDS.includes(ev.id) || ev.id === 'ride_debrief';
+    const advice = !CONFIG.noRidingAdvice || ev.riderSaid ? [] : own ? rules.advice.ownLines : rules.advice.alerts;
     const clean = (t: string, maxSentences = sentencesFor(ev.id)) => cleanSpoken(t, {
-      ambient: UNPROMPTED_IDS.includes(ev.id), name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences,
+      ambient: UNPROMPTED_IDS.includes(ev.id), name: cleanRiderName(CONFIG.riderName), recent: this.spoken, maxSentences, advice,
     });
     // The first sentence of an answer goes ahead while the rest is written: not a "let me check" before a search, not
     // talk about her instructions, and only once.
@@ -76,7 +82,7 @@ export class ClaudeClient {
     const onPartial: OnPartial | undefined = opt.early && ev.riderSaid ? (content) => {
       if (early !== undefined) return;
       const first = firstSentence(answerSoFar(content));
-      if (!first || putsOff(first) || META.test(first)) return;
+      if (!first || putsOff(first) || isMeta(first)) return;
       const c = clean(first, 1).text;
       if (c) { early = c; opt.early!(c); }
     } : undefined;
@@ -85,7 +91,7 @@ export class ClaudeClient {
     // An answer that promised to look it up, or said she does not know, without searching: ask again, searching.
     // (Ride of 2026-10-17: "I shall search that speed now" seven times, and not one search.)
     if (ev.riderSaid && !force && 'text' in r && !r.searched && putsOff(r.text)) {
-      request = buildClaudeRequest(ev, state, this.spoken, this.talk, { forceSearch: true, same });
+      request = buildClaudeRequest(ev, state, this.spoken, this.talk, { forceSearch: true, same, story });
       const again = await this.callClaude(ev, request);
       if ('text' in again) { r = again; retried = true; }
     }
@@ -111,7 +117,8 @@ export class ClaudeClient {
       this.talk = [...this.talk, { said: ev.riderSaid, answer: out.text }].slice(-TALK_MEMORY);
     }
     if (out.text) {
-      if (UNPROMPTED_IDS.includes(ev.id)) this.byKind.set(ev.id, [...same, out.text].slice(-6));
+      if (story) this.stories = [...this.stories, out.text].slice(-20);
+      else if (UNPROMPTED_IDS.includes(ev.id)) this.byKind.set(ev.id, [...same, out.text].slice(-6));
       this.spoken.push(out.text);
       this.spoken = this.spoken.slice(-10);
     }
@@ -120,7 +127,7 @@ export class ClaudeClient {
   }
 
   /** Forget the conversation (a new ride). */
-  forgetTalk() { this.talk = []; this.byKind.clear(); }
+  forgetTalk() { this.talk = []; this.byKind.clear(); this.stories = []; }
 
   private async callClaude(ev: TriggerEvent, request: ClaudeRequest, onPartial?: OnPartial): Promise<Attempt> {
     if (ev.priority === 1) return { error: 'P1 never waits on the network' };
@@ -206,6 +213,8 @@ export interface RequestOptions {
   forceSearch?: boolean;
   /** Her earlier lines of the same kind this ride (time checks, banter) */
   same?: string[];
+  /** `same` are her earlier STORY lines (area stories and local facts together): no fact of theirs told again */
+  story?: boolean;
 }
 
 export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[], talk: Turn[] = [], o: RequestOptions = {}) {
@@ -236,33 +245,42 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
     system: `${flavour ? `${base}\n\n${flavour}` : base}${smart ? '\n\nHe wants this looked up: search the web before you answer, then give the result in your own words.' : ''}`,
     messages: [...history, {
       role: 'user' as const,
-      content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}${sameKind(o.same)}${ev.riderSaid ? '' : wornNote(spoken)}`,
+      content: `Situation: ${ev.context}${bike}${ev.profile ? `\n${profileNote(ev.profile)}` : ''}\nAlready said this ride: ${JSON.stringify(spoken)}${sameKind(o.same, o.story)}${ev.riderSaid && !CONFIG.lineRules.wornInAnswers ? '' : wornNote(spoken)}`,
     }],
   };
 }
 
 /** Her earlier lines of this kind: the next one needs its own joke, not theirs (18 time checks that all "suspected"). */
-const sameKind = (same?: string[]) => same?.length
-  ? `\nYour earlier lines of this same kind this ride: ${JSON.stringify(same)}. Make this one different from all of them: a new joke or angle, a different opening, and none of their phrases or comparisons.`
-  : '';
+const sameKind = (same?: string[], story = false) => !same?.length ? ''
+  : story
+    ? `\nStories and facts you already told this ride: ${JSON.stringify(same)}. Tell something they did not: never a fact, name, date or event they gave, and a different opening and joke.`
+    : `\nYour earlier lines of this same kind this ride: ${JSON.stringify(same)}. Make this one different from all of them: a new joke or angle, a different opening, and none of their phrases or comparisons.`;
 
 /**
- * Devices she leans on across ALL kinds of line (ride of 2026-10-25, 79 min: a rating out of ten "with a point off" in
- * about 25 of 40 lines, her humour setting in 10, coffee or a kettle in 8). "Already said" and same-kind lines did not
- * stop it: they are different kinds of line with the same joke. Not a ban: a device used in one of her last
- * WORN_WINDOW lines is left out of the next ones, so it comes back now and then.
+ * Shapes she leans on across ALL kinds of line (ride of 2026-10-25: a rating out of ten in about 25 of 40 lines, her
+ * humour setting in 10, coffee in 8; 2026-10-26: "Shall we...?" closing time checks). Not a ban: one used in her
+ * last few lines is left out of the next ones, so it comes back now and then. The list is CONFIG.lineRules.worn.
  */
-export const DEVICES: Array<[RegExp, string]> = [
-  [/\bout of (ten|10)\b|\bpoints? off\b/i, 'a rating out of ten'],
-  [/\bhumou?r (setting|at \d|is set)/i, 'mentioning your humour setting'],
-  [/\b(coffee|kettle|tea)\b/i, 'coffee, tea or kettle jokes'],
-];
-const WORN_WINDOW = 4;
-export const wornDevices = (spoken: string[]) => DEVICES.filter(([re]) => spoken.slice(-WORN_WINDOW).some((l) => re.test(l))).map(([, name]) => name);
+export const wornDevices = (spoken: string[]) => {
+  const r = CONFIG.lineRules;
+  return r.worn.filter((w) => spoken.slice(-r.wornWindow).some((l) => rx(w.pattern).test(l))).map((w) => w.name);
+};
 const wornNote = (spoken: string[]) => {
   const w = wornDevices(spoken);
   return w.length ? `\nUsed in your last few lines, so leave out of this one: ${w.join('; ')}. Find another shape for the line.` : '';
 };
+
+/** A pattern (or a list of them, any one matching) from the config as a case-blind regular expression, compiled once. */
+const compiled = new Map<string, RegExp>();
+export function rx(patterns: string | string[]): RegExp {
+  const list = typeof patterns === 'string' ? [patterns] : patterns;
+  const key = list.join('\u0000');
+  let r = compiled.get(key);
+  if (!r) { r = new RegExp(list.length ? list.map((p) => `(?:${p})`).join('|') : '(?!)', 'i'); compiled.set(key, r); }
+  return r;
+}
+/** Talk about the prompt instead of to the rider ("the notes only say...", "no station location has been given"). */
+const isMeta = (t: string) => rx(CONFIG.lineRules.meta).test(t);
 
 const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -273,10 +291,10 @@ export interface CleanOptions {
   /** Lines already spoken this ride, oldest first */
   recent: string[];
   maxSentences: number;
+  /** Patterns for riding advice to leave out of this line (none: keep everything) */
+  advice?: string[];
 }
 
-/** Talk about the prompt instead of to the rider: "the notes only say...", "that breaks the word limit". */
-const META = /\b(the|my) notes\b|\bnotes (only|say|give)\b|\bword limit\b|\b(two|2)[- ]sentence\b|\bmy instructions\b|\bthe situation (says|gives|only)\b|\bspoken output\b|\bsince he asked\b|\bhe (asked|wants|is asking)\b|\bi'?ll say so plainly\b|\bmake up a story\b|\bthe best story\b|\bso i'?ll keep it (short|brief)\b|\balready said this ride\b|\bto tie (it )?back to\b|\bnothing to call back\b|\bhaving already\b|\bnot repeating it\b|\bi shall say nothing (further|more)\b|\bi have not forgotten\b|\bnot mention the (hour|time)\b|\bthe only thing i can tie\b|\bno earlier (warnings|alerts)\b|\bthe (search|searches|results?|sources?) (give|gives|gave|show|shows|showed|turned up|only|were|are|say|says|did)\b|\bi searched\b|\bi'?ll answer from\b|\bfrom the situation\b/i;
 /** The start of a second thought: everything from here on is the model talking to itself. */
 const SECOND_THOUGHT = /\n\s*\n|\n?\s*(Wait,|Correction:|Corrected:|Revised:|Actually, let me|Let me rephrase)/;
 
@@ -292,10 +310,19 @@ export function cleanSpoken(raw: string, o: CleanOptions): { text: string; note:
   const cut = raw.search(SECOND_THOUGHT);
   let text = (cut > 0 ? raw.slice(0, cut) : raw).replace(new RegExp(`\\b${SILENT_TOKEN}\\b\\.?`, 'g'), '').replace(/\s+/g, ' ').trim();
   let note = cut > 0 ? 'cut off where it started talking to itself' : '';
-  if (META.test(text)) {
+  if (isMeta(text)) {
     if (o.ambient) return { text: '', note: 'talked about its instructions, dropped' };
-    const kept = text.split(/(?<=[.!?])\s+/).filter((s) => !META.test(s)).join(' ');
+    const kept = text.split(/(?<=[.!?])\s+/).filter((s) => !isMeta(s)).join(' ');
     if (kept) { text = kept; note = 'removed talk about its instructions'; }
+  }
+  // Telling him how to ride (CONFIG.noRidingAdvice): she cannot see the road. Only that sentence goes; an own remark
+  // left with nothing is silence, an alert with nothing falls back to its canned line.
+  if (o.advice?.length) {
+    const re = rx(o.advice);
+    if (re.test(text)) {
+      text = text.split(/(?<=[.!?])\s+/).filter((s) => !re.test(s)).join(' ');
+      note = note ? `${note}; left out riding advice` : 'left out riding advice';
+    }
   }
   const sentences = text.split(/(?<=[.!?])\s+/);
   if (sentences.length > o.maxSentences) { text = sentences.slice(0, o.maxSentences).join(' '); note ||= 'shortened'; }
