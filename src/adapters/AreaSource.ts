@@ -2,6 +2,8 @@ import { kv } from './kv';
 import { serverFetch } from './server';
 import { haversineKm, LatLon } from '../core/geo';
 import { AreaInfo, AreaNote, BikeState, DataSource } from '../core/types';
+import { CONFIG } from '../config/betty';
+import { stopsArea, type GoodStop } from '../core/Stops';
 
 const KEY = 'betty.areas.v1';
 /** Look the area up again after moving this far (km). */
@@ -35,6 +37,33 @@ export const AreaStore = {
     try { const a = this.all(); if (a[area]) { a[area] = { ...a[area], lat: pos.lat, lon: pos.lon }; kv.setItem(KEY, JSON.stringify(a)); } } catch { /* storage blocked */ }
   },
 };
+
+const STOPS_KEY = 'betty.stops.v1';
+let stopsCache: Record<string, { at: number; stops: GoodStop[] }> | null = null;
+/** Good places to stop per area (core/Stops), researched once and kept (in the backup like every betty.* entry). */
+export const StopStore = {
+  all(): Record<string, { at: number; stops: GoodStop[] }> {
+    if (!stopsCache) { try { stopsCache = JSON.parse(kv.getItem(STOPS_KEY) ?? '{}'); } catch { stopsCache = {}; } }
+    return stopsCache!;
+  },
+  get(area: string): GoodStop[] | null { return this.all()[area]?.stops ?? null; },
+  put(area: string, stops: GoodStop[]) {
+    const a = this.all(); a[area] = { at: Date.now(), stops };
+    try { kv.setItem(STOPS_KEY, JSON.stringify(a)); } catch { /* storage blocked */ }
+  },
+};
+
+/** Look up the good stops of one area once (api/story kind "stops": a model searching reviews, ~4 US cents). An
+ *  area with none found is kept empty, so it is not asked again. */
+export async function researchStops(area: string, region: string, fetcher: typeof fetch = serverFetch): Promise<GoodStop[]> {
+  const res = await fetcher('/api/story', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'stops', area: area.slice(0, 80), region: region.slice(0, 80) }) });
+  const out: any = await res.json().catch(() => ({}));
+  if (res.status === 502 && /no stops/.test(out?.error ?? '')) { StopStore.put(area, []); return []; }
+  if (!res.ok) throw new Error(out?.error || `HTTP ${res.status}`);
+  const stops: GoodStop[] = (out.stops ?? []).filter((x: any) => x?.name && x?.why);
+  StopStore.put(area, stops);
+  return stops;
+}
 
 /** The areas worth a story at a spot: the town, and the suburb when it is not just part of the town's name. */
 export function areasOf(a: AreaInfo): Array<{ name: string; key: string }> {
@@ -77,6 +106,9 @@ export async function researchAhead(stops: Array<{ name: string; lat: number; lo
         if (!kept) { onStatus(`researching ${a.name} ahead`); kept = await researchArea(a.name, a.key, [], fetcher); AreaStore.put(a.key, kept, pos); }
         n += kept.length;
       }
+      // Good stops in the towns he plans to stop in, ready before he gets there.
+      const here = stopsArea(info);
+      if (CONFIG.stopsOn && here && StopStore.get(here) === null) { onStatus(`finding good stops in ${here}`); await researchStops(here, [info.region, 'South Africa'].filter(Boolean).join(', '), fetcher).catch(() => {}); }
       out[s.name] = n;
     } catch { /* that stop waits for the ride itself */ }
   }

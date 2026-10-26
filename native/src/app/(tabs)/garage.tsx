@@ -101,6 +101,9 @@ export default function Garage() {
         <Setting label="Landmarks you pass" sub={`When you ride within ${CONFIG.landmarks.hereKm} km of something worth a look (a telescope, a dam, a monument), she tells you what it is.`}>
           <Toggle value={CONFIG.landmarksOn} onChange={(v) => { CONFIG.landmarksOn = v; changed(); }} />
         </Setting>
+        <Setting label="Good places to stop" sub="When you stop for a couple of minutes, she suggests a good café, meal or sight nearby (looked up once per area from reviews), and knows them when you ask.">
+          <Toggle value={CONFIG.stopsOn} onChange={(v) => { CONFIG.stopsOn = v; changed(); }} />
+        </Setting>
         <Setting label="Little animations" sub="Her orb breathing and the small movements. Off: things just appear.">
           <Toggle value={CONFIG.motion} onChange={(v) => { CONFIG.motion = v; changed(); }} />
         </Setting>

@@ -23,6 +23,8 @@ import { FuelStore } from '../adapters/FuelStore';
 import { HorizonDismissed } from '../adapters/HorizonDismissed';
 import { IncidentMemory } from '../adapters/IncidentMemory';
 import { LandmarkSource, LandmarkTold } from '../adapters/LandmarkSource';
+import { StopStore, researchStops } from '../adapters/AreaSource';
+import { stopsArea } from '../core/Stops';
 import { LineBankStore } from '../adapters/LineBankStore';
 import { LineLogStore } from '../adapters/LineLogStore';
 import { PlaceSource } from '../adapters/PlaceSource';
@@ -189,6 +191,7 @@ export class RideSession {
     engine.setMemory(RiderMemoryStore.load());
     engine.setToldNotes(ToldStore.load());
     engine.setLandmarksTold(LandmarkTold.load());
+    engine.setStopsLookup((area) => StopStore.get(area));
     engine.setRoute(RouteStore.get()); // the route he planned, if any
     // Where he has ridden before: new roads, familiar ones (real rides only). Saved each minute and at the end.
     this.roadMem = !d.desk && d.real ? new RoadMemory(RoadCells.load(() => {
@@ -214,6 +217,8 @@ export class RideSession {
   }
 
   /** CONFIG.briefingFirst: settles once the briefing has been said (true) or will not be (false) */
+  /** Areas whose good stops were asked for this ride (once each) */
+  private stopsAsked = new Set<string>();
   private briefing: Promise<boolean> | null = null;
   private briefingSettled = false;
   private briefingItem: { item: QueueItem; settle: (covered: boolean) => void } | null = null;
@@ -270,6 +275,14 @@ export class RideSession {
       const toReserve = s.obd ? null : engine.fuelKmLeft();
       if (d.server && !d.desk && toReserve !== null && toReserve <= CONFIG.fuel.warnKmLeft + 40 && s.lat != null && s.lon != null) {
         void this.stations.near(s.lat, s.lon).then((l) => engine.setStations(l));
+      }
+      // Stopped a while: the good places here are looked up once (kept per area), in time for her suggestion.
+      const here = CONFIG.stopsOn && d.server && !d.desk ? stopsArea(s.area) : null;
+      if (here && !this.stopsAsked.has(here) && StopStore.get(here) === null && engine.stillForMs() >= CONFIG.stops.researchAfterSec * 1000) {
+        this.stopsAsked.add(here);
+        this.log('[stops]', `finding good stops in ${here}`);
+        void researchStops(here, [s.area?.region, 'South Africa'].filter(Boolean).join(', '))
+          .then((l) => this.log('[stops]', `${here}: ${l.length ? l.map((x) => x.name).join(', ') : 'none found'}`), (e) => this.log('[stops]', `${here}: lookup failed (${(e as Error).message})`));
       }
       engine.evaluate(s).forEach((ev) => void this.say(ev));
       this.queue.pump();

@@ -1,4 +1,5 @@
 import { landmarkContext, passingNow, sameSite, type Passing } from './Landmarks';
+import { stopsArea, stopsNote, type GoodStop } from './Stops';
 import { CONFIG, cleanBikeName, cleanRiderName } from '../config/betty';
 import { BANK_SPEC } from './LineBank';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
@@ -11,7 +12,7 @@ import { RoadMemory } from './RoadMemory';
 import { RoughSpot, roughAhead } from './RoughSpots';
 import { BREAK_MS, COLD_FEELS_C, CROSSWIND_KMH, crosswind, fatigueDueMin, feelsLikeC } from './Comfort';
 import { Station, describeFuelPlan, describeStations, fuelLeft, kmToReserve, routeFuelPlan, stationsAhead } from './Fuel';
-import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs } from './ambient';
+import { banterContext, banterTopics, chooseAmbient, situationDigest, clockNote, freshPlace, greetingFor, pickMode, pickTopic, placesFromHere, whereIs, partOfDay } from './ambient';
 import { RideRecord } from './RideMemory';
 import { RideSnapshot, RideStats } from './RideStats';
 import { angleDiff, bearingDeg, haversineKm } from './geo';
@@ -111,7 +112,7 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
-    this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.newRoadArmed = true; this.saidLongest = false; this.lastDistance = 0;
+    this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.newRoadArmed = true; this.goodStopsSaid.clear(); this.saidLongest = false; this.lastDistance = 0;
     this.rainWarned.clear(); this.movingAtBreak = 0; this.fatigueAtMoving = null; this.coldSaid = false;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
     this.stats = new RideStats(this.now);
@@ -177,6 +178,18 @@ export class TriggerEngine {
   private landmarkTold = new Map<string, number>();
   private landmarkNow: Passing | null = null;
   private landmarkTimes: number[] = [];
+  /** Good stops per area, kept on the phone (adapters/StopStore); the areas told this ride. */
+  private stopsOf: (area: string) => GoodStop[] | null = () => null;
+  private goodStopsSaid = new Set<string>();
+  setStopsLookup(f: (area: string) => GoodStop[] | null) { this.stopsOf = f; }
+  /** How long he has been standing still (ms), 0 while moving. */
+  stillForMs(): number { return this.stillSince === null ? 0 : this.now() - this.stillSince; }
+  /** What she knows about good stops where he is, for answers (empty when nothing is kept for here). */
+  private stopsHere(s: BikeState): string {
+    if (!CONFIG.stopsOn) return '';
+    const area = stopsArea(s.area); const list = area ? this.stopsOf(area) : null;
+    return area && list?.length ? ` ${stopsNote(area, list)}` : '';
+  }
   setLandmarksTold(r: Record<string, number>) { this.landmarkTold = new Map(Object.entries(r)); }
   landmarksTold(): Record<string, number> { return Object.fromEntries(this.landmarkTold); }
   toldNoteIds(): string[] { return [...this.toldNotes]; }
@@ -317,7 +330,7 @@ export class TriggerEngine {
     const kept = describeMemory(this.memory, here, this.now());
     const route = this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ' No route planned.';
     const quiet = this.quietLeftMin() > 0 ? ' You are being quiet: he asked for peace (alerts and answers still go).' : '';
-    return `Local time: ${clockNote(new Date(this.now()))}. ${digest}${kept ? ` ${kept}` : ''}${route}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${quiet}`;
+    return `Local time: ${clockNote(new Date(this.now()))}. ${digest}${kept ? ` ${kept}` : ''}${this.stopsHere(s)}${route}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${quiet}`;
   }
 
   /** Emit an event now, ignoring cooldowns (simulator buttons, rider queries). */
@@ -479,6 +492,13 @@ export class TriggerEngine {
         try { out.push(this.force('ride_record', s)); } finally { this.recordNow = null; }
         return out;
       }
+    }
+    // He has stopped a while where she knows good places: one suggestion, once per area a ride (CONFIG.stops).
+    const area = CONFIG.stopsOn ? stopsArea(s.area) : null;
+    if (area && !this.goodStopsSaid.has(area) && this.stillForMs() >= CONFIG.stops.sayAfterSec * 1000 && this.stopsOf(area)?.length && this.ready('good_stop')) {
+      out.push(this.force('good_stop', s));
+      this.lastAmbientSlot = this.now();
+      return out;
     }
     // A landmark he is passing right now (CONFIG.landmarks): its moment is now, so it does not wait for a slot, but it
     // keeps its distance from her last remark of her own.
@@ -743,6 +763,14 @@ export class TriggerEngine {
           mark: () => { this.topicUse.set(topic.id, { bucket: topic.bucket, seq: ++this.topicSeq }); this.lastMode = mode.id; },
         };
       }
+      case 'good_stop': {
+        const area = stopsArea(s.area); const list = area ? this.stopsOf(area) : null;
+        if (!area || !list?.length) return { context: '', fallback: '' };
+        return {
+          context: `He has stopped in ${area} for a few minutes; it is ${partOfDay(new Date(this.now()).getHours())}. ${stopsNote(area, list)}`, fallback: '',
+          mark: () => { this.goodStopsSaid.add(area); },
+        };
+      }
       case 'landmark': {
         const p = this.landmarkNow;
         if (!p) return { context: '', fallback: '' };
@@ -815,7 +843,7 @@ export class TriggerEngine {
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
           const kept = describeMemory(this.memory, here, this.now());
           return {
-            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${(() => { const r = this.recall?.(this.riderText) ?? ''; return r ? ` ${r}` : ''; })()}${this.roads ? (() => { const n = this.roads.familiarity(); return n >= 2 ? ` He has ridden this stretch on about ${n} earlier rides with you.` : this.roads.newStretch() ? ' This stretch is new: he has not ridden it with you before.' : ''; })() : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
+            context: `He just said to you: "${this.riderText}". What you know right now: ${digest}${kept ? ` ${kept}` : ''}${this.stopsHere(s)}${this.route ? ` ${describeRoute(this.route, this.progress, this.detour)}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx.filter((w) => w.at > this.now()))}` : ''}` : ''}${!s.obd && this.fuelNow() ? ` Fuel: ${this.fuelNote(s)}` : ''}${this.dueFor(this.riderText)}${(() => { const r = this.recall?.(this.riderText) ?? ''; return r ? ` ${r}` : ''; })()}${this.roads ? (() => { const n = this.roads.familiarity(); return n >= 2 ? ` He has ridden this stretch on about ${n} earlier rides with you.` : this.roads.newStretch() ? ' This stretch is new: he has not ridden it with you before.' : ''; })() : ''}${this.riderNoted.length ? ` ${this.riderNoted.join(' ')}` : ''}`,
             fallback: `I can't think that one through without a signal. You're ${Math.round(r.minutesOut)} minutes in, ${r.distanceKm} kilometres done.`,
           };
         }

@@ -2976,4 +2976,28 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- good places to stop (2026-10-26): kept per area, one suggestion once he has stopped a while, and in answers
+{
+  const { parseStops } = await import('../api/story');
+  assert.deepEqual(parseStops('Here: {"stops":[{"name":"Cocopan","kind":"cafe","why":"Known for great coffee and quiche."},{"name":"X","kind":"spaceport","why":"too short"},{"name":"Oppistasie","kind":"bar","why":"A biker favourite in the old station."}]}'),
+    [{ name: 'Cocopan', kind: 'cafe', why: 'Known for great coffee and quiche.' }, { name: 'Oppistasie', kind: 'other', why: 'A biker favourite in the old station.' }]);
+  assert.deepEqual(parseStops('no json'), []);
+  let t = 30_000_000;
+  const e = new TriggerEngine(() => t, () => 0.99);
+  const kept: Record<string, { name: string; kind: string; why: string }[]> = { Cullinan: [{ name: 'Cocopan', kind: 'cafe', why: 'Known for great coffee and quiche.' }] };
+  e.setStopsLookup((a) => kept[a] ?? null);
+  const st = { ...initialState(), lat: -25.67, lon: 28.52, speedKmh: 0, area: { suburb: 'Cullinan', town: 'Tshwane', region: 'Gauteng' } };
+  const ids: string[] = [];
+  e.evaluate({ ...st, speedKmh: 40 });
+  for (let i = 0; i < 30; i++) { t += 10_000; ids.push(...e.evaluate(st).map((x) => x.id)); }
+  assert.equal(ids.filter((x) => x === 'good_stop').length, 1, 'once for the area');
+  const ev = e.force('good_stop', st);
+  assert.match(ev.context, /stopped in Cullinan.*Cocopan \(cafe\): Known for great coffee/);
+  assert.match(e.voiceSituation(st), /Places worth stopping at in Cullinan/, 'answers know them');
+  assert.doesNotMatch(e.voiceSituation({ ...st, area: { suburb: 'Edenvale', town: 'Ekurhuleni', region: 'Gauteng' } }), /worth stopping/, 'nothing kept for here');
+  CONFIG.stopsOn = false;
+  assert.doesNotMatch(e.voiceSituation(st), /worth stopping/, 'switched off');
+  resetConfig();
+}
+
 console.log('all core tests passed');

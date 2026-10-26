@@ -37,7 +37,7 @@ async function overpass(data: string): Promise<any[] | null> {
     try {
       const res = await fetch(`https://${host}/api/interpreter`, {
         method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA },
-        body: `data=${encodeURIComponent(data)}`, signal: AbortSignal.timeout(15_000),
+        body: `data=${encodeURIComponent(data)}`, signal: AbortSignal.timeout(8_000), // the public servers are often full: give up quickly, Wikidata still answers
       });
       if (res.ok) return (((await res.json()) as any).elements ?? []).map((x: any) => ({ type: x.type, id: x.id, lat: x.lat, lon: x.lon, center: x.center, tags: x.tags }));
     } catch { /* next mirror */ }

@@ -174,6 +174,11 @@ export interface Config {
     researchFrom: number; researchKm: number; retellDays: number; tileDeg: number;
     kinds: Array<{ pattern: string; weight: number }>; skip: string[]; never: string[];
   };
+  /** Good places to stop (coffee, food, a pub, a sight), researched once per area by reputation (core/Stops). */
+  stopsOn: boolean;
+  /** researchAfterSec: stopped this long, the area's stops are looked up (~4 US cents, once per area, kept);
+   *  sayAfterSec: stopped this long, she mentions one or two (once per area a ride); maxListed: how many she is given. */
+  stops: { researchAfterSec: number; sayAfterSec: number; maxListed: number };
   /** How her lines are checked: lists to edit, not code (see LineRules). Not saved on the phone: the code's list wins. */
   lineRules: LineRules;
   claudeModel: string;
@@ -204,7 +209,7 @@ export const DEFAULT_CONFIG: Config = {
     startup: 4, engine_overtemp: 1, dtc_detected: 1, low_fuel: 2,
     rain_soon: 2, traffic_incident: 2, ride_milestone: 3, rider_query: 4,
     ambient_banter: 3, local_fact: 3, area_story: 3, marked_spot: 2, off_route: 2, route_stop: 2, route_arrived: 2,
-    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2, new_road: 3, rough_patch: 2, landmark: 3,
+    fuel_range: 2, sunset_soon: 2, ride_debrief: 4, ride_parked: 2, ride_record: 3, route_weather: 2, fatigue: 2, wind_cold: 2, new_road: 3, rough_patch: 2, landmark: 3, good_stop: 3,
   },
   cooldownsMs: {
     startup: 0, engine_overtemp: 60_000, dtc_detected: 600_000, low_fuel: 600_000,
@@ -212,7 +217,7 @@ export const DEFAULT_CONFIG: Config = {
     ambient_banter: 0, local_fact: 0, area_story: 0, // paced by ambientCooldownMs, not per-trigger
     marked_spot: 30_000, // each spot is also warned at most once in 10 minutes
     off_route: 60_000, route_stop: 0, route_arrived: 0, // each stop and the arrival are said once per route
-    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, new_road: 1_200_000, rough_patch: 30_000, landmark: 30_000, // sunset: once per evening
+    fuel_range: 900_000, sunset_soon: 6 * 3_600_000, ride_debrief: 0, ride_parked: 600_000, ride_record: 0, route_weather: 0, fatigue: 0, wind_cold: 1_800_000, new_road: 1_200_000, rough_patch: 30_000, landmark: 30_000, good_stop: 0, // once per area a ride // sunset: once per evening
   },
   ambientCooldownMs: 2 * 60 * 1000,
   ambientMaxAgeMs: 60_000,
@@ -255,6 +260,8 @@ export const DEFAULT_CONFIG: Config = {
   briefingFirst: true,
   noRidingAdvice: true,
   landmarksOn: true,
+  stopsOn: true,
+  stops: { researchAfterSec: 45, sayAfterSec: 120, maxListed: 4 },
   landmarks: {
     hereKm: 1.5, aheadDeg: 110, minKmh: 15, minGapMs: 45_000, minWeight: 2, clusterKm: 0.6, maxPerHour: 4,
     researchFrom: 3, researchKm: 6, retellDays: 30, tileDeg: 0.1,
@@ -574,6 +581,11 @@ through Germiston, which..."). The note is your only source: add no facts to it,
 Never mention notes, research, sources or websites. If the note truly has no story in it, reply with exactly ${SILENT_TOKEN}.`,
   ride_debrief: `The ride has just ended and this is your sign-off. Sum it up warmly.
 Pick the two or three most telling things from the summary; do not list every figure. No advice, no safety lecture.`,
+  good_stop: `This is a friendly suggestion, not an alert: he has stopped for a few minutes, and you know good places
+here. Suggest one (two at most) that fits the part of the day the situation gives (coffee or breakfast in the morning,
+lunch at midday, a pub or a meal in the evening, a sight any time): its name and what it is known for, in a sentence or
+two. Only places the situation lists, only what it says about them. A suggestion, never pressure; never tell him to
+ride anywhere. Never mention reviews, your notes or where you got it.`,
   landmark: `This is a tour-guide remark, not an alert: he is riding past something worth a look, right now.
 Say what it is and where it is, so he knows what he is looking at, then the single most interesting thing about it from
 the situation: what it does, who built it, what happened there. One or two sentences, with a bit of colour.
@@ -599,6 +611,7 @@ export const VOICE_STYLES: Record<string, string> = {
   ambient_banter: 'dry and wry, quietly amused',
   local_fact: 'warm and curious, like a local friend sharing a good story',
   landmark: 'warm and curious, like a local friend sharing a good story',
+  good_stop: 'relaxed and friendly, like a local friend with a tip',
   area_story: 'warm and curious, like a local friend sharing a good story',
   rider_query: 'relaxed and friendly, conversational',
   ride_milestone: 'dry, lightly amused',

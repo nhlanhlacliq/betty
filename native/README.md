@@ -449,3 +449,18 @@ the moment he passes, at least minGapMs 45 s after her last own remark, moving >
 live against Wikidata: the Hartebeesthoek tile scores the observatory, telescope, MeerKAT dish and Damhoekpas 3, the
 biosphere reserve 2, schools/lodge/clinic 0. Switch: Garage > Betty's personality > Landmarks you pass (`landmarksOn`).
 Not yet: landmarks in Explore; the web Garage switch (on by default there too).
+
+### Good places to stop (BUILT 2026-10-26, NOT YET ON A RIDE)
+
+Owner: coffee shops, restaurants "with genuine interest and value", without Google Places (Enterprise with ratings is
+$35/1,000 after 1,000 free a month, re-billed every ride, and its terms forbid keeping results past 30 days).
+api/story `kind: 'stops'` (stopsPrompt/parseStops): a model that searches the web picks up to 6 by reputation. The
+provider is swappable on the server (`RESEARCH_PROVIDER`, default claude; `RESEARCH_MODEL` overrides Haiku): checked
+live for Cullinan, Claude Haiku made 3 real searches (Tripadvisor ratings in its reasons, ~3.6 US cents); Gemini
+3.5-flash-lite / 3.8-flash with google_search returned NO search queries (answers from memory, invented-looking
+addresses); Groq compound models were not on the key. `core/Stops` (stopsArea = suburb else town, stopsNote),
+`StopStore` (`betty.stops.v1`, AreaSource.ts; an area with none found is kept empty), looked up only when useful:
+stopped `stops.researchAfterSec` 45 s (RideSession, once per area a ride) and for route stops (researchAhead).
+Trigger `good_stop` (P3): stopped `sayAfterSec` 120 s in an area with stops, once per area a ride, fits the part of
+day. Answers (web) and the voice server's situation (native, `voiceSituation`) carry the list: no server change.
+Switch: Garage > Betty's personality > Good places to stop (`stopsOn`).
