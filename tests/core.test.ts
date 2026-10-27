@@ -3390,7 +3390,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
 {
   resetConfig();
   const P = await import('../src/core/PathAhead');
-  const { packWays } = await import('../api/roads');
+  const { packWays } = await import('../api/_roads');
   // a straight road north from (-26.1, 28.1), a point every ~110 m
   const north: [number, number][] = Array.from({ length: 80 }, (_, i) => [-26.1 + i * 0.001, 28.1]);
   const o = P.onPath(north, { lat: -26.095, lon: 28.1003 })!;

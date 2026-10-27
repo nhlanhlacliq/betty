@@ -1,4 +1,5 @@
 import { fromBetty, json } from './_shared.js';
+import { roadsGET } from './_roads.js';
 
 /**
  * GET /api/borders?tile=<lat>,<lon>  (a 0.1 degree tile, about 10 km; its south-west corner)
@@ -62,6 +63,8 @@ async function metroBox(spec: string): Promise<Response> {
 }
 
 export async function GET(req: Request): Promise<Response> {
+  // /api/roads is rewritten here (vercel.json): the Hobby plan allows 12 functions, and both read OpenStreetMap.
+  if (new URL(req.url).searchParams.has('roads')) return roadsGET(req);
   if (!fromBetty(req)) return json({ error: 'not allowed' }, 403);
   const box = new URL(req.url).searchParams.get('box');
   if (box) return metroBox(box);

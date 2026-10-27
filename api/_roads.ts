@@ -44,7 +44,7 @@ export function packWays(elements: any[]): Array<[number, number, string, number
   return out;
 }
 
-export async function GET(req: Request): Promise<Response> {
+export async function roadsGET(req: Request): Promise<Response> {
   if (!fromBetty(req)) return json({ error: 'not allowed' }, 403);
   const q = new URL(req.url).searchParams;
   const m = q.get('tile')?.match(/^(-?\d{1,2}(?:\.\d{1,3})?),(-?\d{1,3}(?:\.\d{1,3})?)$/);

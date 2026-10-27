@@ -1,3 +1,4 @@
 {
-  "regions": ["cpt1"]
+  "regions": ["cpt1"],
+  "rewrites": [{ "source": "/api/roads", "destination": "/api/borders?roads=1" }]
 }
