@@ -19,7 +19,9 @@ import { TriggerEngine, isSafeWindow } from '../core/TriggerEngine';
 import { placesFromHere } from '../core/ambient';
 import { AMBIENT_IDS, BikeState, DataSource, TriggerEvent } from '../core/types';
 import { AreaSource, ToldStore, researchAhead } from '../adapters/AreaSource';
-import { FuelStore } from '../adapters/FuelStore';
+import { BikeCounter, FuelStore } from '../adapters/FuelStore';
+import { FillUpInput, noteFillUp } from './fillUp';
+import { litresSaid, saysPartial } from '../core/FillUps';
 import { HorizonDismissed } from '../adapters/HorizonDismissed';
 import { IncidentMemory } from '../adapters/IncidentMemory';
 import { LandmarkSource, LandmarkTold } from '../adapters/LandmarkSource';
@@ -333,6 +335,8 @@ export class RideSession {
     const rec = d.desk ? null : toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null, CONFIG.fuel);
     if (rec) RideLog.save(rec);
     FuelStore.save(engine.kmSinceFill());
+    const counter = agg.current.engine.kmSinceClear;
+    if (counter != null) BikeCounter.save(counter); // for fill-ups made with no ride running
     // Betty's odometer (service reminders): only real rides count, as a delta so an odometer set mid-ride is kept.
     if (!d.desk && d.real) { const km = engine.rideSnapshot().distanceKm; ServiceStore.addKm(km - this.odoSaved); this.odoSaved = km; engine.setServiceBook(ServiceStore.load()); }
     IncidentMemory.save(engine.announcedIncidents());
@@ -454,7 +458,13 @@ export class RideSession {
   }
 
   /** He filled up (the button, Horizon's card, or said so in passing). */
-  filledUp() { this.engine.filledUp(); FuelStore.save(0); this.ev.fuelChanged?.(); }
+  filledUp(o: FillUpInput = {}) {
+    const r = noteFillUp(o, this.engine.kmSinceFill(), this.agg.current.engine.kmSinceClear ?? BikeCounter.load());
+    this.engine.refuelled(r.km);
+    this.log('[fuel]', r.text);
+    this.ev.fuelChanged?.();
+    return r;
+  }
 
   /** Horizon: he dismissed a traffic card. Hidden for a week, and she will not announce or brief him on it. */
   dismiss(key: string) { HorizonDismissed.add(key); this.dismissed = HorizonDismissed.load(); this.engine.knowIncident(key); this.changed(); }
@@ -466,7 +476,7 @@ export class RideSession {
 
   /** Horizon's one button per card. False for a card whose action is the app's own (Up ahead opens a sheet). */
   island(kind: GlanceAction, g: Glance): boolean {
-    if (kind === 'filled') { this.filledUp(); this.ev.toast?.(`Fill-up noted: about ${Math.round(kmToReserve(CONFIG.fuel))} km of range.`); this.changed(); }
+    if (kind === 'filled') { this.ev.toast?.(this.filledUp().text); this.changed(); }
     else if (kind === 'ask-rain') void this.ask('Is the rain going to last, and will it catch me on this ride?');
     else if (kind === 'ask-traffic') void this.ask('Tell me about the traffic on my way.');
     else if (kind === 'ask-place') void this.ask(`Tell me about ${g.value}.`);
@@ -631,9 +641,9 @@ export class RideSession {
     // Said in passing, anywhere in a sentence: "I was just filling up", "we're taking a bit of a detour".
     const noted: string[] = [];
     if (saysFilledUp(text)) {
-      this.filledUp();
-      this.log('[heard]', `fill-up: range reset to ${Math.round(kmToReserve(CONFIG.fuel))} km`);
-      noted.push(`The phone has just recorded his fill-up from what he said: fuel range reset to about ${Math.round(kmToReserve(CONFIG.fuel))} km.`);
+      const r = this.filledUp({ litres: litresSaid(text), full: !saysPartial(text) });
+      this.log('[heard]', `fill-up: ${r.text}`);
+      noted.push(`The phone has just recorded his fill-up from what he said: ${r.text}`);
     }
     if (saysDetour(text) && engine.routeNow() && !engine.onDetour()) {
       engine.setDetour(true);

@@ -11,7 +11,9 @@ import { JourneyStore } from '../../../../src/adapters/JourneyStore';
 import { exportAll, pickFile, restoreAll } from '../../adapters/Backup';
 import { kmToReserve } from '../../../../src/core/Fuel';
 import { BIKES, Reminder, ServiceBook, alignToOdometer, canUndo, dueInfo, dueList, dueText, markDone, undoDone } from '../../../../src/core/Reminders';
-import { FuelStore } from '../../../../src/adapters/FuelStore';
+import { FillUpStore, FuelStore } from '../../../../src/adapters/FuelStore';
+import { describeFills } from '../../../../src/core/FillUps';
+import { FillUpSheet } from '../../ui/FillUp';
 import { ASK_ABOUT_ME, ProfileStore } from '../../../../src/adapters/ProfileStore';
 import { ServiceStore } from '../../../../src/adapters/ServiceStore';
 import { serverFetch } from '../../../../src/adapters/server';
@@ -54,6 +56,7 @@ export default function Garage() {
   const [, bump] = useState(0);
   const [sheet, setSheet] = useState<'voice' | 'news' | 'knowme' | null>(null);
   const [editing, setEditing] = useState<Reminder | 'new' | null>(null);
+  const [filling, setFilling] = useState(false);
   const changed = () => { saveConfig(); bump((n) => n + 1); };
   const seen = useMemo(() => seenSet(CHANGELOG, LocalSeen), [sheet]);
   const unread = unreadCount(CHANGELOG, seen);
@@ -160,7 +163,7 @@ export default function Garage() {
           <Field value={CONFIG.bikeName} width={140} onCommit={(v) => { CONFIG.bikeName = cleanBikeName(v); changed(); }} />
         </Setting>
         <Setting label="Fuel range" sub={fuelText(b.ride ? b.ride.ride.engine.kmSinceFill() : FuelStore.load())}>
-          <Secondary label="Filled up" onPress={() => { if (b.ride) b.ride.ride.filledUp(); else FuelStore.save(0); b.toast(`Fill-up noted. Range reset to ${Math.round(kmToReserve(CONFIG.fuel))} km.`); bump((n) => n + 1); }} />
+          <Secondary label="Filled up" onPress={() => setFilling(true)} />
         </Setting>
         <Setting label="Tank" sub="Litres, of which reserve.">
           <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -168,10 +171,13 @@ export default function Garage() {
             <Field value={String(f.reserveL)} width={56} keyboardType="decimal-pad" onCommit={(v) => { const n = num(v); if (n != null && n <= 10) f.reserveL = Math.min(n, f.tankL); changed(); }} />
           </View>
         </Setting>
-        <Setting label="Average consumption" sub='L/100 km, from the dash. Or say "consumption 4.6".'>
+        <Setting label="Average consumption" sub={`L/100 km. ${CONFIG.fillUps.learn ? describeFills(FillUpStore.load()).replace('his fill-ups', 'your fill-ups') + ' Learned after each full tank; yours until then.' : 'Your figure (from the dash). Or say "consumption 4.6".'}`}>
           <Field value={String(f.lPer100)} width={70} keyboardType="decimal-pad" onCommit={(v) => { const n = num(v); if (n != null && n >= 2 && n <= 15) f.lPer100 = n; changed(); }} />
         </Setting>
-        <Setting label="Petrol price" sub={`Rand a litre. ${f.priceSource === 'auto' ? 'Looked up' : 'Yours, set'} ${new Date(f.priceAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}.`}>
+        <Setting label="Learn from my fill-ups" sub="Give the litres when you fill up: your consumption is worked out from full tank to full tank.">
+          <Toggle value={CONFIG.fillUps.learn} onChange={(v) => { CONFIG.fillUps.learn = v; changed(); }} />
+        </Setting>
+                <Setting label="Petrol price" sub={`Rand a litre. ${f.priceSource === 'auto' ? 'Looked up' : 'Yours, set'} ${new Date(f.priceAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}.`}>
           <Field value={String(f.pricePerL)} width={76} keyboardType="decimal-pad" onCommit={(v) => { const n = num(v); if (n != null && n >= 5 && n <= 100) { f.pricePerL = n; f.priceSource = 'manual'; f.priceAt = Date.now(); } changed(); }} />
         </Setting>
         <Setting label="Road drawings in My journeys" sub="A little drawing of each ride's road beside it.">
@@ -218,6 +224,7 @@ export default function Garage() {
       <NewsSheet open={sheet === 'news'} onClose={() => { LocalSeen.set(allIds(CHANGELOG)); setSheet(null); }} seen={seen} />
       <KnowMe open={sheet === 'knowme'} onClose={() => setSheet(null)} />
       <ReminderSheet editing={editing} onClose={() => setEditing(null)} />
+      <FillUpSheet open={filling} onClose={() => setFilling(false)} onDone={() => bump((n) => n + 1)} />
     </ScrollView>
   );
 }

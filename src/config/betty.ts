@@ -218,6 +218,9 @@ export interface Config {
   };
   /** The reader he picked (Bluetooth id, or address on Android) and its name; null = none. */
   obdReader: { id: string; name: string } | null;
+  /** Consumption from his fill-ups (core/FillUps): learn = after each full tank, fuel.lPer100 becomes the average of the
+   *  last `tanks` full-to-full stretches of at least `minKm`; off = his own figure stays. */
+  fillUps: { learn: boolean; minKm: number; tanks: number };
   /** Lines the phone says itself, without asking her (no signal needed). micBusy: iOS refused the mic ("!pri": a call,
    *  Siri or another app had it; ride of 2026-10-26); micFailed: the mic would not open for another reason. */
   phoneLines: { micBusy: string; micFailed: string };
@@ -320,6 +323,7 @@ export const DEFAULT_CONFIG: Config = {
     scan: { maxExchanges: 20_000, maxRows: 20_000, sweepGapMs: 0 },
   },
   obdReader: null,
+  fillUps: { learn: true, minKm: 80, tanks: 3 },
   phoneLines: {
     micBusy: 'The phone gave the microphone to something else. Try again in a moment.',
     micFailed: "I couldn't open the microphone. Try again?",

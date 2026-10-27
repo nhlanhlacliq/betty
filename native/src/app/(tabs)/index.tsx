@@ -27,6 +27,7 @@ import { Orb } from '../../ui/Orb';
 import { Sheet, SheetRow } from '../../ui/Sheet';
 import { C, T, shadow } from '../../ui/theme';
 import { fuelText } from '../../ui/fuel';
+import { FillUpSheet } from '../../ui/FillUp';
 
 const date = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
 
@@ -85,10 +86,8 @@ export default function Home() {
     setSheet('ready');
     void Location.getForegroundPermissionsAsync().then((p) => setGps(p.granted ? 'Phone GPS' : p.canAskAgain ? 'Asks when you ride' : 'Not allowed: Settings > Betty > Location'));
   };
-  const filled = () => {
-    if (b.ride) b.ride.ride.filledUp(); else FuelStore.save(0);
-    setFuelSince(0);
-  };
+  const [filling, setFilling] = useState(false);
+  const filled = () => { setSheet(null); setTimeout(() => setFilling(true), 350); }; // one sheet at a time
 
   return (
     <View style={st.screen}>
@@ -152,6 +151,7 @@ export default function Home() {
           <Primary label="All good" icon={null} onPress={() => setSheet(null)} style={{ flex: 1 }} />
         </View>
       </Sheet>
+      <FillUpSheet open={filling} onClose={() => setFilling(false)} onDone={() => setFuelSince(FuelStore.load())} />
     </View>
   );
 }

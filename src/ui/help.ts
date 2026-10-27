@@ -134,7 +134,7 @@ export const HELP_TOPICS: HelpTopic[] = [
   { id: 'fuel', title: 'Fuel range and costs', keywords: 'fuel petrol range reserve tank consumption price cost filled up station',
     html: `${li([
       'There is no fuel sensor: Betty works the range out from the distance since you last tapped <i>Filled up</i>, your tank (11 L, 1 L reserve) and your dash average (L/100 km). Set them in Garage &gt; In your garage.',
-      'Tap <i>Filled up</i> (or say "I just filled up") after every fill-up. Keep the consumption close to your dash: say "consumption 4.6" when it changes.',
+      'Tap <i>Filled up</i> after every fill-up and give the litres from the pump (or say "I just filled up, 9.2 litres"; "not a full tank" for a top-up). From one full tank to the next Betty works out your real consumption and uses it for the range (Garage &gt; Learn from my fill-ups; with a reader she counts the bike\'s own km, so rides without her count too). Without litres it just resets the range; "consumption 4.6" sets your own figure.',
       'When fuel gets low she names the stations ahead, and planning a route tells you whether it fits in a tank.',
       'Each ride keeps what it cost in petrol; My journeys shows the month. The price is looked up each month; a price you type or say counts until the next change.',
     ])}` },

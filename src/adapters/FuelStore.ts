@@ -14,3 +14,18 @@ export const FuelStore = {
     try { kv.setItem(KEY, JSON.stringify({ kmSinceFill, savedAt: Date.now() })); } catch { /* ignore */ }
   },
 };
+
+import type { FillUp } from '../core/FillUps';
+const FILLS = 'betty.fillups.v1';
+const COUNTER = 'betty.counter.v1';
+/** His fill-ups, oldest first (the newest 100). */
+export const FillUpStore = {
+  load(): FillUp[] { try { const v = JSON.parse(kv.getItem(FILLS) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+  add(f: FillUp) { try { kv.setItem(FILLS, JSON.stringify([...FillUpStore.load(), f].slice(-100))); } catch { /* ignore */ } },
+  remove(at: number) { try { kv.setItem(FILLS, JSON.stringify(FillUpStore.load().filter((f) => f.at !== at))); } catch { /* ignore */ } },
+};
+/** The bike's "km since codes cleared" counter (PID 31) as last read, for fill-ups made without a ride running. */
+export const BikeCounter = {
+  load(): number | null { try { const v = JSON.parse(kv.getItem(COUNTER) ?? 'null'); return typeof v?.km === 'number' ? v.km : null; } catch { return null; } },
+  save(km: number) { try { kv.setItem(COUNTER, JSON.stringify({ km, at: Date.now() })); } catch { /* ignore */ } },
+};

@@ -44,6 +44,7 @@ import { mountLogPanel } from './ui/LogPanel';
 import { mountMemoryPanel } from './ui/MemoryPanel';
 import { mountWhatsNew } from './ui/WhatsNew';
 import { LineLogStore } from './adapters/LineLogStore';
+import { noteFillUp } from './app/fillUp';
 import { FuelStore } from './adapters/FuelStore';
 import { HeadsetButtons } from './adapters/HeadsetButtons';
 import { PushToTalk, browserPttDeps, transcribe, within } from './adapters/PushToTalk';
@@ -369,7 +370,7 @@ const afterFill = () => {
 };
 document.querySelectorAll('[data-filled]').forEach((b) => b.addEventListener('click', () => {
   if (rig) rig.s.filledUp(); // tells afterFill
-  else { FuelStore.save(0); afterFill(); }
+  else { noteFillUp({}, FuelStore.load()); afterFill(); } // kept in the fill-up history too
 }));
 
 const bikeInput = $<HTMLInputElement>('bikename');

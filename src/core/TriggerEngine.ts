@@ -124,7 +124,9 @@ export class TriggerEngine {
   /** Km ridden since the last fill-up as last saved (null = no fill-up on record). Call at ride start. */
   setFuelKm(km: number | null) { this.fuelBaseKm = km; this.fuelOffsetKm = this.stats.snapshot().distanceKm; }
   /** The rider has just filled the tank. */
-  filledUp() { this.setFuelKm(0); this.lastFired.delete('fuel_range'); }
+  filledUp() { this.refuelled(0); }
+  /** After a fill-up: km since it (0 for a full tank, more after a top-up), and the fuel warning may come again. */
+  refuelled(km: number) { this.setFuelKm(km); this.lastFired.delete('fuel_range'); }
   kmSinceFill(): number | null {
     if (this.fuelBaseKm === null) return null;
     return Math.round((this.fuelBaseKm + this.stats.snapshot().distanceKm - this.fuelOffsetKm) * 10) / 10;

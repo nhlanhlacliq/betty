@@ -3239,4 +3239,48 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(banter(true).includes('revs'), 'back when the list allows it');
 }
 
+// ---- consumption from his fill-ups (core/FillUps, app/fillUp)
+{
+  resetConfig();
+  const F = await import('../src/core/FillUps');
+  const d = 86_400_000;
+  // full, then a top-up, then full: litres of the top-up and the second full fill burned the km of both stretches
+  const list = [
+    { at: 1 * d, litres: 10, full: true, km: 200, counterKm: 1000 },
+    { at: 3 * d, litres: 3, full: false, km: 90, counterKm: 1090 },
+    { at: 5 * d, litres: 6.2, full: true, km: 120, counterKm: 1230 },
+  ];
+  const t = F.tanks(list);
+  assert.equal(t.length, 1); assert.equal(t[0].litres, 9.2); assert.equal(t[0].km, 230, 'the bike counter (rides without Betty included)');
+  assert.equal(t[0].by, 'counter'); assert.equal(t[0].lPer100, 4);
+  const cleared = list.map((f, i) => ({ ...f, counterKm: i === 2 ? 15 : f.counterKm })); // codes cleared: counter back near 0
+  assert.equal(F.tanks(cleared)[0].km, 210, "a counter that went backwards: Betty's km"); assert.equal(F.tanks(cleared)[0].by, 'betty');
+  assert.equal(F.tanks([list[0], { ...list[2], litres: null }]).length, 0, 'no litres: no consumption');
+  assert.equal(F.tanks([list[0], { ...list[2], km: 30, counterKm: null }]).length, 0, 'under minKm: too short to trust');
+  assert.equal(F.learnedPer100(list)!.lPer100, 4);
+  assert.equal(F.learnedPer100([list[0]]), null);
+  assert.match(F.describeFills(list), /4 L\/100 km over the last tank \(230 km\)/);
+  // top-ups shorten the range by what the litres last; a full tank starts again
+  assert.equal(F.kmAfterFill(150, 2.2, false, 4.4), 100); assert.equal(F.kmAfterFill(150, 20, false), 0); assert.equal(F.kmAfterFill(150, 9, true), 0);
+  assert.equal(F.kmAfterFill(150, null, false), 0, 'a top-up without litres counts as full (as before)');
+  // what he says
+  assert.equal(F.litresSaid('I just filled up 9.2 litres'), 9.2); assert.equal(F.litresSaid('put in 9,4 l'), 9.4);
+  assert.equal(F.litresSaid('filled up for R250', 25), 10); assert.equal(F.litresSaid('filled up'), null);
+  assert.equal(F.litresSaid('filled up 200 litres'), null, 'not a bike tank');
+  assert.ok(F.saysPartial('topped up, not a full tank')); assert.ok(F.saysPartial('only half a tank')); assert.ok(!F.saysPartial('filled up 9 litres'));
+  // the shared step: history kept, consumption relearned after a full tank
+  const { useStore } = await import('../src/adapters/kv');
+  const mem = new Map<string, string>();
+  useStore({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v), removeItem: (k) => void mem.delete(k) });
+  const { noteFillUp } = await import('../src/app/fillUp');
+  const { FillUpStore } = await import('../src/adapters/FuelStore');
+  noteFillUp({ litres: 10, full: true }, 180, 5000, 10 * d);
+  const r = noteFillUp({ litres: 9.5, full: true }, 205, 5210, 12 * d);
+  assert.equal(FillUpStore.load().length >= 2, true);
+  assert.equal(r.km, 0); assert.equal(r.learned!.lPer100, 4.5, '9.5 L over the 210 km the bike counted'); assert.equal(CONFIG.fuel.lPer100, 4.5);
+  assert.match(r.text, /9\.5 L noted: about \d+ km to reserve\. Your consumption from fill-ups: 4\.5 L\/100 km\./);
+  CONFIG.fillUps.learn = false; noteFillUp({ litres: 20, full: true }, 100, 5310, 13 * d); assert.equal(CONFIG.fuel.lPer100, 4.5, 'learning off: his figure stays');
+  useStore(null); resetConfig();
+}
+
 console.log('all core tests passed');

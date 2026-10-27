@@ -28,7 +28,10 @@ export function phoneTools(ride: RideSession): Record<string, PhoneTool> {
   const stations = new StationSource(); // through Betty's server (src/adapters/server)
 
   return {
-    filled_up: async () => { ride.filledUp(); return { ok: true, range_km_to_reserve: Math.round(kmToReserve(CONFIG.fuel)) }; },
+    filled_up: async (a) => {
+      const litres = Number(a.litres); const r = ride.filledUp({ litres: litres > 0 && litres <= 40 ? litres : null, full: a.full !== false });
+      return { ok: true, noted: r.text, range_km_to_reserve: r.range, ...(r.learned ? { consumption_l_per_100km: r.learned.lPer100 } : {}) };
+    },
     set_quiet: async (a) => {
       const min = Number(a.minutes ?? 0);
       engine.setQuiet(min > 0 ? Date.now() + min * 60_000 : Infinity);
