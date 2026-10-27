@@ -1,3 +1,4 @@
+import { chargeVolts } from './Engine';
 import { CONFIG, bettySystemPrompt, cleanRiderName, FLAVOUR_PROMPTS, SILENT_TOKEN, VOICE_TAGS, sentencesFor } from '../config/betty';
 import { clockNote } from './ambient';
 import { BikeState, TriggerEvent, UNPROMPTED_IDS } from './types';
@@ -230,7 +231,7 @@ export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: strin
   const flavour = FLAVOUR_PROMPTS[ev.id];
   const base = bettySystemPrompt(sentencesFor(ev.id));
   const readings = s.obd
-    ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, ...(s.fuelKnown ? { fuelPct: s.fuelPct } : { fuel: 'no gauge: the range is an estimate' }), ...(s.engine.batteryV != null ? { batteryV: s.engine.batteryV } : {}) }
+    ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, ...(s.fuelKnown ? { fuelPct: s.fuelPct } : { fuel: 'no gauge: the range is an estimate' }), ...(chargeVolts(s) != null ? { batteryV: chargeVolts(s) } : {}) }
     : { speedKmh: s.speedKmh, engineData: 'not connected: do not mention engine temperature, revs, fuel or faults' };
   // Alerts and answers get the clock and the readings. Lines she makes up on her own get neither: given readings,
   // the model recites them; given the clock, every quip opened with the time.

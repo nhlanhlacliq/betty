@@ -200,6 +200,8 @@ export interface Config {
     read: Record<string, number>; dtcEveryMs: number; statusEveryMs: number; voltEveryMs: number; logEveryMs: number;
     readerNames: string; chargeOkV: number; chargeLowV: number; chargeMinRpm: number; chargeLowSec: number; chargeSettleS: number;
     batteryWeakV: number; coldC: number; trimNoteAbsPct: number; gears: number;
+    /** Whose voltage judges charging: 'bike' = the engine computer's (PID 42) when given, else the reader's; 'reader' = ATRV. */
+    chargeFrom: 'bike' | 'reader';
     gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number };
     /** Garage > Engine data (core/ObdScan): exchanges kept for the export, rows a recording keeps, pause between sweeps (ms). */
     scan: { maxExchanges: number; maxRows: number; sweepGapMs: number };
@@ -295,12 +297,12 @@ export const DEFAULT_CONFIG: Config = {
   stops: { researchAfterSec: 45, sayAfterSec: 120, maxListed: 4 },
   quietOnCall: true,
   obd: {
-    read: { rpm: 500, speedKmh: 500, throttlePct: 1000, coolantC: 5000, loadPct: 5000, intakeC: 15_000, ecuV: 30_000, baroKpa: 60_000,
+    read: { rpm: 500, speedKmh: 500, throttlePct: 1000, coolantC: 5000, loadPct: 5000, intakeC: 15_000, ecuV: 5000, baroKpa: 60_000,
       stftPct: 15_000, ltftPct: 30_000, timingDeg: 15_000, absLoadPct: 30_000, lambda: 30_000, runS: 30_000, kmSinceClear: 60_000, fuelPct: 30_000 },
     dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, logEveryMs: 300_000,
     readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
-    batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6,
+    batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6, chargeFrom: 'bike',
     gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06 },
     scan: { maxExchanges: 20_000, maxRows: 20_000, sweepGapMs: 0 },
   },

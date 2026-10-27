@@ -3056,6 +3056,11 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const st = (v: number, rpm: number, runS = 300): BikeState => ({ ...initialState(), obd: true, rpm, engineTempC: 48, speedKmh: 0, engine: { batteryV: v, runS } });
   assert.match(G.engineNote(st(12.4, 1650)), /coolant 48 C \(still warming up\).*battery 12\.4 V \(NOT charging properly/);
   assert.match(G.engineNote(st(14.1, 3000)), /charging normally.*no fault codes/);
+  // the Vgate on his bike (scan of 2026-10-27): reader 12.3 V, engine computer 13.7 V at the same moment: charging is judged by the bike's own
+  const vg = (rpm: number): BikeState => ({ ...initialState(), obd: true, rpm, engineTempC: 48, speedKmh: 60, engine: { batteryV: 12.3, ecuV: 13.7, runS: 300 } });
+  assert.equal(G.chargingState(vg(3500)), 'charging'); assert.match(G.engineNote(vg(3500)), /battery 13\.7 V \(charging normally/);
+  { const w = new G.ChargeWatch(); let fired = false; for (let i = 0; i < 10; i++) fired ||= w.update(vg(3500), i * 10_000); assert.ok(!fired, 'no false charging alert from the reader\'s low reading'); }
+  CONFIG.obd.chargeFrom = 'reader'; assert.equal(G.chargingState(vg(3500)), 'low'); CONFIG.obd.chargeFrom = 'bike';
   assert.match(G.engineNote(st(12.0, 0)), /weak for a battery at rest/);
   assert.match(G.engineNote(st(12.4, 1650, 20)), /battery 12\.4 V \(settling\)/, 'the first minute after a start is not judged');
   const w = new G.ChargeWatch();

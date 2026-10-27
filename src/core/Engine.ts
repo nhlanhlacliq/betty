@@ -8,9 +8,20 @@ import type { BikeState } from './types';
 
 const ordinal = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 
+/**
+ * The battery voltage to judge charging by. CONFIG.obd.chargeFrom 'bike' (default): the engine computer's own reading
+ * (PID 42) when the bike gives it, else the reader's (ATRV). On the owner's G 310 GS with the Vgate (2026-10-27 scan)
+ * the reader read 11.8-12.3 V while the ECU read 13.2-13.7 V in the same seconds, which would have been a false
+ * "not charging" alert. 'reader': always the reader's.
+ */
+export function chargeVolts(s: BikeState): number | undefined {
+  const e = s.engine;
+  return CONFIG.obd.chargeFrom === 'bike' ? e.ecuV ?? e.batteryV : e.batteryV ?? e.ecuV;
+}
+
 /** Charging as the voltage says: only meaningful with the engine running and past its first minute. */
 export function chargingState(s: BikeState): 'charging' | 'low' | 'resting' | null {
-  const v = s.engine.batteryV, c = CONFIG.obd;
+  const v = chargeVolts(s), c = CONFIG.obd;
   if (v == null) return null;
   if (s.rpm <= 0) return 'resting';
   if ((s.engine.runS ?? Infinity) < c.chargeSettleS) return null;
@@ -28,10 +39,11 @@ export function engineNote(s: BikeState, gear: number | null = null): string {
   if (s.rpm > 0) bits.push(`${Math.round(s.rpm / 50) * 50} rpm${gear ? `, in ${ordinal(gear)} gear` : ''}`);
   else if (s.speedKmh < 5) bits.push('engine not running');
   const ch = chargingState(s);
-  if (e.batteryV != null) {
-    bits.push(`battery ${e.batteryV.toFixed(1)} V (${ch === 'charging' ? 'charging normally'
+  const v = chargeVolts(s);
+  if (v != null) {
+    bits.push(`battery ${v.toFixed(1)} V (${ch === 'charging' ? 'charging normally'
       : ch === 'low' ? `NOT charging properly: it should be ${c.chargeOkV} V or more with the engine running`
-      : ch === 'resting' ? (e.batteryV < c.batteryWeakV ? 'weak for a battery at rest' : 'at rest, fine')
+      : ch === 'resting' ? (v < c.batteryWeakV ? 'weak for a battery at rest' : 'at rest, fine')
       : 'settling'})`);
   }
   if (e.intakeC != null) bits.push(`intake air ${Math.round(e.intakeC)} C`);
@@ -50,7 +62,7 @@ export class ChargeWatch {
   private lowSince: number | null = null;
   private warned = false;
   update(s: BikeState, now: number): boolean {
-    const c = CONFIG.obd, v = s.engine.batteryV;
+    const c = CONFIG.obd, v = chargeVolts(s);
     if (v == null || s.rpm < c.chargeMinRpm || (s.engine.runS ?? Infinity) < c.chargeSettleS) { this.lowSince = null; return false; }
     if (v >= c.chargeOkV) { this.lowSince = null; this.warned = false; return false; }
     if (v >= c.chargeLowV) { this.lowSince = null; return false; }

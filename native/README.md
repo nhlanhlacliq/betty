@@ -557,3 +557,11 @@ value "Engine speed (rpm) [0C]"). NOT YET RUN ON THE BIKE.
 FIX the same day: the ride would not start with a reader connected until it was unplugged. `StateAggregator.start`
 awaits each source's `start` in turn, and `ObdSource.start` WAS the endless read loop. It now returns at once and runs
 setup + the loop in the background. Any new DataSource must do the same: `start` returns once it is running.
+
+FIRST SCAN on the bike (2026-10-27, Vgate "IOS-Vlink", ELM327 v2.3): 26 values (01 03 04 05 06 07 0C 0D 0E 0F 11 12 13
+14 1C 1F 21 30 31 33 42 43 44 45 4D 4E), VIN WB30G0203JR810166, ECU "ECM-EngineControl", calibration 8BF78277, EOBD,
+CAN 11/500, no misses, ~75-105 ms a command. NO fuel level (2F), fuel rate (5E), air flow (10), manifold pressure (0B)
+or odometer (A6). The reader's ATRV read 11.8-12.3 V while PID 42 (ECU) read 13.2-13.7 V at the same moments: charging
+is now judged by the ECU's voltage when given (`chargeVolts`, `CONFIG.obd.chargeFrom` 'bike'), ecuV read every 5 s.
+Fuel model idea (stage 3): speed-density from absolute load (43) x rpm x displacement x air density (baro 33, intake
+0F), divided by 14.7 x commanded lambda (44), trims 06/07; calibrated by fill-ups.

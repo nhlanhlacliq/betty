@@ -1,6 +1,6 @@
 import { landmarkContext, passingNow, sameSite, type Passing } from './Landmarks';
 import { stopsArea, stopsNote, type GoodStop } from './Stops';
-import { ChargeWatch, GearLearner, engineNote } from './Engine';
+import { ChargeWatch, GearLearner, chargeVolts, engineNote } from './Engine';
 import { CONFIG, cleanBikeName, cleanRiderName } from '../config/betty';
 import { BANK_SPEC } from './LineBank';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
@@ -363,7 +363,7 @@ export class TriggerEngine {
     if (s.obd) { // engine alerts need an OBD2 feed (simulated or real)
       if (s.engineTempC >= t.overtempC && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
       this.gears.add(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm, s.throttlePct);
-      const v = s.engine.batteryV;
+      const v = chargeVolts(s);
       if (v != null && s.rpm >= CONFIG.obd.chargeMinRpm && (s.engine.runS ?? Infinity) >= CONFIG.obd.chargeSettleS) this.lowestRunningV = Math.min(this.lowestRunningV ?? v, v);
       if (this.charge.update(s, this.now()) && this.ready('charging_low')) out.push(this.force('charging_low', s));
       if (s.dtcs.length && this.ready('dtc_detected')) out.push(this.force('dtc_detected', s));
@@ -618,7 +618,7 @@ export class TriggerEngine {
           fallback: 'Engine temp is high. Ease off and find somewhere to pull over.',
         };
       case 'charging_low': {
-        const v = s.engine.batteryV ?? 0;
+        const v = chargeVolts(s) ?? 0;
         return {
           context: `The battery reads ${v.toFixed(1)} V with the engine running at ${Math.round(s.rpm / 100) * 100} rpm: a working charging system gives ${CONFIG.obd.chargeOkV} V or more, so the bike may not be charging its battery (regulator, stator or a loose connection). Tell him plainly, calmly: worth having it checked, and the battery may run down if it carries on.`,
           fallback: `Battery's at ${v.toFixed(1)} volts with the engine running. It may not be charging. Worth a check.`,
