@@ -39,6 +39,7 @@ export const PIDS = {
   baroKpa: { pid: '33', bytes: 1, value: (a: number) => a },
   ecuV: { pid: '42', bytes: 2, value: (a: number, b: number) => Math.round(a * 256 + b) / 1000 },
   absLoadPct: { pid: '43', bytes: 2, value: (a: number, b: number) => Math.round(((a * 256 + b) * 1000) / 255) / 10 },
+  o2V: { pid: '14', bytes: 1, value: (a: number) => Math.round((a / 200) * 1000) / 1000 },
   lambda: { pid: '44', bytes: 2, value: (a: number, b: number) => Math.round(((a * 256 + b) * 2 / 65536) * 1000) / 1000 },
 } as const;
 
@@ -241,7 +242,7 @@ export class ElmSession {
     if (fuel != null) { state.fuelPct = fuel; state.fuelKnown = true; }
     const speedKmh = await get('speedKmh');
     if (speedKmh != null) this.engine.bikeSpeedKmh = speedKmh;
-    for (const name of ['loadPct', 'stftPct', 'ltftPct', 'timingDeg', 'intakeC', 'runS', 'kmSinceClear', 'baroKpa', 'ecuV', 'absLoadPct', 'lambda'] as const) {
+    for (const name of ['loadPct', 'stftPct', 'ltftPct', 'timingDeg', 'intakeC', 'runS', 'kmSinceClear', 'baroKpa', 'ecuV', 'absLoadPct', 'lambda', 'o2V'] as const) {
       const v = await get(name);
       if (v != null) this.engine[name] = v;
     }

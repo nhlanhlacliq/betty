@@ -8,6 +8,7 @@ import { openStore } from '../adapters/NativeStore';
 import { ElmClassicTransport } from '../adapters/ElmClassicTransport';
 import { ObdSource } from '../adapters/ObdSource';
 import { BleObdTransport } from '../adapters/BleObdTransport';
+import { EngineRecorder } from '../adapters/EngineRecorder';
 import { ChirpSpeaker } from '../adapters/ChirpSpeaker';
 import { ExpoSpeaker, setUpAudio } from '../adapters/ExpoSpeaker';
 import { Ride, startRide } from '../rig';
@@ -76,6 +77,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [ride, setRide] = useState<Ride | null>(null);
   const rideRef = useRef<Ride | null>(null);
+  const recorder = useRef<EngineRecorder | null>(null);
   const [tick, setTick] = useState(0);
   const [state, setState] = useState<BikeState | null>(null);
   const [voice, setVoice] = useState<VoiceState>('off');
@@ -127,6 +129,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       return out;
     } finally {
       rideRef.current = null; setRide(null);
+      void recorder.current?.stop(); recorder.current = null;
       void headset.current?.stop(); headset.current = null;
       deactivateKeepAwake();
       setVoice('off'); setEnding(false); busy.current = false;
@@ -223,6 +226,10 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       wireLinkButtons(r);
       applyTalk(r, talkRef.current);
       if (r.voice.mode !== 'open') r.voice.warm(); // connected before the first press (open mic connects itself)
+      if (obd && CONFIG.obd.record.on) {
+        const rec = new EngineRecorder(r.ride.engine.rideSnapshot().startedAt, () => r.ride.agg.current, (s) => r.ride.engine.gearNow(s), (m) => logger.add('[obd]', m));
+        rec.start(); recorder.current = rec;
+      }
       rideRef.current = r; setRide(r);
     } finally { busy.current = false; }
   }, [logger, changed, end, reader, mode, toast]);

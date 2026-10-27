@@ -18,7 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-27',
     items: [
-      { id: 'engine-data', kind: 'new', title: 'Engine data from an OBD2 reader.', text: 'In the app, a Bluetooth OBD2 reader lets her watch coolant, fault codes and charging on a ride, and Garage > Engine data shows everything the bike gives, live, with a recording to export.', help: 'engine' },
+      { id: 'engine-data', kind: 'new', title: 'Engine data from an OBD2 reader.', text: 'In the app, a Bluetooth OBD2 reader lets her watch coolant, fault codes and charging on a ride and records every value once a second for you to export, and Garage > Engine data shows everything the bike gives, live, with a recording to export.', help: 'engine' },
     ],
   },
   {

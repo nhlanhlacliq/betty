@@ -205,6 +205,8 @@ export interface Config {
     gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number };
     /** Garage > Engine data (core/ObdScan): exchanges kept for the export, rows a recording keeps, pause between sweeps (ms). */
     scan: { maxExchanges: number; maxRows: number; sweepGapMs: number };
+    /** The ride's engine recording (core/EngineRecord): a row every everyMs, written to the phone every saveEveryMs, the newest `keep` rides kept. */
+    record: { on: boolean; everyMs: number; saveEveryMs: number; keep: number };
   };
   /** The reader he picked (Bluetooth id, or address on Android) and its name; null = none. */
   obdReader: { id: string; name: string } | null;
@@ -297,9 +299,12 @@ export const DEFAULT_CONFIG: Config = {
   stops: { researchAfterSec: 45, sayAfterSec: 120, maxListed: 4 },
   quietOnCall: true,
   obd: {
-    read: { rpm: 500, speedKmh: 500, throttlePct: 1000, coolantC: 5000, loadPct: 5000, intakeC: 15_000, ecuV: 5000, baroKpa: 60_000,
-      stftPct: 15_000, ltftPct: 30_000, timingDeg: 15_000, absLoadPct: 30_000, lambda: 30_000, runS: 30_000, kmSinceClear: 60_000, fuelPct: 30_000 },
-    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, logEveryMs: 300_000,
+    // every value that moves once a second (owner, 2026-10-27: the ride recording, "every second, on everything"); the
+    // ones that do not move (pressure, km since cleared) once a minute. ~80 ms a command on his Vgate: ~1.1 s a round.
+    read: { rpm: 1000, speedKmh: 1000, throttlePct: 1000, coolantC: 1000, loadPct: 1000, intakeC: 1000, ecuV: 1000, baroKpa: 60_000,
+      stftPct: 1000, ltftPct: 1000, timingDeg: 1000, absLoadPct: 1000, lambda: 1000, o2V: 1000, runS: 1000, kmSinceClear: 60_000, fuelPct: 30_000 },
+    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, logEveryMs: 60_000,
+    record: { on: true, everyMs: 1000, saveEveryMs: 20_000, keep: 20 },
     readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
     batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6, chargeFrom: 'bike',

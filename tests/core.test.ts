@@ -3050,7 +3050,10 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(r.state.fuelKnown, undefined, 'no fuel PID: fuel never claimed');
   asked.length = 0; tt += 600;
   r = await s.poll();
-  assert.deepEqual(asked.filter((c) => c !== '0111'), ['010C', '010D'], `half a second later only the fast ones (asked ${asked})`);
+  assert.equal(asked.length, 0, `0.6 s later nothing is due yet (asked ${asked})`);
+  tt += 500; r = await s.poll();
+  assert.ok(['010C', '010D', '0105', '0104', '010F', '0111'].every((c) => asked.includes(c)), `a second on: everything that moves (asked ${asked})`);
+  assert.ok(!asked.includes('0133') && !asked.includes('ATRV'), 'pressure once a minute, the reader voltage every 5 s');
   assert.equal(r.state.engine!.intakeC, 38, 'the slow values stay in the state');
   // in words, and charging
   const st = (v: number, rpm: number, runS = 300): BikeState => ({ ...initialState(), obd: true, rpm, engineTempC: 48, speedKmh: 0, engine: { batteryV: v, runS } });
@@ -3157,6 +3160,22 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const j = S.scanExport(res, [row], sc.exchanges, { bike: 'Betty', exportedAt: 0 });
   assert.equal(j.kind, 'betty-obd-scan'); assert.equal(j.recording.rows, 1);
   assert.ok(j.catalog.every((c) => c.known)); assert.ok(JSON.stringify(j).includes('"vin":"WB3K02C0000000000"'));
+}
+
+// ---- the ride's engine recording (core/EngineRecord): one CSV row a second, GPS next to the engine
+{
+  const R = await import('../src/core/EngineRecord');
+  const { initialState } = await import('../src/core/StateAggregator');
+  const s = { ...initialState(), obd: true, lat: -26.12345678, lon: 28.1, speedKmh: 61.27, rpm: 5200, throttlePct: 22, engineTempC: 88, dtcs: ['P0133', 'P0171'],
+    engine: { bikeSpeedKmh: 64, absLoadPct: 41.2, lambda: 1, ecuV: 14.2, batteryV: 13.1, o2V: 0.7, milOn: false } };
+  const head = R.recordHeader().split(','), row = R.recordRow(s as any, Date.UTC(2026, 9, 27, 6, 0, 0), 4).split(',');
+  assert.equal(row.length, head.length, 'every row has every column');
+  const col = (h: string) => row[head.indexOf(h)];
+  assert.equal(col('time'), '2026-10-27T06:00:00.000Z'); assert.equal(col('lat'), '-26.12346'); assert.equal(col('gps_kmh'), '61.3');
+  assert.equal(col('bike_kmh'), '64'); assert.equal(col('gear'), '4'); assert.equal(col('abs_load_pct'), '41.2'); assert.equal(col('ecu_v'), '14.2');
+  assert.equal(col('mil'), '0'); assert.equal(col('codes'), 'P0133 P0171'); assert.equal(col('stft_pct'), '', 'not read: empty, never 0');
+  const E = await import('../src/core/Elm327');
+  assert.equal(E.readPid('o2V', '4114337D>'), 0.255);
 }
 
 console.log('all core tests passed');

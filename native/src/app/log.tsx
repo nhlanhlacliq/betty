@@ -6,6 +6,7 @@ import { LineLogStore } from '../../../src/adapters/LineLogStore';
 import { RideLog } from '../../../src/adapters/RideLog';
 import { useBetty } from '../state/Betty';
 import { Secondary, TextButton } from '../ui/Buttons';
+import { recordings, shareLatestRecording } from '../adapters/EngineRecorder';
 import { C, T } from '../ui/theme';
 
 /**
@@ -13,7 +14,7 @@ import { C, T } from '../ui/theme';
  * the whole saved log (every ride) as plain text, the main tool for judging a ride afterwards.
  */
 export default function Log() {
-  const { lines, logger } = useBetty();
+  const { lines, logger, toast } = useBetty();
   const insets = useSafeAreaInsets();
   const shareAll = () => { logger.save(); void Share.share({ message: formatLog(LineLogStore.load(), RideLog.load()), title: 'Betty log' }); };
   return (
@@ -23,7 +24,8 @@ export default function Log() {
         <TextButton label="← Garage" onPress={() => router.back()} />
       </View>
       <Text style={[T.sub, { marginBottom: 12 }]}>Everything she said this session, what she heard and what the voice server did, newest first. Share sends every saved ride's log as text.</Text>
-      <Secondary label="Share the whole log" icon="share" onPress={shareAll} style={{ marginBottom: 14 }} />
+      <Secondary label="Share the whole log" icon="share" onPress={shareAll} style={{ marginBottom: 10 }} />
+      {recordings().length > 0 && <Secondary label={`Share the engine recording (${recordings()[0].name.replace(/^engine-|\.csv$/g, '')})`} icon="share" onPress={() => void shareLatestRecording().catch((e) => toast(String(e.message)))} style={{ marginBottom: 14 }} />}
       {lines.length === 0 && <Text style={T.sub}>Nothing yet this session. Start a ride.</Text>}
       {lines.map((l) => (
         <View key={l.id} style={st.line}>

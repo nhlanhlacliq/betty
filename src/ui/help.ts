@@ -126,7 +126,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>What she knows when you ask:</b> coolant, revs, battery, intake air, fault codes, and your gear once she has learned your gearbox (from speed per 1000 rpm over a few rides; nothing to set up).',
       '<b>Fuel:</b> most bikes, the G 310 GS included, do not report a fuel level, so the range stays the estimate from distance since you filled up.',
       '<b>Safe:</b> Betty only ever READS from the bike; she never clears codes or changes anything.',
-      'The log gets an engine line every 5 minutes (coolant, revs, battery, trims) to look back at after a ride.',
+      'The log gets an engine line every minute (coolant, revs, battery, trims). Every ride with a reader is also RECORDED: every value once a second next to GPS, kept on the phone (the newest 20 rides); share it from the Log as a CSV for a spreadsheet.',
       '<b>Everything it can read:</b> Garage &gt; Engine data (not during a ride). Connect with the engine running: it lists every value the bike gives (name, reading, raw bytes), the VIN, the protocol, the battery, the warning light and any stored or pending codes. <i>Record</i> reads them all again and again (the screen stays on); <i>Export JSON</i> sends everything including every command and answer, <i>Export CSV</i> the recording for a spreadsheet.',
       '<b>Ask the bike:</b> on the same page you can type a read command (for example 0105 for coolant, or a 22xxxx maker data id). Anything that would clear or write is refused.',
     ])}` },

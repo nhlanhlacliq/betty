@@ -565,3 +565,11 @@ or odometer (A6). The reader's ATRV read 11.8-12.3 V while PID 42 (ECU) read 13.
 is now judged by the ECU's voltage when given (`chargeVolts`, `CONFIG.obd.chargeFrom` 'bike'), ecuV read every 5 s.
 Fuel model idea (stage 3): speed-density from absolute load (43) x rpm x displacement x air density (baro 33, intake
 0F), divided by 14.7 x commanded lambda (44), trims 06/07; calibrated by fill-ups.
+
+RIDE ENGINE RECORDING (2026-10-27, owner: "every second, on everything", for the fuel-model test against fill-ups):
+`CONFIG.obd.read` asks every moving value once a second (~13 commands, ~1.1 s a round at ~80 ms each on his Vgate),
+pressure and km-since-cleared once a minute; O2 sensor voltage (PID 14) added. `core/EngineRecord` = the columns
+(GPS position/speed/height, bike speed, rpm, gear, throttle, loads, lambda, trims, O2, timing, temperatures, ECU and
+reader volts, run time, codes). `adapters/EngineRecorder`: a row a second while `s.obd`, the file rewritten every 20 s
+and at the end (documents/engine/engine-<start>.csv, newest 20 kept), started in Betty.tsx `start` when a reader
+connected (`CONFIG.obd.record.on`); Log screen: "Share the engine recording". Log snapshot now every minute.

@@ -120,6 +120,8 @@ export interface EngineReadings {
   ltftPct?: number;
   /** Commanded air/fuel equivalence (1 = stoichiometric) */
   lambda?: number;
+  /** Oxygen sensor 1 voltage (PID 14): swings ~0.1 (lean) to ~0.9 (rich) in closed loop */
+  o2V?: number;
   /** The bike's own speed (its wheel sensor), next to GPS speed */
   bikeSpeedKmh?: number;
   /** The engine warning light, and how many fault codes the engine computer holds (PID 01) */
