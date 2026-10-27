@@ -89,7 +89,8 @@
         [
           "react-native-bluetooth-classic"
         ]
-      ]
+      ],
+      "expo-notifications"
     ],
     "scheme": "betty"
   }

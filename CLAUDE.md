@@ -4,6 +4,10 @@ Context for any Claude Code instance picking this project up. Read this first.
 
 ## WHERE WE LEFT OFF (handoff, 2026-10-19): read this first
 
+UPDATE 2026-10-27 (evening): fill-up consumption, bike health + riding trends, the general probe (bus, computers,
+data ids; odometer search), "bike on: tap to ride" BUILT, not yet on the bike. Details: native/README.md "Fill-ups, bike
+health, the probe, bike-on". Voice server needs voice/deploy.sh for the filled_up litres.
+
 UPDATE 2026-10-27 (later): Garage > Engine data page (every value the bike lists, live, record, read-only command box,
 JSON/CSV export; core/ObdScan) and FIX: the ride did not start with a reader connected (ObdSource.start awaited its own
 loop). Not yet on the bike. Details: native/README.md "Garage > Engine data".

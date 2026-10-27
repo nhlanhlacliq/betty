@@ -10,13 +10,24 @@ import type { ObdTransport } from '../../../src/core/Elm327';
  * Values travel base64 in ble-plx.
  */
 let manager: BleManager | null = null;
-const ble = () => (manager ??= new BleManager());
+let restored: Device[] = [];
+let onRestore: ((d: Device[]) => void) | null = null;
+/**
+ * One Bluetooth manager for the app, with iOS state restoration: when iOS relaunches Betty in the background because
+ * the reader connected (EngineWatch's standing request), the connected reader comes back here.
+ */
+export const ble = () => (manager ??= new BleManager({
+  restoreStateIdentifier: 'betty-obd',
+  restoreStateFunction: (st) => { restored = (st?.connectedPeripherals ?? []) as Device[]; onRestore?.(restored); },
+}));
+/** Readers iOS handed back on a background relaunch (now and later). */
+export function whenRestored(f: (d: Device[]) => void) { onRestore = f; if (restored.length) f(restored); }
 /** Bluetooth's own services (generic access/attribute, device info, battery): never the reader's serial line. */
 const STANDARD = /^0000(1800|1801|180a|180f)-/i;
 
 export interface FoundReader { id: string; name: string; rssi: number | null }
 
-async function poweredOn(timeoutMs = 5000) {
+export async function poweredOn(timeoutMs = 5000) {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
     const s = await ble().state();

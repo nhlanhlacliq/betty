@@ -9,6 +9,7 @@ import { ElmClassicTransport } from '../adapters/ElmClassicTransport';
 import { ObdSource } from '../adapters/ObdSource';
 import { BleObdTransport } from '../adapters/BleObdTransport';
 import { EngineRecorder } from '../adapters/EngineRecorder';
+import { EngineWatch } from '../adapters/EngineWatch';
 import { ChirpSpeaker } from '../adapters/ChirpSpeaker';
 import { ExpoSpeaker, setUpAudio } from '../adapters/ExpoSpeaker';
 import { Ride, startRide } from '../rig';
@@ -42,6 +43,9 @@ interface BettyCtx {
   buttons: boolean;
   /** The OBD2 reader to use (CONFIG.obdReader, saved): a Bluetooth LE id, or "classic:<address>" (Android), or none */
   reader: { id: string; name: string } | null;
+  /** "Your bike is on, tap to ride": let go of the reader before something else connects (the Engine data page), wait for it again after */
+  watchRelease(): Promise<void>;
+  watchArm(): void;
   setReader(r: { id: string; name: string } | null): void;
   lines: LogLine[];
   logger: LineLogger;
@@ -78,6 +82,10 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   const [ride, setRide] = useState<Ride | null>(null);
   const rideRef = useRef<Ride | null>(null);
   const recorder = useRef<EngineRecorder | null>(null);
+  const watch = useRef<EngineWatch | null>(null);
+  const getWatch = () => (watch.current ??= new EngineWatch((m) => logger.add('[obd]', m), () => !!rideRef.current, () => CONFIG.obdReader?.name ?? 'Your reader'));
+  const watchArm = useCallback(() => { if (CONFIG.obdReader && !rideRef.current) getWatch().arm(CONFIG.obdReader.id); }, []);
+  const watchRelease = useCallback(() => getWatch().release(), []);
   const [tick, setTick] = useState(0);
   const [state, setState] = useState<BikeState | null>(null);
   const [voice, setVoice] = useState<VoiceState>('off');
@@ -106,6 +114,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
 
   // Betty's data (rides, notes, reminders, settings...) is read into memory before anything uses it.
   useEffect(() => { void openStore((m) => logger.add('[store]', m)).then(() => { loadConfig(); talkRef.current = CONFIG.talkMode; setTalkState(CONFIG.talkMode); setReaderState(CONFIG.obdReader); setReady(true); }); }, [logger]);
+  useEffect(() => { if (ready && reader) watchArm(); else if (!reader) void watchRelease(); }, [ready, reader, watchArm, watchRelease]);
 
   // Repaints at most every 250 ms: the ride says "changed" on every update and every line's fate.
   const pending = useRef(false);
@@ -130,6 +139,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
     } finally {
       rideRef.current = null; setRide(null);
       void recorder.current?.stop(); recorder.current = null;
+      watch.current?.rideEnded(); watchArm();
       void headset.current?.stop(); headset.current = null;
       deactivateKeepAwake();
       setVoice('off'); setEnding(false); busy.current = false;
@@ -210,6 +220,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
       logger.clearScreen();
       setEnded(null);
       let obd: ObdSource | undefined;
+      await watchRelease(); // the ride takes the reader
       if (reader && mode === 'real') {
         const log = (m: string) => logger.add('[obd]', m);
         const classic = reader.id.startsWith('classic:');
@@ -260,7 +271,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
   }, [logger]);
 
   return (
-    <Ctx.Provider value={{ ready, ride, tick, state, voice, ending, mode, setMode, talk, setTalk, openMic, buttons, reader, setReader, lines, logger, start, end, ended, hello, helloSpeaking, listen, toast, toastMsg, data, touch, pendingWhere, setPendingWhere }}>
+    <Ctx.Provider value={{ ready, ride, tick, state, voice, ending, mode, setMode, talk, setTalk, openMic, buttons, reader, setReader, watchArm, watchRelease, lines, logger, start, end, ended, hello, helloSpeaking, listen, toast, toastMsg, data, touch, pendingWhere, setPendingWhere }}>
       {children}
     </Ctx.Provider>
   );

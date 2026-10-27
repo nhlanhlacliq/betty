@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONFIG, chirpVoice, cleanRiderName } from '../../../../src/config/betty';
@@ -28,6 +28,7 @@ import { Sheet, SheetRow } from '../../ui/Sheet';
 import { C, T, shadow } from '../../ui/theme';
 import { fuelText } from '../../ui/fuel';
 import { FillUpSheet } from '../../ui/FillUp';
+import { onRideTap } from '../../adapters/Notify';
 
 const date = (ms: number) => new Date(ms).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
 
@@ -82,6 +83,11 @@ export default function Home() {
     await b.start();
     router.push('/ride');
   };
+  // "Your bike is on, tap to ride" (EngineWatch): the tap starts the ride, once Betty is ready
+  const goRef = useRef(go); goRef.current = go;
+  const tapped = useRef(false);
+  useEffect(() => onRideTap(() => { tapped.current = true; if (b.ready) { tapped.current = false; void goRef.current(); } }), []);
+  useEffect(() => { if (b.ready && tapped.current) { tapped.current = false; void goRef.current(); } }, [b.ready]);
   const openReady = () => {
     setSheet('ready');
     void Location.getForegroundPermissionsAsync().then((p) => setGps(p.granted ? 'Phone GPS' : p.canAskAgain ? 'Asks when you ride' : 'Not allowed: Settings > Betty > Location'));

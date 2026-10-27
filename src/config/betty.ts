@@ -226,6 +226,9 @@ export interface Config {
   /** Consumption from his fill-ups (core/FillUps): learn = after each full tank, fuel.lPer100 becomes the average of the
    *  last `tanks` full-to-full stretches of at least `minKm`; off = his own figure stays. */
   fillUps: { learn: boolean; minKm: number; tanks: number };
+  /** "Your bike is on, tap to ride" (native EngineWatch): notify = on; not within quietMin of a ride ending or the last
+   *  notification; only after the reader was away awayMin. */
+  autoStart: { notify: boolean; quietMin: number; awayMin: number };
   /** Bike health and riding summaries per ride (core/RideHealth). runningRpm: above it the engine runs; chargeRpm: charging
    *  judged from here up; warmC: warm; crankWindowMs: the reader voltage kept before a start, for the starter's dip;
    *  cruise: a steady cruise for the timing; wheelFromKmh: wheel vs GPS above this; rpmBands: upper edges of the rev
@@ -346,6 +349,7 @@ export const DEFAULT_CONFIG: Config = {
   },
   obdReader: null,
   fillUps: { learn: true, minKm: 80, tanks: 3 },
+  autoStart: { notify: false, quietMin: 15, awayMin: 3 },
   health: {
     runningRpm: 500, chargeRpm: 3000, warmC: 80, crankWindowMs: 15_000,
     cruise: { rpmFrom: 4000, rpmTo: 6000, throttleFrom: 15, throttleTo: 35 },

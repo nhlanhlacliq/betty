@@ -596,3 +596,30 @@ Owner's calls after the first reader ride (2026-10-27): overheat warns only when
 (`thresholds.overtempHoldSec` 60); engine numbers only in the lines on `CONFIG.lineRules.engineLines` (engine alerts,
 answers, briefing, sign-off): other requests get "leave engine numbers out" instead of the readings, banter KEEPS its
 engine/revs topics (owner changed his mind the same day: `ambient_banter` is on the list).
+
+## Fill-ups, bike health, the probe, bike-on (2026-10-27, owner's order 1-4)
+
+1 FILL-UPS (`core/FillUps`, `app/fillUp`, `FillUpStore` betty.fillups.v1, `BikeCounter` betty.counter.v1): litres and
+full/top-up from the Filled up sheet (`ui/FillUp.tsx`), words in passing ("filled up 9.2 litres", "R250", "not a full
+tank") and the voice server's `filled_up` tool (litres/full params: NEEDS `voice/deploy.sh`). Full to full: litres of
+the second fill plus top-ups over the km between, by the bike's PID 31 counter when both ends have it and it ran
+forward (rides without Betty count), else Betty's km. `CONFIG.fillUps.learn`: after a full tank `fuel.lPer100` = the
+km-weighted average of the last 3 tanks of 80 km+. Top-up with litres shortens km-since-fill by what they last.
+2 HEALTH (`core/RideHealth`): `HealthWatch` in TriggerEngine.evaluate, time-weighted; saved on RideRecord.health /
+.riding each minute. `METRICS` table, `trends` (newest vs median of up to 10 before, at least 3), `CONFIG.health.drift`.
+Briefing: `healthNote` (bike values drifted the bad way). Sign-off: `ridingNote` (biggest differences, "never as
+advice"). Reader voltage every 0.5 s while the engine is off (`obd.voltOffEveryMs`) to catch the starter's dip.
+Replayed on the first reader ride: charging 14.8 V, rest 12.5, starter dip 6.8, warm-up 8.5 min, coolant max 103,
+LTFT -2.7, warm idle 1,825 +-188 rpm, timing 38.8 deg, wheel/GPS 0.962; 25 s over 6,000 rpm cold (peak 9,514).
+Page: Garage > Bike health & riding (`app/health.tsx`).
+3 PROBE (`core/ObdProbe`, Engine data page card): Listen = ATMA for 20 s (`BleObdTransport.monitor`, BLE only);
+Find computers = ATSH 600..7F7 + ATCRA (+8) + 22F190, any reply incl. 7F = a computer; Read their data = 22xxxx over
+`CONFIG.obd.probe.ranges` (~2,800 ids) on each (7E0 if none found); `findValue` looks for the dash odometer in
+u16/24/32 BE/LE x1/0.1/0.01. Everything in the JSON export (`probe`). Fuel level: compare two exports at different
+fuel (dash bars typed in). Limits: reply address assumed request+8; no sessions or security access (not reads).
+4 BIKE ON (`adapters/EngineWatch`, `adapters/Notify`, expo-notifications 58.1, ble-plx state restoration
+`restoreStateIdentifier: 'betty-obd'`): a standing connect request to the reader (no timeout on iOS, autoConnect on
+Android); on connect a local notification unless riding, a ride ended / notified within `autoStart.quietMin` (15), or
+the reader was away under `awayMin` (3). Tap (Home: `onRideTap`) starts the ride. Released before a ride or the Engine
+data page connects; re-armed after. Garage > Starting a ride (`CONFIG.autoStart.notify`, asks for notifications).
+UNVERIFIED: whether the Vgate sleeps/wakes with the bike, background wake on his iPhone.

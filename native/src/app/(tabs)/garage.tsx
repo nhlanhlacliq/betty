@@ -14,6 +14,7 @@ import { BIKES, Reminder, ServiceBook, alignToOdometer, canUndo, dueInfo, dueLis
 import { FillUpStore, FuelStore } from '../../../../src/adapters/FuelStore';
 import { describeFills } from '../../../../src/core/FillUps';
 import { FillUpSheet } from '../../ui/FillUp';
+import { askNotifications } from '../../adapters/Notify';
 import { ASK_ABOUT_ME, ProfileStore } from '../../../../src/adapters/ProfileStore';
 import { ServiceStore } from '../../../../src/adapters/ServiceStore';
 import { serverFetch } from '../../../../src/adapters/server';
@@ -190,6 +191,16 @@ export default function Garage() {
       </Card>
 
       <Reminders onEdit={setEditing} />
+
+      <Card title="Starting a ride">
+        <Setting label="Bike on: tap to ride" sub={b.reader ? `When ${b.reader.name} wakes up with the bike, a notification offers the ride; one tap starts it. Not right after a ride, and not if you swiped Betty away in the app switcher.` : 'Needs your OBD2 reader: pick it in Home > How are we riding? > Engine data.'} last>
+          <Toggle value={CONFIG.autoStart.notify} disabled={!b.reader} onChange={(v) => void (async () => {
+            if (v && !(await askNotifications())) { b.toast('Notifications are off for Betty: Settings > Betty > Notifications.'); return; }
+            CONFIG.autoStart.notify = v; changed();
+            if (v) b.watchArm(); else void b.watchRelease();
+          })()} />
+        </Setting>
+      </Card>
 
       <Card title="Talking to Betty">
         <Setting label="Betty Link" sub="Her own connection: one voice for her answers and her own lines, your music paused only while you talk, a chime when the mic is on. Off: the old call. Takes effect on the next ride.">

@@ -83,6 +83,7 @@ export default function Engine() {
     deactivateKeepAwake('obd');
     await transport.current?.close().catch(() => {});
     transport.current = null; scanner.current = null;
+    b.watchArm();
   };
   useEffect(() => () => { void close(); }, []);
 
@@ -91,6 +92,7 @@ export default function Engine() {
     if (!r) return;
     setStatus('connecting'); setNote(`Connecting to ${r.name}…`);
     try {
+      await b.watchRelease(); // the bike watch lets go of the reader while this page uses it
       const classic = r.id.startsWith('classic:');
       const t: Transport = classic ? new ElmClassicTransport() : new BleObdTransport((m) => b.logger.add('[obd]', m));
       await t.connect(classic ? r.id.slice(8) : r.id);
