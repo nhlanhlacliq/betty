@@ -1,6 +1,7 @@
 import { landmarkContext, passingNow, sameSite, type Passing } from './Landmarks';
 import { stopsArea, stopsNote, type GoodStop } from './Stops';
 import { ChargeWatch, GearLearner, chargeVolts, engineNote } from './Engine';
+import { HealthWatch, healthNote, ridingNote } from './RideHealth';
 import { CONFIG, cleanBikeName, cleanRiderName } from '../config/betty';
 import { BANK_SPEC } from './LineBank';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
@@ -113,7 +114,7 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
-    this.charge.reset(); this.lowestRunningV = null; this.hotSince = null;
+    this.charge.reset(); this.lowestRunningV = null; this.hotSince = null; this.healthWatch = new HealthWatch();
     this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.newRoadArmed = true; this.goodStopsSaid.clear(); this.saidLongest = false; this.lastDistance = 0;
     this.rainWarned.clear(); this.movingAtBreak = 0; this.fatigueAtMoving = null; this.coldSaid = false;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
@@ -191,6 +192,10 @@ export class TriggerEngine {
   private gears = new GearLearner();
   /** Since when the coolant has been at the overheat line (null = below it) */
   private hotSince: number | null = null;
+  /** This ride's bike health and riding summary (core/RideHealth) */
+  private healthWatch = new HealthWatch();
+  healthNow() { return this.healthWatch.health(); }
+  ridingNow() { return this.healthWatch.riding(); }
   private lowestRunningV: number | null = null;
   setGears(bins: Record<string, number>) { this.gears = new GearLearner(bins); }
   gearBins(): Record<string, number> { return this.gears.bins; }
@@ -361,6 +366,7 @@ export class TriggerEngine {
 
   evaluate(s: BikeState): TriggerEvent[] {
     this.stats.update(s);
+    this.healthWatch.add(s, this.now());
     const out: TriggerEvent[] = [];
     const t = CONFIG.thresholds;
 
@@ -614,7 +620,7 @@ export class TriggerEngine {
           w ? ` ${cap(w.summary)}, ${Math.round(w.tempC)} degrees, ${w.rainChanceNextHourPct} percent chance of rain in the next hour.` : '',
           left === null ? '' : ` About ${left} kilometres to reserve by my count.`].join('');
         return {
-          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}${this.fuelPlanNote()}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx)}` : ''}` : ''}${this.dueNote() ? ` ${this.dueNote()} Mention what is due briefly.` : ''}`,
+          context: `The ride session has just started. Local time is ${clockNote(at)}. ${greet} Your settings: humour ${pz.humour} percent, ${100 - pz.tars} percent JARVIS, ${pz.tars} percent TARS. What you know: ${digest}${kept ? ` ${kept}` : ''}${this.route ? ` ${describeRoute(this.route, null)}${this.fuelPlanNote()}${this.routeWx.length ? ` ${describeRouteWeather(this.routeWx)}` : ''}` : ''}${this.dueNote() ? ` ${this.dueNote()} Mention what is due briefly.` : ''}${healthNote(this.history) ? ` ${healthNote(this.history)} Mention it calmly, in passing.` : ''}`,
           fallback: canned,
         };
       }
@@ -778,8 +784,9 @@ export class TriggerEngine {
           eng.push(s.dtcs.length ? `fault codes ${s.dtcs.join(', ')}` : 'no fault codes');
           bits.push(`engine: ${eng.join(', ')}`);
         }
+        const riding = ridingNote(this.healthWatch.riding(), this.history);
         return {
-          context: `The ride has just ended. Summary: ${bits.join('; ')}.`,
+          context: `The ride has just ended. Summary: ${bits.join('; ')}.${riding ? ` ${riding}` : ''}`,
           fallback: `Ride done: ${Math.round(r.minutesOut)} minutes and ${r.distanceKm} kilometres${r.stops ? `, with ${r.stops} stop${r.stops === 1 ? '' : 's'}` : ''}. Good one.`,
         };
       }

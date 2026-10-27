@@ -1,3 +1,4 @@
+import type { HealthSummary, RidingSummary } from './RideHealth';
 import { RideSnapshot } from './RideStats';
 import { FuelSetup, costOf, litresFor } from './Fuel';
 
@@ -18,6 +19,9 @@ export interface RideRecord {
   weather: string | null;
   places: string[];
   events: string[];
+  /** Bike health and how he rode (core/RideHealth; rides with a reader / from 2026-10-27 on) */
+  health?: HealthSummary;
+  riding?: RidingSummary;
 }
 
 export const MAX_REMEMBERED_RIDES = 500; // was 30: Journeys groups by month, keeps records (2026-10-18)

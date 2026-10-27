@@ -166,6 +166,7 @@ export class ElmSession {
   /** When each value last came back (for dropping readings once the bike goes silent) */
   private gotAt: Partial<Record<PidName, number>> = {};
   private quiet = false;
+  private lastRpm: number | null = null;
   supported: string[] = [];
   version = '';
   /** Everything read so far (each poll's state carries all of it, so the state never loses a slow value). */
@@ -220,7 +221,7 @@ export class ElmSession {
   async poll(): Promise<{ state: Partial<BikeState>; speedKmh: number | null; voltage: number | null }> {
     const c = CONFIG.obd;
     let voltage: number | null = null;
-    if (this.due('ATRV', c.voltEveryMs)) { voltage = readVoltage(await this.t.send('ATRV')); if (voltage != null) this.engine.batteryV = voltage; }
+    if (this.due('ATRV', (this.lastRpm ?? 0) > 0 ? c.voltEveryMs : c.voltOffEveryMs)) { voltage = readVoltage(await this.t.send('ATRV')); if (voltage != null) this.engine.batteryV = voltage; }
     if (!this.supported.length) {
       if (!(await this.discover())) return { state: voltage != null ? { engine: { ...this.engine } } : {}, speedKmh: null, voltage };
       this.log(`bike answering now: supports PIDs ${this.supported.join(' ')}`);
@@ -243,7 +244,7 @@ export class ElmSession {
       return at !== undefined && this.now() - at > Math.max(c.staleMs, 3 * (c.read[name] ?? 0));
     };
     const rpm = await get('rpm');
-    if (rpm != null) state.rpm = rpm;
+    if (rpm != null) { state.rpm = rpm; this.lastRpm = rpm; }
     const temp = await get('coolantC');
     if (temp != null) state.engineTempC = temp;
     const thr = await get('throttlePct');
@@ -261,7 +262,7 @@ export class ElmSession {
     for (const name of Object.keys(PIDS) as PidName[]) {
       if (!stale(name)) continue;
       delete this.gotAt[name]; gone = true;
-      if (name === 'rpm') state.rpm = 0;
+      if (name === 'rpm') { state.rpm = 0; this.lastRpm = 0; }
       else if (name === 'coolantC') state.engineTempC = 0; // 0 = unknown, as with no reader
       else if (name === 'throttlePct') state.throttlePct = 0;
       else if (name === 'fuelPct') state.fuelKnown = false;

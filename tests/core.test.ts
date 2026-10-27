@@ -3283,4 +3283,39 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   useStore(null); resetConfig();
 }
 
+// ---- bike health and riding over time (core/RideHealth)
+{
+  resetConfig();
+  const H = await import('../src/core/RideHealth');
+  const { initialState } = await import('../src/core/StateAggregator');
+  const w = new H.HealthWatch();
+  let t = 0;
+  const st = (o: any) => ({ ...initialState(), obd: true, dtcs: [], ...o, engine: { ...o.engine } });
+  const feed = (n: number, o: any) => { for (let i = 0; i < n; i++) { w.add(st(o) as any, t); t += 1000; } };
+  feed(5, { rpm: 0, engineTempC: 30, engine: { ecuV: 12.6, batteryV: 11.4 } });          // ignition on
+  feed(1, { rpm: 0, engineTempC: 30, engine: { ecuV: 9.1, batteryV: 7.2 } });            // the starter
+  feed(120, { rpm: 1700, engineTempC: 40, speedKmh: 0, throttlePct: 9, engine: { ecuV: 13.4, runS: 30 } });   // cold idle
+  feed(30, { rpm: 9000, engineTempC: 50, speedKmh: 40, throttlePct: 70, engine: { ecuV: 14.6, runS: 200 } }); // revved cold
+  feed(300, { rpm: 5000, engineTempC: 90, speedKmh: 80, throttlePct: 25, engine: { ecuV: 14.8, runS: 600, ltftPct: -3, stftPct: 2, timingDeg: 35, bikeSpeedKmh: 77 } });
+  feed(60, { rpm: 1800, engineTempC: 95, speedKmh: 0, throttlePct: 9, engine: { ecuV: 13.6, runS: 900 } });  // warm idle
+  const h = w.health()!;
+  assert.equal(h.restV, 12.6); assert.equal(h.crankV, 7.2, "the starter's dip");
+  assert.equal(h.chargeV, 14.8); assert.equal(h.warmUpMin, 2.5, 'cold at the first reading, warm 150 s later');
+  assert.equal(h.coolantMaxC, 95); assert.equal(h.ltftPct, -3); assert.equal(h.idleRpm, 1800); assert.equal(h.idleSdRpm, 0);
+  assert.equal(h.cruiseTimingDeg, 35); assert.equal(h.wheelVsGps, 0.963);
+  const r = w.riding()!;
+  assert.equal(r.maxKmh, 80); assert.equal(r.peakRpm, 9000); assert.equal(r.coldRevsS, 30, 'high revs before the engine was warm');
+  assert.equal(r.fullThrottle, 0); assert.equal(r.wideSharePct, 9);
+  assert.equal(r.rpmBandsPct!.reduce((a, b) => a + b, 0) >= 99, true);
+  // trends: a charging voltage that sags the bad way, mentioned in the briefing; riding differences in the sign-off
+  const rides = [14.8, 14.9, 14.7, 14.8, 14.3].map((v, i) => ({ startedAt: i, health: { chargeV: v }, riding: { ...r, avgKmh: 40 } }));
+  const tr = H.trends(rides).find((x) => x.metric.id === 'chargeV')!;
+  assert.equal(tr.usual, 14.8); assert.equal(tr.drift, 'worse');
+  assert.match(H.healthNote(rides), /charging voltage was 14\.3 V last ride against his usual 14\.8 V/);
+  assert.equal(H.healthNote(rides.slice(0, 4)), '', 'steady: nothing to say');
+  assert.equal(H.healthNote(rides.slice(3)), '', 'too few rides for a usual');
+  assert.match(H.ridingNote({ ...r, avgKmh: 62 }, rides), /average moving speed 62 km\/h \(usually 40 km\/h\).*never as advice/);
+  assert.equal(H.ridingNote({ ...r, avgKmh: 42 }, rides), '', 'like usual: nothing');
+}
+
 console.log('all core tests passed');

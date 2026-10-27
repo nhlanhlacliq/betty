@@ -204,6 +204,8 @@ export interface Config {
    */
   obd: {
     read: Record<string, number>; dtcEveryMs: number; statusEveryMs: number; voltEveryMs: number; logEveryMs: number;
+    /** The reader voltage this often while the engine is not running (to catch the starter's dip for battery health) */
+    voltOffEveryMs: number;
     /** A reading not given again for this long is dropped (engine off). voltLogStepV: log the reader voltage when it moves this much (0 = never; the minute line has it). */
     staleMs: number; voltLogStepV: number;
     readerNames: string; chargeOkV: number; chargeLowV: number; chargeMinRpm: number; chargeLowSec: number; chargeSettleS: number;
@@ -221,6 +223,17 @@ export interface Config {
   /** Consumption from his fill-ups (core/FillUps): learn = after each full tank, fuel.lPer100 becomes the average of the
    *  last `tanks` full-to-full stretches of at least `minKm`; off = his own figure stays. */
   fillUps: { learn: boolean; minKm: number; tanks: number };
+  /** Bike health and riding summaries per ride (core/RideHealth). runningRpm: above it the engine runs; chargeRpm: charging
+   *  judged from here up; warmC: warm; crankWindowMs: the reader voltage kept before a start, for the starter's dip;
+   *  cruise: a steady cruise for the timing; wheelFromKmh: wheel vs GPS above this; rpmBands: upper edges of the rev
+   *  bands; coldRevs: revs too high for a cold engine; wide/fullThrottlePct. Trends: the newest ride against the median of
+   *  the baselineRides before it (at least minRides), drift: how far a value may move before she mentions it. */
+  health: {
+    runningRpm: number; chargeRpm: number; warmC: number; crankWindowMs: number;
+    cruise: { rpmFrom: number; rpmTo: number; throttleFrom: number; throttleTo: number };
+    wheelFromKmh: number; idleThrottlePct: number; idleBelowRpm: number; rpmBands: number[]; coldRevs: number; wideThrottlePct: number; fullThrottlePct: number;
+    baselineRides: number; minRides: number; seriesRides: number; drift: Record<string, number>;
+  };
   /** Lines the phone says itself, without asking her (no signal needed). micBusy: iOS refused the mic ("!pri": a call,
    *  Siri or another app had it; ride of 2026-10-26); micFailed: the mic would not open for another reason. */
   phoneLines: { micBusy: string; micFailed: string };
@@ -314,7 +327,7 @@ export const DEFAULT_CONFIG: Config = {
     // ones that do not move (pressure, km since cleared) once a minute. ~80 ms a command on his Vgate: ~1.1 s a round.
     read: { rpm: 1000, speedKmh: 1000, throttlePct: 1000, coolantC: 1000, loadPct: 1000, intakeC: 1000, ecuV: 1000, baroKpa: 60_000,
       stftPct: 1000, ltftPct: 1000, timingDeg: 1000, absLoadPct: 1000, lambda: 1000, o2V: 1000, runS: 1000, kmSinceClear: 60_000, fuelPct: 30_000 },
-    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, logEveryMs: 60_000, staleMs: 5000, voltLogStepV: 0,
+    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, voltOffEveryMs: 500, logEveryMs: 60_000, staleMs: 5000, voltLogStepV: 0,
     record: { on: true, everyMs: 1000, saveEveryMs: 20_000, keep: 20 },
     readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
@@ -324,6 +337,14 @@ export const DEFAULT_CONFIG: Config = {
   },
   obdReader: null,
   fillUps: { learn: true, minKm: 80, tanks: 3 },
+  health: {
+    runningRpm: 500, chargeRpm: 3000, warmC: 80, crankWindowMs: 15_000,
+    cruise: { rpmFrom: 4000, rpmTo: 6000, throttleFrom: 15, throttleTo: 35 },
+    wheelFromKmh: 30, idleThrottlePct: 10, idleBelowRpm: 2500, rpmBands: [3000, 6000, 9000], coldRevs: 6000, wideThrottlePct: 60, fullThrottlePct: 85,
+    baselineRides: 10, minRides: 3, seriesRides: 20,
+    drift: { chargeV: 0.4, restV: 0.4, crankV: 0.8, warmUpMin: 4, coolantMaxC: 8, ltftPct: 5, stftSwingPct: 4, idleRpm: 200, idleSdRpm: 120, cruiseTimingDeg: 4, wheelVsGps: 0.015,
+      avgKmh: 10, maxKmh: 20, over120Min: 5, throttleAvgPct: 6, wideSharePct: 8, fullThrottle: 5, throttleChurn: 3, peakRpm: 1500, coldRevsS: 30 },
+  },
   phoneLines: {
     micBusy: 'The phone gave the microphone to something else. Try again in a moment.',
     micFailed: "I couldn't open the microphone. Try again?",

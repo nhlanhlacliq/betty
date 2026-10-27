@@ -333,7 +333,7 @@ export class RideSession {
     const { engine, agg, d } = this;
     const w = agg.current.weather;
     const rec = d.desk ? null : toRecord(engine.rideSnapshot(), w ? `${w.summary}, ${w.tempC} C` : null, CONFIG.fuel);
-    if (rec) RideLog.save(rec);
+    if (rec) { const h = engine.healthNow(), r = engine.ridingNow(); if (h) rec.health = h; if (r) rec.riding = r; RideLog.save(rec); }
     FuelStore.save(engine.kmSinceFill());
     const counter = agg.current.engine.kmSinceClear;
     if (counter != null) BikeCounter.save(counter); // for fill-ups made with no ride running

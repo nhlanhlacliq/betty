@@ -131,6 +131,13 @@ export const HELP_TOPICS: HelpTopic[] = [
       '<b>Everything it can read:</b> Garage &gt; Engine data (not during a ride). Connect with the engine running: it lists every value the bike gives (name, reading, raw bytes), the VIN, the protocol, the battery, the warning light and any stored or pending codes. <i>Record</i> reads them all again and again (the screen stays on); <i>Export JSON</i> sends everything including every command and answer, <i>Export CSV</i> the recording for a spreadsheet.',
       '<b>Ask the bike:</b> on the same page you can type a read command (for example 0105 for coolant, or a 22xxxx maker data id). Anything that would clear or write is refused.',
     ])}` },
+  { id: 'health', title: 'Bike health and your riding over time', keywords: 'health trend battery charging starter crank warm up cooling fuel trim idle timing tyre wear riding throttle revs smooth speed history',
+    html: `<p>In the app, Garage &gt; Bike health &amp; riding. Every ride is summed up as it goes and kept with the ride; each value shows your newest ride, your usual (the middle of your recent rides) and a bar per ride.</p>${li([
+      '<b>The bike</b> (with the OBD2 reader): charging voltage, the battery at rest and its dip while the starter turns (a weakening battery dips further), warm-up time, hottest coolant, fuel trims (the engine correcting its mixture), warm idle and how steady it is, timing at a steady cruise, and wheel speed against GPS (a worn tyre slowly reads higher).',
+      '<b>Your riding:</b> average and top speed, minutes over 120, average throttle, time at wide throttle, full-throttle pulls, how much the throttle moves (smoothness), peak revs, and high revs on a cold engine.',
+      '<b>What she does with it:</b> when a bike value drifts the wrong way from your usual, she mentions it in her briefing; her sign-off may say how this ride compared with how you usually ride. Never as advice.',
+      'It needs a few rides before there is a usual to compare with.',
+    ])}` },
   { id: 'fuel', title: 'Fuel range and costs', keywords: 'fuel petrol range reserve tank consumption price cost filled up station',
     html: `${li([
       'There is no fuel sensor: Betty works the range out from the distance since you last tapped <i>Filled up</i>, your tank (11 L, 1 L reserve) and your dash average (L/100 km). Set them in Garage &gt; In your garage.',
