@@ -19,8 +19,8 @@ export interface LineRules {
   wornWindow: number;
   /** Also for his answers (2026-10-26: "Ten out of ten for the wet-weather optimism" padding an answer). */
   wornInAnswers: boolean;
-  /** The lines that may carry engine numbers (temperature, revs, voltage): engine alerts, his answers, the briefing and
-   *  sign-off. Every other line gets no engine readings and banter has no engine topics (owner, 2026-10-27, after a
+  /** The lines that may carry engine numbers (temperature, revs, voltage): engine alerts, his answers, the briefing,
+   *  sign-off and banter. Every other line gets no engine readings and banter has no engine topics (owner, 2026-10-27, after a
    *  closure warning ended with "nine km/h at 2340 rpm with the engine at 86 degrees"). */
   engineLines: string[];
   /** Story lines of these kinds see each other's earlier lines this ride, so one never retells what the other said
@@ -341,7 +341,7 @@ export const DEFAULT_CONFIG: Config = {
     never: [String.raw`taxon|species|genus|fictional|asteroid|minor planet`],
   },
   lineRules: {
-    engineLines: ['engine_overtemp', 'dtc_detected', 'charging_low', 'low_fuel', 'rider_query', 'startup', 'ride_debrief'],
+    engineLines: ['engine_overtemp', 'dtc_detected', 'charging_low', 'low_fuel', 'rider_query', 'startup', 'ride_debrief', 'ambient_banter'], // banter too (owner, 2026-10-27)
     worn: [
       { pattern: String.raw`\bout of (ten|10)\b|\bpoints? off\b|\bminus (points|nothing|one)\b`, name: 'a rating out of ten' },
       { pattern: String.raw`\bhumou?r (setting|at \d|is set)`, name: 'mentioning your humour setting' },

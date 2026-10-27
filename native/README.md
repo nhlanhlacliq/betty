@@ -594,5 +594,5 @@ engine-based fuel model does not work on this bike as is. (3) The ECU's wheel sp
 
 Owner's calls after the first reader ride (2026-10-27): overheat warns only when it STAYS hot
 (`thresholds.overtempHoldSec` 60); engine numbers only in the lines on `CONFIG.lineRules.engineLines` (engine alerts,
-answers, briefing, sign-off): other requests get "leave engine numbers out" instead of the readings, and banter has no
-engine/revs topics unless `ambient_banter` is added to the list.
+answers, briefing, sign-off): other requests get "leave engine numbers out" instead of the readings, banter KEEPS its
+engine/revs topics (owner changed his mind the same day: `ambient_banter` is on the list).
