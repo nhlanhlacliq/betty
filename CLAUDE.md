@@ -4,6 +4,10 @@ Context for any Claude Code instance picking this project up. Read this first.
 
 ## WHERE WE LEFT OFF (handoff, 2026-10-19): read this first
 
+UPDATE 2026-10-27 (later): Garage > Engine data page (every value the bike lists, live, record, read-only command box,
+JSON/CSV export; core/ObdScan) and FIX: the ride did not start with a reader connected (ObdSource.start awaited its own
+loop). Not yet on the bike. Details: native/README.md "Garage > Engine data".
+
 UPDATE 2026-10-27: OBD over Bluetooth LE BUILT (owner's Vgate iCar Pro BLE; react-native-ble-plx, both phones), NOT YET ON
 A RIDE: coolant/fault/charging alerts, engine data in answers, gear learned; fuel range stays by distance (the bike has no
 fuel PID). Reads only, never clears codes. Details: native/README.md "Engine data over Bluetooth LE".
@@ -68,7 +72,8 @@ Waiting on the OWNER:
    test). He is getting a Vgate iCar Pro BLE (works with iPhone too). core/Elm327.ts already updated from the test.
    iPhone OBD needs a BLE transport (react-native-ble-plx behind ObdTransport): NOT built yet.
 3. Android test APK: BUILT LOCALLY 2026-10-27 (no Expo account needed; steps in native/README.md "Setting up a Mac").
-   NOT YET INSTALLED on an Android phone.
+   NOT YET INSTALLED on an Android phone. BETTY LINK ON ANDROID built the same day (Kotlin port of the Swift module,
+   compiled, NOT YET RUN ON A PHONE): native/README.md "Betty Link on Android".
 4. Rotate the Deepgram key (it was pasted in chat): new key in the repo `.env` AND /opt/betty/bot/.env on the server.
 
 Known open issues: station distances sometimes said as "5.1 km further on" (beyond the first station); travel_time gave

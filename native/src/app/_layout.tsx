@@ -21,6 +21,7 @@ export default function Root() {
           <Stack.Screen name="help" />
           <Stack.Screen name="log" />
           <Stack.Screen name="lab" />
+          <Stack.Screen name="engine" />
         </Stack>
         <Toast />
       </BettyProvider>

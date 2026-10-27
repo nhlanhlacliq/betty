@@ -608,7 +608,7 @@ resetConfig();
   handle.dispatchEvent(new page.window.Event('click', { bubbles: true }));
   assert.equal(homeScreen.classList.contains('dock-slim'), slimBefore);
   assert.match(doc.getElementById('whatsnewversion')!.textContent!, /Development build/);
-  assert.match(doc.getElementById('whatsnewlist')!.textContent!, /Time checks while you ride/);
+  { const { CHANGELOG } = await import('../src/changelog'); assert.ok(doc.getElementById('whatsnewlist')!.textContent!.includes(CHANGELOG[0].items[0].title), 'the newest day is open'); }
   resetConfig();
 }
 

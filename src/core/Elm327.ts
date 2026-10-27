@@ -111,18 +111,19 @@ export function supportedPids(raw: string, base = 0): string[] {
 }
 
 const LETTER = ['P', 'C', 'B', 'U'];
-/** Fault codes from a mode 03 answer ("43 01 01 33" on CAN, "43 01 33 00 00 00 00" per line on older buses). */
-export function parseDtcs(raw: string): string[] {
+/** Fault codes from a mode 03 answer ("43 01 01 33" on CAN, "43 01 33 00 00 00 00" per line on older buses). Mode 07
+ *  (pending codes) answers the same way with head "47". */
+export function parseDtcs(raw: string, head = '43'): string[] {
   const lines = cleanLines(raw);
   if (!lines.length) return [];
   let codes: string[];
-  if (lines.every((l) => l.startsWith('43') && l.length === 14)) {
+  if (lines.every((l) => l.startsWith(head) && l.length === 14)) {
     // ISO 9141 / KWP: every line is 43 and three codes, padded with 0000.
     codes = lines.flatMap((l) => l.slice(2).match(/..../g) ?? []);
   } else {
     // CAN: 43, how many codes, then the codes (over several frames when long).
     const hex = lines.join('');
-    if (!hex.startsWith('43')) return [];
+    if (!hex.startsWith(head)) return [];
     const n = parseInt(hex.slice(2, 4), 16) || 0;
     codes = hex.slice(4, 4 + n * 4).match(/..../g) ?? [];
   }

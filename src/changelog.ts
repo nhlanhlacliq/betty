@@ -16,6 +16,12 @@ export interface ChangeDay { date: string; items: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-27',
+    items: [
+      { id: 'engine-data', kind: 'new', title: 'Engine data from an OBD2 reader.', text: 'In the app, a Bluetooth OBD2 reader lets her watch coolant, fault codes and charging on a ride, and Garage > Engine data shows everything the bike gives, live, with a recording to export.', help: 'engine' },
+    ],
+  },
+  {
     date: '2026-10-26',
     items: [
       { id: 'time-checks-riding', kind: 'better', title: 'Time checks while you ride.', text: 'Time checks count your riding minutes and wait while you stand still, unless you switch them back to the clock.', help: 'unprompted' },

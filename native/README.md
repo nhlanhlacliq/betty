@@ -247,7 +247,7 @@ Android (set up on this Mac 2026-10-27, without Android Studio):
    react-native-bluetooth-classic needs it; the first build failed without it.
 5. On a phone by USB: Developer options and USB debugging on, `adb devices`, then `npm run android` (development build;
    `npm start` serves the JavaScript).
-6. Android has no Betty Link (iPhone-only module): rides there use the Daily-call voice.
+6. Betty Link on Android: see "Betty Link on Android" below.
 
 iPhone (free Apple ID):
 1. Install Xcode from the App Store, open it once, then `sudo xcode-select -s /Applications/Xcode.app`.
@@ -353,6 +353,33 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   ~0.43 s; total ~1.65 s with music on, ~0.9 s without). He said "one" at the chime and it was heard, so the chime
   was late by about its own length: it now plays (its own AVAudioPlayer) as soon as the headset is hands-free, while
   the mic engine starts, so it ends about when the mic opens. Log: "chime: speak now".
+
+## Betty Link on Android (BUILT 2026-10-27, owner: "put Betty Link on android too"; COMPILED, NOT YET RUN ON A PHONE)
+
+`modules/betty-link/android/.../BettyLinkModule.kt` = the Swift module rebuilt with Android parts, SAME functions,
+events and states, so `LinkSession.ts` and the rig run unchanged (`LinkSession.available()` is now true on Android, so
+rides use Betty Link there by default too). Read the Swift file for why each step exists; what differs:
+- WebSocket: OkHttp (ping every 15 s). Her voice: a streaming AudioTrack per stretch (24 kHz float, usage navigation
+  guidance) fed from its own thread; "drained" when the play head passes the last buffer (polled every 40 ms).
+  The same VoiceChain (`VoiceChain.kt`, a straight port) and the same five-note chime.
+- His music: audio focus. dip = GAIN_TRANSIENT_MAY_DUCK, pause = GAIN_TRANSIENT, mix = none; focus given back =
+  the music app resumes / comes back up. Headset buttons: GAIN (his music off) while Betty holds them.
+- Helmet mic for his turn only: MODE_IN_COMMUNICATION + `setCommunicationDevice(Bluetooth SCO or BLE headset)` (Android
+  12+; older: startBluetoothSco), AudioRecord VOICE_COMMUNICATION at 16 kHz 16-bit mono (Android resamples), back to
+  MODE_NORMAL and stereo on release. Open mic: the same plus AcousticEchoCanceler, her voice on the call path.
+- Headset buttons: a MediaSession set to "playing" plus a looped near-silent track (Android sends buttons to the
+  session that plays). Same mapping: play/pause/hook = talk, next = repeat, previous = let go.
+- Calls: the phone's audio mode (in call, ringing, screening, or another app's voice call), via
+  `addOnModeChangedListener` (Android 12+) or a 2 s poll; no phone permission needed.
+- `BettyLinkService`: a foreground service (microphone + mediaPlayback) from connect to disconnect, notification "Betty
+  is riding with you". Without it Android blocks the mic once the screen locks (the ride's location service does not
+  count). It only claims "microphone" with the mic allowed (Android 14 throws otherwise).
+- Permissions asked at the first connect: mic, Bluetooth (helmet name, Android 12+), notifications (Android 13+).
+- `route()` uses the iPhone's names ("(Speaker)", "(BluetoothHFP)", "(BluetoothA2DPOutput)"), so `onPhoneSpeaker` works.
+TO CHECK ON THE FIRST ANDROID RIDE (from the log, `link:` lines): mic opens on the helmet ("mic audio arrives from
+... (BluetoothHFP)"), the chime is heard, her first sound after release, music dips and comes back, the notification
+shows, it keeps working with the screen locked, headset buttons reach her (`button: talk`), Cardo-type headsets (the
+web needed `micRaw` for one: VOICE_COMMUNICATION applies call processing, which may need the same switch here).
 
 ## Rides on Betty Link (2026-10-25, owner: "go ahead"; BUILT, NOT YET ON A RIDE)
 
@@ -511,3 +538,22 @@ level (2F). Biketune (same reader) shows the real odometer 29,859 km and the mod
   the coolant peak and lowest running voltage, `GearLearner` (ratio peaks, named only when all `obd.gears` are learned,
   `betty.gears.v1`). His 12.4 V at 1,600 rpm 28 s after a start: under the rules that is "settling", then judged.
 NEXT: try mode 22 reads (odometer, service) in a Workshop probe; fuel model calibrated by fill-ups (stage 3).
+
+## Garage > Engine data: everything the reader can read (2026-10-27)
+
+Owner: "a page from the garage side that shows everything the OBD reader can read ... and export it for analysis and
+integration planning". `src/app/engine.tsx` (route `/engine`; Garage link, and "See everything it reads" under Home >
+How are we riding? > Engine data). Not during a ride (the ride holds the reader). Connect -> `core/ObdScan`
+`ObdScanner` (shared, tested): init (CAN 11/500, ATST FF), `discover` follows every supported-PID bitmap up to C0,
+ATDP/ATDPN protocol, `scan` reads each listed PID once plus VIN (0902), calibration (0904), ECU name (090A), stored (03)
+and pending (07) codes, warning light, ATRV. `PID_CATALOG` = the SAE J1979 mode 01 table (name, unit, formula); a PID
+the bike lists that is not in it is shown and exported as raw bytes. Record = `sweep` over every listed PID + ATRV
+again and again (screen kept awake; `CONFIG.obd.scan` maxRows / maxExchanges / sweepGapMs). "Ask the bike": any
+command `isReadOnly` allows (AT, 01xx, 03, 07, 09xx, 22xxxx: for probing BMW's odometer and service ids); clears and
+writes are refused in code. Export (share sheet, `adapters/ShareFile`): JSON `betty-obd-scan` v1 (the scan, the catalog
+of what it supports, the recording, every command with its answer and timing) and CSV (one row per sweep, a column per
+value "Engine speed (rpm) [0C]"). NOT YET RUN ON THE BIKE.
+
+FIX the same day: the ride would not start with a reader connected until it was unplugged. `StateAggregator.start`
+awaits each source's `start` in turn, and `ObdSource.start` WAS the endless read loop. It now returns at once and runs
+setup + the loop in the background. Any new DataSource must do the same: `start` returns once it is running.

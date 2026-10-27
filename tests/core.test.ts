@@ -3086,4 +3086,72 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   resetConfig();
 }
 
+// ---- Garage > Engine data: everything the reader can read (core/ObdScan)
+{
+  const S = await import('../src/core/ObdScan');
+  const E = await import('../src/core/Elm327');
+  // the catalog agrees with the ride's formulas wherever both have the PID
+  for (const [name, p] of Object.entries(E.PIDS)) {
+    const info = S.pidInfo(p.pid); assert.ok(info, `catalog has ${name}`);
+    const bytes = p.bytes === 1 ? [0x7b] : [0x1a, 0xf8];
+    assert.ok(Math.abs((info!.decode(bytes) as number) - (p.value as (...x: number[]) => number)(...bytes)) < 0.6, `same formula for ${name} (the page keeps a decimal)`);
+  }
+  assert.equal(new Set(S.PID_CATALOG.map((p) => p.pid)).size, S.PID_CATALOG.length, 'no PID twice');
+  assert.ok(S.PID_CATALOG.every((p) => /^[0-9A-F]{2}$/.test(p.pid)));
+  assert.deepEqual(S.pidData('7E8 04 41 0C 19 D0>', '0C'), [0x19, 0xd0], 'an answer with headers on still decodes');
+  assert.deepEqual(S.pidData('410C19D0\r>', '0c'), [0x19, 0xd0]);
+  const rd = S.decodeReading('0C', '410C19D0\r>');
+  assert.equal(rd.value, 1652); assert.equal(rd.unit, 'rpm'); assert.equal(rd.bytes, '19 D0');
+  assert.equal(S.decodeReading('05', 'NO DATA\r>').value, null, 'no answer: no value');
+  assert.equal(S.decodeReading('9F', '419F0102\r>').value, '01 02', 'not in the catalog: raw bytes');
+  assert.equal(S.decodeReading('01', '410181070000\r>').value, 'light ON, 1 code');
+  assert.equal(S.decodeReading('1C', '411C06\r>').value, 'EOBD (Europe)');
+  assert.equal(S.decodeReading('A6', '41A60004 8E 5E\r>'.replace(/ /g, '')).value, 29859, 'odometer in tenths of a km');
+  assert.equal(S.decodeReading('5E', '415E0064\r>').value, 5, 'fuel rate L/h');
+  assert.ok(S.isBitmapPid('20') && S.isBitmapPid('C0') && !S.isBitmapPid('1F'));
+  // VIN: CAN multi-frame, and older one-line-per-part answers
+  assert.equal(S.mode09Text('014\r0:490201574233\r1:4B303243303030\r2:30303030303030\r>', '02'), 'WB3K02C0000000000', '17 characters');
+  assert.equal(S.mode09Text('490201000000574233\r>', '02'), 'WB3');
+  assert.equal(S.mode09Text('NO DATA>', '02'), null);
+  assert.deepEqual(E.parseDtcs('47010133\r>', '47'), ['P0133'], 'pending codes (mode 07)');
+  // the scanner against a fake G 310 GS
+  const bike: Record<string, string> = {
+    ATZ: 'ELM327 v2.2\r>', ATRV: '14.2V\r>', ATDP: 'ISO 15765-4 (CAN 11/500)\r>', ATDPN: 'A6\r>',
+    '0100': '4100BE1EF013\r>', '0120': '4120 80018001\r>'.replace(' ', ''), '0140': '414040000000\r>',
+    '0101': '410100070000\r>', '010C': '410C19D0\r>', '0105': '41055A\r>', '0102': '41020000\r>', '0131': '41317270\r>',
+    '0902': '014\r0:490201574233\r1:4B303243303030\r2:30303030303030\r>', '03': '4300\r>', '07': '4700\r>',
+  };
+  const asked: string[] = [];
+  let tt = 1000;
+  const sc = new S.ObdScanner({ send: async (c) => { asked.push(c); tt += 5; return bike[c] ?? 'NO DATA\r>'; } }, { protocol: '6' }, () => tt);
+  await sc.init();
+  assert.equal(sc.version, 'ELM327 v2.2'); assert.ok(asked.includes('ATSP6'));
+  const sup = await sc.discover();
+  assert.ok(sup.includes('0C') && sup.includes('31') && sup.includes('42'), 'bitmaps chained (00 -> 20 -> 40)');
+  assert.ok(!sup.includes('20') && !sup.includes('40'), 'bitmap PIDs are not values');
+  assert.match(sc.protocol, /CAN 11\/500.*A6/);
+  const prog: number[] = [];
+  const res = await sc.scan('Vgate', (d) => prog.push(d));
+  assert.equal(res.batteryV, 14.2); assert.equal(res.bike.vin, 'WB3K02C0000000000');
+  assert.equal(res.warningLight, false); assert.deepEqual(res.storedCodes, []); assert.deepEqual(res.pendingCodes, []);
+  assert.equal(res.readings.find((x) => x.pid === '0C')!.value, 1652);
+  assert.equal(res.readings.find((x) => x.pid === '31')!.value, 29296);
+  assert.equal(prog.at(-1), sup.length);
+  await assert.rejects(sc.send('04'), /not a read/, 'clearing codes is refused');
+  await assert.rejects(sc.send('2E F1 90 00'), /not a read/);
+  assert.equal(await sc.send('22 f1 90'), 'NO DATA\r>', 'a mode 22 read goes through');
+  const row = await sc.sweep(['0C', '05']);
+  assert.deepEqual(row.values, { '0C': 1652, '05': 50 }); assert.equal(row.batteryV, 14.2);
+  assert.ok(sc.exchanges.some((x) => x.cmd === '010C' && x.answer === '410C19D0' && x.ms === 5), 'every exchange kept');
+  // export
+  const csv = S.samplesCsv([row, { ...row, at: row.at + 1500 }], ['0C', '05']);
+  const lines = csv.trim().split('\n');
+  assert.equal(lines[0], 'time,seconds,Battery (V) [ATRV],Engine speed (rpm) [0C],Coolant temperature (C) [05]');
+  assert.match(lines[2], /,1\.50,14\.2,1652,50$/);
+  assert.match(S.samplesCsv([{ at: 0, batteryV: null, values: { '01': 'light ON, 1 code' } }], ['01']), /,0\.00,,"light ON, 1 code"\n/, 'a comma in a value is quoted');
+  const j = S.scanExport(res, [row], sc.exchanges, { bike: 'Betty', exportedAt: 0 });
+  assert.equal(j.kind, 'betty-obd-scan'); assert.equal(j.recording.rows, 1);
+  assert.ok(j.catalog.every((c) => c.known)); assert.ok(JSON.stringify(j).includes('"vin":"WB3K02C0000000000"'));
+}
+
 console.log('all core tests passed');

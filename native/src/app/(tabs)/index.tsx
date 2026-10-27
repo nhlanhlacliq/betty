@@ -240,6 +240,7 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
             </Pressable>
           ))}
           {b.reader && !readers?.some((r) => r.id === b.reader!.id) && <TextButton label={`Forget ${b.reader.name}`} onPress={() => b.setReader(null)} />}
+          {b.reader && <TextButton label="See everything it reads" icon="arrow" onPress={() => { onClose(); router.push('/engine'); }} />}
         </>
       )}
 

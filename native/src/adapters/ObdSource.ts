@@ -27,11 +27,20 @@ export class ObdSource implements DataSource {
   constructor(private transport: ObdTransport & { close(): Promise<void>; lost?: boolean }, private log: (msg: string) => void, private everyMs = 250,
     private options: ElmOptions = { protocol: '6', timeout: 'FF' }) {}
 
+  /**
+   * Returns AT ONCE: the ride starts its sensors one after another and waits for each start (StateAggregator), and
+   * this one reads until the ride ends. When it awaited its own loop the ride did not start until the reader was
+   * unplugged (owner, 2026-10-27). Setup and reading run in the background.
+   */
   async start(onUpdate: (p: Partial<BikeState>) => void) {
+    this.running = true;
+    void this.run(onUpdate).catch((e) => this.log(`reader stopped: ${(e as Error).message}`));
+  }
+
+  private async run(onUpdate: (p: Partial<BikeState>) => void) {
     const session = new ElmSession(this.transport, this.log, this.options);
     let lastVolt = 0, lastLog = 0;
     let seen: Partial<BikeState> = {}; // the latest of every value, for the log line
-    this.running = true;
     try { await session.init(); } catch (e) { this.log(`reader setup failed: ${(e as Error).message}`); return; }
     while (this.running && !this.transport.lost) {
       const t0 = Date.now();
@@ -48,7 +57,7 @@ export class ObdSource implements DataSource {
       await new Promise((r) => setTimeout(r, Math.max(0, this.everyMs - (Date.now() - t0))));
     }
     if (this.transport.lost) this.log('reader lost: engine data off for the rest of the ride');
-    onUpdate(NO_OBD);
+    if (this.running) onUpdate(NO_OBD);
   }
   stop() { this.running = false; void this.transport.close(); }
 }

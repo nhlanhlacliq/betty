@@ -201,6 +201,8 @@ export interface Config {
     readerNames: string; chargeOkV: number; chargeLowV: number; chargeMinRpm: number; chargeLowSec: number; chargeSettleS: number;
     batteryWeakV: number; coldC: number; trimNoteAbsPct: number; gears: number;
     gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number };
+    /** Garage > Engine data (core/ObdScan): exchanges kept for the export, rows a recording keeps, pause between sweeps (ms). */
+    scan: { maxExchanges: number; maxRows: number; sweepGapMs: number };
   };
   /** The reader he picked (Bluetooth id, or address on Android) and its name; null = none. */
   obdReader: { id: string; name: string } | null;
@@ -300,6 +302,7 @@ export const DEFAULT_CONFIG: Config = {
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
     batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6,
     gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06 },
+    scan: { maxExchanges: 20_000, maxRows: 20_000, sweepGapMs: 0 },
   },
   obdReader: null,
   phoneLines: {
