@@ -215,6 +215,9 @@ export interface Config {
     gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number; steadyPct: number; steadyMs: number };
     /** Garage > Engine data (core/ObdScan): exchanges kept for the export, rows a recording keeps, pause between sweeps (ms). */
     scan: { maxExchanges: number; maxRows: number; sweepGapMs: number };
+    /** The general probe (core/ObdProbe): how long to listen, the 11-bit request addresses to try, the data id ranges
+     *  to read on each computer, the ELM's answer wait (ATST, hex x 4 ms), how close a match must be, frames kept. */
+    probe: { listenMs: number; addresses: [string, string]; ranges: string[]; waitHex: string; matchPct: number; keepFrames: number };
     /** The ride's engine recording (core/EngineRecord): a row every everyMs, written to the phone every saveEveryMs, the newest `keep` rides kept. */
     record: { on: boolean; everyMs: number; saveEveryMs: number; keep: number };
   };
@@ -334,6 +337,12 @@ export const DEFAULT_CONFIG: Config = {
     batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6, chargeFrom: 'bike',
     gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06, steadyPct: 0.03, steadyMs: 1500 },
     scan: { maxExchanges: 20_000, maxRows: 20_000, sweepGapMs: 0 },
+    probe: {
+      listenMs: 20_000, addresses: ['600', '7F7'], waitHex: '32', matchPct: 1, keepFrames: 5000,
+      // identification (F180-F1FF), OBD values through UDS (F400-F4FF: fuel level would be F42F), and the ranges makers
+      // often keep counters and service data in. Each id ~0.1-0.2 s: about 2,800 ids, 5-10 min a computer.
+      ranges: ['F180-F1FF', 'F400-F4FF', 'DD00-DDFF', 'D000-D1FF', '0100-01FF', '1000-11FF', '2000-21FF', '4000-40FF', '5000-50FF'],
+    },
   },
   obdReader: null,
   fillUps: { learn: true, minKm: 80, tanks: 3 },

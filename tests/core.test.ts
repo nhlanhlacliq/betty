@@ -3318,4 +3318,50 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(H.ridingNote({ ...r, avgKmh: 42 }, rides), '', 'like usual: nothing');
 }
 
+// ---- the general probe (core/ObdProbe): listen, find the computers, read their data ids; reads only
+{
+  resetConfig();
+  const P = await import('../src/core/ObdProbe');
+  const fr = P.parseMonitor('1A0 00 10 5A 2F 00 00 00 00\r1A0 00 11 5A 2F 00 00 00 00\r2B4 C8 01\rBUFFER FULL\r>', 5);
+  assert.equal(fr.length, 3); assert.deepEqual(fr[2], { at: 5, id: '2B4', bytes: [0xc8, 1] });
+  const sum = P.summarizeFrames(fr, 2);
+  assert.deepEqual(sum[0].changing, [1], 'only the second byte of 1A0 moved'); assert.equal(sum[0].perSecond, 1);
+  // ISO-TP put back together, headers and PCI bytes stripped
+  const vin = '7E8 10 14 62 F1 90 57 42 33\r7E8 21 30 47 30 32 30 33 4A\r7E8 22 52 38 31 30 31 36 36\r>';
+  assert.deepEqual(P.reassemble(vin)[0].data.slice(0, 6), [0x62, 0xf1, 0x90, 0x57, 0x42, 0x33]);
+  assert.equal(P.reassemble(vin)[0].data.length, 20);
+  const a = P.didAnswer(vin, 'F190'); assert.ok(a && a.ok && a.data.length === 17);
+  assert.deepEqual(P.didAnswer('7E8 03 7F 22 31\r>', 'D100'), { ok: false, nrc: 0x31 });
+  assert.equal(P.didAnswer('NO DATA\r>', 'D100'), null);
+  // the odometer found in an answer: 298,590 tenths (0x048E5E) at offset 1, big endian
+  const hits = [{ request: '7E0', did: 'D10A', bytes: '00 04 8E 5E 00', text: '' }, { request: '720', did: '1001', bytes: '74 A3', text: '' }];
+  const m = P.findValue(hits, 29_859);
+  assert.ok(m.some((x) => x.did === 'D10A' && x.offset === 1 && x.encoding === 'u24 BE x0.1'));
+  assert.ok(m.some((x) => x.did === '1001' && x.encoding === 'u16 BE'), '0x74A3 = 29,859 km');
+  assert.equal(P.didsIn(['F18A-F18C', '0100']).join(' '), 'F18A F18B F18C 0100');
+  // a fake bike: an engine computer at 7E0 and a cluster at 720, everything else silent
+  CONFIG.obd.probe.addresses = ['71E', '7E1']; CONFIG.obd.probe.ranges = ['1000-1002'];
+  let sh = '';
+  const sent: string[] = [];
+  const bike = { send: async (c: string) => {
+    sent.push(c);
+    if (c.startsWith('ATSH')) sh = c.slice(4);
+    if (c === '22F190') return sh === '7E0' ? vin : sh === '720' ? '728 03 7F 22 31\r>' : 'NO DATA\r>';
+    if (c === '221001' && sh === '720') return '728 05 62 10 01 74 A3\r>';
+    if (c.startsWith('22')) return `${sh === '720' ? '728' : '7E8'} 03 7F 22 31\r>`;
+    return 'OK\r>';
+  }, monitor: async () => '1A0 00 10\r>' };
+  const pr = new P.ObdProbe(bike);
+  assert.equal((await pr.listen(1000)).length, 1);
+  const comps = await pr.findComputers();
+  assert.deepEqual(comps.map((c) => `${c.request}>${c.reply}`), ['720>728', '7E0>7E8'], 'a refusal counts: the cluster is there');
+  for (const c of comps) await pr.readDids(c);
+  assert.deepEqual(pr.hits.map((h) => `${h.request} ${h.did} ${h.bytes}`), ['720 1001 74 A3']);
+  const rep = pr.report({ odometerKm: 29_859 });
+  assert.equal(rep.odometerMatches![0].did, '1001'); assert.deepEqual(rep.refusedCounts['7E0'], [['no such id', 3]]);
+  assert.ok(sent.every((c) => /^AT/.test(c) || /^22[0-9A-F]{4}$/.test(c)), 'only AT commands and reads went out');
+  await assert.rejects(new P.ObdProbe({ send: async () => 'OK>' }).listen(10), /cannot listen/);
+  resetConfig();
+}
+
 console.log('all core tests passed');

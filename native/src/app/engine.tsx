@@ -5,6 +5,8 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONFIG } from '../../../src/config/betty';
 import { ObdScanner, Reading, Sample, ScanResult, pidInfo, samplesCsv, scanExport } from '../../../src/core/ObdScan';
+import { BusId, Computer, NRC, ObdProbe, findValue } from '../../../src/core/ObdProbe';
+import { ServiceStore } from '../../../src/adapters/ServiceStore';
 import { BleObdTransport } from '../adapters/BleObdTransport';
 import { ElmClassicTransport } from '../adapters/ElmClassicTransport';
 import { shareFile } from '../adapters/ShareFile';
@@ -20,7 +22,7 @@ import { C, T } from '../ui/theme';
  * READ-ONLY command by hand (mode 22 probing), and exports JSON (everything, every exchange) or CSV (the recording).
  * The protocol and the catalog are shared code: src/core/ObdScan.ts.
  */
-type Status = 'off' | 'connecting' | 'silent' | 'ready' | 'scanning' | 'recording';
+type Status = 'off' | 'connecting' | 'silent' | 'ready' | 'scanning' | 'recording' | 'probing';
 type Transport = (BleObdTransport | ElmClassicTransport) & { lost?: boolean };
 const fmt = (v: Reading['value'], unit: string) => (v == null ? '—' : `${v}${unit && typeof v === 'number' ? ` ${unit}` : ''}`);
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
@@ -42,6 +44,39 @@ export default function Engine() {
   const samples = useRef<Sample[]>([]);
   const recording = useRef(false);
   const rideHasIt = !!b.ride && !!b.reader && b.mode === 'real';
+  // the general probe (core/ObdProbe)
+  const probe = useRef<ObdProbe | null>(null);
+  const [bus, setBus] = useState<BusId[] | null>(null);
+  const [computers, setComputers] = useState<Computer[] | null>(null);
+  const [hits, setHits] = useState(0);
+  const [odo, setOdo] = useState(() => { const k = ServiceStore.load().odoKm; return k ? String(Math.round(k)) : ''; });
+  const [fuelNote, setFuelNote] = useState('');
+  const [probeNote, setProbeNote] = useState('');
+  const odoKm = Number(odo.replace(/[\s,]/g, '')) || null;
+  const getProbe = () => (probe.current ??= new ObdProbe(transport.current as any, (m) => b.logger.add('[probe]', m)));
+  const probeStep = async (what: 'listen' | 'find' | 'read') => {
+    if (!transport.current || !scanner.current) return;
+    const p = getProbe(); p.stopped = false;
+    setStatus('probing'); void activateKeepAwakeAsync('obd');
+    try {
+      if (what === 'listen') { setProbeNote('Listening to the bike for 20 s…'); const ids = await p.listen(); setBus(ids); setProbeNote(`Heard ${p.frames.length} messages from ${ids.length} ids.`); }
+      if (what === 'find') { const c = await p.findComputers((d, of) => setProbeNote(`Asking address ${d + 1} of ${of}…`)); setComputers([...c]); setProbeNote(`${c.length} computer${c.length === 1 ? '' : 's'} answered.`); }
+      if (what === 'read') {
+        const list = computers?.length ? computers : [{ request: '7E0', reply: '7E8', answer: '' }];
+        for (const [i, c] of list.entries()) {
+          if (p.stopped) break;
+          await p.readDids(c, (d, of) => setProbeNote(`Computer ${i + 1} of ${list.length} (${c.request}): data id ${d} of ${of}… ${p.hits.length} answers so far`));
+          setHits(p.hits.length);
+        }
+        const m = odoKm ? findValue(p.hits, odoKm) : [];
+        setProbeNote(`${p.hits.length} data ids answered.${odoKm ? ` ${m.length ? `Odometer candidates: ${m.slice(0, 5).map((x) => `${x.request} ${x.did} (${x.encoding} = ${x.value})`).join(', ')}` : 'No answer holds your odometer.'}` : ''}`);
+      }
+    } catch (e) { setProbeNote(`Probe stopped: ${(e as Error).message}`); }
+    // back to normal reading: the ELM set up as before the probe
+    try { await scanner.current.init(); } catch { /* reported by the next read */ }
+    deactivateKeepAwake('obd');
+    setStatus(transport.current?.lost ? 'off' : 'ready');
+  };
 
   const close = async () => {
     recording.current = false;
@@ -114,7 +149,7 @@ export default function Engine() {
     catch (e) { setAsks((x) => [{ cmd: c.toUpperCase(), answer: (e as Error).message }, ...x].slice(0, 30)); }
   };
   const exportJson = async () => {
-    const j = scanExport(scan, samples.current, scanner.current?.exchanges ?? [], { bike: CONFIG.bikeName, exportedAt: Date.now() });
+    const j = scanExport(scan, samples.current, scanner.current?.exchanges ?? [], { bike: CONFIG.bikeName, exportedAt: Date.now(), probe: probe.current?.report({ odometerKm: odoKm, fuelNote: fuelNote || undefined }) });
     try { await shareFile(`betty-obd-${stamp()}.json`, JSON.stringify(j, null, 1), 'application/json', 'public.json'); } catch (e) { setNote((e as Error).message); }
   };
   const exportCsv = async () => {
@@ -131,7 +166,7 @@ export default function Engine() {
   };
 
   const connected = status !== 'off' && status !== 'connecting';
-  const busy = status === 'connecting' || status === 'scanning';
+  const busy = status === 'connecting' || status === 'scanning' || status === 'probing';
   const shown: Reading[] = (scan?.readings ?? []).map((r) => (live && r.pid in live.values ? { ...r, value: live.values[r.pid] } : r));
   const battery = live?.batteryV ?? scan?.batteryV ?? null;
 
@@ -162,7 +197,7 @@ export default function Engine() {
             {status === 'silent' && <Primary label="Try again" icon={null} onPress={() => void look()} style={{ flex: 1 }} />}
             {connected && status !== 'silent' && <Secondary label={status === 'scanning' ? 'Reading…' : 'Read all again'} disabled={busy || status === 'recording'} onPress={() => void runScan()} style={{ flex: 1 }} />}
             {connected && status !== 'silent' && <Primary label={status === 'recording' ? 'Stop recording' : 'Record'} icon={null} disabled={busy} onPress={() => void record()} style={{ flex: 1 }} />}
-            {connected && <Secondary label="Disconnect" disabled={status === 'recording'} onPress={() => { void close(); setStatus('off'); setNote(''); }} />}
+            {connected && <Secondary label="Disconnect" disabled={status === 'recording' || status === 'probing'} onPress={() => { void close(); setStatus('off'); setNote(''); }} />}
           </View>
           {!!progress && <Text style={[T.sub, { marginTop: 8 }]}>{progress}</Text>}
           {rows > 0 && <Text style={[T.sub, { marginTop: 4 }]}>Recording: {rows.toLocaleString('en-US')} rows (up to {CONFIG.obd.scan.maxRows.toLocaleString('en-US')} kept).</Text>}
@@ -204,6 +239,31 @@ export default function Engine() {
             <Secondary label="Send" disabled={status === 'recording' || busy} onPress={() => void ask()} />
           </View>
           {asks.map((a, i) => <Text key={i} style={st.mono}>{a.cmd} → {a.answer}</Text>)}
+        </Card>
+      )}
+
+      {connected && status !== 'silent' && (
+        <Card title="Probe the bike" sub="Looks beyond the standard values, on every computer it can find, the instrument cluster included: what they send each other, and every BMW data id in a set of ranges. Reads only. Ignition on with the engine idling; the full read takes a while (about 5 to 10 minutes a computer).">
+          <View style={st.buttons}>
+            <Text style={[T.body, { flex: 1 }]}>Dash odometer (km)</Text>
+            <TextInput value={odo} onChangeText={setOdo} keyboardType="number-pad" placeholder="29859" style={[st.input, { flex: 0, minWidth: 110 }]} />
+          </View>
+          <TextInput value={fuelNote} onChangeText={setFuelNote} placeholder="Fuel on the dash now, e.g. 4 of 6 bars" style={[st.input, { marginTop: 8, fontFamily: undefined }]} />
+          <View style={st.buttons}>
+            <Secondary label="1. Listen" disabled={status === 'probing' || status === 'recording'} onPress={() => void probeStep('listen')} style={{ flex: 1 }} />
+            <Secondary label="2. Find computers" disabled={status === 'probing' || status === 'recording'} onPress={() => void probeStep('find')} style={{ flex: 1 }} />
+          </View>
+          <View style={st.buttons}>
+            <Primary label="3. Read their data" icon={null} disabled={status === 'probing' || status === 'recording'} onPress={() => void probeStep('read')} style={{ flex: 1 }} />
+            {status === 'probing' && <Secondary label="Stop" onPress={() => probe.current?.stop()} />}
+          </View>
+          {!!probeNote && <Text style={[T.sub, { marginTop: 8 }]}>{probeNote}</Text>}
+          {bus && <Text style={[T.eyebrow, { marginTop: 12 }]}>On the bus</Text>}
+          {bus?.map((x) => <Text key={x.id} style={st.mono}>{x.id} · {x.perSecond}/s · {x.length} bytes · moving: {x.changing.length ? x.changing.map((i) => `#${i}`).join(' ') : 'none'} · {x.last}</Text>)}
+          {computers && <Text style={[T.eyebrow, { marginTop: 12 }]}>Computers</Text>}
+          {computers?.map((c) => <Text key={c.request} style={st.mono}>{c.request} → {c.reply}: {c.answer.startsWith('7F') ? `there (${NRC[parseInt(c.answer.split(' ')[2], 16)] ?? c.answer})` : c.answer}</Text>)}
+          {computers?.length === 0 && <Text style={T.sub}>None answered on the usual reply addresses. Step 3 will try the engine computer (7E0).</Text>}
+          {hits > 0 && <Text style={[T.sub, { marginTop: 8 }]}>{hits} data ids answered. Export JSON to send them over.</Text>}
         </Card>
       )}
 

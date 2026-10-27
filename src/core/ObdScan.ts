@@ -266,13 +266,14 @@ export class ObdScanner {
 }
 
 /** The whole page as one JSON file: what the bike is, what it supports, the readings, the recording and every exchange. */
-export function scanExport(scan: ScanResult | null, samples: Sample[], exchanges: Exchange[], app: { bike: string; exportedAt: number }) {
+export function scanExport(scan: ScanResult | null, samples: Sample[], exchanges: Exchange[], app: { bike: string; exportedAt: number; probe?: unknown }) {
   const pids = scan?.supported ?? [...new Set(samples.flatMap((s) => Object.keys(s.values)))];
   return {
     kind: 'betty-obd-scan', version: 1, exportedAt: new Date(app.exportedAt).toISOString(), bikeName: app.bike,
     scan: scan && { ...scan, at: new Date(scan.at).toISOString() },
     catalog: pids.map((pid) => ({ pid, name: pidInfo(pid)?.name ?? null, unit: pidInfo(pid)?.unit ?? null, known: !!pidInfo(pid) })),
     recording: { rows: samples.length, columns: ['at', 'batteryV', ...pids], samples: samples.map((s) => ({ at: new Date(s.at).toISOString(), batteryV: s.batteryV, ...s.values })) },
+    ...(app.probe ? { probe: app.probe } : {}),
     exchanges: exchanges.map((e) => ({ ...e, at: new Date(e.at).toISOString() })),
   };
 }

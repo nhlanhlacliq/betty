@@ -110,6 +110,34 @@ export class BleObdTransport implements ObdTransport {
     return next;
   }
 
+  /**
+   * Listen to the bus (the probe): ATMA makes the reader print every frame it sees until any character is sent. Collects
+   * for `ms`, then stops it with a carriage return and waits for the prompt. Sends nothing to the bike.
+   */
+  monitor(ms: number): Promise<string> {
+    const run = async (): Promise<string> => {
+      const d = this.device, w = this.writeChar;
+      if (!d || !w || this.lost) throw new Error('not connected');
+      const write = (t: string) => (w.isWritableWithoutResponse ? d.writeCharacteristicWithoutResponseForService(w.serviceUUID, w.uuid, enc(t)) : d.writeCharacteristicWithResponseForService(w.serviceUUID, w.uuid, enc(t)));
+      this.buffer = ''; this.waiting = null;
+      await write('ATMA\r');
+      await new Promise((r) => setTimeout(r, ms));
+      const text = this.buffer;
+      const done = new Promise<string>((resolve) => {
+        const timer = setTimeout(() => { this.waiting = null; resolve(''); }, 3000);
+        this.waiting = (a) => { clearTimeout(timer); resolve(a); };
+        if (this.buffer.includes('>')) { const a = this.buffer; this.buffer = ''; this.waiting = null; clearTimeout(timer); resolve(a); }
+      });
+      this.buffer = '';
+      await write('\r');
+      const tail = await done;
+      return text + tail;
+    };
+    const next = this.chain.then(run, run);
+    this.chain = next.catch(() => {});
+    return next;
+  }
+
   async close() {
     this.sub?.remove(); this.gone?.remove();
     try { await this.device?.cancelConnection(); } catch { /* already gone */ }
