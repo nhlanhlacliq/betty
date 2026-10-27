@@ -48,8 +48,9 @@ export class ObdSource implements DataSource {
         const { state, voltage } = await session.poll();
         if (this.running && Object.keys(state).length) onUpdate(state);
         seen = { ...seen, ...state };
-        // Battery/charging voltage: logged when it moves by 0.3 V (12.5 engine off, ~14.3 charging on the G 310 GS).
-        if (voltage != null && Math.abs(voltage - lastVolt) >= 0.3) { lastVolt = voltage; this.log(`battery ${voltage} V`); }
+        // The reader's voltage jumps about (ride of 2026-10-27: ~150 lines); the minute line carries it. Off by default.
+        const step = CONFIG.obd.voltLogStepV;
+        if (step > 0 && voltage != null && Math.abs(voltage - lastVolt) >= step) { lastVolt = voltage; this.log(`reader voltage ${voltage} V`); }
         if (session.supported.length && Date.now() - lastLog >= CONFIG.obd.logEveryMs) { lastLog = Date.now(); this.log(snapshot(seen)); }
         // Engine not running yet (the bike's ECU is silent until it is): ask again every 3 s, not every second.
         if (!session.supported.length) await new Promise((r) => setTimeout(r, 2000));

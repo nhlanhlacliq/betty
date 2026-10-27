@@ -163,6 +163,9 @@ export function readVoltage(raw: string): number | null {
 export class ElmSession {
   private misses: Partial<Record<PidName, number>> = {};
   private asked: Record<string, number> = {};
+  /** When each value last came back (for dropping readings once the bike goes silent) */
+  private gotAt: Partial<Record<PidName, number>> = {};
+  private quiet = false;
   supported: string[] = [];
   version = '';
   /** Everything read so far (each poll's state carries all of it, so the state never loses a slow value). */
@@ -229,8 +232,15 @@ export class ElmSession {
       if (v == null) {
         this.misses[name] = (this.misses[name] ?? 0) + 1;
         if (this.misses[name] === 10) this.log(`no ${name} for 10 tries in a row (reader or connection?)`);
-      } else this.misses[name] = 0;
+      } else { this.misses[name] = 0; this.gotAt[name] = this.now(); }
       return v;
+    };
+    /** A value not given again within CONFIG.obd.staleMs (or 3 of its own intervals, for the slow ones) is gone: the
+     *  engine was switched off. Ride of 2026-10-27: the last coolant reading (106 C) stayed after he parked and the
+     *  overheat alert went on every minute with the engine off. */
+    const stale = (name: PidName) => {
+      const at = this.gotAt[name];
+      return at !== undefined && this.now() - at > Math.max(c.staleMs, 3 * (c.read[name] ?? 0));
     };
     const rpm = await get('rpm');
     if (rpm != null) state.rpm = rpm;
@@ -246,6 +256,19 @@ export class ElmSession {
       const v = await get(name);
       if (v != null) this.engine[name] = v;
     }
+    const ENGINE_KEY: Partial<Record<PidName, keyof EngineReadings>> = { speedKmh: 'bikeSpeedKmh' };
+    let gone = false;
+    for (const name of Object.keys(PIDS) as PidName[]) {
+      if (!stale(name)) continue;
+      delete this.gotAt[name]; gone = true;
+      if (name === 'rpm') state.rpm = 0;
+      else if (name === 'coolantC') state.engineTempC = 0; // 0 = unknown, as with no reader
+      else if (name === 'throttlePct') state.throttlePct = 0;
+      else if (name === 'fuelPct') state.fuelKnown = false;
+      else delete this.engine[(ENGINE_KEY[name] ?? name) as keyof EngineReadings];
+    }
+    if (gone && !this.quiet) { this.quiet = true; this.log('the bike stopped answering (engine off?): its last readings are dropped'); }
+    if (!gone && rpm != null) this.quiet = false;
     if (this.due('0101', c.statusEveryMs)) { const st = readStatus(await this.t.send('0101')); if (st) Object.assign(this.engine, st); }
     if (this.due('03', c.dtcEveryMs)) state.dtcs = parseDtcs(await this.t.send('03'));
     state.engine = { ...this.engine };

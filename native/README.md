@@ -573,3 +573,11 @@ pressure and km-since-cleared once a minute; O2 sensor voltage (PID 14) added. `
 reader volts, run time, codes). `adapters/EngineRecorder`: a row a second while `s.obd`, the file rewritten every 20 s
 and at the end (documents/engine/engine-<start>.csv, newest 20 kept), started in Betty.tsx `start` when a reader
 connected (`CONFIG.obd.record.on`); Log screen: "Share the engine recording". Log snapshot now every minute.
+
+FIRST RIDE WITH THE READER (2026-10-27 08:39, 36 min, Edenvale to Saxonwold): reader stable the whole ride, recording
+2,064 rows. Found and fixed: (1) after he parked the bike went silent and the last coolant (106 C) STAYED in the state,
+so `engine_overtemp` went on every minute with the engine off: `ElmSession` now drops a reading not given again within
+`CONFIG.obd.staleMs` (5 s, or 3 of its own intervals) and logs "the bike stopped answering" once; (2) ~150 "battery"
+lines from the reader's jumpy voltage: off (`voltLogStepV` 0), the minute line has it. Open: coolant really reached
+105-106 C in stop-start traffic at the end (overtemp threshold 105 C: owner to decide); engine numbers padded a traffic
+alert and banter.

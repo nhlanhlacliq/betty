@@ -198,6 +198,8 @@ export interface Config {
    */
   obd: {
     read: Record<string, number>; dtcEveryMs: number; statusEveryMs: number; voltEveryMs: number; logEveryMs: number;
+    /** A reading not given again for this long is dropped (engine off). voltLogStepV: log the reader voltage when it moves this much (0 = never; the minute line has it). */
+    staleMs: number; voltLogStepV: number;
     readerNames: string; chargeOkV: number; chargeLowV: number; chargeMinRpm: number; chargeLowSec: number; chargeSettleS: number;
     batteryWeakV: number; coldC: number; trimNoteAbsPct: number; gears: number;
     /** Whose voltage judges charging: 'bike' = the engine computer's (PID 42) when given, else the reader's; 'reader' = ATRV. */
@@ -303,7 +305,7 @@ export const DEFAULT_CONFIG: Config = {
     // ones that do not move (pressure, km since cleared) once a minute. ~80 ms a command on his Vgate: ~1.1 s a round.
     read: { rpm: 1000, speedKmh: 1000, throttlePct: 1000, coolantC: 1000, loadPct: 1000, intakeC: 1000, ecuV: 1000, baroKpa: 60_000,
       stftPct: 1000, ltftPct: 1000, timingDeg: 1000, absLoadPct: 1000, lambda: 1000, o2V: 1000, runS: 1000, kmSinceClear: 60_000, fuelPct: 30_000 },
-    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, logEveryMs: 60_000,
+    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, logEveryMs: 60_000, staleMs: 5000, voltLogStepV: 0,
     record: { on: true, everyMs: 1000, saveEveryMs: 20_000, keep: 20 },
     readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,

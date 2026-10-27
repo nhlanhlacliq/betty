@@ -3178,4 +3178,34 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.equal(E.readPid('o2V', '4114337D>'), 0.255);
 }
 
+// ---- ride of 2026-10-27: parked at 106 C, engine off, the bike goes silent: the readings go, the overheat alert stops
+{
+  const E = await import('../src/core/Elm327');
+  let on = true, tt = 0;
+  const logs: string[] = [];
+  const bike = async (c: string) => {
+    if (c === 'ATRV') return '12.2V>';
+    if (c === '0100') return '4100BE1EF013>';
+    if (!on && /^01/.test(c)) return 'NO DATA>';
+    if (c === '010C') return '410C0690>'; if (c === '0105') return '410592>'; // 420 rpm, 106 C
+    if (c === '010F') return '410F3C>';
+    return 'NO DATA>';
+  };
+  const s = new E.ElmSession({ send: bike }, (m) => logs.push(m), {}, () => tt);
+  await s.init();
+  let r = await s.poll();
+  assert.equal(r.state.engineTempC, 106); assert.equal(s.engine.intakeC, 20);
+  on = false;
+  for (let i = 0; i < 4; i++) { tt += 1000; r = await s.poll(); }
+  assert.equal(r.state.engineTempC, undefined, 'within 5 s the last value is kept (one missed answer is not engine off)');
+  tt += 2000; r = await s.poll();
+  assert.equal(r.state.engineTempC, 0, 'silent past staleMs: coolant unknown'); assert.equal(r.state.rpm, 0);
+  assert.equal(r.state.engine!.intakeC, undefined, 'the other readings go too');
+  assert.ok(logs.some((l) => /stopped answering/.test(l)));
+  const { TriggerEngine } = await import('../src/core/TriggerEngine');
+  const { initialState } = await import('../src/core/StateAggregator');
+  const e = new TriggerEngine(() => 50_000_000, () => 0.99);
+  assert.ok(!e.evaluate({ ...initialState(), obd: true, ...r.state } as any).some((x) => x.id === 'engine_overtemp'), 'no overheat alert from a dropped reading');
+}
+
 console.log('all core tests passed');
