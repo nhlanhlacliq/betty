@@ -19,6 +19,10 @@ export interface LineRules {
   wornWindow: number;
   /** Also for his answers (2026-10-26: "Ten out of ten for the wet-weather optimism" padding an answer). */
   wornInAnswers: boolean;
+  /** The lines that may carry engine numbers (temperature, revs, voltage): engine alerts, his answers, the briefing and
+   *  sign-off. Every other line gets no engine readings and banter has no engine topics (owner, 2026-10-27, after a
+   *  closure warning ended with "nine km/h at 2340 rpm with the engine at 86 degrees"). */
+  engineLines: string[];
   /** Story lines of these kinds see each other's earlier lines this ride, so one never retells what the other said
    *  (2026-10-26: Centurion "once the farm Droogegrond" as an area story, then again as a local fact). */
   storyKinds: TriggerId[];
@@ -45,6 +49,8 @@ export interface Config {
   safeWindow: { useLean: boolean; maxLeanDeg: number };
   thresholds: {
     overtempC: number; lowFuelPct: number; rainChancePct: number;
+    /** The overheat alert waits until the coolant has stayed at overtempC or more this long (owner, 2026-10-27: "warn only when it stays hot"). */
+    overtempHoldSec: number;
     trafficRadiusKm: number; trafficMinSeverity: number;
     /** A jam must cost at least this long to be worth a line */
     trafficMinDelaySec: number;
@@ -237,7 +243,7 @@ export interface Config {
 
 export const DEFAULT_CONFIG: Config = {
   safeWindow: { useLean: false, maxLeanDeg: 20 },
-  thresholds: { overtempC: 105, lowFuelPct: 15, rainChancePct: 60, trafficRadiusKm: 5, trafficMinSeverity: 2, trafficMinDelaySec: 120, sunsetWarnMin: 45 },
+  thresholds: { overtempC: 105, overtempHoldSec: 60, lowFuelPct: 15, rainChancePct: 60, trafficRadiusKm: 5, trafficMinSeverity: 2, trafficMinDelaySec: 120, sunsetWarnMin: 45 },
   // G 310 GS: 11 litre tank. 280 km is a cautious full-tank range; tune it to what the bike actually does.
   // Owner's figures, 2026-10-17: 11 L tank with 1 L reserve, 4.4 L/100 km on the dash, R30.25 a litre.
   fuel: { tankL: 11, reserveL: 1, lPer100: 4.4, warnKmLeft: 60, pricePerL: 30.25, priceSource: 'manual', priceAt: new Date(2026, 9, 17).getTime() },
@@ -335,6 +341,7 @@ export const DEFAULT_CONFIG: Config = {
     never: [String.raw`taxon|species|genus|fictional|asteroid|minor planet`],
   },
   lineRules: {
+    engineLines: ['engine_overtemp', 'dtc_detected', 'charging_low', 'low_fuel', 'rider_query', 'startup', 'ride_debrief'],
     worn: [
       { pattern: String.raw`\bout of (ten|10)\b|\bpoints? off\b|\bminus (points|nothing|one)\b`, name: 'a rating out of ten' },
       { pattern: String.raw`\bhumou?r (setting|at \d|is set)`, name: 'mentioning your humour setting' },

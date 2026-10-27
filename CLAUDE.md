@@ -218,7 +218,7 @@ it imports `src/core` directly (Metro watches `../src`), so a browser API in cor
 | Id | Default priority | Fires when | Default cooldown |
 |---|---|---|---|
 | startup | P4 | Ride starts | 0 |
-| engine_overtemp | P1 | temp >= 105 C | 60 s |
+| engine_overtemp | P1 | temp >= 105 C held for `thresholds.overtempHoldSec` (60 s; owner 2026-10-27) | 60 s |
 | dtc_detected | P1 | any fault code present | 10 min |
 | low_fuel | P2 | fuel <= 15% | 10 min |
 | rain_soon | P2 | raining now, or chance next hour >= 60% | 15 min |

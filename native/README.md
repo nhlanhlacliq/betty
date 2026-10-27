@@ -591,3 +591,8 @@ average; this ECU's absolute load is ~77% at idle and 100% at most throttle open
 engine-based fuel model does not work on this bike as is. (3) The ECU's wheel speed reads 3.4% under GPS (14.8 vs
 15.4 km). (4) ~28% of rows repeat the one before: a round of ~13 commands takes ~1.3 s, so the real rate is ~0.75/s.
 (5) Coolant rose steadily in stop-start traffic (85 -> 101 C), 105 C only while stopped at the end.
+
+Owner's calls after the first reader ride (2026-10-27): overheat warns only when it STAYS hot
+(`thresholds.overtempHoldSec` 60); engine numbers only in the lines on `CONFIG.lineRules.engineLines` (engine alerts,
+answers, briefing, sign-off): other requests get "leave engine numbers out" instead of the readings, and banter has no
+engine/revs topics unless `ambient_banter` is added to the list.

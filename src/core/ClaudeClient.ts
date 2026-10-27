@@ -230,7 +230,10 @@ export interface RequestOptions {
 export function buildClaudeRequest(ev: TriggerEvent, s: BikeState, spoken: string[], talk: Turn[] = [], o: RequestOptions = {}) {
   const flavour = FLAVOUR_PROMPTS[ev.id];
   const base = bettySystemPrompt(sentencesFor(ev.id));
-  const readings = s.obd
+  const engineOk = CONFIG.lineRules.engineLines.includes(ev.id);
+  const readings = s.obd && !engineOk
+    ? { speedKmh: s.speedKmh, engineData: 'connected, but leave engine numbers (temperature, revs, voltage) out of this line' }
+    : s.obd
     ? { speedKmh: s.speedKmh, rpm: s.rpm, engineTempC: s.engineTempC, ...(s.fuelKnown ? { fuelPct: s.fuelPct } : { fuel: 'no gauge: the range is an estimate' }), ...(chargeVolts(s) != null ? { batteryV: chargeVolts(s) } : {}) }
     : { speedKmh: s.speedKmh, engineData: 'not connected: do not mention engine temperature, revs, fuel or faults' };
   // Alerts and answers get the clock and the readings. Lines she makes up on her own get neither: given readings,

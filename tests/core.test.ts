@@ -44,10 +44,14 @@ const inc = (over: Partial<TrafficIncident> = {}): TrafficIncident => ({
   id: 'a', description: 'an accident', severity: 3, distanceKm: 2, lat: 0, lon: 0, ...over,
 });
 
-// overtemp fires P1 once, then respects cooldown
+// overtemp fires P1 once it has STAYED hot for overtempHoldSec (owner, 2026-10-27), then respects cooldown
 {
   const e = new TriggerEngine(now);
   const s = { ...obdState(), engineTempC: 108 };
+  assert.equal(e.evaluate(s).length, 0, 'just touched the line: no alert yet');
+  clock += 30_000; assert.equal(e.evaluate({ ...s, engineTempC: 101 }).length, 0, 'dipped below: the wait starts again');
+  assert.equal(e.evaluate(s).length, 0);
+  clock += 61_000;
   const a = e.evaluate(s); assert.equal(a[0].id, 'engine_overtemp'); assert.equal(a[0].priority, 1);
   assert.equal(e.evaluate(s).length, 0, 'dedupe within cooldown');
   clock += 61_000;
@@ -80,6 +84,7 @@ assert.equal(new TriggerEngine(now).evaluate({ ...obdState(), fuelPct: 10 })[0].
 {
   CONFIG.priorities.low_fuel = 1;
   assert.equal(new TriggerEngine(now).evaluate({ ...obdState(), fuelPct: 10 })[0].priority, 1);
+  CONFIG.thresholds.overtempHoldSec = 0; // these tests are about other things: the alert at once
   CONFIG.cooldownsMs.engine_overtemp = 0;
   const e = new TriggerEngine(now); const s = { ...obdState(), engineTempC: 110 };
   assert.equal(e.evaluate(s).length, 1); assert.equal(e.evaluate(s).length, 1, 'zero cooldown refires');
@@ -88,6 +93,7 @@ assert.equal(new TriggerEngine(now).evaluate({ ...obdState(), fuelPct: 10 })[0].
 }
 // engine.force ignores cooldown; reset clears state
 {
+  CONFIG.thresholds.overtempHoldSec = 0;
   const e = new TriggerEngine(now); const s = { ...obdState(), engineTempC: 110 };
   e.evaluate(s);
   assert.equal(e.evaluate(s).length, 0);
@@ -268,6 +274,7 @@ const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 
   assert.equal(quiet.evaluate({ ...obdState(), nearbyPlaces: [place()] }).length, 0, 'zero weights are silent');
   resetConfig();
 
+  CONFIG.thresholds.overtempHoldSec = 0; // these tests are about other things: the alert at once
   const e = new TriggerEngine(now, () => 0);
   const hot = { ...obdState(), engineTempC: 110 };
   e.evaluate(hot); // overtemp fires, now in cooldown
@@ -451,6 +458,7 @@ const ride0 = () => new RideStats(now).snapshot();
   assert.equal(e.evaluate(s).length, 0, 'no engine alerts without OBD');
   assert.equal(e.ambientBlocked(s), false, 'and nothing engine-related blocks banter');
   assert.equal(e.evaluate({ ...s, weather: wx({ rainNowMm: 1 }) })[0].id, 'rain_soon', 'feed alerts still work');
+  CONFIG.thresholds.overtempHoldSec = 0; // these tests are about other things: the alert at once
   assert.equal(e.evaluate({ ...s, obd: true, fuelKnown: true }).length, 3, 'same readings with OBD on do alert');
   // a real reader on a bike with no fuel gauge (the owner's G 310 GS): engine alerts yes, fuel by distance as before
   const e2 = new TriggerEngine(now, () => 0);
@@ -3210,6 +3218,25 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const { initialState } = await import('../src/core/StateAggregator');
   const e = new TriggerEngine(() => 50_000_000, () => 0.99);
   assert.ok(!e.evaluate({ ...initialState(), obd: true, ...r.state } as any).some((x) => x.id === 'engine_overtemp'), 'no overheat alert from a dropped reading');
+}
+
+// ---- engine numbers only in engine lines, answers, briefing and sign-off (owner, 2026-10-27: "keep engine numbers out")
+{
+  resetConfig();
+  const { buildClaudeRequest } = await import('../src/core/ClaudeClient');
+  const { initialState } = await import('../src/core/StateAggregator');
+  const { banterTopics } = await import('../src/core/ambient');
+  const s = { ...initialState(), obd: true, rpm: 2340, engineTempC: 86, speedKmh: 9 };
+  const ev = (id: string, priority: 1 | 2 | 3 | 4) => ({ id, priority, context: 'Road closure ahead.', fallback: '', createdAt: Date.now() }) as any;
+  const body = (id: string, p: 1 | 2 | 3 | 4) => JSON.stringify(buildClaudeRequest(ev(id, p), s, []));
+  assert.ok(!/2340|"engineTempC"/.test(body('traffic_incident', 2)), 'a closure warning gets no engine numbers');
+  assert.match(body('traffic_incident', 2), /leave engine numbers/);
+  assert.match(body("engine_overtemp", 2), /engineTempC\W{1,4}86/, 'the overheat alert still does');
+  assert.match(body("rider_query", 4), /rpm\W{1,4}2340/, 'and his answers');
+  const ride = { ...ride0(), maxEngineTempC: 99, distanceKm: 5 };
+  const banter = (on: boolean) => banterTopics({ s, ride, history: [], at: new Date(2026, 0, 1, 9), placeRadiusKm: 4, engineTalk: on }).map((t) => t.id);
+  assert.ok(!banter(false).includes('engine') && !banter(false).includes('revs'), 'no engine topics in banter');
+  assert.ok(banter(true).includes('revs'), 'back when the list allows it');
 }
 
 console.log('all core tests passed');

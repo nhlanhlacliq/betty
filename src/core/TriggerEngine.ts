@@ -113,7 +113,7 @@ export class TriggerEngine {
     this.lastFired.clear(); this.announced.clear(); this.mentioned.clear(); this.storiedAreas.clear(); this.warnedSpots.clear();
     this.topicUse.clear(); this.topicSeq = 0; this.lastMode = null;
     this.rideStart = this.now(); this.milestonesHit = 0; this.lastAmbientSlot = this.now(); this.quietUntil = 0;
-    this.charge.reset(); this.lowestRunningV = null;
+    this.charge.reset(); this.lowestRunningV = null; this.hotSince = null;
     this.stillSince = null; this.parked = false; this.detour = false; this.detourLeft = false; this.newRoadArmed = true; this.goodStopsSaid.clear(); this.saidLongest = false; this.lastDistance = 0;
     this.rainWarned.clear(); this.movingAtBreak = 0; this.fatigueAtMoving = null; this.coldSaid = false;
     const carried = this.kmSinceFill(); // a new ride does not refill the tank
@@ -187,6 +187,8 @@ export class TriggerEngine {
   /** Engine watchers (core/Engine): charging, the gear learned across rides, the lowest running voltage this ride. */
   private charge = new ChargeWatch();
   private gears = new GearLearner();
+  /** Since when the coolant has been at the overheat line (null = below it) */
+  private hotSince: number | null = null;
   private lowestRunningV: number | null = null;
   setGears(bins: Record<string, number>) { this.gears = new GearLearner(bins); }
   gearBins(): Record<string, number> { return this.gears.bins; }
@@ -361,7 +363,9 @@ export class TriggerEngine {
     const t = CONFIG.thresholds;
 
     if (s.obd) { // engine alerts need an OBD2 feed (simulated or real)
-      if (s.engineTempC >= t.overtempC && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
+      // Only once it STAYS hot (thresholds.overtempHoldSec): it touched 105 C idling at the end of the first ride.
+      if (s.engineTempC >= t.overtempC) this.hotSince ??= this.now(); else this.hotSince = null;
+      if (this.hotSince !== null && this.now() - this.hotSince >= t.overtempHoldSec * 1000 && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
       this.gears.add(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm, s.throttlePct, this.now());
       const v = chargeVolts(s);
       if (v != null && s.rpm >= CONFIG.obd.chargeMinRpm && (s.engine.runS ?? Infinity) >= CONFIG.obd.chargeSettleS) this.lowestRunningV = Math.min(this.lowestRunningV ?? v, v);
@@ -781,7 +785,7 @@ export class TriggerEngine {
       case 'ambient_banter': {
         const topics = banterTopics({
           s, ride: this.stats.snapshot(), history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
-          fuelKmLeft: this.fuelKmLeft(),
+          fuelKmLeft: this.fuelKmLeft(), engineTalk: CONFIG.lineRules.engineLines.includes('ambient_banter'),
         });
         const topic = pickTopic(topics, this.topicUse, this.rng);
         if (!topic) return { context: '', fallback: '' };
