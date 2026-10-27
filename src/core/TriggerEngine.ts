@@ -200,7 +200,7 @@ export class TriggerEngine {
   setGears(bins: Record<string, number>) { this.gears = new GearLearner(bins); }
   gearBins(): Record<string, number> { return this.gears.bins; }
   /** The gear he is in (null while still learning, or between gears) */
-  gearNow(s: BikeState): number | null { return s.obd ? this.gears.gear(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm) : null; }
+  gearNow(s: BikeState): number | null { return s.obd && CONFIG.obd.gearFrom === 'learned' ? this.gears.gear(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm) : null; }
   /** How long he has been standing still (ms), 0 while moving. */
   stillForMs(): number { return this.stillSince === null ? 0 : this.now() - this.stillSince; }
   /** What she knows about good stops where he is, for answers (empty when nothing is kept for here). */
@@ -860,8 +860,10 @@ export class TriggerEngine {
         const metres = Math.max(50, Math.round((m.km * 1000) / 50) * 50);
         const note = m.spot.note ? `, with his note "${m.spot.note}"` : '';
         return {
-          context: `He is about ${metres} metres from a spot he marked ${whenSaid(m.spot.at, this.now())}${m.spot.near ? ` near ${m.spot.near}` : ''}${note}. It is ahead of him. Give him a short heads-up: what it is and how far. If the note sounds like a hazard (a pothole, gravel, a speed camera), say it plainly as a warning, no joke. Never tell him how to steer, which part of the lane to use or what speed to do: you cannot see the road.`,
-          fallback: `Marked spot ahead${m.spot.note ? `: ${m.spot.note}` : ''}.`,
+          // Information, not a warning (owner, 2026-10-27: "home is near"). The distance is a straight line, not the road
+          // (it said 400 metres ahead with a couple of turns still to go), so she says near, not how far or which way.
+          context: `He is near a spot he marked ${whenSaid(m.spot.at, this.now())}${m.spot.near ? ` near ${m.spot.near}` : ''}${note} (about ${metres} metres in a straight line; the road may be longer). Tell him in a few words, as information, that it is near, e.g. "home is near". Do not give the distance or say it is straight ahead. If the note is a hazard (a pothole, gravel, a speed camera), say plainly what it is. Never tell him how to steer, which part of the lane to use or what speed to do.`,
+          fallback: m.spot.note ? `${cap(m.spot.note)} is near.` : 'Your marked spot is near.',
         };
       }
       case 'area_story': {

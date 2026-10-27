@@ -210,12 +210,14 @@ function ModeSheet({ open, onClose, route, setRoute }: { open: boolean; onClose:
   const [looking, setLooking] = useState(false);
   const findReaders = async () => {
     setLooking(true);
+    await b.watchRelease(); // one scan at a time: the bike watch waits
+
     try {
       const le = (await BleObdTransport.scan(6)).map((r) => ({ id: r.id, name: r.name, sub: 'Bluetooth LE' }));
       const classic = Platform.OS === 'android' ? (await ElmClassicTransport.paired().catch(() => [])).map((r) => ({ id: `classic:${r.address}`, name: r.name, sub: `paired · ${r.address}` })) : [];
       setReaders([...le, ...classic]);
     } catch (e) { setNote(`Bluetooth: ${(e as Error).message}`); }
-    finally { setLooking(false); }
+    finally { setLooking(false); b.watchArm(); }
   };
 
   return (

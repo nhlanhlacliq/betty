@@ -114,9 +114,8 @@ export class GearLearner {
     const c = CONFIG.obd.gear;
     if (kmh < c.minKmh || rpm < c.minRpm) return null;
     const rs = this.ratios();
-    // The top gear may never be used (riding in town: on 2026-10-27 five of six were learned, 6th never ridden). 1st is
-    // used on every pull-away, so a missing gear is the top one: gears are named from 1st once at most gear.topMissing
-    // are still unknown.
+    // gear.topMissing: how many top gears may be unlearned and the rest still named (0: all of them, the default; the
+    // owner rode 6th a lot on 2026-10-27, so "6th never used" was a wrong guess).
     if (rs.length < CONFIG.obd.gears - CONFIG.obd.gear.topMissing) return null;
     const r = kmh / (rpm / 1000);
     let best = -1, err = Infinity;

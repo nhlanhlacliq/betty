@@ -23,7 +23,7 @@ export const VOICE_COMMANDS: CommandGroup[] = [
     { say: ['End ride', "We're done for today"], does: 'Ends the ride like the End ride button: she signs off and the ride\'s story opens.', kind: 'end' },
   ] },
   { title: 'Remembering things', items: [
-    { say: ['Mark this spot', 'Mark this spot, pothole in the left lane', 'Remember this place because the coffee is good'], does: 'Saves where you are, with a note. She warns you when you come up on it again, and it shows in Explore.', kind: 'mark' },
+    { say: ['Mark this spot', 'Mark this spot, pothole in the left lane', 'Remember this place because the coffee is good'], does: 'Saves where you are, with a note. She tells you when you are near it again ("home is near"), and it shows in Explore.', kind: 'mark' },
     { say: ['Remember that the coffee at Clarens is the best', 'Make a note: tyres at 2.2 bar'], does: 'Keeps a note. She does not remind you of it by herself: ask about it any time, and it shows in Explore. For maintenance, use Reminders.', kind: 'remember' },
     { say: ['Forget that', 'Scratch that'], does: 'Removes the newest note or marked spot.', kind: 'forget' },
   ] },
@@ -124,7 +124,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     html: `<p>In the app, a Bluetooth OBD2 reader in the bike's diagnostic socket (a Vgate iCar Pro BLE works on iPhone and Android) lets Betty read the engine. Pick it once: Home &gt; How are we riding? &gt; Engine data &gt; Find my OBD2 reader (plug it in, ignition on). It connects when you start a ride; many bikes only answer with the engine running.</p>${li([
       '<b>What she watches:</b> coolant temperature (an alert when it STAYS too hot: 105 C for a minute, so a moment in traffic is not an alarm), fault codes and the engine warning light (explained in plain words), and the battery: with the engine running it should read about 13.3 V or more; lower for a minute at 2,500 rpm or more and she tells you it may not be charging.',
       '<b>Engine numbers stay in engine talk:</b> temperatures, revs and voltages come up in engine warnings, when you ask, in her briefing and sign-off, and now and then in her banter; never tacked onto a traffic warning or a story.',
-      '<b>What she knows when you ask:</b> coolant, revs, battery, intake air, fault codes, and your gear once she has learned your gearbox (from speed per 1000 rpm over a few rides; nothing to set up).',
+      '<b>What she knows when you ask:</b> coolant, revs, battery, intake air, fault codes, and soon your gear (switched off for now: the bike may report its own, which the probe will show).',
       '<b>Fuel:</b> most bikes, the G 310 GS included, do not report a fuel level, so the range stays the estimate from distance since you filled up.',
       '<b>Safe:</b> Betty only ever READS from the bike; she never clears codes or changes anything.',
       'The log gets an engine line every minute (coolant, revs, battery, trims). Every ride with a reader is also RECORDED: every value once a second next to GPS, kept on the phone (the newest 20 rides); share it from the Log as a CSV for a spreadsheet.',

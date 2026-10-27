@@ -52,6 +52,8 @@ export class BleObdTransport implements ObdTransport {
   private chain: Promise<unknown> = Promise.resolve();
   /** Set when the reader drops (the ride carries on without engine data) */
   lost = false;
+  /** The reader's serial-line service, once connected (EngineWatch listens for it while the reader sleeps) */
+  serviceUUID: string | null = null;
 
   constructor(private log: (msg: string) => void = () => {}) {}
 
@@ -89,7 +91,7 @@ export class BleObdTransport implements ObdTransport {
     }
     if (!pick) { await d.cancelConnection().catch(() => {}); throw new Error('no serial line found on this device (not an OBD reader?)'); }
     this.log(`reader serial line: service ${pick.notify.serviceUUID}, answers on ${pick.notify.uuid}, commands to ${pick.write.uuid}`);
-    this.device = d; this.writeChar = pick.write; this.lost = false;
+    this.device = d; this.writeChar = pick.write; this.lost = false; this.serviceUUID = pick.notify.serviceUUID;
     this.sub = pick.notify.monitor((err, ch) => {
       if (err) return;
       this.buffer += dec(ch?.value ?? '');

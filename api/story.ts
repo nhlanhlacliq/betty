@@ -11,7 +11,7 @@ const MAX_NOTES = 6;
 
 export const storyPrompt = (area: string, region: string, exclude: string[]) => `Research the history and culture of ${area}${region ? `, ${region}` : ''} for a motorcycle co-pilot who tells a rider short stories about the places he rides through.
 Use web search. Write up to ${MAX_NOTES} notes, each one story about ${area} itself: the origin of its name, how and when it began, a notable event, a notable person, a landmark and what happened there, or its culture (languages, food, music, sport, festivals, local sayings).
-Each note: two or three plain spoken sentences with the specifics (names, years) that make it interesting. Only facts your search results state; leave out anything you cannot confirm. Every note must be about ${area} itself: never about another town, the city or the province, and never about your search (no \"I could not find\", no \"search results\"). If the results say little about ${area}, write fewer notes, or none: {\"notes\":[]}.${exclude.length ? `\nAlready covered, find different stories: ${exclude.join('; ')}.` : ''}
+Each note: two or three plain spoken sentences with the specifics (names, years) that make it interesting. Only facts your search results state; leave out anything you cannot confirm. Every note must be about ${area} itself: never about another town, the city or the province, and never about your search (no \"I could not find\", no \"search results\"). Different parts of ${area} are welcome (a street, a park, a building, a person from there). If the results say little about ${area}, write fewer notes.${exclude.length ? `\nAlready told on his rides here and nearby, never tell these again, find different stories: ${exclude.join('; ')}.` : ''}
 Reply with ONLY this JSON and nothing else: {"notes":[{"topic":"a few words","text":"the note","source":"website name"}]}`;
 
 /** A landmark he is about to pass (kind "landmark"): what it is and its story, fewer notes. */
@@ -85,7 +85,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!research) return json({ error: 'unknown RESEARCH_PROVIDER' }, 503);
   const body: any = await req.json().catch(() => null);
   const area = String(body?.area ?? '').trim(), region = String(body?.region ?? '').trim();
-  const exclude = (Array.isArray(body?.exclude) ? body.exclude : []).map((x: any) => String(x).slice(0, 60)).slice(0, 20);
+  const exclude = (Array.isArray(body?.exclude) ? body.exclude : []).map((x: any) => String(x).slice(0, 60)).slice(0, 40);
   if (!area || area.length > 80 || region.length > 80) return json({ error: 'bad area' }, 400);
   const kind = body?.kind === 'landmark' || body?.kind === 'stops' ? body.kind : 'area';
   const about = String(body?.about ?? '').trim().slice(0, 160);
@@ -97,7 +97,6 @@ export async function POST(req: Request): Promise<Response> {
     return stops.length ? json({ stops }) : json({ error: 'no stops found' }, 502);
   }
   const notes = parseNotes({ content: [{ type: 'text', text: r.text }] });
-  // "nothing worth telling about this place" is an answer, kept on the phone so it is not researched again every 2 km
-  if (!notes.length) return /"notes"\s*:\s*\[\s*\]/.test(r.text) ? json({ notes: [] }) : json({ error: 'no notes found' }, 502);
+  if (!notes.length) return json({ error: 'no notes found' }, 502); // not kept: asked again on a later ride
   return json({ notes });
 }

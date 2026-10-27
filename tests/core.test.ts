@@ -1142,7 +1142,7 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     assert.equal((await storyApi(new Request('https://betty-zeta.vercel.app/api/story', { method: 'POST', headers: h, body: JSON.stringify({ area: '' }) }))).status, 400);
   } finally { globalThis.fetch = realFetch; process.env = saved; }
   assert.deepEqual(parseNotes({ content: [{ type: 'text', text: 'no json here' }] }), []);
-  assert.match(storyPrompt('Germiston', 'Gauteng', ['Name origin']), /Already covered, find different stories: Name origin/);
+  assert.match(storyPrompt('Germiston', 'Gauteng', ['Name origin']), /Already told on his rides here and nearby, never tell these again, find different stories: Name origin/);
   assert.deepEqual(areasOf({ suburb: 'Germiston South', town: 'Germiston', region: 'Gauteng' }).map((x) => x.name), ['Germiston'], 'a suburb named after the town adds nothing');
   assert.deepEqual(areasOf({ suburb: 'Senaoane', town: 'Soweto', region: 'Gauteng' }).map((x) => x.name), ['Soweto', 'Senaoane']);
 
@@ -1207,8 +1207,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   const s = { ...initialState(), lat: -26.1527, lon: 28.1500, headingDeg: 0, speedKmh: 50 };
   const fired = e.evaluate(s).filter((x) => x.id === 'marked_spot');
   assert.equal(fired.length, 1); assert.equal(fired[0].priority, 2);
-  assert.match(fired[0].context, /about 300 metres from a spot he marked 3 days ago near Greenstone Hill, with his note "nasty pothole in the left lane"/);
-  assert.equal(fired[0].fallback, 'Marked spot ahead: nasty pothole in the left lane.');
+  assert.match(fired[0].context, /near a spot he marked 3 days ago near Greenstone Hill, with his note "nasty pothole in the left lane" \(about 300 metres in a straight line/);
+  assert.equal(fired[0].fallback, 'Nasty pothole in the left lane is near.');
   clock += 60_000; assert.ok(!e.evaluate(s).some((x) => x.id === 'marked_spot'), 'not again within 10 minutes');
   clock += 10 * 60_000; assert.equal(e.evaluate(s).filter((x) => x.id === 'marked_spot').length, 1, 'again after 10 minutes');
   const e2 = new TriggerEngine(now); e2.setMemory({ notes: [], marks: [pothole] });
@@ -3088,8 +3088,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   for (let i = 0; i < 5; i++) for (const rr of ratios.slice(0, 5)) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) held(rr * rpm / 1000, rpm);
   // the clutch slipping as he pulls away (ride of 2026-10-27): the ratio never holds, so it is never learned as a gear
   for (let i = 0; i < 80; i++) { gl.add(10 + (i % 8), 2800 + (i % 8) * 120 - (i % 3) * 300, 25, gt); gt += 1000; }
-  assert.equal(gl.gear(12 * 6, 6000), 4, 'five of six learned: the unused one is the top gear, the rest are named (ride of 2026-10-27)');
-  CONFIG.obd.gear.topMissing = 0; assert.equal(gl.gear(12 * 6, 6000), null, 'all six required when topMissing is 0'); CONFIG.obd.gear.topMissing = 1;
+  assert.equal(gl.gear(12 * 6, 6000), null, 'five of six learned: no gear named yet');
+  CONFIG.obd.gear.topMissing = 1; assert.equal(gl.gear(12 * 6, 6000), 4, 'unless the top gear may be missing'); CONFIG.obd.gear.topMissing = 0;
   for (let i = 0; i < 5; i++) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) held(15.9 * rpm / 1000, rpm);
   assert.equal(gl.ratios().length, 6);
   assert.equal(gl.gear(12.0 * 5, 5000), 4); assert.equal(gl.gear(4.6 * 7, 7000), 1); assert.equal(gl.gear(15.9 * 6.5, 6500), 6);
@@ -3376,9 +3376,10 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
     'Gusts of about 41 km/h from the side. Hold a firm line and keep your speed steady.',
   ]) {
     const out = cleanSpoken(line, { advice, maxSentences: 3, ambient: false, name: 'sir', recent: [] }).text;
-    assert.ok(!/turning around|hold|loosen|keep your speed/i.test(out), `advice left out: ${out}`);
+    assert.ok(!/turning around|hold|loosen/i.test(out), `advice left out: ${out}`);
     assert.ok(out.length > 10 || /hold Betty steady/.test(line), 'the warning itself stays (a line that is all advice is empty: the alert then says its canned warning)');
   }
+  assert.match(cleanSpoken('Gusts of about 41 km/h from the side. Keep your speed steady.', { advice, maxSentences: 3, ambient: false, name: 'sir', recent: [] }).text, /Keep your speed steady/, 'a steady speed is fine advice (owner)');
   const { junkNote } = await import('../src/adapters/AreaSource');
   assert.ok(junkNote('The only confirmed fact I found is that Antwerp is a town in Gauteng, per a geotargeting listing that ranks it as number 31.'));
   assert.ok(junkNote('I could not find a history, name origin or landmark for this Antwerp in my search results.'));

@@ -218,6 +218,8 @@ export interface Config {
     /** Whose voltage judges charging: 'bike' = the engine computer's (PID 42) when given, else the reader's; 'reader' = ATRV. */
     chargeFrom: 'bike' | 'reader';
     gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number; steadyPct: number; steadyMs: number; topMissing: number };
+    /** Where the gear comes from: 'off' (none named), 'learned' (GearLearner, from speed per 1000 rpm). A reading from the bike itself would be a third, once the probe finds one. */
+    gearFrom: 'off' | 'learned';
     /** Garage > Engine data (core/ObdScan): exchanges kept for the export, rows a recording keeps, pause between sweeps (ms). */
     scan: { maxExchanges: number; maxRows: number; sweepGapMs: number };
     /** The general probe (core/ObdProbe): how long to listen, the 11-bit request addresses to try, the data id ranges
@@ -227,7 +229,7 @@ export interface Config {
     record: { on: boolean; everyMs: number; saveEveryMs: number; keep: number };
   };
   /** The reader he picked (Bluetooth id, or address on Android) and its name; null = none. */
-  obdReader: { id: string; name: string } | null;
+  obdReader: { id: string; name: string; service?: string } | null;
   /** Consumption from his fill-ups (core/FillUps): learn = after each full tank, fuel.lPer100 becomes the average of the
    *  last `tanks` full-to-full stretches of at least `minKm`; off = his own figure stays. */
   fillUps: { learn: boolean; minKm: number; tanks: number };
@@ -343,7 +345,9 @@ export const DEFAULT_CONFIG: Config = {
     readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
     batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6, chargeFrom: 'bike',
-    gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06, steadyPct: 0.03, steadyMs: 1500, topMissing: 1 },
+    gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06, steadyPct: 0.03, steadyMs: 1500, topMissing: 0 },
+    // owner, 2026-10-27: no gears worked out from speed and revs until the probe shows whether the bike reports its own
+    gearFrom: 'off',
     scan: { maxExchanges: 20_000, maxRows: 20_000, sweepGapMs: 0 },
     probe: {
       listenMs: 20_000, addresses: ['600', '7F7'], waitHex: '32', matchPct: 1, keepFrames: 5000,
@@ -411,9 +415,9 @@ export const DEFAULT_CONFIG: Config = {
       alerts: [
         String.raw`\btake the next (turn|exit|left|right)\b`, String.raw`\bre-?route\b`, String.raw`\bturn(ing)? (it )?(around|back)\b`,
         String.raw`\b(take|use|find) (another|a different|an alternative|the other) (road|route|way)\b`,
-        // ride of 2026-10-27 home: "hold Betty steady", "loosen the grip, mind the crosswinds", "hold a firm line and keep your speed steady"
+        // ride of 2026-10-27 home: "hold Betty steady", "loosen the grip, mind the crosswinds", "hold a firm line" ("keep your speed steady" is fine: owner)
         String.raw`\bhold (a |the |your |her |betty |the bike )?(firm |steady |tight )?(line|grip|steady)\b`, String.raw`\bloosen (the|your) grip\b`,
-        String.raw`\bkeep (your|the|her) speed (steady|down|up|low)\b`, String.raw`\bmind the (cross ?winds?|gusts?)\b`,
+        String.raw`\bkeep (your|the|her) speed (down|up|low)\b`, String.raw`\bmind the (cross ?winds?|gusts?)\b`,
         String.raw`\b(i|we) (would )?(suggest|recommend) (turning|taking|going|riding|slowing|pulling)\b`,
       ],
     },

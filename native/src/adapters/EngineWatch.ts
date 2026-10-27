@@ -34,24 +34,49 @@ export class EngineWatch {
   /** Let go of the reader (a ride or the Engine data page is about to use it). */
   async release() {
     const id = this.armed;
-    this.armed = null;
+    this.armed = null; this.said = '';
+    if (id) await ble().stopDeviceScan().catch(() => {});
     if (id && this.connected) { this.connected = false; await ble().cancelDeviceConnection(id).catch(() => {}); }
   }
 
   /** A ride has just ended: no "bike on" for a while (the bike is still on). */
   rideEnded() { save({ rideEndedAt: Date.now() }); }
 
-  private async wait(id: string) {
+  private said = '';
+  /** Log a state once, not every try (2026-10-27: "trying again in a minute" every minute all evening at home). */
+  private note(m: string) { if (m !== this.said) { this.said = m; this.log(`bike watch: ${m}`); } }
+
+  /**
+   * While the reader sleeps: listen for its own Bluetooth service (learned at the first ride, CONFIG.obdReader.service)
+   * and connect only once it is heard. iOS allows a scan for a named service in the background, at a low rate. Without
+   * the service yet: a standing connection request, retried slowly (1, 2, 5, 10 minutes) and logged once.
+   */
+  private async wait(id: string, tries = 0) {
     try {
       await poweredOn(15_000);
-      // No timeout: iOS waits as long as it takes; Android needs autoConnect for the same.
-      await ble().connectToDevice(id, Platform.OS === 'android' ? { autoConnect: true } : undefined);
+      const service = CONFIG.obdReader?.service;
+      if (service) {
+        this.note(`waiting for ${this.readerName()} to wake up`);
+        await new Promise<void>((resolve, reject) => {
+          void ble().startDeviceScan([service], { allowDuplicates: false }, (err, d) => {
+            if (this.armed !== id) { void ble().stopDeviceScan(); reject(new Error('released')); return; }
+            if (err) { void ble().stopDeviceScan(); reject(err); return; }
+            if (d?.id === id) { void ble().stopDeviceScan(); resolve(); }
+          });
+        });
+        await ble().connectToDevice(id, { timeout: 15_000 });
+      } else {
+        // No timeout: iOS waits as long as it takes; Android needs autoConnect for the same.
+        await ble().connectToDevice(id, Platform.OS === 'android' ? { autoConnect: true } : undefined);
+      }
       if (this.armed !== id) { await ble().cancelDeviceConnection(id).catch(() => {}); return; }
+      this.note('reader awake');
       await this.seen(id);
     } catch (e) {
       if (this.armed !== id) return;
-      this.log(`bike watch: ${(e as Error).message}; trying again in a minute`);
-      setTimeout(() => { if (this.armed === id) void this.wait(id); }, 60_000);
+      const wait = [1, 2, 5, 10][Math.min(tries, 3)];
+      this.note(`reader asleep or out of range (${(e as Error).message}); listening again quietly`);
+      setTimeout(() => { if (this.armed === id) void this.wait(id, tries + 1); }, wait * 60_000);
     }
   }
 

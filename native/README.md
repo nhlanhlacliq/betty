@@ -637,3 +637,12 @@ place itself and that none is an answer (`{notes: []}` now kept, not an error re
 voltage every round. Replayed: charging 14.9 V, warm-up 7.8 min, idle 1,748 +-88, wheel/GPS 0.963 (same as the
 morning: the tyre trend will be readable). Gears over both rides: 4.75 / 7.25 / 9.5 / 11.5 / 13.75 (6th unused).
 Open: his marked spot "my home" is announced as a hazard on the way home (owner to decide).
+
+Owner's answers (same evening): "keep your speed steady" is fine (pattern narrowed); the bike watch logged "trying
+again in a minute" all evening at home: it now LISTENS for the reader's own service (learned at a ride,
+`CONFIG.obdReader.service`, a background-allowed iOS scan) and connects only when heard, logging each state once;
+without the service, a standing request retried at 1/2/5/10 min. Stories: nothing empty is kept (reverted); research
+gets the topics already told in the region (40), "different parts of the same place are welcome"; a failed area is
+asked again on a later ride, not every 2 km. Gears: `obd.gearFrom` 'off' until the probe shows whether the bike reports
+its own (he rides 6th a lot: 13.75 km/h per 1000 rpm is probably 6th, so the learner's "1st" was unclear);
+`gear.topMissing` back to 0. Marked spots: information ("home is near"), no straight-line distance or "ahead".

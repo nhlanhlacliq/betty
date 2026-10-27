@@ -150,7 +150,18 @@ export class AreaSource implements DataSource {
     return out;
   }
 
-  private research(name: string, key: string, exclude: string[]): Promise<AreaNote[]> { return researchArea(name, key, exclude, this.fetcher); }
+  /** Areas whose research failed this ride: asked again on a later ride, not every 2 km (nothing empty is kept). */
+  private failedThisRide = new Set<string>();
+  /**
+   * Research an area, told what she has already said on his rides in that region (owner, 2026-10-27: the 1886 gold
+   * strike came back as the story of Antwerp, Sandton and Benoni): the topics of every told note there, newest first.
+   */
+  private research(name: string, key: string, exclude: string[]): Promise<AreaNote[]> {
+    const region = key.split('|')[1] ?? '', told = this.told();
+    const nearby = Object.entries(AreaStore.all()).filter(([k]) => (k.split('|')[1] ?? '') === region)
+      .flatMap(([, v]) => v.notes).filter((n) => told.has(n.id)).map((n) => n.topic).filter(Boolean).reverse();
+    return researchArea(name, key, [...new Set([...exclude, ...nearby])].slice(0, 40), this.fetcher);
+  }
 
   async tick(force = false) {
     if (this.busy) return;
@@ -165,6 +176,7 @@ export class AreaSource implements DataSource {
       for (const a of areasOf(info)) try {
         let kept = AreaStore.get(a.key);
         const told = this.told();
+        if (!kept && this.failedThisRide.has(a.key)) continue;
         if (!kept) {
           this.onStatus(`researching ${a.name}`);
           kept = await this.research(a.name, a.key, []);
@@ -177,7 +189,7 @@ export class AreaSource implements DataSource {
         }
         if (AreaStore.all()[a.key]?.lat == null) AreaStore.place(a.key, pos); // found before positions were kept
         notes.push(...kept.filter((n) => !junkNote(n.text))); // notes about the search, not the place, are left out
-      } catch (e) { failed.push(`${a.name}: ${(e as Error).message}`); } // one area failing must not lose the other
+      } catch (e) { failed.push(`${a.name}: ${(e as Error).message}`); this.failedThisRide.add(a.key); } // one area failing must not lose the other
       this.push?.({ area: info, areaNotes: notes });
       this.lastPos = pos;
       this.onStatus(`ok, ${areasOf(info).map((a) => a.name).join(' and ') || 'no named area'}: ${notes.length} stories${failed.length ? ` (failed: ${failed.join('; ')})` : ''}`);

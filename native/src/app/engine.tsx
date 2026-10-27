@@ -160,6 +160,7 @@ export default function Engine() {
   };
   const findReaders = async () => {
     setNote('Looking for readers…');
+    await b.watchRelease();
     try {
       const le = (await BleObdTransport.scan(6)).map((r) => ({ id: r.id, name: r.name, sub: 'Bluetooth LE' }));
       const classic = Platform.OS === 'android' ? (await ElmClassicTransport.paired().catch(() => [])).map((r) => ({ id: `classic:${r.address}`, name: r.name, sub: `paired · ${r.address}` })) : [];
