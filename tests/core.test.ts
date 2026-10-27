@@ -3386,4 +3386,56 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(!junkNote('Rosebank started life as Oxford Road, named by Mrs O.E. Redwood after the famous British university.'));
 }
 
+// ---- the road ahead (core/PathAhead): route, his usual way, the road he is on; things measured along it
+{
+  resetConfig();
+  const P = await import('../src/core/PathAhead');
+  const { packWays } = await import('../api/roads');
+  // a straight road north from (-26.1, 28.1), a point every ~110 m
+  const north: [number, number][] = Array.from({ length: 80 }, (_, i) => [-26.1 + i * 0.001, 28.1]);
+  const o = P.onPath(north, { lat: -26.095, lon: 28.1003 })!;
+  assert.ok(Math.abs(o.km - 0.553) < 0.01 && o.offKm < 0.04, `along ${o.km} off ${o.offKm}`);
+  const r = P.routeAhead(north, 10, { lat: -26.09, lon: 28.1 })!;
+  assert.equal(r.source, 'route'); assert.ok(r.km > 5.9 && r.km < 6.1, 'cut to maxKm');
+  // his usual way: three past rides north from here, two carry on north, one turns east after 1 km
+  const east: [number, number][] = [...north.slice(0, 10), ...Array.from({ length: 30 }, (_, i) => [-26.091, 28.1 + (i + 1) * 0.001] as [number, number])];
+  const h = P.historyAhead([north, north, east], { lat: -26.099, lon: 28.1 }, 0)!;
+  assert.equal(h.source, 'history'); assert.match(h.detail, /3 past rides/);
+  assert.ok(P.onPath(h.points, { lat: -26.07, lon: 28.1 })!.offKm < 0.02, 'the way most of them went');
+  assert.equal(P.historyAhead([north], { lat: -26.099, lon: 28.1 }, 180), null, 'not the other way');
+  assert.equal(P.historyAhead([north], { lat: -26.099, lon: 28.2 }, 0), null, 'not from somewhere else');
+  // the road he is on: north to a T-junction (east and west) stops there; the same named road going on is followed
+  const enc = (id: number, name: string, pts: [number, number][], oneway = 0) => ({ type: 'way', id, tags: { name, ...(oneway ? { oneway: 'yes' } : {}) }, geometry: pts.map(([lat, lon]) => ({ lat, lon })) });
+  const main = north.slice(0, 12), tee: [number, number] = main[main.length - 1];
+  const ways = P.decodeWays([...packWays([enc(1, 'Main', main), enc(2, 'Cross', [tee, [tee[0], 28.11]]), enc(3, 'Cross', [tee, [tee[0], 28.09]])]), ...packWays([enc(1, 'Main', main)])]);
+  assert.equal(ways.length, 3, 'a way that comes in two tiles is kept once');
+  const g = new P.RoadGraph(ways);
+  const ra = P.roadAhead(g, { lat: -26.0995, lon: 28.1 }, 0)!;
+  assert.equal(ra.source, 'road'); assert.match(ra.detail, /Main.*to a junction/); assert.ok(Math.abs(ra.km - 1.16) < 0.05, `${ra.km}`);
+  const on = P.decodeWays(packWays([enc(1, 'M20', main), enc(4, 'M20', [tee, [tee[0] + 0.005, 28.1003]]), enc(5, 'Side', [tee, [tee[0] + 0.003, 28.1025]])]));
+  assert.ok(P.roadAhead(new P.RoadGraph(on), { lat: -26.0995, lon: 28.1 }, 0)!.km > 1.6, 'the M20 goes on past a side road');
+  assert.equal(P.roadAhead(new P.RoadGraph(P.decodeWays(packWays([enc(6, 'One', main, 1)]))), { lat: -26.095, lon: 28.1 }, 180), null, 'not the wrong way up a one-way');
+  // things on the path count along it; off it within its reach they are not on his way; beyond its end the old cone
+  const path = { points: north.slice(0, 20), source: 'route' as const, km: 2.1, detail: 'your route' };
+  const here = { lat: -26.1, lon: 28.1 };
+  assert.ok(Math.abs(P.aheadKm({ lat: -26.095, lon: 28.1 }, here, 0, path, 0.1, 50)! - 0.553) < 0.01);
+  assert.equal(P.aheadKm({ lat: -26.095, lon: 28.106 }, here, 0, path, 0.1, 50), null, 'a street away (600 m off his road): not on his way');
+  assert.ok(P.aheadKm({ lat: -26.07, lon: 28.1005 }, here, 0, path, 0.1, 50)! > 3, 'beyond the path: straight line ahead');
+  assert.equal(P.aheadKm({ lat: -26.12, lon: 28.1 }, here, 0, null, 0.1, 50), null, 'behind him');
+  // traffic: a closure on a parallel street is not his; one on his road is, measured along it
+  const { worthMentioning } = await import('../src/core/TriggerEngine');
+  const { initialState } = await import('../src/core/StateAggregator');
+  const s = { ...initialState(), lat: here.lat, lon: here.lon, headingDeg: 0, speedKmh: 50 };
+  const closure = (lat: number, lon: number) => ({ id: 'c', description: 'a road closure', severity: 4, distanceKm: 0.6, lat, lon });
+  assert.ok(!worthMentioning(closure(-26.095, 28.104), s, path), 'parallel street: not mentioned');
+  assert.ok(worthMentioning(closure(-26.095, 28.1001), s, path));
+  assert.ok(worthMentioning(closure(-26.095, 28.104), s, null), 'without a path, the old cone still takes it');
+  // the predictor: route first, else his usual way
+  const pp = new P.PathPredictor();
+  pp.setTracks([north]);
+  assert.equal(pp.update(here, 0, 40, 0, { points: north, index: 0 })!.source, 'route');
+  assert.equal(pp.update({ lat: -26.099, lon: 28.1 }, 0, 40, 100_000, null)!.source, 'history');
+  CONFIG.path.on = false; assert.equal(pp.update(here, 0, 40, 200_000, null), null); resetConfig();
+}
+
 console.log('all core tests passed');

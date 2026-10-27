@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-27',
     items: [
+      { id: 'road-ahead', kind: 'better', title: 'Traffic and spots on your road.', text: 'Betty follows your route, the way you usually ride, or the road you are on, so she only mentions traffic, marked spots and rough patches that are on your way, measured along the road.', help: 'roadahead' },
       { id: 'bike-on-tap', kind: 'new', title: 'Bike on: tap to ride.', text: 'In the app, when your OBD2 reader wakes up with the bike a notification offers the ride, and one tap starts it.', help: 'engine' },
       { id: 'bike-health', kind: 'new', title: 'Bike health and your riding over time.', text: 'Each ride is summed up (charging, battery, cooling, fuel trims, and how you rode) so you can see trends, and she mentions a bike value in her briefing when it drifts.', help: 'health' },
       { id: 'fill-ups', kind: 'better', title: 'Consumption from your fill-ups.', text: 'Give the litres when you fill up and Betty learns your real consumption from full tank to full tank, so the fuel range follows how you ride.', help: 'fuel' },

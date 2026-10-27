@@ -41,6 +41,7 @@ import { fetchRouteWeather } from '../adapters/RouteWeather';
 import { ServiceStore } from '../adapters/ServiceStore';
 import { StationSource } from '../adapters/StationSource';
 import { TrackStore } from '../adapters/TrackStore';
+import { RoadTiles } from '../adapters/RoadTiles';
 import { TrafficProvider, TrafficSource } from '../adapters/TrafficSource';
 import { WeatherSource } from '../adapters/WeatherSource';
 import { Glance, GlanceAction, RideInput, SaidLine, glanceCues, horizonSpoken } from '../ui/rideView';
@@ -191,6 +192,9 @@ export class RideSession {
     engine.setKnownIncidents([...IncidentMemory.load(), ...this.dismissed]);
     d.logger.rideId = engine.rideSnapshot().startedAt; // ties each logged line to its ride record
     engine.setFuelKm(FuelStore.load());
+    // The road ahead from his past rides (core/PathAhead): the detailed tracks, plus the rough copy of older rides.
+    { const detailed = TrackStore.all(); const rough = RoadStore.all();
+      engine.setPathTracks([...Object.values(detailed), ...Object.entries(rough).filter(([id]) => !detailed[id]).map(([, t]) => t)]); }
     engine.setMemory(RiderMemoryStore.load());
     engine.setToldNotes(ToldStore.load());
     engine.setLandmarksTold(LandmarkTold.load());
@@ -269,6 +273,18 @@ export class RideSession {
     if (d.server && !d.desk) { const r0 = engine.routeNow()?.route; if (r0) void researchAhead(r0.stops.filter((s, i) => s.named && i > 0), (msg) => this.log('[areas]', msg)); }
     // Saved as the ride goes, not only at END RIDE: a phone can kill the app without warning.
     this.timers.push(setInterval(() => this.remember(), 60_000));
+    // The roads around him for following the road he is on (server only; real rides), and a log line when the source
+    // of the road ahead changes (route / his usual way / the road he is on / none).
+    if (d.server && !d.desk) {
+      const roads = new RoadTiles(undefined, (m) => this.log('[path]', m));
+      const tick = () => { const s = agg.current; if (s.lat != null && s.lon != null && CONFIG.path.on) void roads.near({ lat: s.lat, lon: s.lon }).then((w) => { if (w) engine.setRoadWays(w); }); };
+      this.timers.push(setInterval(tick, 20_000)); tick();
+    }
+    let pathSaid = '';
+    this.timers.push(setInterval(() => {
+      const p = engine.pathNow(), what = p ? `${p.source}: ${p.detail.replace(/[\d.]+ km to/, 'to')}` : 'none';
+      if (what !== pathSaid) { pathSaid = what; this.log('[path]', p ? `road ahead: ${p.detail}` : 'road ahead: not known (straight line)'); }
+    }, 10_000));
     this.timers.push(setInterval(() => this.logSensors(), 15 * 60_000));
     this.timers.push(setInterval(() => this.changed(), 5000)); // lets a finished line settle back to idle
 

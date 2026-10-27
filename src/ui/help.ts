@@ -133,6 +133,13 @@ export const HELP_TOPICS: HelpTopic[] = [
             '<b>Probe the bike:</b> on the same page, with the engine idling. 1 Listen records what the bike\'s computers send each other (20 s); 2 Find computers asks every address which computers are there (the instrument cluster included); 3 Read their data reads every maker data id in a set of ranges on each (5 to 10 minutes a computer) and looks for your dash odometer in the answers. Type the dash odometer and the fuel bars first, then Export JSON: that is what is used to find the odometer, service data and the fuel level. Reads only.',
             '<b>Ask the bike:</b> on the same page you can type a read command (for example 0105 for coolant, or a 22xxxx maker data id). Anything that would clear or write is refused.',
     ])}` },
+  { id: 'roadahead', title: 'The road ahead: traffic and spots on your way', keywords: 'traffic incident closure road ahead route usual way distance marked spot rough patch straight line openstreetmap',
+    html: `<p>Betty works out the road ahead of you, so traffic, your marked spots and rough patches are the ones on your way, measured along the road (not as the crow flies).</p>${li([
+      '<b>With a planned route:</b> the route itself.',
+      '<b>On roads you have ridden:</b> where your past rides went from here, going this way (your commute is very accurate).',
+      '<b>Elsewhere:</b> the road you are on (OpenStreetMap), followed for up to 2 km or to the next junction where it is not clear which way you go.',
+      'Anything off that road is not on your way; beyond it she falls back to roughly straight ahead. Off-road tracks count once you have ridden them. The log shows which one she is using.',
+    ])}` },
   { id: 'health', title: 'Bike health and your riding over time', keywords: 'health trend battery charging starter crank warm up cooling fuel trim idle timing tyre wear riding throttle revs smooth speed history',
     html: `<p>In the app, Garage &gt; Bike health &amp; riding. Every ride is summed up as it goes and kept with the ride; each value shows your newest ride, your usual (the middle of your recent rides) and a bar per ride.</p>${li([
       '<b>The bike</b> (with the OBD2 reader): charging voltage, the battery at rest and its dip while the starter turns (a weakening battery dips further), warm-up time, hottest coolant, fuel trims (the engine correcting its mixture), warm idle and how steady it is, timing at a steady cruise, and wheel speed against GPS (a worn tyre slowly reads higher).',

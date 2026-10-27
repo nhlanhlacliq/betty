@@ -2,6 +2,7 @@ import { landmarkContext, passingNow, sameSite, type Passing } from './Landmarks
 import { stopsArea, stopsNote, type GoodStop } from './Stops';
 import { ChargeWatch, GearLearner, chargeVolts, engineNote } from './Engine';
 import { HealthWatch, healthNote, ridingNote } from './RideHealth';
+import { PathAhead, PathPredictor, Pt, RoadWay, aheadKm } from './PathAhead';
 import { CONFIG, cleanBikeName, cleanRiderName } from '../config/betty';
 import { BANK_SPEC } from './LineBank';
 import { EMPTY_MEMORY, MarkedSpot, RiderMemory, describeMemory, whenSaid } from './Commands';
@@ -73,14 +74,17 @@ const WARN_AGAIN_MS = 10 * 60_000;
  * A city has dozens of incidents within a few kilometres at rush hour. Only the ones that matter get a line:
  * close enough, serious enough, costing real time, and, once he is moving, roughly in the direction he is going.
  */
-export function worthMentioning(i: TrafficIncident, s: BikeState): boolean {
+export function worthMentioning(i: TrafficIncident, s: BikeState, path: PathAhead | null = null): boolean {
   const t = CONFIG.thresholds;
   if (i.distanceKm > t.trafficRadiusKm || i.severity < t.trafficMinSeverity) return false;
   if (i.severity === 4 && i.lengthM != null && i.lengthM < MIN_CLOSURE_M) return false;
   if (i.severity < 4 && i.delaySec != null && i.delaySec < t.trafficMinDelaySec) return false;
   const placed = i.lat !== 0 || i.lon !== 0; // simulator incidents have no position
-  if (placed && s.lat != null && s.lon != null && s.headingDeg != null && s.speedKmh >= 10) {
-    return Math.abs(angleDiff(s.headingDeg, bearingDeg({ lat: s.lat, lon: s.lon }, i))) <= AHEAD_DEG;
+  // On the road ahead of him when the path is known (core/PathAhead: route, his usual way, the road he is on); the old
+  // straight-line cone beyond it, or with no path.
+  if (placed && s.lat != null && s.lon != null && (path || (s.headingDeg != null && s.speedKmh >= 10))) {
+    const km = aheadKm(i, { lat: s.lat, lon: s.lon }, s.headingDeg, path, CONFIG.path.incidentOffKm, AHEAD_DEG);
+    return km != null && km <= t.trafficRadiusKm;
   }
   return true;
 }
@@ -194,6 +198,15 @@ export class TriggerEngine {
   private hotSince: number | null = null;
   /** This ride's bike health and riding summary (core/RideHealth) */
   private healthWatch = new HealthWatch();
+  /** The road ahead (core/PathAhead) */
+  private paths = new PathPredictor();
+  setPathTracks(t: Pt[][]) { this.paths.setTracks(t); }
+  setRoadWays(w: RoadWay[]) { this.paths.setRoads(w); }
+  pathNow(): PathAhead | null { return this.paths.path; }
+  /** Km along his road to a point (straight line where the road is not known); null when it is not on his way. */
+  private roadKm(target: { lat: number; lon: number }, s: BikeState, offKm = CONFIG.path.spotOffKm) {
+    return s.lat == null || s.lon == null ? null : aheadKm(target, { lat: s.lat, lon: s.lon }, s.headingDeg, this.paths.path, offKm, AHEAD_DEG);
+  }
   healthNow() { return this.healthWatch.health(); }
   ridingNow() { return this.healthWatch.riding(); }
   private lowestRunningV: number | null = null;
@@ -281,9 +294,9 @@ export class TriggerEngine {
     const here = { lat: s.lat, lon: s.lon };
     let best: { spot: MarkedSpot; km: number } | null = null;
     for (const m of this.memory.marks) {
-      const km = haversineKm(here, m);
-      if (km > MARK_WARN_KM || km < 0.02) continue;
-      if (Math.abs(angleDiff(s.headingDeg, bearingDeg(here, m))) > AHEAD_DEG) continue;
+      if (haversineKm(here, m) < 0.02) continue;
+      const km = this.roadKm(m, s); // along his road when it is known (2026-10-27: "400 metres ahead" with turns to go)
+      if (km == null || km > MARK_WARN_KM) continue;
       const warned = this.warnedSpots.get(m.at);
       if (warned !== undefined && this.now() - warned < WARN_AGAIN_MS) continue;
       if (!best || km < best.km) best = { spot: m, km };
@@ -343,7 +356,7 @@ export class TriggerEngine {
   voiceSituation(s: BikeState): string {
     const digest = situationDigest({
       s, ride: this.stats.snapshot(), history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
-      fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance), gear: this.gearNow(s),
+      fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s, this.paths.path)).sort(byDistance), gear: this.gearNow(s),
     });
     const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
     const kept = describeMemory(this.memory, here, this.now());
@@ -367,6 +380,8 @@ export class TriggerEngine {
   evaluate(s: BikeState): TriggerEvent[] {
     this.stats.update(s);
     this.healthWatch.add(s, this.now());
+    const onRoute = this.route && this.progress && this.progress.offKm < OFF_ROUTE_KM && !this.detour ? { points: this.route.points, index: this.progress.index } : null;
+    this.paths.update(s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null, s.headingDeg, s.speedKmh, this.now(), onRoute);
     const out: TriggerEvent[] = [];
     const t = CONFIG.thresholds;
 
@@ -397,7 +412,7 @@ export class TriggerEngine {
     }
 
     const inc = s.incidents
-      .filter((i) => worthMentioning(i, s) && !this.announced.has(i.id) && !this.known.has(incidentKey(i)))
+      .filter((i) => worthMentioning(i, s, this.paths.path) && !this.announced.has(i.id) && !this.known.has(incidentKey(i)))
       .sort(byDistance)[0];
     if (inc && this.ready('traffic_incident')) {
       this.announced.add(inc.id);
@@ -427,7 +442,9 @@ export class TriggerEngine {
     }
 
     if (this.rough.length && s.lat != null && s.lon != null && s.headingDeg != null && s.speedKmh >= 15) {
-      const r = roughAhead(this.rough, { lat: s.lat, lon: s.lon }, s.headingDeg);
+      const r = this.paths.path
+        ? this.rough.map((sp) => ({ spot: sp, km: this.roadKm(sp, s) })).filter((x): x is { spot: RoughSpot; km: number } => x.km != null && x.km >= 0.03 && x.km <= 0.3).sort((a, b) => a.km - b.km)[0] ?? null
+        : roughAhead(this.rough, { lat: s.lat, lon: s.lon }, s.headingDeg);
       const k = r ? `${r.spot.lat},${r.spot.lon}` : '';
       if (r && this.now() - (this.roughWarned.get(k) ?? -Infinity) >= WARN_AGAIN_MS && this.ready('rough_patch')) {
         this.roughWarned.set(k, this.now()); this.roughNow = r;
@@ -575,7 +592,7 @@ export class TriggerEngine {
       case 'fuel_range': { const k = this.fuelKmLeft(); if (k != null) out.km = String(k); break; }
       case 'rain_soon': if (s.weather) out.chance = String(s.weather.rainNowMm > 0 ? 100 : s.weather.rainChanceNextHourPct); break;
       case 'sunset_soon': if (s.weather?.sunsetAt) out.time = hhmm(s.weather.sunsetAt); break;
-      case 'traffic_incident': if (incident) { out.what = incident.description; out.road = incident.roadName || 'the road ahead'; out.km = String(Math.max(1, Math.round(incident.distanceKm))); } break;
+      case 'traffic_incident': if (incident) { out.what = incident.description; out.road = incident.roadName || 'the road ahead'; out.km = String(Math.max(1, Math.round((this.paths.path && (incident.lat || incident.lon) ? this.roadKm(incident, s, CONFIG.path.incidentOffKm) : null) ?? incident.distanceKm))); } break;
       case 'marked_spot': if (this.spotNow) { out.metres = String(Math.max(50, Math.round((this.spotNow.km * 1000) / 50) * 50)); out.note = this.spotNow.spot.note || 'the spot you marked'; } break;
       case 'rough_patch': if (this.roughNow) out.metres = String(Math.max(50, Math.round((this.roughNow.km * 1000) / 50) * 50)); break;
       case 'off_route': case 'route_arrived': if (this.route) out.dest = this.route.name; break;
@@ -604,7 +621,7 @@ export class TriggerEngine {
           : 'These are the small hours, so open without any greeting: go straight to saying you are ready.'; // naming the words to avoid made her say them
         // Owner liked the self-introduction she gave when asked "tell me about yourself" (2026-10-16): a briefing.
         const left = this.fuelKmLeft();
-        const ahead = s.incidents.filter((i) => worthMentioning(i, s) && !this.known.has(incidentKey(i)) && !this.announced.has(i.id)).sort(byDistance);
+        const ahead = s.incidents.filter((i) => worthMentioning(i, s, this.paths.path) && !this.known.has(incidentKey(i)) && !this.announced.has(i.id)).sort(byDistance);
         for (const i of ahead.slice(0, 3)) { this.announced.add(i.id); this.announcedKeys.push(incidentKey(i)); }
         const digest = situationDigest({
           s, ride: this.stats.snapshot(), history: this.history, at, placeRadiusKm: CONFIG.ambient.placeRadiusKm,
@@ -663,8 +680,9 @@ export class TriggerEngine {
         const where = i.roadName ? ` on ${i.roadName}` : '';
         const mins = i.delaySec ? Math.max(1, Math.round(i.delaySec / 60)) : 0;
         const delay = mins ? `, adding about ${mins} minute${mins === 1 ? '' : 's'}` : '';
+        const path = this.paths.path, onRoad = path && (i.lat || i.lon) ? this.roadKm(i, s, CONFIG.path.incidentOffKm) : null;
         return {
-          context: `Traffic report: ${i.description}${where}, about ${km(i.distanceKm)} away in the direction he is heading${delay}. Severity ${i.severity} of 4 (4 means closed).`,
+          context: `Traffic report: ${i.description}${where}, ${onRoad != null ? `about ${km(onRoad)} ahead on ${path!.source === 'route' ? 'his route' : path!.source === 'history' ? 'the way he usually rides from here' : 'the road he is on'}` : `about ${km(i.distanceKm)} away in the direction he is heading`}${delay}. Severity ${i.severity} of 4 (4 means closed).`,
           fallback: `Heads up. ${cap(i.description)}${where}, about ${km(i.distanceKm)} away${delay}.`,
         };
       }
@@ -880,7 +898,7 @@ export class TriggerEngine {
           const r = this.stats.snapshot();
           const digest = situationDigest({
             s, ride: r, history: this.history, at: new Date(this.now()), placeRadiusKm: CONFIG.ambient.placeRadiusKm,
-            fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s)).sort(byDistance), gear: this.gearNow(s),
+            fuelKmLeft: this.fuelKmLeft(), incidentsAhead: s.incidents.filter((i) => worthMentioning(i, s, this.paths.path)).sort(byDistance), gear: this.gearNow(s),
             riderSaid: this.riderText,
           });
           const here = s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;

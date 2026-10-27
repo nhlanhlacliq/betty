@@ -236,6 +236,17 @@ export interface Config {
   /** "Your bike is on, tap to ride" (native EngineWatch): notify = on; not within quietMin of a ride ending or the last
    *  notification; only after the reader was away awayMin. */
   autoStart: { notify: boolean; quietMin: number; awayMin: number };
+  /** The road ahead (core/PathAhead): maxKm looked ahead; his past rides count when within historyNearKm of here and
+   *  historyHeadingDeg of his course, and agree when within agreeKm every agreeEveryKm (cut below agreeShare of them;
+   *  used when it reaches minHistoryKm); the OSM road he is on within roadSnapKm / roadHeadingDeg, followed while one way
+   *  is within straightDeg and every other at least otherDeg off; worked out again every recomputeM / recomputeDeg /
+   *  recomputeMs above minKmh. A thing is on the path within incidentOffKm (traffic) or spotOffKm (spots, rough
+   *  patches). roadTileDeg: the road tiles (api/roads), roadTilesKeep in memory. */
+  path: {
+    on: boolean; maxKm: number; historyNearKm: number; historyHeadingDeg: number; agreeEveryKm: number; agreeKm: number; agreeShare: number; minHistoryKm: number;
+    roadSnapKm: number; roadHeadingDeg: number; roadMaxKm: number; straightDeg: number; otherDeg: number; minKmh: number; recomputeM: number; recomputeDeg: number; recomputeMs: number;
+    incidentOffKm: number; spotOffKm: number; roadTileDeg: number; roadTilesKeep: number;
+  };
   /** Bike health and riding summaries per ride (core/RideHealth). runningRpm: above it the engine runs; chargeRpm: charging
    *  judged from here up; warmC: warm; crankWindowMs: the reader voltage kept before a start, for the starter's dip;
    *  cruise: a steady cruise for the timing; wheelFromKmh: wheel vs GPS above this; rpmBands: upper edges of the rev
@@ -359,6 +370,12 @@ export const DEFAULT_CONFIG: Config = {
   obdReader: null,
   fillUps: { learn: true, minKm: 80, tanks: 3 },
   autoStart: { notify: false, quietMin: 15, awayMin: 3 },
+  path: {
+    on: true, maxKm: 6, historyNearKm: 0.05, historyHeadingDeg: 40, agreeEveryKm: 0.5, agreeKm: 0.08, agreeShare: 0.5, minHistoryKm: 1,
+    // roadMaxKm: he turns off main roads; tested on the ride home of 2026-10-27, 2 km was right 65% of the way (3 km: 56%)
+    roadSnapKm: 0.03, roadHeadingDeg: 45, roadMaxKm: 2, straightDeg: 30, otherDeg: 45, minKmh: 10, recomputeM: 150, recomputeDeg: 30, recomputeMs: 15_000,
+    incidentOffKm: 0.15, spotOffKm: 0.08, roadTileDeg: 0.02, roadTilesKeep: 36,
+  },
   health: {
     runningRpm: 500, chargeRpm: 3000, warmC: 80, crankWindowMs: 15_000,
     cruise: { rpmFrom: 4000, rpmTo: 6000, throttleFrom: 15, throttleTo: 35 },

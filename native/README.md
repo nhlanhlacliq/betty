@@ -646,3 +646,15 @@ gets the topics already told in the region (40), "different parts of the same pl
 asked again on a later ride, not every 2 km. Gears: `obd.gearFrom` 'off' until the probe shows whether the bike reports
 its own (he rides 6th a lot: 13.75 km/h per 1000 rpm is probably 6th, so the learner's "1st" was unclear);
 `gear.topMissing` back to 0. Marked spots: information ("home is near"), no straight-line distance or "ahead".
+
+THE ROAD AHEAD (2026-10-27, owner chose 1+2+3): `core/PathAhead` `PathPredictor` in TriggerEngine.evaluate: the planned
+route from his index (while on it), else his past rides (TrackStore detailed + RoadStore rough, given at ride start:
+`historyAhead`, candidates within 50 m heading within 40 deg, the continuation most agree with every 0.5 km, cut below
+half), else the OSM road he is on (`api/roads` tiles of 0.02 deg, ids + delta-coded 1e-5 coords, edge cache a month;
+`adapters/RoadTiles` 3x3 in memory; `RoadGraph` junctions by shared coordinates; same name/ref goes on, else one way
+within 30 deg and the rest 45+ off; capped `path.roadMaxKm` 2). `aheadKm`: on the path within offKm = km along it; off
+it within its reach = not on his way; beyond = old 50 deg cone. Used by `worthMentioning` (traffic, briefing, answers),
+marked spots, rough patches; traffic says "km ahead on his route / usual way / the road he is on". `[path]` log line on
+a change. TESTED ON HIS RIDE HOME (OSM for the whole area 439 KB): road following right for 65% of the predicted km at
+2 km (56% at 3, he turns off main roads); his morning ride reversed as "history" predicted 104 km, 80 right (77%).
+NEEDS A WEB DEPLOY (api/roads).
