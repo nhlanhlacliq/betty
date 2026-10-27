@@ -223,7 +223,8 @@ export class ElmSession {
     let voltage: number | null = null;
     if (this.due('ATRV', (this.lastRpm ?? 0) > 0 ? c.voltEveryMs : c.voltOffEveryMs)) { voltage = readVoltage(await this.t.send('ATRV')); if (voltage != null) this.engine.batteryV = voltage; }
     if (!this.supported.length) {
-      if (!(await this.discover())) return { state: voltage != null ? { engine: { ...this.engine } } : {}, speedKmh: null, voltage };
+      // the engine computer is silent until the bike is on: ask again every few seconds, the voltage every round
+      if (!this.due('0100', c.discoverEveryMs) || !(await this.discover())) return { state: voltage != null ? { engine: { ...this.engine } } : {}, speedKmh: null, voltage };
       this.log(`bike answering now: supports PIDs ${this.supported.join(' ')}`);
     }
     const state: Partial<BikeState> = { obd: true };
@@ -232,7 +233,7 @@ export class ElmSession {
       const v = readPid(name, await this.t.send(`01${PIDS[name].pid}`));
       if (v == null) {
         this.misses[name] = (this.misses[name] ?? 0) + 1;
-        if (this.misses[name] === 10) this.log(`no ${name} for 10 tries in a row (reader or connection?)`);
+        if (this.misses[name] === 10 && !this.quiet) this.log(`no ${name} for 10 tries in a row (reader or connection?)`);
       } else { this.misses[name] = 0; this.gotAt[name] = this.now(); }
       return v;
     };

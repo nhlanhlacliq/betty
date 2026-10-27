@@ -228,7 +228,7 @@ export function BettyProvider({ children }: { children: ReactNode }) {
         try {
           await t.connect(classic ? reader.id.slice(8) : reader.id);
           log(`connected to ${reader.name}`);
-          obd = new ObdSource(t, log);
+          obd = new ObdSource(t, log, 250, undefined, () => t.connect(classic ? reader.id.slice(8) : reader.id));
         } catch (e) { log(`could not connect to ${reader.name}: ${(e as Error).message}`); toast(`Engine reader: ${(e as Error).message}`); }
       }
       await activateKeepAwakeAsync();

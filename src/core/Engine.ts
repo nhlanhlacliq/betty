@@ -76,7 +76,7 @@ export class ChargeWatch {
 /**
  * The gear, learned from how fast the bike goes per 1000 rpm: each gear is one fixed ratio, so on a ride the readings
  * pile up at as many values as the bike has gears. No gearbox table needed (any bike). The gear is only named once all
- * CONFIG.obd.gears are learned, so "4th" really is 4th. Kept across rides (adapters: betty.gears.v2).
+ * CONFIG.obd.gears are learned (less gear.topMissing, the top gear), so "4th" really is 4th. Kept across rides (adapters: betty.gears.v2).
  */
 export class GearLearner {
   /** Count per ratio bin (km/h per 1000 rpm, in steps of binWidth) */
@@ -114,7 +114,10 @@ export class GearLearner {
     const c = CONFIG.obd.gear;
     if (kmh < c.minKmh || rpm < c.minRpm) return null;
     const rs = this.ratios();
-    if (rs.length < CONFIG.obd.gears) return null;
+    // The top gear may never be used (riding in town: on 2026-10-27 five of six were learned, 6th never ridden). 1st is
+    // used on every pull-away, so a missing gear is the top one: gears are named from 1st once at most gear.topMissing
+    // are still unknown.
+    if (rs.length < CONFIG.obd.gears - CONFIG.obd.gear.topMissing) return null;
     const r = kmh / (rpm / 1000);
     let best = -1, err = Infinity;
     rs.forEach((g, i) => { const d = Math.abs(r - g) / g; if (d < err) { err = d; best = i; } });

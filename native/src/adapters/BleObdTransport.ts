@@ -74,6 +74,7 @@ export class BleObdTransport implements ObdTransport {
   }
 
   async connect(id: string): Promise<void> {
+    this.sub?.remove(); this.gone?.remove(); // connecting again after the reader was lost
     await poweredOn();
     const d = await ble().connectToDevice(id, { timeout: 10_000 });
     await d.discoverAllServicesAndCharacteristics();

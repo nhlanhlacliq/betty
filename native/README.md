@@ -623,3 +623,17 @@ Android); on connect a local notification unless riding, a ride ended / notified
 the reader was away under `awayMin` (3). Tap (Home: `onRideTap`) starts the ride. Released before a ride or the Engine
 data page connects; re-armed after. Garage > Starting a ride (`CONFIG.autoStart.notify`, asks for notifications).
 UNVERIFIED: whether the Vgate sleeps/wakes with the bike, background wake on his iPhone.
+
+RIDE HOME 2026-10-27 13:41 (47 min, 17.3 km): "bike on, tap to ride" WORKED (reader woke with the bike, notification,
+tap started the ride; after the ride "reader seen, no notification (a ride just ended)"). Engine-off dropping worked.
+Fixed from it: (1) the reader slept when he switched off at a stop and never came back: `ObdSource` now looks for it
+again every `obd.reconnectEveryMs` (10 s) and carries on (`reconnect` passed from Betty.tsx; transport subscriptions
+renewed on connect); (2) riding advice in alerts ("suggest turning around", "hold a firm line", "loosen the grip"):
+patterns added to `lineRules.advice`; (3) research notes about the research ("the only confirmed fact I found", stories
+of Benoni told as Antwerp): `lineRules.noteJunk` filtered in AreaSource, api/story told every note must be about the
+place itself and that none is an answer (`{notes: []}` now kept, not an error re-asked every 2 km): NEEDS A WEB DEPLOY;
+(4) gears never named in town (6th never used): `gear.topMissing` 1 names 1st up once all but the top are learned;
+(5) the starter's dip was missed (2 s sleep while the bike was silent): 0100 asked every `obd.discoverEveryMs`, the
+voltage every round. Replayed: charging 14.9 V, warm-up 7.8 min, idle 1,748 +-88, wheel/GPS 0.963 (same as the
+morning: the tyre trend will be readable). Gears over both rides: 4.75 / 7.25 / 9.5 / 11.5 / 13.75 (6th unused).
+Open: his marked spot "my home" is announced as a hazard on the way home (owner to decide).

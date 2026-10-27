@@ -11,7 +11,7 @@ const MAX_NOTES = 6;
 
 export const storyPrompt = (area: string, region: string, exclude: string[]) => `Research the history and culture of ${area}${region ? `, ${region}` : ''} for a motorcycle co-pilot who tells a rider short stories about the places he rides through.
 Use web search. Write up to ${MAX_NOTES} notes, each one story about ${area} itself: the origin of its name, how and when it began, a notable event, a notable person, a landmark and what happened there, or its culture (languages, food, music, sport, festivals, local sayings).
-Each note: two or three plain spoken sentences with the specifics (names, years) that make it interesting. Only facts your search results state; leave out anything you cannot confirm, and do not pad with general facts about the wider region.${exclude.length ? `\nAlready covered, find different stories: ${exclude.join('; ')}.` : ''}
+Each note: two or three plain spoken sentences with the specifics (names, years) that make it interesting. Only facts your search results state; leave out anything you cannot confirm. Every note must be about ${area} itself: never about another town, the city or the province, and never about your search (no \"I could not find\", no \"search results\"). If the results say little about ${area}, write fewer notes, or none: {\"notes\":[]}.${exclude.length ? `\nAlready covered, find different stories: ${exclude.join('; ')}.` : ''}
 Reply with ONLY this JSON and nothing else: {"notes":[{"topic":"a few words","text":"the note","source":"website name"}]}`;
 
 /** A landmark he is about to pass (kind "landmark"): what it is and its story, fewer notes. */
@@ -97,6 +97,7 @@ export async function POST(req: Request): Promise<Response> {
     return stops.length ? json({ stops }) : json({ error: 'no stops found' }, 502);
   }
   const notes = parseNotes({ content: [{ type: 'text', text: r.text }] });
-  if (!notes.length) return json({ error: 'no notes found' }, 502);
+  // "nothing worth telling about this place" is an answer, kept on the phone so it is not researched again every 2 km
+  if (!notes.length) return /"notes"\s*:\s*\[\s*\]/.test(r.text) ? json({ notes: [] }) : json({ error: 'no notes found' }, 502);
   return json({ notes });
 }

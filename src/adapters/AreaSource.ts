@@ -176,7 +176,7 @@ export class AreaSource implements DataSource {
           AreaStore.put(a.key, kept, pos);
         }
         if (AreaStore.all()[a.key]?.lat == null) AreaStore.place(a.key, pos); // found before positions were kept
-        notes.push(...kept);
+        notes.push(...kept.filter((n) => !junkNote(n.text))); // notes about the search, not the place, are left out
       } catch (e) { failed.push(`${a.name}: ${(e as Error).message}`); } // one area failing must not lose the other
       this.push?.({ area: info, areaNotes: notes });
       this.lastPos = pos;
@@ -188,3 +188,6 @@ export class AreaSource implements DataSource {
     }
   }
 }
+
+/** A researched note that talks about the research, not the place (CONFIG.lineRules.noteJunk). */
+export const junkNote = (text: string) => CONFIG.lineRules.noteJunk.some((p) => new RegExp(p, 'i').test(text));

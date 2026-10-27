@@ -3088,7 +3088,8 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   for (let i = 0; i < 5; i++) for (const rr of ratios.slice(0, 5)) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) held(rr * rpm / 1000, rpm);
   // the clutch slipping as he pulls away (ride of 2026-10-27): the ratio never holds, so it is never learned as a gear
   for (let i = 0; i < 80; i++) { gl.add(10 + (i % 8), 2800 + (i % 8) * 120 - (i % 3) * 300, 25, gt); gt += 1000; }
-  assert.equal(gl.gear(12 * 6, 6000), null, 'five of six learned: no gear named yet');
+  assert.equal(gl.gear(12 * 6, 6000), 4, 'five of six learned: the unused one is the top gear, the rest are named (ride of 2026-10-27)');
+  CONFIG.obd.gear.topMissing = 0; assert.equal(gl.gear(12 * 6, 6000), null, 'all six required when topMissing is 0'); CONFIG.obd.gear.topMissing = 1;
   for (let i = 0; i < 5; i++) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) held(15.9 * rpm / 1000, rpm);
   assert.equal(gl.ratios().length, 6);
   assert.equal(gl.gear(12.0 * 5, 5000), 4); assert.equal(gl.gear(4.6 * 7, 7000), 1); assert.equal(gl.gear(15.9 * 6.5, 6500), 6);
@@ -3362,6 +3363,26 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   assert.ok(sent.every((c) => /^AT/.test(c) || /^22[0-9A-F]{4}$/.test(c)), 'only AT commands and reads went out');
   await assert.rejects(new P.ObdProbe({ send: async () => 'OK>' }).listen(10), /cannot listen/);
   resetConfig();
+}
+
+// ---- ride home of 2026-10-27: riding advice that slipped through, and research notes about the research
+{
+  resetConfig();
+  const { cleanSpoken } = await import('../src/core/ClaudeClient');
+  const advice = CONFIG.lineRules.advice.alerts;
+  for (const line of [
+    'Sir, Rosebank Road is closed, 0.8 km ahead. Betty and I suggest turning around now, as the road is impassable.',
+    'Strong gusts of about 51 km/h from the side, so hold Betty steady and expect pushes. Verdict: loosen the grip, mind the crosswinds.',
+    'Gusts of about 41 km/h from the side. Hold a firm line and keep your speed steady.',
+  ]) {
+    const out = cleanSpoken(line, { advice, maxSentences: 3, ambient: false, name: 'sir', recent: [] }).text;
+    assert.ok(!/turning around|hold|loosen|keep your speed/i.test(out), `advice left out: ${out}`);
+    assert.ok(out.length > 10 || /hold Betty steady/.test(line), 'the warning itself stays (a line that is all advice is empty: the alert then says its canned warning)');
+  }
+  const { junkNote } = await import('../src/adapters/AreaSource');
+  assert.ok(junkNote('The only confirmed fact I found is that Antwerp is a town in Gauteng, per a geotargeting listing that ranks it as number 31.'));
+  assert.ok(junkNote('I could not find a history, name origin or landmark for this Antwerp in my search results.'));
+  assert.ok(!junkNote('Rosebank started life as Oxford Road, named by Mrs O.E. Redwood after the famous British university.'));
 }
 
 console.log('all core tests passed');

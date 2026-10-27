@@ -23,6 +23,9 @@ export interface LineRules {
    *  sign-off and banter. Every other line gets no engine readings and banter has no engine topics (owner, 2026-10-27, after a
    *  closure warning ended with "nine km/h at 2340 rpm with the engine at 86 degrees"). */
   engineLines: string[];
+  /** Researched notes that talk about the research instead of the place (ride of 2026-10-27: "The only confirmed fact I
+   *  found... the notes below cover the wider Gauteng province"): never told, never used as a fallback line. */
+  noteJunk: string[];
   /** Story lines of these kinds see each other's earlier lines this ride, so one never retells what the other said
    *  (2026-10-26: Centurion "once the farm Droogegrond" as an area story, then again as a local fact). */
   storyKinds: TriggerId[];
@@ -206,13 +209,15 @@ export interface Config {
     read: Record<string, number>; dtcEveryMs: number; statusEveryMs: number; voltEveryMs: number; logEveryMs: number;
     /** The reader voltage this often while the engine is not running (to catch the starter's dip for battery health) */
     voltOffEveryMs: number;
+    /** While the bike is silent: ask it for its list this often. reconnectEveryMs: a reader lost mid-ride is looked for again this often. */
+    discoverEveryMs: number; reconnectEveryMs: number;
     /** A reading not given again for this long is dropped (engine off). voltLogStepV: log the reader voltage when it moves this much (0 = never; the minute line has it). */
     staleMs: number; voltLogStepV: number;
     readerNames: string; chargeOkV: number; chargeLowV: number; chargeMinRpm: number; chargeLowSec: number; chargeSettleS: number;
     batteryWeakV: number; coldC: number; trimNoteAbsPct: number; gears: number;
     /** Whose voltage judges charging: 'bike' = the engine computer's (PID 42) when given, else the reader's; 'reader' = ATRV. */
     chargeFrom: 'bike' | 'reader';
-    gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number; steadyPct: number; steadyMs: number };
+    gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number; steadyPct: number; steadyMs: number; topMissing: number };
     /** Garage > Engine data (core/ObdScan): exchanges kept for the export, rows a recording keeps, pause between sweeps (ms). */
     scan: { maxExchanges: number; maxRows: number; sweepGapMs: number };
     /** The general probe (core/ObdProbe): how long to listen, the 11-bit request addresses to try, the data id ranges
@@ -333,12 +338,12 @@ export const DEFAULT_CONFIG: Config = {
     // ones that do not move (pressure, km since cleared) once a minute. ~80 ms a command on his Vgate: ~1.1 s a round.
     read: { rpm: 1000, speedKmh: 1000, throttlePct: 1000, coolantC: 1000, loadPct: 1000, intakeC: 1000, ecuV: 1000, baroKpa: 60_000,
       stftPct: 1000, ltftPct: 1000, timingDeg: 1000, absLoadPct: 1000, lambda: 1000, o2V: 1000, runS: 1000, kmSinceClear: 60_000, fuelPct: 30_000 },
-    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, voltOffEveryMs: 500, logEveryMs: 60_000, staleMs: 5000, voltLogStepV: 0,
+    dtcEveryMs: 60_000, statusEveryMs: 60_000, voltEveryMs: 5000, voltOffEveryMs: 500, discoverEveryMs: 3000, reconnectEveryMs: 10_000, logEveryMs: 60_000, staleMs: 5000, voltLogStepV: 0,
     record: { on: true, everyMs: 1000, saveEveryMs: 20_000, keep: 20 },
     readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
     batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6, chargeFrom: 'bike',
-    gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06, steadyPct: 0.03, steadyMs: 1500 },
+    gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06, steadyPct: 0.03, steadyMs: 1500, topMissing: 1 },
     scan: { maxExchanges: 20_000, maxRows: 20_000, sweepGapMs: 0 },
     probe: {
       listenMs: 20_000, addresses: ['600', '7F7'], waitHex: '32', matchPct: 1, keepFrames: 5000,
@@ -379,6 +384,11 @@ export const DEFAULT_CONFIG: Config = {
     never: [String.raw`taxon|species|genus|fictional|asteroid|minor planet`],
   },
   lineRules: {
+    noteJunk: [
+      String.raw`\bsearch results?\b`, String.raw`\b(i|we) (could not|couldn'?t|cannot|can'?t) (find|confirm)\b`, String.raw`\bnotes? (below|above)\b`,
+      String.raw`\bconfirmed fact\b`, String.raw`\bno (confirmed |further )?(history|information|details?) (was |is )?(found|available)\b`,
+      String.raw`\bnot tied to any\b`, String.raw`\b(listing|directory) that ranks\b`, String.raw`\bI can confirm\b`,
+    ],
     engineLines: ['engine_overtemp', 'dtc_detected', 'charging_low', 'low_fuel', 'rider_query', 'startup', 'ride_debrief', 'ambient_banter'], // banter too (owner, 2026-10-27)
     worn: [
       { pattern: String.raw`\bout of (ten|10)\b|\bpoints? off\b|\bminus (points|nothing|one)\b`, name: 'a rating out of ten' },
@@ -396,11 +406,15 @@ export const DEFAULT_CONFIG: Config = {
         String.raw`\b(ease|back) off\b`, String.raw`\bslow (it )?down\b`, String.raw`\b(speed|hurry) up\b`, String.raw`\bopen (it|her) up\b`,
         String.raw`\bon this (bend|corner|curve)\b`, String.raw`\bkeep (to the )?(left|right)\b`,
         String.raw`\b(brake|braking) (earlier|harder|later|sooner)\b`, String.raw`\btake the next (turn|exit|left|right)\b`,
-        String.raw`\bre-?route\b`, String.raw`\bturn (around|back)\b`,
+        String.raw`\bre-?route\b`, String.raw`\bturn(ing)? (it )?(around|back)\b`,
       ],
       alerts: [
-        String.raw`\btake the next (turn|exit|left|right)\b`, String.raw`\bre-?route\b`, String.raw`\bturn (around|back)\b`,
+        String.raw`\btake the next (turn|exit|left|right)\b`, String.raw`\bre-?route\b`, String.raw`\bturn(ing)? (it )?(around|back)\b`,
         String.raw`\b(take|use|find) (another|a different|an alternative|the other) (road|route|way)\b`,
+        // ride of 2026-10-27 home: "hold Betty steady", "loosen the grip, mind the crosswinds", "hold a firm line and keep your speed steady"
+        String.raw`\bhold (a |the |your |her |betty |the bike )?(firm |steady |tight )?(line|grip|steady)\b`, String.raw`\bloosen (the|your) grip\b`,
+        String.raw`\bkeep (your|the|her) speed (steady|down|up|low)\b`, String.raw`\bmind the (cross ?winds?|gusts?)\b`,
+        String.raw`\b(i|we) (would )?(suggest|recommend) (turning|taking|going|riding|slowing|pulling)\b`,
       ],
     },
     meta: [
