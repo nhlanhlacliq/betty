@@ -76,17 +76,27 @@ export class ChargeWatch {
 /**
  * The gear, learned from how fast the bike goes per 1000 rpm: each gear is one fixed ratio, so on a ride the readings
  * pile up at as many values as the bike has gears. No gearbox table needed (any bike). The gear is only named once all
- * CONFIG.obd.gears are learned, so "4th" really is 4th. Kept across rides (adapters: betty.gears.v1).
+ * CONFIG.obd.gears are learned, so "4th" really is 4th. Kept across rides (adapters: betty.gears.v2).
  */
 export class GearLearner {
   /** Count per ratio bin (km/h per 1000 rpm, in steps of binWidth) */
   bins: Record<string, number> = {};
   constructor(saved?: Record<string, number>) { if (saved) this.bins = { ...saved }; }
 
-  add(kmh: number, rpm: number, throttlePct: number) {
+  private last: { r: number; since: number } | null = null;
+  /**
+   * A sample counts only once the ratio has held steady (within gear.steadyPct for gear.steadyMs): the clutch slipping
+   * as he pulls away gives ratios between gears. First ride with the reader (2026-10-27): a slipping cluster at ~3.8
+   * km/h per 1000 rpm (median 12 km/h) was learned as 1st gear and every gear was named one too high.
+   */
+  add(kmh: number, rpm: number, throttlePct: number, now = 0) {
     const c = CONFIG.obd.gear;
-    if (kmh < c.minKmh || rpm < c.minRpm || throttlePct < c.minThrottlePct) return;
-    const k = String(Math.round((kmh / (rpm / 1000)) / c.binWidth));
+    if (kmh < c.minKmh || rpm < c.minRpm || throttlePct < c.minThrottlePct) { this.last = null; return; }
+    const r = kmh / (rpm / 1000);
+    if (!this.last || Math.abs(r - this.last.r) / this.last.r > c.steadyPct) { this.last = { r, since: now }; return; }
+    this.last.r = r;
+    if (now - this.last.since < c.steadyMs) return;
+    const k = String(Math.round(r / c.binWidth));
     this.bins[k] = (this.bins[k] ?? 0) + 1;
   }
 

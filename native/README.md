@@ -581,3 +581,13 @@ so `engine_overtemp` went on every minute with the engine off: `ElmSession` now 
 lines from the reader's jumpy voltage: off (`voltLogStepV` 0), the minute line has it. Open: coolant really reached
 105-106 C in stop-start traffic at the end (overtemp threshold 105 C: owner to decide); engine numbers padded a traffic
 alert and banter.
+
+THE RECORDING OF THAT RIDE (engine-2026-10-27-06-39.csv, 2,064 rows): (1) GEARS were named one too high: the clutch
+slipping at pull-away (~3.8 km/h per 1000 rpm, median 12 km/h) was learned as 1st. `GearLearner.add` now counts a
+sample only once the ratio holds within `gear.steadyPct` (3%) for `gear.steadyMs` (1.5 s); store bumped to
+`betty.gears.v2`. Replayed: 7.25 / 9.25 / 11.75 / 13.75 learned, 1st (~4.8) still short of samples, 6th never used,
+so no gear is named yet (correct). (2) FUEL: speed-density from absolute load gave 11.6 L/100 km against his 4.4 dash
+average; this ECU's absolute load is ~77% at idle and 100% at most throttle openings, so it is not air mass: the
+engine-based fuel model does not work on this bike as is. (3) The ECU's wheel speed reads 3.4% under GPS (14.8 vs
+15.4 km). (4) ~28% of rows repeat the one before: a round of ~13 commands takes ~1.3 s, so the real rate is ~0.75/s.
+(5) Coolant rose steadily in stop-start traffic (85 -> 101 C), 105 C only while stopped at the end.

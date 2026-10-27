@@ -204,7 +204,7 @@ export interface Config {
     batteryWeakV: number; coldC: number; trimNoteAbsPct: number; gears: number;
     /** Whose voltage judges charging: 'bike' = the engine computer's (PID 42) when given, else the reader's; 'reader' = ATRV. */
     chargeFrom: 'bike' | 'reader';
-    gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number };
+    gear: { minKmh: number; minRpm: number; minThrottlePct: number; binWidth: number; minSamples: number; mergePct: number; matchPct: number; steadyPct: number; steadyMs: number };
     /** Garage > Engine data (core/ObdScan): exchanges kept for the export, rows a recording keeps, pause between sweeps (ms). */
     scan: { maxExchanges: number; maxRows: number; sweepGapMs: number };
     /** The ride's engine recording (core/EngineRecord): a row every everyMs, written to the phone every saveEveryMs, the newest `keep` rides kept. */
@@ -310,7 +310,7 @@ export const DEFAULT_CONFIG: Config = {
     readerNames: String.raw`v-?link|vgate|icar|obd|elm|ios-vlink|android-vlink`,
     chargeOkV: 13.3, chargeLowV: 12.8, chargeMinRpm: 2500, chargeLowSec: 60, chargeSettleS: 60,
     batteryWeakV: 12.2, coldC: 60, trimNoteAbsPct: 10, gears: 6, chargeFrom: 'bike',
-    gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06 },
+    gear: { minKmh: 8, minRpm: 1800, minThrottlePct: 3, binWidth: 0.25, minSamples: 30, mergePct: 0.08, matchPct: 0.06, steadyPct: 0.03, steadyMs: 1500 },
     scan: { maxExchanges: 20_000, maxRows: 20_000, sweepGapMs: 0 },
   },
   obdReader: null,

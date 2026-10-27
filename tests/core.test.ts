@@ -3075,9 +3075,13 @@ Wait, the fact needs to be in the spoken output only, so correcting that: SILENT
   // gears learned from speed per 1000 rpm (any bike: no gearbox table), named only once all are known
   const ratios = [4.6, 7.2, 9.7, 12.0, 14.1, 15.9];
   const gl = new G.GearLearner();
-  for (let i = 0; i < 5; i++) for (const rr of ratios.slice(0, 5)) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) gl.add(rr * rpm / 1000, rpm, 20);
+  let gt = 0; // each sample held steady: 3 readings a second apart, the last two count
+  const held = (kmh: number, rpm: number) => { for (let k = 0; k < 3; k++) { gl.add(kmh, rpm, 20, gt); gt += 1000; } gl.add(0, 0, 0, gt); };
+  for (let i = 0; i < 5; i++) for (const rr of ratios.slice(0, 5)) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) held(rr * rpm / 1000, rpm);
+  // the clutch slipping as he pulls away (ride of 2026-10-27): the ratio never holds, so it is never learned as a gear
+  for (let i = 0; i < 80; i++) { gl.add(10 + (i % 8), 2800 + (i % 8) * 120 - (i % 3) * 300, 25, gt); gt += 1000; }
   assert.equal(gl.gear(12 * 6, 6000), null, 'five of six learned: no gear named yet');
-  for (let i = 0; i < 5; i++) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) gl.add(15.9 * rpm / 1000, rpm, 20);
+  for (let i = 0; i < 5; i++) for (const rpm of [3000, 4500, 6000, 7500, 8500, 4000]) held(15.9 * rpm / 1000, rpm);
   assert.equal(gl.ratios().length, 6);
   assert.equal(gl.gear(12.0 * 5, 5000), 4); assert.equal(gl.gear(4.6 * 7, 7000), 1); assert.equal(gl.gear(15.9 * 6.5, 6500), 6);
   assert.equal(gl.gear(10.85 * 6, 6000), null, 'between gears (clutch slipping): none');

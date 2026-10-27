@@ -362,7 +362,7 @@ export class TriggerEngine {
 
     if (s.obd) { // engine alerts need an OBD2 feed (simulated or real)
       if (s.engineTempC >= t.overtempC && this.ready('engine_overtemp')) out.push(this.force('engine_overtemp', s));
-      this.gears.add(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm, s.throttlePct);
+      this.gears.add(s.engine.bikeSpeedKmh ?? s.speedKmh, s.rpm, s.throttlePct, this.now());
       const v = chargeVolts(s);
       if (v != null && s.rpm >= CONFIG.obd.chargeMinRpm && (s.engine.runS ?? Infinity) >= CONFIG.obd.chargeSettleS) this.lowestRunningV = Math.min(this.lowestRunningV ?? v, v);
       if (this.charge.update(s, this.now()) && this.ready('charging_low')) out.push(this.force('charging_low', s));
