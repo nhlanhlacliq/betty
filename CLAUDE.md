@@ -4,6 +4,15 @@ Context for any Claude Code instance picking this project up. Read this first.
 
 ## WHERE WE LEFT OFF (handoff, 2026-10-19): read this first
 
+UPDATE 2026-10-30: THE APP UPDATES ITSELF from our own server (no Expo account, no Play Store). After ANY change that
+reaches the native app's JavaScript (src/core, src/config, src/app, native/src, prompt, copy), PUBLISH IT once the
+checks pass: `cd native && node scripts/publish-update.mjs` (both platforms; or `android` / `ios`). Phones get it at the
+next open and run it the open after (Garage > Updates checks now). A NATIVE change (a module in native/modules, a
+permission, a native library, app.json plugins/native config) changes the runtime fingerprint: publishing alone does
+not reach old installs, so build a new APK (`native/scripts/build-apk.sh`, bumps versionCode: commit app.json) and
+tell the owner the iPhone needs a new Xcode build. Signing key: native/credentials (git-ignored, owner keeps a backup;
+never regenerate it). Details: native/README.md "Updating the app on the phone".
+
 UPDATE 2026-10-27 (evening): fill-up consumption, bike health + riding trends, the general probe (bus, computers,
 data ids; odometer search), "bike on: tap to ride" BUILT, not yet on the bike. Details: native/README.md "Fill-ups, bike
 health, the probe, bike-on". Voice server needs voice/deploy.sh for the filled_up litres.
@@ -1573,6 +1582,8 @@ were not a command; the answer prompt now says only the commands change settings
 - Two apps share `src/core`/`src/config`: logic goes there (with tests), never into `native/src/rig.ts` or `src/main.ts`.
   A change in the shared code is checked in both (root `npm test`; `native` typecheck + bundle).
 - The native app has its own notes and rules in `native/README.md`; update it with every native change.
+- Native app changes ship by over-the-air update: run `native/scripts/publish-update.mjs` after JS changes, a new APK
+  (`native/scripts/build-apk.sh`) and Xcode build after native ones. Say which one a change needs when reporting it.
 - TypeScript strict. Keep `core/` pure and covered by tests; adapters and ui stay thin.
 - Every change the owner would notice ALSO goes into Help (`src/ui/help.ts`): a new topic or the existing one updated,
   and any new voice command in `VOICE_COMMANDS` (owner, 2026-10-17). Changelog = what changed; Help = how it works now.

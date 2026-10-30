@@ -28,6 +28,7 @@ import { Icon } from '../../ui/Icon';
 import { Sheet } from '../../ui/Sheet';
 import { C, T } from '../../ui/theme';
 import { fuelText } from '../../ui/fuel';
+import { AppUpdates } from '../../ui/AppUpdates';
 
 const ISLAND: Array<[keyof typeof CONFIG.island, string, string]> = [
   ['compact', 'Compact', 'A small pill that grows when something new comes up.'],
@@ -80,6 +81,10 @@ export default function Garage() {
         <Link icon="gauge" title="Engine data" sub="Everything the OBD2 reader can read from the bike, live, recorded and exported." onPress={() => router.push('/engine')} />
         <Link icon="wrench" title="The log" sub="What she said and heard this session, to share after a ride." onPress={() => router.push('/log')} />
         <Link icon="mic" title="Voice lab" sub="Experiment: Betty over our own connection, the helmet hands-free only while you talk." onPress={() => router.push('/lab')} last />
+      </Card>
+
+      <Card title="Updates">
+        <AppUpdates riding={!!b.ride} />
       </Card>
 
       <Card title="Betty's personality">

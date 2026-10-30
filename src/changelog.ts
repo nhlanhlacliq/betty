@@ -16,6 +16,12 @@ export interface ChangeDay { date: string; items: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-30',
+    items: [
+      { id: 'app-updates', kind: 'new', title: 'The app updates itself.', text: 'In the app, Betty fetches new versions from her own server when she opens (Garage > Updates to check now), and a new app file installs over the old one with your rides kept.', help: 'privacy' },
+    ],
+  },
+  {
     date: '2026-10-27',
     items: [
       { id: 'road-ahead', kind: 'better', title: 'Traffic and spots on your road.', text: 'Betty follows your route, the way you usually ride, or the road you are on, so she only mentions traffic, marked spots and rough patches that are on your way, measured along the road.', help: 'roadahead' },

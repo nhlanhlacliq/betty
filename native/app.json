@@ -21,7 +21,8 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Betty keeps your speed, route and alerts going while the phone is locked or another app is in front, during a ride only.",
         "NSBluetoothAlwaysUsageDescription": "Betty reads your bike's engine data (temperature, revs, battery, fault codes) from your OBD2 reader over Bluetooth."
       },
-      "appleTeamId": "6DHA6234P3"
+      "appleTeamId": "6DHA6234P3",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
@@ -40,7 +41,8 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
-      ]
+      ],
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -90,8 +92,19 @@
           "react-native-bluetooth-classic"
         ]
       ],
-      "expo-notifications"
+      "./plugins/withoutPushEntitlement",
+      "expo-notifications",
+      "./plugins/withReleaseSigning"
     ],
-    "scheme": "betty"
+    "scheme": "betty",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://voice.forme.africa/updates/manifest",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

@@ -237,11 +237,11 @@ Android (set up on this Mac 2026-10-27, without Android Studio):
    (Gradle fetches the NDK and anything else it needs on the first build).
 2. Each terminal (or `~/.zshrc`): `export JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH=$JAVA_HOME/bin:$PATH
    ANDROID_HOME=$HOME/Library/Android/sdk`.
-3. A standalone APK to send (WhatsApp/Drive; the phone allows "install unknown apps"): `CI=1 npx expo prebuild -p
-   android --no-install`, then `cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a`
+3. A standalone APK to send (WhatsApp/Drive; the phone allows "install unknown apps"): `scripts/build-apk.sh` (see
+   "Updating the app on the phone"; by hand: `CI=1 npx expo prebuild -p android --no-install`, then
+   `cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a`)
    (~18 min the first time, ~4 min after). APK: `android/app/build/outputs/apk/release/app-release.apk` (~25 MB, 64-bit
-   ARM phones only; drop the flag for all ABIs). It is signed with the DEBUG key (fine for sideloading, not the Play
-   Store) and carries `native/.env` (voice-server login), so only send it to people you trust with that token.
+   ARM phones only; drop the flag for all ABIs). Since 2026-10-30 it is signed with Betty's own key (native/credentials) and carries `native/.env` (voice-server login), so only send it to people you trust with that token.
    `android/` is generated and git-ignored: change app.json or a plugin, never the folder.
 4. `plugins/withLibraryBuildConfig.js` (in app.json): AGP 9 no longer makes BuildConfig for libraries and
    react-native-bluetooth-classic needs it; the first build failed without it.
@@ -353,6 +353,31 @@ same voice server (`wss://voice.forme.africa/ws-client`, the app login), instead
   ~0.43 s; total ~1.65 s with music on, ~0.9 s without). He said "one" at the chime and it was heard, so the chime
   was late by about its own length: it now plays (its own AVAudioPlayer) as soon as the headset is hands-free, while
   the mic engine starts, so it ends about when the mic opens. Log: "chime: speak now".
+
+## Updating the app on the phone (BUILT 2026-10-30, owner: "set up 1 and 2 on our own server")
+
+Two ways, both keep his rides and settings:
+1. NEW APK (native changes: a module, a permission, a native library): `native/scripts/build-apk.sh` (`--arm64` for
+   64-bit only). It bumps `android.versionCode` in app.json (commit it), signs with BETTY'S OWN KEY
+   (`native/credentials/betty-release.jks` + `keystore.properties`, git-ignored, made 2026-10-30; `plugins/
+   withReleaseSigning.js` wires it in and a release build STOPS without it), refuses an APK not signed "CN=Betty",
+   writes `dist-apk/betty-<version>-<code>.apk` and logs code + runtime in `dist-apk/builds.txt`. Android only
+   installs over the app with the same key: BACK UP native/credentials (lose it = uninstall and lose data on every
+   phone). Builds before 2026-10-30 used the template's shared debug key: those must be uninstalled once (export
+   Garage > Your data first).
+2. OVER THE AIR (JavaScript only: src/core, screens, settings, prompt, shared code): `node scripts/publish-update.mjs
+   [android|ios]`. expo-updates (app.json `updates`, `runtimeVersion: {policy: fingerprint}`) asks
+   https://voice.forme.africa/updates/manifest at every launch (`checkAutomatically: ON_LOAD`, no wait: the update runs
+   the NEXT launch); Garage > Updates (`ui/AppUpdates.tsx`) shows build + update and checks now (never restarts during a
+   ride). The runtime version is a FINGERPRINT of the native code, so an update only reaches builds with the same
+   native code; a native change = a new runtime = needs step 1.
+   Server: Caddy on the voice VPS (backup `/etc/caddy/Caddyfile.bak-2026-10-30`), `handle_path /updates/*` inside the
+   same basicauth as the voice server: `/manifest` is rewritten by the app's `expo-runtime-version` and `expo-platform`
+   headers to `/var/www/betty-updates/<runtime>/<platform>/manifest.json` (protocol 1, plain JSON); files under
+   `files/<runtime>/<update id>/`. The app sends the `app` login on every request (`app.config.js` adds it from
+   native/.env, so the token is never in app.json; it is in the native build, as it already was in the bundle).
+   ROLL BACK: on the server copy `<runtime>/<platform>/history/<id>.json` over `manifest.json` (or publish again from
+   an older commit). No code signing of updates yet (the login + HTTPS guard them).
 
 ## Betty Link on Android (BUILT 2026-10-27, owner: "put Betty Link on android too"; COMPILED, NOT YET RUN ON A PHONE)
 

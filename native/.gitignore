@@ -47,3 +47,11 @@ yarn-error.*
 
 # Local env (EXPO_PUBLIC_VOICE_TOKEN for voice.forme.africa): never commit
 .env
+
+# Betty's own Android signing key (back it up: without it no update installs over the app)
+credentials/
+
+# Built APKs and update staging (scripts/build-apk.sh, scripts/publish-update.mjs)
+dist-apk/
+.update-export/
+.update-stage/
