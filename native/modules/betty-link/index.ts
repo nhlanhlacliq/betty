@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 
-/** Betty Link (iPhone only; null elsewhere and in a build made before it): see ios/BettyLinkModule.swift. */
+/** Betty Link (iPhone: ios/BettyLinkModule.swift; Android since 2026-10-27: android/.../BettyLinkModule.kt, same surface). Null in a build made before it. */
 type Sub = { remove(): void };
 export interface BettyLinkNative {
   connect(url: string, auth: string, start: string): Promise<string>;

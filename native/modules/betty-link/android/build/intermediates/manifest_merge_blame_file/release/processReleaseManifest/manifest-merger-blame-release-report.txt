@@ -1,0 +1,43 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="expo.modules.bettylink" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+5-->INJECTED
+5-->INJECTED
+6
+7    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+7-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:2:3-68
+7-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:2:20-66
+8    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+8-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:3:3-77
+8-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:3:20-75
+9    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+9-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:4:3-73
+9-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:4:20-71
+10    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+10-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:5:3-74
+10-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:5:20-72
+11    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+11-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:6:3-85
+11-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:6:20-83
+12    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+12-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:7:3-89
+12-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:7:20-87
+13    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+13-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:8:3-74
+13-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:8:20-72
+14
+15    <application>
+15-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:9:3-12:17
+16        <service
+16-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:10:5-11:65
+17            android:name="expo.modules.bettylink.BettyLinkService"
+17-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:10:14-68
+18            android:exported="false"
+18-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:10:69-93
+19            android:foregroundServiceType="microphone|mediaPlayback" />
+19-->/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:11:7-63
+20    </application>
+21
+22</manifest>

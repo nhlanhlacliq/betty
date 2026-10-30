@@ -1,0 +1,16 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.bettylink'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.bettylink"
+}
+
+dependencies {
+  // The WebSocket (React Native ships OkHttp already; Gradle settles on its version)
+  implementation "com.squareup.okhttp3:okhttp:4.9.2"
+}

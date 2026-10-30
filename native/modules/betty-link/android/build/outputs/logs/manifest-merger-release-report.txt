@@ -1,0 +1,54 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:1:1-13:12
+INJECTED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:1:1-13:12
+	package
+		INJECTED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:1:11-69
+uses-permission#android.permission.RECORD_AUDIO
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:2:3-68
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:2:20-66
+uses-permission#android.permission.MODIFY_AUDIO_SETTINGS
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:3:3-77
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:3:20-75
+uses-permission#android.permission.BLUETOOTH_CONNECT
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:4:3-73
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:4:20-71
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:5:3-74
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:5:20-72
+uses-permission#android.permission.FOREGROUND_SERVICE_MICROPHONE
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:6:3-85
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:6:20-83
+uses-permission#android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:7:3-89
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:7:20-87
+uses-permission#android.permission.POST_NOTIFICATIONS
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:8:3-74
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:8:20-72
+application
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:9:3-12:17
+service#expo.modules.bettylink.BettyLinkService
+ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:10:5-11:65
+	android:exported
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:10:69-93
+	android:foregroundServiceType
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:11:7-63
+	android:name
+		ADDED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml:10:14-68
+uses-sdk
+INJECTED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml
+INJECTED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/AndroidManifest.xml

@@ -1,0 +1,19 @@
+<lint-module
+    format="1"
+    dir="/Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android"
+    name=":betty-link"
+    type="LIBRARY"
+    maven="expo.modules.bettylink:betty-link:1.0.0"
+    agpVersion="9.2.1"
+    buildFolder="build"
+    bootClassPath="/Users/nhlanhlamasuku/Library/Android/sdk/platforms/android-37.0/android.jar:/Users/nhlanhlamasuku/Library/Android/sdk/build-tools/36.0.0/core-lambda-stubs.jar"
+    javaSourceLevel="17"
+    compileTarget="android-37.0"
+    neverShrinking="true"
+    highlightGradualR8Api="false">
+  <lintOptions
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="release"/>
+</lint-module>

@@ -1,0 +1,9 @@
+expo.modules.bettylink.betty-link-pngs-0 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/build/generated/res/pngs/release
+expo.modules.bettylink.betty-link-updated_navigation_xml-1 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/build/generated/updated_navigation_xml/release
+expo.modules.bettylink.betty-link-mergeReleaseResources-2 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
+expo.modules.bettylink.betty-link-mergeReleaseResources-3 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
+expo.modules.bettylink.betty-link-release-4 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/build/intermediates/merged_res/release/mergeReleaseResources
+expo.modules.bettylink.betty-link-release-5 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/build/intermediates/packaged_res/release/packageReleaseResources
+expo.modules.bettylink.betty-link-main-6 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/main/res
+expo.modules.bettylink.betty-link-release-7 /Users/nhlanhlamasuku/Projects/nhlanhla/betty/native/modules/betty-link/android/src/release/res
+gradleHome-0 /Users/nhlanhlamasuku/.gradle
